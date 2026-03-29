@@ -1,5 +1,5 @@
-name: Nightly Git Commit
-description: Automatically commits any uncommitted changes with an AI-generated summary
+name: Nightly Data Backup
+description: Commits ~/.kai user data (soul, archival, workflows, profile) to local git for safety
 schedule: "0 23 * * *"
 
 steps:
@@ -28,7 +28,8 @@ steps:
     type: llm
     condition: "${vars.git_status}"
     prompt: |
-      Generate a git commit message for these changes. Follow the existing commit style.
+      Generate a git commit message for these changes. This is a backup of user data files
+      (soul/identity, archival memory, agent workflows, project profiles).
 
       ## Recent commits (for style reference):
       ${vars.recent_commits}
@@ -40,17 +41,15 @@ steps:
       ${vars.git_diff}
 
       Rules:
-      - First line: concise summary under 72 chars (imperative mood: "Add", "Fix", "Update")
+      - First line: concise summary under 72 chars (imperative mood: "backup:", "update:", "add:")
       - Blank line, then bullet points of key changes
-      - Group related changes together
-      - Mention file names for important changes
+      - Focus on what user data changed (soul edits, new memories, workflow updates, etc.)
       - Don't list every tiny change — summarize themes
-      - If there are many changes, organize by category (features, fixes, refactors, config)
 
       Return ONLY the commit message, no markdown formatting or code blocks.
     output_var: commit_message
 
-  # 5. Stage all changes and commit
+  # 5. Stage all changes and commit (local only — no push)
   - name: commit
     type: shell
     condition: "${vars.git_status}"
@@ -62,8 +61,8 @@ steps:
     type: notify
     condition: "${vars.git_status}"
     params:
-      title: "Nightly Commit"
-      message: "Changes committed to ${config.repo_path}"
+      title: "Nightly Backup"
+      message: "User data snapshot saved to local git history"
 
 config:
-  repo_path: "/Users/tmoreton/Code/kai"
+  repo_path: "${HOME}/.kai"
