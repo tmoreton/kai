@@ -49,7 +49,7 @@ export function getConfig(): KaiConfig {
   return cachedConfig;
 }
 
-export function getKaiMdContent(): string {
+export function getKaiMdContent(charBudget = 12_000): string {
   const paths = [
     path.resolve(process.env.HOME || "~", ".kai/KAI.md"),
     path.resolve(process.cwd(), "KAI.md"),
@@ -71,7 +71,16 @@ export function getKaiMdContent(): string {
     }
   }
 
-  return sections.join("\n\n---\n\n");
+  let result = sections.join("\n\n---\n\n");
+
+  // Enforce char budget (~4 chars per token)
+  if (result.length > charBudget) {
+    result =
+      result.substring(0, charBudget) +
+      "\n\n[KAI.md truncated to fit context budget]";
+  }
+
+  return result;
 }
 
 export function ensureKaiDir(): string {

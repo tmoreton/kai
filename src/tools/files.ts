@@ -34,6 +34,12 @@ export async function writeFile(args: {
   file_path: string;
   content: string;
 }): Promise<string> {
+  if (!args.file_path) {
+    return "Error: file_path is required for write_file.";
+  }
+  if (args.content === undefined || args.content === null) {
+    return "Error: content is required for write_file.";
+  }
   const fullPath = resolvePath(args.file_path);
 
   try {

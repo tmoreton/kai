@@ -335,4 +335,243 @@ export const toolDefinitions = [
       },
     },
   },
+  // === CORE MEMORY (Soul) ===
+  {
+    type: "function" as const,
+    function: {
+      name: "core_memory_read",
+      description:
+        "Read your core memory blocks (persona, human, goals, scratchpad). Core memory is always in context but use this to inspect the full content.",
+      parameters: {
+        type: "object",
+        properties: {
+          block: {
+            type: "string",
+            enum: ["persona", "human", "goals", "scratchpad"],
+            description: "Which block to read (omit for all)",
+          },
+        },
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "core_memory_update",
+      description:
+        'Update a core memory block. Use "replace" to overwrite or "append" to add. Update [human] when you learn about the user. Update [goals] when objectives change. Use [scratchpad] for working notes.',
+      parameters: {
+        type: "object",
+        properties: {
+          block: {
+            type: "string",
+            enum: ["persona", "human", "goals", "scratchpad"],
+            description: "Which block to update",
+          },
+          operation: {
+            type: "string",
+            enum: ["replace", "append"],
+            description: "Replace entire block or append to it",
+          },
+          content: {
+            type: "string",
+            description: "The new content",
+          },
+        },
+        required: ["block", "operation", "content"],
+      },
+    },
+  },
+  // === RECALL MEMORY ===
+  {
+    type: "function" as const,
+    function: {
+      name: "recall_search",
+      description:
+        "Search past conversations from previous sessions. Use when you need to remember what was discussed before. Returns matching messages from conversation history.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: {
+            type: "string",
+            description: "Search query (keywords from past conversations)",
+          },
+          limit: {
+            type: "number",
+            description: "Max results (default: 10)",
+          },
+        },
+        required: ["query"],
+      },
+    },
+  },
+  // === ARCHIVAL MEMORY ===
+  {
+    type: "function" as const,
+    function: {
+      name: "archival_insert",
+      description:
+        "Store important knowledge in long-term archival memory. Use for facts, user preferences, project knowledge, research findings — anything worth remembering permanently.",
+      parameters: {
+        type: "object",
+        properties: {
+          content: {
+            type: "string",
+            description: "The knowledge to store",
+          },
+          tags: {
+            type: "array",
+            items: { type: "string" },
+            description: 'Tags for categorization (e.g. ["user-pref", "project-setup"])',
+          },
+          source: {
+            type: "string",
+            description: "Where this knowledge came from",
+          },
+        },
+        required: ["content"],
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "archival_search",
+      description:
+        "Search long-term archival memory for stored knowledge. Use before web searching — check if you already know the answer.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: {
+            type: "string",
+            description: "Search query",
+          },
+          tags: {
+            type: "array",
+            items: { type: "string" },
+            description: "Filter by tags",
+          },
+          limit: {
+            type: "number",
+            description: "Max results (default: 5)",
+          },
+        },
+        required: ["query"],
+      },
+    },
+  },
+  // === CRON / SCHEDULER ===
+  {
+    type: "function" as const,
+    function: {
+      name: "cron_create",
+      description:
+        "Schedule a recurring background task. The task runs automatically on the specified interval. Use for monitoring, periodic checks, automated maintenance.",
+      parameters: {
+        type: "object",
+        properties: {
+          name: {
+            type: "string",
+            description: "Name for the cron job",
+          },
+          prompt: {
+            type: "string",
+            description: "The prompt/task to execute on each run",
+          },
+          interval_minutes: {
+            type: "number",
+            description: "How often to run (in minutes)",
+          },
+          max_runs: {
+            type: "number",
+            description: "Max number of times to run (omit for indefinite)",
+          },
+        },
+        required: ["name", "prompt", "interval_minutes"],
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "cron_list",
+      description: "List all scheduled cron jobs and their status.",
+      parameters: {
+        type: "object",
+        properties: {},
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "cron_delete",
+      description: "Delete a scheduled cron job.",
+      parameters: {
+        type: "object",
+        properties: {
+          id: {
+            type: "string",
+            description: "The cron job ID to delete",
+          },
+        },
+        required: ["id"],
+      },
+    },
+  },
+  // === VISION ===
+  {
+    type: "function" as const,
+    function: {
+      name: "view_image",
+      description:
+        "View an image file (screenshot, design mockup, diagram, etc.). The image will be shown to you for visual analysis. Use this to verify UI work, review designs, or inspect visual output.",
+      parameters: {
+        type: "object",
+        properties: {
+          file_path: {
+            type: "string",
+            description: "Path to the image file (.png, .jpg, .webp, etc.)",
+          },
+        },
+        required: ["file_path"],
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "take_screenshot",
+      description:
+        "Capture a screenshot of the current screen (macOS). Use after launching a dev server to verify visual output looks correct.",
+      parameters: {
+        type: "object",
+        properties: {},
+      },
+    },
+  },
+  // === SELF-REVIEW ===
+  {
+    type: "function" as const,
+    function: {
+      name: "ask_user",
+      description:
+        "Ask the user a clarifying question before proceeding. Use when the request is ambiguous or you need more information to deliver a high-quality result. Do NOT guess — ask.",
+      parameters: {
+        type: "object",
+        properties: {
+          question: {
+            type: "string",
+            description: "The question to ask the user",
+          },
+          options: {
+            type: "array",
+            items: { type: "string" },
+            description: "Optional multiple-choice options",
+          },
+        },
+        required: ["question"],
+      },
+    },
+  },
 ];

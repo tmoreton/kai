@@ -108,26 +108,29 @@ export function loadAllMemories(scope: "user" | "project" = "project"): MemoryEn
   }
 }
 
-export function getMemoryContext(): string {
+export function getMemoryContext(charBudget = 8_000): string {
   const userMemories = loadAllMemories("user");
   const projectMemories = loadAllMemories("project");
 
   if (userMemories.length === 0 && projectMemories.length === 0) return "";
 
+  const allMemories = [...userMemories, ...projectMemories];
+  // Sort by most recently updated first so important ones make the cut
+  allMemories.sort((a, b) => (b.updatedAt || "").localeCompare(a.updatedAt || ""));
+
   let ctx = "\n# Memories from previous sessions\n";
+  let usedChars = ctx.length;
+  let included = 0;
 
-  if (userMemories.length > 0) {
-    ctx += "\n## User memories\n";
-    for (const m of userMemories) {
-      ctx += `- **${m.name}** (${m.type}): ${m.content.substring(0, 200)}\n`;
+  for (const m of allMemories) {
+    const line = `- **${m.name}** (${m.type}): ${m.content.substring(0, 150)}\n`;
+    if (usedChars + line.length > charBudget) {
+      ctx += `\n(${allMemories.length - included} more memories available — use list_memories tool to see all)\n`;
+      break;
     }
-  }
-
-  if (projectMemories.length > 0) {
-    ctx += "\n## Project memories\n";
-    for (const m of projectMemories) {
-      ctx += `- **${m.name}** (${m.type}): ${m.content.substring(0, 200)}\n`;
-    }
+    ctx += line;
+    usedChars += line.length;
+    included++;
   }
 
   return ctx;

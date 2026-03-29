@@ -1,5 +1,6 @@
-import { exec } from "child_process";
+import { exec, execSync } from "child_process";
 import path from "path";
+import fs from "fs";
 import {
   BASH_DEFAULT_TIMEOUT,
   BASH_MAX_TIMEOUT,
@@ -22,8 +23,15 @@ export async function bashTool(args: {
 }): Promise<string> {
   const timeout = Math.min(args.timeout || BASH_DEFAULT_TIMEOUT, BASH_MAX_TIMEOUT);
 
+  // If the command contains cd, wrap it to capture the final working directory
+  const hasCd = /\bcd\s/.test(args.command);
+  const marker = `__KAI_CWD_${Date.now()}__`;
+  const wrappedCommand = hasCd
+    ? `${args.command} && echo "${marker}" && pwd`
+    : args.command;
+
   return new Promise((resolve) => {
-    const child = exec(args.command, {
+    const child = exec(wrappedCommand, {
       cwd,
       timeout,
       maxBuffer: BASH_MAX_BUFFER,
@@ -43,20 +51,15 @@ export async function bashTool(args: {
     });
 
     child.on("close", (code) => {
-      // Track cd commands to persist working directory
-      // Handles: cd path, cd "path with spaces", cd 'path'
-      const cdMatch = args.command.match(
-        /^cd\s+["']?([^"';&|]+?)["']?\s*(?:&&|;|$)/
-      );
-      if (cdMatch && code === 0) {
-        const target = cdMatch[1].trim();
-        try {
-          const resolved = path.resolve(cwd, target);
-          // Verify it's a real directory before changing
-          setCwd(resolved);
-        } catch {
-          // Ignore invalid paths
+      // Extract new cwd from wrapped command output
+      if (hasCd && code === 0 && stdout.includes(marker)) {
+        const parts = stdout.split(marker);
+        const newCwd = parts[1]?.trim();
+        if (newCwd && fs.existsSync(newCwd)) {
+          setCwd(newCwd);
         }
+        // Remove marker and pwd output from visible output
+        stdout = parts[0];
       }
 
       let result = "";

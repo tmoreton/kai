@@ -4,7 +4,7 @@ import chalk from "chalk";
 import { createClient, chat } from "./client.js";
 import { getSystemPrompt } from "./system-prompt.js";
 import { getCwd } from "./tools/bash.js";
-import { formatCost, estimateContextSize } from "./context.js";
+import { formatCost, estimateContextSize, formatContextBreakdown } from "./context.js";
 import { getKaiMdContent } from "./config.js";
 import { getMemoryContext } from "./memory.js";
 import { gitInfo } from "./git.js";
@@ -18,6 +18,9 @@ import {
   formatSessionList,
   type Session,
 } from "./sessions.js";
+import { appendRecall, getRecallStats, type RecallEntry } from "./recall.js";
+import { loadSoul } from "./soul.js";
+import { listCronJobs, cleanupCrons } from "./cron.js";
 import {
   setPermissionMode,
   getPermissionMode,
@@ -145,11 +148,31 @@ export async function startRepl(options: ReplOptions = {}): Promise<void> {
       const taskDisplay = getTasksForDisplay();
       if (taskDisplay) console.log(taskDisplay + "\n");
 
+      // Save to recall memory for future session search
+      const newRecalls: RecallEntry[] = [];
+      newRecalls.push({
+        sessionId: session.id,
+        timestamp: new Date().toISOString(),
+        role: "user",
+        content: input,
+      });
+      const lastAssistant = updatedMessages[updatedMessages.length - 1];
+      if (lastAssistant?.role === "assistant" && typeof lastAssistant.content === "string") {
+        newRecalls.push({
+          sessionId: session.id,
+          timestamp: new Date().toISOString(),
+          role: "assistant",
+          content: lastAssistant.content,
+        });
+      }
+      appendRecall(newRecalls);
+
       session.messages = messages;
       saveSession(session);
-    } catch (err: any) {
-      console.error(chalk.red(`\n  Error: ${err.message}\n`));
-      if (err.message?.includes("401")) {
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error(chalk.red(`\n  Error: ${msg}\n`));
+      if (msg.includes("401")) {
         console.error(chalk.yellow("  Check your TOGETHER_API_KEY in .env\n"));
       }
     }
@@ -185,6 +208,7 @@ export async function startRepl(options: ReplOptions = {}): Promise<void> {
       processing = false;
       rl.prompt();
     } else {
+      cleanupCrons();
       session.messages = messages;
       saveSession(session);
       console.log(chalk.dim("\n  Session saved. Goodbye!\n"));
@@ -193,6 +217,7 @@ export async function startRepl(options: ReplOptions = {}): Promise<void> {
   });
 
   rl.on("close", () => {
+    cleanupCrons();
     session.messages = messages;
     saveSession(session);
     process.exit(0);
@@ -293,6 +318,34 @@ function handleCommand(
     return "handled";
   }
 
+  if (cmd === "/soul") {
+    const soul = loadSoul();
+    console.log(chalk.bold("\n  Soul (Core Memory):\n"));
+    for (const [key, block] of Object.entries(soul)) {
+      console.log(chalk.cyan(`  [${key}]`));
+      console.log(chalk.dim(`  ${block.content}\n`));
+    }
+    return "handled";
+  }
+
+  if (cmd === "/crons") {
+    const jobs = listCronJobs();
+    console.log(chalk.bold("\n  Scheduled Jobs:\n"));
+    console.log(chalk.dim(jobs) + "\n");
+    return "handled";
+  }
+
+  if (cmd === "/recall") {
+    const stats = getRecallStats();
+    console.log(chalk.dim(`  Recall memory: ${stats.totalEntries} entries (${stats.fileSizeKB} KB)\n`));
+    return "handled";
+  }
+
+  if (cmd === "/context") {
+    console.log(formatContextBreakdown(messages));
+    return "handled";
+  }
+
   if (cmd === "/help") {
     console.log(
       chalk.dim(`
@@ -302,17 +355,23 @@ function handleCommand(
     /cost          Show token usage and estimated cost
     /sessions      List recent sessions
     /rename <name> Rename current session
-    /permissions   View/set permission mode (default, auto, deny_all)
+    /permissions   View/set permission mode
+    /soul          View core memory (persona, human, goals, scratchpad)
+    /crons         List scheduled background jobs
+    /recall        Show recall memory stats
+    /context       Show context window breakdown (where tokens go)
     /git           Show git status
     /help          Show this help
     /exit          Exit Kai
 
-  Tools available to the AI:
-    bash, read_file, write_file, edit_file, glob, grep,
-    web_fetch, web_search, task_create, task_update, task_list,
-    save_memory, list_memories, spawn_agent
-
-  Subagents: explorer, planner, worker
+  AI Tools (22):
+    Files:    bash, read_file, write_file, edit_file, glob, grep
+    Web:      web_fetch, web_search
+    Memory:   core_memory_read/update, recall_search,
+              archival_insert/search, save_memory, list_memories
+    Tasks:    task_create, task_update, task_list
+    Schedule: cron_create, cron_list, cron_delete
+    Agents:   spawn_agent (explorer, planner, worker)
 `)
     );
     return "handled";

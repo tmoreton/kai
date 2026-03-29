@@ -71,6 +71,8 @@ export function estimateContextSize(
   for (const msg of messages) {
     total += messageTokens(msg);
   }
+  // Add ~5000 for tool definitions (always sent)
+  total += 5000;
   usage.estimatedContextTokens = total;
   return total;
 }
@@ -85,46 +87,75 @@ export function shouldCompact(
 export function compactMessages(
   messages: ChatCompletionMessageParam[]
 ): ChatCompletionMessageParam[] {
-  if (messages.length <= 2) return messages;
+  if (messages.length <= 3) return messages;
 
   const systemMsg = messages[0];
-  const recentCount = Math.min(
+  const recentCount = Math.max(
     COMPACT_RECENT_MIN,
     Math.floor(messages.length * COMPACT_RECENT_RATIO)
   );
   const recentMessages = messages.slice(-recentCount);
   const oldMessages = messages.slice(1, -recentCount);
 
-  // Summarize old messages using array for performance
-  const summaryParts: string[] = ["Previous conversation summary:"];
+  // Build a smarter summary that preserves key info
+  const summaryParts: string[] = [];
+  let filesModified = new Set<string>();
+  let toolsUsed = new Set<string>();
+  let keyDecisions: string[] = [];
+
   for (const msg of oldMessages) {
-    if (msg.role === "user") {
-      const content =
-        typeof msg.content === "string"
-          ? msg.content.substring(0, 100)
-          : "[complex content]";
-      summaryParts.push(`- User asked: ${content}`);
+    if (msg.role === "user" && typeof msg.content === "string") {
+      // Keep user requests (they define intent)
+      const truncated = msg.content.length > 150
+        ? msg.content.substring(0, 150) + "..."
+        : msg.content;
+      summaryParts.push(`User: ${truncated}`);
     } else if (msg.role === "assistant") {
       if ("tool_calls" in msg && Array.isArray(msg.tool_calls)) {
-        const tools = msg.tool_calls
-          .map((tc) => ("function" in tc && tc.function ? tc.function.name : "unknown"))
-          .join(", ");
-        summaryParts.push(`- Assistant used tools: ${tools}`);
-      } else {
-        const content =
-          typeof msg.content === "string"
-            ? msg.content.substring(0, 100)
-            : "";
-        if (content) summaryParts.push(`- Assistant: ${content}`);
+        for (const tc of msg.tool_calls) {
+          if ("function" in tc && tc.function) {
+            toolsUsed.add(tc.function.name);
+            // Track files modified
+            try {
+              const args = JSON.parse(tc.function.arguments);
+              if (args.file_path) filesModified.add(args.file_path);
+            } catch {}
+          }
+        }
+      } else if (typeof msg.content === "string" && msg.content.length > 0) {
+        // Keep assistant conclusions (first 100 chars)
+        if (msg.content.length > 50) {
+          keyDecisions.push(msg.content.substring(0, 100) + "...");
+        }
       }
     }
+    // Skip tool role messages entirely — they're the bulk of the bloat
+  }
+
+  let summary = "# Compacted conversation history\n\n";
+  summary += "## What happened:\n";
+  summary += summaryParts.slice(0, 15).join("\n") + "\n\n";
+
+  if (toolsUsed.size > 0) {
+    summary += `## Tools used: ${[...toolsUsed].join(", ")}\n`;
+  }
+  if (filesModified.size > 0) {
+    summary += `## Files modified: ${[...filesModified].join(", ")}\n`;
+  }
+  if (keyDecisions.length > 0) {
+    summary += "\n## Key decisions:\n";
+    summary += keyDecisions.slice(0, 5).map((d) => `- ${d}`).join("\n") + "\n";
   }
 
   return [
     systemMsg,
     {
       role: "user" as const,
-      content: `[Context was compacted to save space. Here's what happened before:]\n${summaryParts.join("\n")}`,
+      content: summary,
+    },
+    {
+      role: "assistant" as const,
+      content: "I've reviewed the conversation history above. I'm ready to continue. What would you like to do next?",
     },
     ...recentMessages,
   ];
@@ -132,7 +163,6 @@ export function compactMessages(
 
 export function formatCost(): string {
   const u = getUsage();
-  // Together.ai pricing for Kimi K2.5 (approximate)
   const inputCost = (u.promptTokens / 1_000_000) * 0.3;
   const outputCost = (u.completionTokens / 1_000_000) * 0.3;
   const totalCost = inputCost + outputCost;
@@ -143,7 +173,54 @@ export function formatCost(): string {
     chalk.dim(`    Output:     ${u.completionTokens.toLocaleString()} tokens`),
     chalk.dim(`    Total:      ${u.totalTokens.toLocaleString()} tokens`),
     chalk.dim(`    API calls:  ${u.apiCalls}`),
-    chalk.dim(`    Context:    ~${u.estimatedContextTokens.toLocaleString()} tokens (estimated)`),
+    chalk.dim(`    Context:    ~${u.estimatedContextTokens.toLocaleString()} / ${MAX_CONTEXT_TOKENS.toLocaleString()} tokens`),
     chalk.dim(`    Est. cost:  $${totalCost.toFixed(4)}`),
+  ].join("\n");
+}
+
+export function formatContextBreakdown(
+  messages: ChatCompletionMessageParam[]
+): string {
+  let systemTokens = 0;
+  let userTokens = 0;
+  let assistantTokens = 0;
+  let toolTokens = 0;
+  const toolDefinitionTokens = 5000; // Estimated constant
+
+  for (const msg of messages) {
+    const tokens = messageTokens(msg);
+    switch (msg.role) {
+      case "system":
+        systemTokens += tokens;
+        break;
+      case "user":
+        userTokens += tokens;
+        break;
+      case "assistant":
+        assistantTokens += tokens;
+        break;
+      case "tool":
+        toolTokens += tokens;
+        break;
+    }
+  }
+
+  const total = systemTokens + userTokens + assistantTokens + toolTokens + toolDefinitionTokens;
+  const pct = (n: number) => ((n / total) * 100).toFixed(0);
+  const bar = (n: number) => {
+    const filled = Math.round((n / total) * 30);
+    return "█".repeat(filled) + "░".repeat(30 - filled);
+  };
+
+  return [
+    chalk.bold("\n  Context Breakdown:"),
+    chalk.dim(`    System prompt: ${systemTokens.toLocaleString()} tokens (${pct(systemTokens)}%) ${bar(systemTokens)}`),
+    chalk.dim(`    Tool defs:     ${toolDefinitionTokens.toLocaleString()} tokens (${pct(toolDefinitionTokens)}%) ${bar(toolDefinitionTokens)}`),
+    chalk.dim(`    User msgs:     ${userTokens.toLocaleString()} tokens (${pct(userTokens)}%) ${bar(userTokens)}`),
+    chalk.dim(`    Assistant:     ${assistantTokens.toLocaleString()} tokens (${pct(assistantTokens)}%) ${bar(assistantTokens)}`),
+    chalk.dim(`    Tool outputs:  ${toolTokens.toLocaleString()} tokens (${pct(toolTokens)}%) ${bar(toolTokens)}`),
+    chalk.dim(`    ─────────────`),
+    chalk.dim(`    Total:         ~${total.toLocaleString()} / ${MAX_CONTEXT_TOKENS.toLocaleString()} tokens (${pct(total)}%)`),
+    "",
   ].join("\n");
 }

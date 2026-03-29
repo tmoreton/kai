@@ -14,6 +14,7 @@ import {
   TOOL_OUTPUT_MAX_LINES,
   TOOL_OUTPUT_PREVIEW_LINES,
   TOOL_OUTPUT_MAX_CHARS,
+  TOOL_OUTPUT_CONTEXT_LIMIT,
 } from "./constants.js";
 import chalk from "chalk";
 
@@ -46,6 +47,18 @@ export async function chat(
   while (turns < MAX_TOOL_TURNS) {
     turns++;
 
+    // Show thinking indicator
+    const thinkingFrames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+    let frameIndex = 0;
+    let firstToken = false;
+    const spinnerText = "  thinking...";
+    const spinner = setInterval(() => {
+      if (!firstToken) {
+        const frame = thinkingFrames[frameIndex++ % thinkingFrames.length];
+        process.stderr.write(`\x1b[2K\r  ${chalk.cyan(frame)} ${chalk.dim("thinking...")}`);
+      }
+    }, 80);
+
     // Create stream with timeout
     const controller = new AbortController();
     const timeout = setTimeout(
@@ -67,7 +80,9 @@ export async function chat(
         { signal: controller.signal }
       );
     } catch (err: unknown) {
+      clearInterval(spinner);
       clearTimeout(timeout);
+      process.stderr.write("\x1b[2K\r"); // Clear spinner
       const msg = err instanceof Error ? err.message : String(err);
       throw new Error(`API request failed: ${msg}`);
     }
@@ -94,11 +109,21 @@ export async function chat(
         if (!delta) continue;
 
         if (delta.content) {
+          if (!firstToken) {
+            firstToken = true;
+            clearInterval(spinner);
+            process.stderr.write("\x1b[2K\r"); // Clear spinner line
+          }
           content += delta.content;
           onToken?.(delta.content);
         }
 
         if (delta.tool_calls) {
+          if (!firstToken) {
+            firstToken = true;
+            clearInterval(spinner);
+            process.stderr.write("\x1b[2K\r");
+          }
           for (const tc of delta.tool_calls) {
             if (tc.id) {
               if (currentToolCall) {
@@ -123,7 +148,11 @@ export async function chat(
         }
       }
     } finally {
+      clearInterval(spinner);
       clearTimeout(timeout);
+      if (!firstToken) {
+        process.stderr.write("\x1b[2K\r");
+      }
     }
 
     if (currentToolCall) {
@@ -174,6 +203,7 @@ export async function chat(
       const resultStr =
         typeof result === "string" ? result : JSON.stringify(result, null, 2);
 
+      // Display truncated output to user
       const lines = resultStr.split("\n");
       if (lines.length > TOOL_OUTPUT_MAX_LINES) {
         console.log(chalk.gray(`  ↳ ${lines.slice(0, TOOL_OUTPUT_PREVIEW_LINES).join("\n    ")}...`));
@@ -184,10 +214,21 @@ export async function chat(
         console.log(chalk.gray(`  ↳ ${resultStr}`));
       }
 
+      // Truncate what goes into context — this is the key optimization
+      // ~4 chars per token, so TOOL_OUTPUT_CONTEXT_LIMIT * 4 = char limit
+      const contextCharLimit = TOOL_OUTPUT_CONTEXT_LIMIT * 4;
+      let contextContent = resultStr;
+      if (resultStr.length > contextCharLimit) {
+        const truncatedLines = resultStr.substring(0, contextCharLimit).split("\n");
+        contextContent =
+          truncatedLines.join("\n") +
+          `\n\n[Output truncated — ${resultStr.length} chars total, showing first ${contextCharLimit}. Use read_file with offset/limit for more.]`;
+      }
+
       updatedMessages.push({
         role: "tool",
         tool_call_id: tc.id,
-        content: resultStr,
+        content: contextContent,
       });
     }
   }
