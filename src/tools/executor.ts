@@ -9,6 +9,7 @@ import { runHooks } from "../hooks.js";
 import { updateCoreMemory, readCoreMemory } from "../soul.js";
 import { searchRecall } from "../recall.js";
 import { archivalInsert, archivalSearch } from "../archival.js";
+import { generateImage, compositeImage } from "./image-gen.js";
 
 export type ToolResult = string;
 
@@ -70,6 +71,10 @@ export async function executeTool(
         result = archivalInsert(args as { content: string; tags?: string[]; source?: string }); break;
       case "archival_search":
         result = archivalSearch(args as { query: string; tags?: string[]; limit?: number }); break;
+      case "generate_image":
+        result = await generateImage(args as { prompt: string; output_path?: string; reference_image?: string }); break;
+      case "composite_image":
+        result = await compositeImage(args as { background: string; overlay: string; output_path?: string; position?: string; overlay_width?: number }); break;
       case "spawn_agent":
         result = await spawnAgent(args as { agent: string; task: string }); break;
       default:

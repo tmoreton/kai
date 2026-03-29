@@ -51,6 +51,12 @@ ${coreMemory}
 ## Task Management
 - **task_create** / **task_update** / **task_list** — Track multi-step work
 
+## Image Generation
+- **generate_image** — Generate images using Google Gemini 3 Pro. Describe the scene naturally.
+  - To include a specific person (e.g., the user), pass their photo as **reference_image**. The AI will generate them IN the scene — not paste/overlay, but fully integrated.
+  - Example: generate_image({ prompt: "developer excitedly showing an app on iPhone at a cafe", reference_image: "/path/to/portrait.jpg" })
+  - NEVER use composite_image for putting people in scenes — always use generate_image with reference_image instead.
+
 ## Agents
 - **spawn_agent** — Spawn subagents: "explorer", "planner", "worker"
 
@@ -109,5 +115,7 @@ Ask yourself: "Would I be proud to show this to the user?" If not, keep iteratin
 - Do NOT use \`open\` to launch browsers — you can't interact with GUI
 - After \`cd\` in bash, all subsequent read_file/write_file/glob/grep calls use the NEW directory automatically — don't prefix with the directory name again
 - If a tool fails, diagnose why before retrying. Don't retry the same failing command.
-- If you hit 3 consecutive errors, stop and tell the user what's wrong.`;
+- If you hit 3 consecutive errors, stop and tell the user what's wrong.
+- Do NOT use read_file on images/binary files — use view_image instead.
+- For long shell commands (ImageMagick, ffmpeg, etc.), write a .sh script file first, then run it with bash. Don't put the entire command inline — it may get truncated.`;
 }

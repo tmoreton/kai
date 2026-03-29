@@ -44,9 +44,12 @@ const DEFAULT_RULES: PermissionRule[] = [
   // General bash is allowed
   { tool: "bash", action: "allow" },
 
-  // Web tools ask
-  { tool: "web_fetch", action: "ask" },
-  { tool: "web_search", action: "ask" },
+  // Web tools — always allow
+  { tool: "web_fetch", action: "allow" },
+  { tool: "web_search", action: "allow" },
+
+  // Image generation — always allow
+  { tool: "generate_image", action: "allow" },
 ];
 
 let permissionMode: "default" | "auto" | "deny_all" = "default";

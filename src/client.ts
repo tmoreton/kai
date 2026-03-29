@@ -104,7 +104,8 @@ export async function chat(
       throw new Error(`API request failed: ${msg}`);
     }
 
-    let content = "";
+    let content = "";       // Visible output (streamed to user)
+    let reasoning = "";     // Internal thinking (NOT shown to user)
     let toolCalls: Array<{
       id: string;
       function: { name: string; arguments: string };
@@ -125,11 +126,10 @@ export async function chat(
 
         if (!delta) continue;
 
-        // Only show content to user. Reasoning is internal thinking — use it for context but don't display.
-        const reasoning = (delta as any).reasoning;
-        if (reasoning) {
-          // Add to content for context but don't stream to user
-          content += reasoning;
+        // Reasoning is internal thinking — store separately, never show to user
+        const reasoningChunk = (delta as any).reasoning;
+        if (reasoningChunk) {
+          reasoning += reasoningChunk;
         }
 
         let text = delta.content;
@@ -197,10 +197,37 @@ export async function chat(
       trackUsage(chunkUsage);
     }
 
+    // Rescue leaked tool calls from content OR reasoning text
+    const allText = content + "\n" + reasoning;
+    if (toolCalls.length === 0 && allText.includes("<|tool_call_begin|>")) {
+      const rescued = rescueToolCallsFromText(allText);
+      if (rescued.length > 0) {
+        toolCalls.push(...rescued);
+        content = content
+          .replace(/<\|tool_calls_section_begin\|>[\s\S]*$/m, "")
+          .trim();
+      }
+    }
+
     // Text-only response — done
     if (toolCalls.length === 0) {
+      // If content is empty (model only produced reasoning), use reasoning as fallback
+      if (!content.trim() && reasoning.trim()) {
+        // Extract just the useful part of reasoning, strip internal thinking
+        const useful = reasoning
+          .replace(/^.*?(?:Let me|I should|I need|The user|Looking at|Actually)/s, "")
+          .trim();
+        if (useful.length > 20) {
+          content = useful;
+          onToken?.(content);
+        } else {
+          content = "I'm not sure what you meant. Could you clarify?";
+          onToken?.(content);
+        }
+      }
+      // Store content for the conversation (reasoning stays hidden)
       updatedMessages.push({ role: "assistant", content });
-      if (content) onToken?.("\n");
+      onToken?.("\n");
       return updatedMessages;
     }
 
@@ -239,10 +266,20 @@ export async function chat(
       if (parseError || (toolName === "write_file" && !args.file_path)) {
         const truncLen = tc.function.arguments.length;
         console.log(chalk.yellow(`  ↳ Tool call truncated (${truncLen} chars) — arguments were cut off`));
+
+        let recovery = "";
+        if (toolName === "bash") {
+          recovery = "For long commands: write the command to a .sh script file first with write_file, then run it with bash('bash script.sh').";
+        } else if (toolName === "write_file") {
+          recovery = "Split the content: write a shorter version first, then use edit_file to add more content in parts.";
+        } else {
+          recovery = "Simplify the tool call arguments — they are too long and got cut off.";
+        }
+
         updatedMessages.push({
           role: "tool",
           tool_call_id: tc.id,
-          content: `Error: Your tool call was truncated — the JSON arguments were cut off at ${truncLen} characters, likely because the file content is too long for a single write_file call. Split the work: write a smaller file first, or use multiple edit_file calls to build up the file in parts.`,
+          content: `Error: Tool call truncated at ${truncLen} chars — arguments were cut off. ${recovery}`,
         });
         consecutiveErrors++;
         continue;
@@ -339,6 +376,8 @@ function summarizeArgs(
       return String(args.url || "").substring(0, 60);
     case "web_search":
       return String(args.query || "");
+    case "generate_image":
+      return String(args.prompt || "").substring(0, 60);
     case "spawn_agent":
       return `${args.agent}: ${String(args.task || "").substring(0, 50)}`;
     case "task_create":
@@ -348,4 +387,46 @@ function summarizeArgs(
     default:
       return JSON.stringify(args).substring(0, 60);
   }
+}
+
+/**
+ * Rescue tool calls that Kimi K2.5 leaked into content text
+ * instead of sending as structured tool_calls.
+ *
+ * Pattern:
+ * <|tool_calls_section_begin|>
+ * <|tool_call_begin|> functions.tool_name:N
+ * <|tool_call_argument_begin|> {"arg": "value"}
+ * <|tool_call_end|>
+ * <|tool_calls_section_end|>
+ */
+function rescueToolCallsFromText(
+  text: string
+): Array<{ id: string; function: { name: string; arguments: string } }> {
+  const rescued: Array<{ id: string; function: { name: string; arguments: string } }> = [];
+
+  // Match: functions.TOOL_NAME:N followed by argument JSON
+  const callPattern = /functions\.(\w+):\d+\s*(?:<\|tool_call_argument_begin\|>)?\s*(\{[\s\S]*?\})\s*(?:<\|tool_call_end\|>)?/g;
+  let match;
+
+  while ((match = callPattern.exec(text)) !== null) {
+    const toolName = match[1];
+    const argsStr = match[2];
+
+    // Validate the JSON parses
+    try {
+      JSON.parse(argsStr);
+      rescued.push({
+        id: `rescued-${Date.now()}-${rescued.length}`,
+        function: {
+          name: toolName,
+          arguments: argsStr,
+        },
+      });
+    } catch {
+      // JSON was truncated — skip
+    }
+  }
+
+  return rescued;
 }

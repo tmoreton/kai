@@ -7,6 +7,16 @@ function resolvePath(filePath: string): string {
   return path.resolve(getCwd(), filePath);
 }
 
+const BINARY_EXTENSIONS = new Set([
+  ".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".ico", ".svg",
+  ".mp4", ".mov", ".avi", ".mkv", ".mp3", ".wav", ".flac",
+  ".zip", ".tar", ".gz", ".bz2", ".7z", ".rar",
+  ".pdf", ".doc", ".docx", ".xls", ".xlsx",
+  ".woff", ".woff2", ".ttf", ".otf", ".eot",
+  ".so", ".dylib", ".dll", ".exe", ".bin",
+  ".sqlite", ".db", ".db-wal", ".db-shm",
+]);
+
 export async function readFile(args: {
   file_path: string;
   offset?: number;
@@ -15,7 +25,28 @@ export async function readFile(args: {
   const fullPath = resolvePath(args.file_path);
 
   try {
-    const content = fs.readFileSync(fullPath, "utf-8");
+    // Detect binary files by extension
+    const ext = path.extname(fullPath).toLowerCase();
+    if (BINARY_EXTENSIONS.has(ext)) {
+      const stat = fs.statSync(fullPath);
+      const sizeKB = Math.round(stat.size / 1024);
+      if ([".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp"].includes(ext)) {
+        return `Binary image file: ${fullPath} (${sizeKB} KB). Use the view_image tool to see this image, not read_file.`;
+      }
+      return `Binary file: ${fullPath} (${sizeKB} KB, ${ext}). Cannot read binary files as text.`;
+    }
+
+    // Quick binary content check — look for null bytes in first 512 bytes
+    const buf = fs.readFileSync(fullPath);
+    const checkLen = Math.min(buf.length, 512);
+    for (let i = 0; i < checkLen; i++) {
+      if (buf[i] === 0) {
+        const sizeKB = Math.round(buf.length / 1024);
+        return `Binary file detected: ${fullPath} (${sizeKB} KB). Cannot read binary files as text.`;
+      }
+    }
+
+    const content = buf.toString("utf-8");
     const lines = content.split("\n");
     const start = Math.max(0, (args.offset || 1) - 1);
     const limit = args.limit || 2000;

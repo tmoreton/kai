@@ -1,5 +1,5 @@
 // Model & API
-export const MAX_TOKENS = 16384;
+export const MAX_TOKENS = 32768;
 export const MAX_TOOL_TURNS = 200;
 export const STREAM_TIMEOUT_MS = 120_000; // 2 minutes
 
