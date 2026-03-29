@@ -12,12 +12,20 @@ export async function globTool(args: {
     ? path.resolve(getCwd(), args.path)
     : getCwd();
 
+  // Safety: prevent scanning massive directories like $HOME
+  const homeDir = process.env.HOME || "/Users";
+  if (searchDir === homeDir || searchDir === "/") {
+    return "Error: Cannot glob from home directory or root — too many files. Use a more specific path.";
+  }
+
   try {
     const matches = await globFn(args.pattern, {
       cwd: searchDir,
       nodir: true,
       dot: false,
       ignore: EXCLUDED_DIRS.map((d) => `${d}/**`),
+      maxDepth: 10,
+      signal: AbortSignal.timeout(10000),
     });
 
     if (matches.length === 0) {

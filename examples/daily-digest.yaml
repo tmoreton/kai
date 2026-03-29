@@ -1,0 +1,38 @@
+name: Daily News Digest
+description: Searches for industry news and generates a morning briefing
+schedule: "0 7 * * *"  # Every day at 7am
+
+config:
+  topics:
+    - "AI agents"
+    - "Apple developer"
+    - "startup funding"
+
+steps:
+  - name: search_news
+    type: integration
+    integration: web
+    action: search
+    params:
+      query: "${config.topics[0]} latest news today"
+      max_results: 5
+    output_var: news_results
+
+  - name: generate_digest
+    type: llm
+    prompt: |
+      Create a concise morning briefing from these search results.
+      Format as a short digest with 3-5 bullet points.
+      Include links where available.
+
+      Topics: ${config.topics}
+      Results: ${vars.news_results}
+
+      Keep it under 300 words. Be direct.
+    output_var: digest
+
+  - name: notify
+    type: notify
+    params:
+      title: "Morning Briefing"
+      message: "Your daily digest is ready"

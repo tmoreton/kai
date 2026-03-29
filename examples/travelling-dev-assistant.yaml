@@ -1,0 +1,186 @@
+name: TheTravellingDeveloper YouTube Assistant
+description: Analyzes channel performance, tracks competitors, identifies trends, and generates video ideas with scripts and thumbnails
+schedule: "0 */8 * * *"
+
+review:
+  enabled: true
+  max_iterations: 2
+  review_prompt: |
+    Check specifically:
+    - Are video titles genuinely click-worthy (not generic)?
+    - Do hooks create real curiosity in the first 15 seconds?
+    - Are thumbnail concepts specific enough to actually create?
+    - Does the analysis reference REAL data from competitors (actual view counts, actual video titles)?
+    - Are the ideas differentiated from what competitors are already doing?
+  improve_steps:
+    - analysis
+    - video_ideas
+
+config:
+  my_channel_id: "UCC8yAE278hIstZpHiC0VBLg"
+  my_channel_name: "TheTravellingDeveloper"
+  previous_name: "Reactive Nerve"
+  niche: "developer lifestyle, building and shipping apps, making money with code, mobile/web development"
+  channel_context: |
+    The channel recently rebranded from "Reactive Nerve" (React Native focused) to "TheTravellingDeveloper".
+
+    Why the rebrand:
+    - AI has removed the language/framework barrier — no longer limited to just React Native
+    - Now building with Swift/SwiftUI for iOS, leveraging native Apple ecosystem (Mac, Watch, Widgets)
+    - Still values React Native but picks the best tool for each project
+    - Channel is no longer faceless tutorials — shifting to personality-driven content
+    - Focus: build small projects, launch them, make money from code
+    - Currently travelling (in Argentina), digital nomad lifestyle
+    - Past content includes building TikTok clone, Threads clone, Instagram clone from scratch
+    - Want community engagement, viewer feedback on video ideas
+    - Website: thetravellingdeveloper.com
+
+    Content pillars:
+    1. Build & ship projects (any language/framework — best tool for the job)
+    2. Make money with code (launch apps, monetization, indie hacking)
+    3. Developer travel lifestyle (coding from anywhere, digital nomad tips)
+    4. AI-powered development workflows (how AI changed everything)
+  competitors:
+    - id: "UCbxtV_oVIXBtLRmyPfcLKVg"
+      name: "Chris the Freelancer"
+    - id: "UCCIFp-Se_xjfYc94H04oK7Q"
+      name: "Brian Ruiz"
+    - id: "UCsXQTrMEZkcD_UuCR0wMJmQ"
+      name: "Jacob Sucks At Code"
+    - id: "UCk_7zwoUPjV4VbofWhHbJZg"
+      name: "gazi"
+    - id: "UCCQ6SXMc7MoJ88jjpn6j-8Q"
+      name: "Marko"
+
+steps:
+  - name: our_recent_videos
+    type: integration
+    integration: youtube
+    action: get_recent_uploads
+    params:
+      channel_id: "${config.my_channel_id}"
+      max_results: 10
+
+  - name: competitor_chris
+    type: integration
+    integration: youtube
+    action: get_recent_uploads
+    params:
+      channel_id: "UCbxtV_oVIXBtLRmyPfcLKVg"
+      max_results: 5
+
+  - name: competitor_brian
+    type: integration
+    integration: youtube
+    action: get_recent_uploads
+    params:
+      channel_id: "UCCIFp-Se_xjfYc94H04oK7Q"
+      max_results: 5
+
+  - name: competitor_jacob
+    type: integration
+    integration: youtube
+    action: get_recent_uploads
+    params:
+      channel_id: "UCsXQTrMEZkcD_UuCR0wMJmQ"
+      max_results: 5
+
+  - name: trending_search
+    type: integration
+    integration: youtube
+    action: search_videos
+    params:
+      query: "build app from scratch ship launch 2026"
+      order: "viewCount"
+      max_results: 10
+
+  - name: trending_lifestyle
+    type: integration
+    integration: web
+    action: search
+    params:
+      query: "indie developer ship app make money solo developer 2026 trends"
+      max_results: 5
+
+  - name: analysis
+    type: llm
+    prompt: |
+      You are a YouTube growth strategist for TheTravellingDeveloper (formerly "Reactive Nerve").
+
+      ## Channel Context:
+      ${config.channel_context}
+
+      ## Our Recent Videos:
+      ${vars.our_recent_videos}
+
+      ## Competitor: Chris the Freelancer (84K subs):
+      ${vars.competitor_chris}
+
+      ## Competitor: Brian Ruiz (101K subs):
+      ${vars.competitor_brian}
+
+      ## Competitor: Jacob Sucks At Code (52K subs):
+      ${vars.competitor_jacob}
+
+      ## Trending Videos:
+      ${vars.trending_search}
+
+      ## Trending Topics from Web:
+      ${vars.trending_lifestyle}
+
+      Analyze:
+      1. **Our Performance**: Which recent videos performed best/worst? What patterns?
+      2. **Rebrand Impact**: How should the shift from React Native to "best tool for the job" affect content strategy?
+      3. **Competitor Moves**: What are competitors doing that works? Where are the gaps?
+      4. **Swift/SwiftUI Opportunity**: Is there demand for SwiftUI content from someone who also knows React Native?
+      5. **Indie Hacking Angle**: What "build and ship" content is trending?
+      6. **Growth Strategy**: Specific tactical advice to grow from 1,720 to 10K subs with the new positioning.
+
+      Be brutally honest and data-driven. This channel has a unique angle: a React Native developer who adopted AI and now builds with whatever is best for the project.
+
+  - name: video_ideas
+    type: llm
+    prompt: |
+      Based on this analysis, generate 5 video ideas for TheTravellingDeveloper.
+
+      ## Analysis:
+      ${vars.analysis}
+
+      The channel's NEW positioning: "A developer who travels, builds apps with the best tools (not just React Native), and shows you how to ship and make money from code. AI has changed everything."
+
+      For each video idea:
+
+      **1. Title** — 3 variations. Use proven CTR patterns. Reference the rebrand story where relevant.
+
+      **2. Hook** — First 15 seconds. Must stop the scroll. Be specific, create curiosity or controversy.
+
+      **3. Script Outline** — 8-10 bullet points for 10-15 min video. Include timestamps.
+
+      **4. Thumbnail Concept** — Exact description: face/expression, text overlay (max 4 words), background, colors. What makes it clickable?
+
+      **5. SEO Tags** — 10 tags.
+
+      **6. Why This Will Work** — Reference specific data.
+
+      Mix of content types:
+      - At least 1 "build from scratch" project video
+      - At least 1 "making money with code" video
+      - At least 1 that leverages the travel/Argentina angle
+      - At least 1 comparing React Native vs SwiftUI (leveraging the rebrand story)
+
+  - name: create_thumbnail
+    type: integration
+    integration: image_gen
+    action: generate
+    params:
+      prompt: "YouTube thumbnail, developer with laptop in Buenos Aires cafe, code on screen, vibrant warm colors, bold contrast, travel lifestyle, professional quality, cinematic"
+      model: "black-forest-labs/FLUX.1-schnell"
+      width: 1280
+      height: 720
+      output_dir: "~/.kai/agent-output/thumbnails"
+
+  - name: notify
+    type: notify
+    params:
+      title: "YouTube Assistant"
+      message: "5 new video ideas ready for TheTravellingDeveloper!"

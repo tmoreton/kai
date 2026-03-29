@@ -112,8 +112,14 @@ export async function chat(
 
         if (!delta) continue;
 
-        // Kimi K2.5 sometimes puts output in "reasoning" field instead of "content"
-        let text = delta.content || (delta as any).reasoning;
+        // Only show content to user. Reasoning is internal thinking — use it for context but don't display.
+        const reasoning = (delta as any).reasoning;
+        if (reasoning) {
+          // Add to content for context but don't stream to user
+          content += reasoning;
+        }
+
+        let text = delta.content;
         if (text) {
           // Filter out Kimi K2.5 internal formatting tokens that leak on truncation
           text = text.replace(/<\|tool_calls_section_begin\|>/g, "")

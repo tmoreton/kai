@@ -1,0 +1,58 @@
+name: AI News Briefing
+description: Searches for the latest AI and tech news and creates a daily action item list
+
+review:
+  enabled: true
+  max_iterations: 1
+  review_prompt: "Are the action items specific and actionable (not generic advice)? Do they reference actual news stories with links?"
+  improve_steps:
+    - create_briefing
+
+steps:
+  - name: search_ai_news
+    type: integration
+    integration: web
+    action: search
+    params:
+      query: "AI agents LLM news today 2026"
+      max_results: 5
+    output_var: ai_news
+
+  - name: search_dev_news
+    type: integration
+    integration: web
+    action: search
+    params:
+      query: "TypeScript React developer news this week"
+      max_results: 5
+    output_var: dev_news
+
+  - name: create_briefing
+    type: llm
+    prompt: |
+      You are Tyler's personal AI assistant. He's a senior fullstack engineer who works with TypeScript and React.
+
+      Based on today's news, create a short daily briefing with:
+
+      ## Top Stories
+      3-5 bullet points of the most important things happening in AI and dev tools.
+      Include the source link for each.
+
+      ## Action Items
+      2-3 specific things Tyler should look into, try, or be aware of today.
+      Be specific and actionable — not generic advice.
+
+      ## AI News:
+      ${vars.ai_news}
+
+      ## Dev News:
+      ${vars.dev_news}
+
+      Keep the whole thing under 300 words. Be direct.
+    output_var: briefing
+
+  - name: notify
+    type: notify
+    params:
+      title: "Daily Briefing"
+      message: "Your AI & dev news briefing is ready"

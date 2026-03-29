@@ -1,0 +1,69 @@
+name: Nightly Git Commit
+description: Automatically commits any uncommitted changes with an AI-generated summary
+schedule: "0 23 * * *"
+
+steps:
+  # 1. Check if there are any changes to commit
+  - name: check_changes
+    type: shell
+    command: "cd ${config.repo_path} && git status --porcelain"
+    output_var: git_status
+
+  # 2. Get the diff of all changes
+  - name: get_diff
+    type: shell
+    command: "cd ${config.repo_path} && git diff HEAD --stat && echo '---DIFF---' && git diff HEAD"
+    output_var: git_diff
+    condition: "${vars.git_status}"
+
+  # 3. Get recent commit history for style reference
+  - name: recent_commits
+    type: shell
+    command: "cd ${config.repo_path} && git log --oneline -10"
+    output_var: recent_commits
+    condition: "${vars.git_status}"
+
+  # 4. Generate commit message with LLM
+  - name: generate_message
+    type: llm
+    condition: "${vars.git_status}"
+    prompt: |
+      Generate a git commit message for these changes. Follow the existing commit style.
+
+      ## Recent commits (for style reference):
+      ${vars.recent_commits}
+
+      ## Changed files:
+      ${vars.git_status}
+
+      ## Diff:
+      ${vars.git_diff}
+
+      Rules:
+      - First line: concise summary under 72 chars (imperative mood: "Add", "Fix", "Update")
+      - Blank line, then bullet points of key changes
+      - Group related changes together
+      - Mention file names for important changes
+      - Don't list every tiny change — summarize themes
+      - If there are many changes, organize by category (features, fixes, refactors, config)
+
+      Return ONLY the commit message, no markdown formatting or code blocks.
+    output_var: commit_message
+
+  # 5. Stage all changes and commit
+  - name: commit
+    type: shell
+    condition: "${vars.git_status}"
+    command: "cd ${config.repo_path} && git add -A && git commit -m \"${vars.commit_message}\""
+    output_var: commit_result
+
+  # 6. Notify
+  - name: notify
+    type: notify
+    condition: "${vars.git_status}"
+    params:
+      title: "Nightly Commit"
+      message: "Changes committed to ${config.repo_path}"
+
+config:
+  repo_path: "/Users/tmoreton/Code/kai"

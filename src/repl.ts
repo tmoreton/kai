@@ -123,6 +123,9 @@ export async function startRepl(options: ReplOptions = {}): Promise<void> {
     { cmd: "/soul", desc: "View core memory" },
     { cmd: "/sessions", desc: "List sessions" },
     { cmd: "/projects", desc: "List projects" },
+    { cmd: "/agents", desc: "List background agents" },
+    { cmd: "/agent run", desc: "Run an agent now" },
+    { cmd: "/agent output", desc: "View agent output" },
     { cmd: "/crons", desc: "Scheduled jobs" },
     { cmd: "/recall", desc: "Recall memory stats" },
     { cmd: "/permissions", desc: "Permission mode" },
@@ -166,7 +169,7 @@ export async function startRepl(options: ReplOptions = {}): Promise<void> {
 
     // Handle slash commands
     if (input.startsWith("/") || input === "exit") {
-      const result = handleCommand(input, messages, session);
+      const result = await handleCommand(input, messages, session);
       if (result === "exit") {
         rl.close();
         process.exit(0);
@@ -312,11 +315,11 @@ function createNewSession(
   };
 }
 
-function handleCommand(
+async function handleCommand(
   input: string,
   messages: ChatCompletionMessageParam[],
   session: Session
-): "exit" | "handled" | "passthrough" {
+): Promise<"exit" | "handled" | "passthrough"> {
   const cmd = input.toLowerCase();
 
   if (cmd === "exit" || cmd === "/exit" || cmd === "/quit") {
@@ -435,6 +438,36 @@ function handleCommand(
     return "handled";
   }
 
+  if (cmd === "/agents") {
+    const { formatAgentList, daemonStatus } = await import("./agents/manager.js");
+    console.log(daemonStatus());
+    console.log(formatAgentList());
+    return "handled";
+  }
+
+  if (cmd.startsWith("/agent run ")) {
+    const agentId = input.substring(11).trim();
+    const { runAgentCommand } = await import("./agents/manager.js");
+    await runAgentCommand(agentId);
+    return "handled";
+  }
+
+  if (cmd.startsWith("/agent output ")) {
+    const parts = input.substring(14).trim().split(/\s+/);
+    const agentId = parts[0];
+    const stepName = parts[1];
+    const { formatAgentOutput } = await import("./agents/manager.js");
+    console.log(formatAgentOutput(agentId, stepName));
+    return "handled";
+  }
+
+  if (cmd.startsWith("/agent info ")) {
+    const agentId = input.substring(12).trim();
+    const { formatAgentDetail } = await import("./agents/manager.js");
+    console.log(formatAgentDetail(agentId));
+    return "handled";
+  }
+
   if (cmd === "/help") {
     console.log(
       chalk.dim(`
@@ -448,20 +481,20 @@ function handleCommand(
     /soul          View core memory (persona, human, goals, scratchpad)
     /crons         List scheduled background jobs
     /recall        Show recall memory stats
-    /context       Show context window breakdown (where tokens go)
-    /projects      List all known projects
-    /git           Show git status
-    /help          Show this help
-    /exit          Exit Kai
+    /context              Context window breakdown
+    /projects             List known projects
+    /agents               List background agents
+    /agent run <id>       Run an agent now
+    /agent output <id>    View agent output
+    /agent info <id>      Agent details + run history
+    /git                  Git status
+    /help                 Show this help
+    /exit                 Exit Kai
 
-  AI Tools (22):
-    Files:    bash, read_file, write_file, edit_file, glob, grep
-    Web:      web_fetch, web_search
-    Memory:   core_memory_read/update, recall_search,
-              archival_insert/search, save_memory, list_memories
-    Tasks:    task_create, task_update, task_list
-    Schedule: cron_create, cron_list, cron_delete
-    Agents:   spawn_agent (explorer, planner, worker)
+  CLI Agent Commands (outside REPL):
+    kai agent create <name> <file.yaml>   Create agent from workflow
+    kai agent daemon                      Start background scheduler
+    kai agent stop                        Stop scheduler
 `)
     );
     return "handled";
