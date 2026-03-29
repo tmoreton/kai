@@ -18,11 +18,17 @@ import {
   deleteCronJob,
   listCronJobs,
 } from "../cron.js";
+import { readImageAsDataUrl, takeScreenshot } from "./vision.js";
+
+// Special return type for vision tools that need to inject images
+export type ToolResult =
+  | string
+  | { type: "image"; dataUrl: string; description: string };
 
 export async function executeTool(
   name: string,
   args: Record<string, unknown>
-): Promise<string> {
+): Promise<ToolResult> {
   const permission = await checkPermission(name, args);
   if (permission === "deny") {
     return `Permission denied for ${name}. The user blocked this action.`;
@@ -58,7 +64,7 @@ export async function executeTool(
       case "task_list":
         return listTasks();
 
-      // Legacy memory (kept for backwards compat)
+      // Legacy memory
       case "save_memory":
         return await saveMemoryTool(args as { name: string; type: "user" | "project" | "feedback" | "reference"; description: string; content: string; scope?: "user" | "project" });
       case "list_memories":
@@ -98,6 +104,39 @@ export async function executeTool(
         return listCronJobs();
       case "cron_delete":
         return deleteCronJob(String(args.id));
+
+      // Vision
+      case "view_image": {
+        const result = readImageAsDataUrl(String(args.file_path));
+        if ("error" in result) return result.error;
+        return {
+          type: "image",
+          dataUrl: result.dataUrl,
+          description: `Image loaded: ${args.file_path} (${result.sizeKB} KB, ${result.mimeType})`,
+        };
+      }
+      case "take_screenshot": {
+        const screenshotPath = await takeScreenshot();
+        if (screenshotPath.startsWith("Error:")) return screenshotPath;
+        const result = readImageAsDataUrl(screenshotPath);
+        if ("error" in result) return result.error;
+        return {
+          type: "image",
+          dataUrl: result.dataUrl,
+          description: `Screenshot captured: ${screenshotPath} (${result.sizeKB} KB)`,
+        };
+      }
+
+      // User interaction
+      case "ask_user": {
+        const q = String(args.question);
+        const opts = args.options as string[] | undefined;
+        let display = `\n❓ ${q}`;
+        if (opts && opts.length > 0) {
+          display += "\n" + opts.map((o, i) => `   ${i + 1}. ${o}`).join("\n");
+        }
+        return `[QUESTION FOR USER] ${display}`;
+      }
 
       // Agents
       case "spawn_agent":

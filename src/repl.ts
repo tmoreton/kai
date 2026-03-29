@@ -21,6 +21,7 @@ import {
 import { appendRecall, getRecallStats, type RecallEntry } from "./recall.js";
 import { loadSoul } from "./soul.js";
 import { listCronJobs, cleanupCrons } from "./cron.js";
+import { readImageAsDataUrl, isImagePath } from "./tools/vision.js";
 import {
   setPermissionMode,
   getPermissionMode,
@@ -130,8 +131,31 @@ export async function startRepl(options: ReplOptions = {}): Promise<void> {
       }
     }
 
-    // Send to model
-    messages.push({ role: "user", content: input });
+    // Send to model — check for image paths in input
+    const imagePathMatch = input.match(/(?:^|\s)(\/[^\s]+\.(?:png|jpg|jpeg|gif|webp|bmp))(?:\s|$)/i)
+      || input.match(/(?:^|\s)(~[^\s]+\.(?:png|jpg|jpeg|gif|webp|bmp))(?:\s|$)/i)
+      || input.match(/(?:^|\s)([^\s]+\.(?:png|jpg|jpeg|gif|webp|bmp))(?:\s|$)/i);
+
+    if (imagePathMatch) {
+      const imgPath = imagePathMatch[1].replace(/^~/, process.env.HOME || "~");
+      const imgResult = readImageAsDataUrl(imgPath);
+      if ("dataUrl" in imgResult) {
+        const textPart = input.replace(imagePathMatch[1], "").trim() || "Analyze this image.";
+        messages.push({
+          role: "user",
+          content: [
+            { type: "text", text: textPart },
+            { type: "image_url", image_url: { url: imgResult.dataUrl } },
+          ],
+        } as ChatCompletionMessageParam);
+        console.log(chalk.dim(`  🖼️  Image attached: ${imgPath} (${imgResult.sizeKB} KB)`));
+      } else {
+        console.log(chalk.yellow(`  ${imgResult.error}`));
+        messages.push({ role: "user", content: input });
+      }
+    } else {
+      messages.push({ role: "user", content: input });
+    }
 
     try {
       process.stdout.write("\n");

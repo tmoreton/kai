@@ -4,7 +4,7 @@ import type {
   ChatCompletionTool,
 } from "openai/resources/chat/completions";
 import { toolDefinitions } from "./tools/index.js";
-import { executeTool } from "./tools/executor.js";
+import { executeTool, type ToolResult } from "./tools/executor.js";
 import { trackUsage, shouldCompact, compactMessages } from "./context.js";
 import {
   DEFAULT_MODEL,
@@ -199,9 +199,32 @@ export async function chat(
           chalk.dim(")")
       );
 
-      const result = await executeTool(toolName, args);
-      const resultStr =
-        typeof result === "string" ? result : JSON.stringify(result, null, 2);
+      const result: ToolResult = await executeTool(toolName, args);
+
+      // Handle image results (vision)
+      if (typeof result === "object" && result.type === "image") {
+        console.log(chalk.gray(`  ↳ 🖼️  ${result.description}`));
+
+        // Add tool response text
+        updatedMessages.push({
+          role: "tool",
+          tool_call_id: tc.id,
+          content: result.description,
+        });
+
+        // Inject image as a user message so the model can see it
+        updatedMessages.push({
+          role: "user",
+          content: [
+            { type: "text", text: `[Image from ${toolName} tool — analyze this visual output:]` },
+            { type: "image_url", image_url: { url: result.dataUrl } },
+          ],
+        } as ChatCompletionMessageParam);
+        continue;
+      }
+
+      // Normal text result
+      const resultStr = typeof result === "string" ? result : JSON.stringify(result, null, 2);
 
       // Display truncated output to user
       const lines = resultStr.split("\n");
@@ -214,14 +237,12 @@ export async function chat(
         console.log(chalk.gray(`  ↳ ${resultStr}`));
       }
 
-      // Truncate what goes into context — this is the key optimization
-      // ~4 chars per token, so TOOL_OUTPUT_CONTEXT_LIMIT * 4 = char limit
+      // Truncate what goes into context
       const contextCharLimit = TOOL_OUTPUT_CONTEXT_LIMIT * 4;
       let contextContent = resultStr;
       if (resultStr.length > contextCharLimit) {
-        const truncatedLines = resultStr.substring(0, contextCharLimit).split("\n");
         contextContent =
-          truncatedLines.join("\n") +
+          resultStr.substring(0, contextCharLimit) +
           `\n\n[Output truncated — ${resultStr.length} chars total, showing first ${contextCharLimit}. Use read_file with offset/limit for more.]`;
       }
 
