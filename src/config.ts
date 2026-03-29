@@ -12,6 +12,16 @@ export interface ProviderConfig {
   contextWindow?: number;
 }
 
+export interface McpServerConfig {
+  command: string;
+  args?: string[];
+  env?: Record<string, string>;
+}
+
+export interface McpConfig {
+  servers: Record<string, McpServerConfig>;
+}
+
 export interface KaiConfig {
   model?: string;
   providers?: ProviderConfig[];
@@ -21,6 +31,7 @@ export interface KaiConfig {
   autoCompact?: boolean;
   maxTokens?: number;
   temperature?: number;
+  mcp?: McpConfig;
 }
 
 const CONFIG_PATHS = [

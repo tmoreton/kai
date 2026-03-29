@@ -3,7 +3,7 @@ import type {
   ChatCompletionMessageParam,
   ChatCompletionTool,
 } from "openai/resources/chat/completions";
-import { toolDefinitions } from "./tools/index.js";
+import { toolDefinitions, getMcpToolDefinitions } from "./tools/index.js";
 import { executeTool } from "./tools/executor.js";
 import { trackUsage, shouldCompact, compactMessages } from "./context.js";
 import {
@@ -44,7 +44,10 @@ export async function chat(
   onToken?: (token: string) => void,
   options?: { tools?: ChatCompletionTool[] }
 ): Promise<ChatCompletionMessageParam[]> {
-  const activeTools = options?.tools ?? toolDefinitions as ChatCompletionTool[];
+  // Merge built-in tools with any MCP server tools
+  const mcpTools = getMcpToolDefinitions();
+  const allTools = [...toolDefinitions, ...mcpTools] as ChatCompletionTool[];
+  const activeTools = options?.tools ?? allTools;
   const updatedMessages = [...messages];
 
   // Auto-compact if context is getting large
@@ -374,6 +377,10 @@ function formatToolLabel(toolName: string): string {
     task_create: "Task",
     task_update: "Task",
   };
+  if (toolName.startsWith("mcp__")) {
+    const parts = toolName.split("__");
+    return `MCP:${parts[1]}/${parts.slice(2).join("__")}`;
+  }
   return labels[toolName] || toolName;
 }
 

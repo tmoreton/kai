@@ -11,6 +11,7 @@ import { getCwd } from "./tools/bash.js";
 import { getProfileContext } from "./project-profile.js";
 import { archivalList } from "./archival.js";
 import { gitInfo } from "./git.js";
+import { initMcpServers, shutdownMcpServers, listMcpServers } from "./tools/index.js";
 
 // Load .env from all possible locations — override existing env vars
 // so ~/.kai/.env always takes precedence over stale shell exports
@@ -42,6 +43,9 @@ program
       pipedInput = await readStdin();
     }
 
+    // Initialize MCP servers before any interaction
+    await initMcpServers();
+
     if (oneShot || pipedInput) {
       const prompt = [pipedInput, oneShot].filter(Boolean).join("\n\n");
       await runOneShot(prompt, options.yes);
@@ -53,6 +57,24 @@ program
         autoApprove: options.yes,
       });
     }
+  });
+
+// --- Server (Web UI + Agent Daemon + API) ---
+program
+  .command("server")
+  .alias("app")
+  .alias("ui")
+  .description("Start Kai server — web UI, agent daemon, and API")
+  .option("--port <port>", "Port to listen on", "3141")
+  .option("--no-ui", "Disable web UI (API + agents only)")
+  .option("--no-agents", "Disable agent daemon (UI + API only)")
+  .action(async (options) => {
+    const { startServer } = await import("./web/server.js");
+    await startServer({
+      port: parseInt(options.port),
+      ui: options.ui,
+      agents: options.agents,
+    });
   });
 
 // --- Agent commands ---
@@ -160,6 +182,40 @@ agent
     } else {
       console.log("Daemon is not running");
     }
+  });
+
+// --- MCP commands ---
+const mcp = program.command("mcp").description("Manage MCP server connections");
+
+mcp
+  .command("list")
+  .description("List configured MCP servers and their tools")
+  .action(async () => {
+    const chalk = (await import("chalk")).default;
+    await initMcpServers();
+    const servers = listMcpServers();
+
+    if (servers.length === 0) {
+      console.log(chalk.dim("\n  No MCP servers configured."));
+      console.log(chalk.dim("  Add servers in ~/.kai/settings.json under \"mcp.servers\"\n"));
+      return;
+    }
+
+    console.log(chalk.bold("\n  MCP Servers\n"));
+    for (const server of servers) {
+      const status = server.ready ? chalk.green("●") : chalk.red("●");
+      console.log(`  ${status} ${chalk.bold(server.name)}`);
+      if (server.tools.length > 0) {
+        for (const tool of server.tools) {
+          console.log(chalk.dim(`    - ${tool}`));
+        }
+      } else {
+        console.log(chalk.dim("    (no tools)"));
+      }
+      console.log("");
+    }
+
+    await shutdownMcpServers();
   });
 
 // --- YouTube commands ---
@@ -420,6 +476,10 @@ yt
     }
     console.log("");
   });
+
+// Graceful shutdown of MCP servers on exit
+process.on("exit", () => { shutdownMcpServers(); });
+process.on("SIGINT", () => { shutdownMcpServers(); process.exit(0); });
 
 program.parse();
 

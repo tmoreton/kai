@@ -1,0 +1,615 @@
+import { Hono } from "hono";
+import { serve } from "@hono/node-server";
+import { streamSSE } from "hono/streaming";
+import { cors } from "hono/cors";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+import type {
+  ChatCompletionMessageParam,
+  ChatCompletionTool,
+} from "openai/resources/chat/completions";
+import OpenAI from "openai";
+
+// Kai modules
+import { createClient, getModelId, getProviderName } from "../client.js";
+import { getSystemPrompt } from "../system-prompt.js";
+import { getCwd } from "../tools/bash.js";
+import { getProfileContext } from "../project-profile.js";
+import { archivalList } from "../archival.js";
+import { gitInfo } from "../git.js";
+import { toolDefinitions } from "../tools/index.js";
+import { executeTool } from "../tools/executor.js";
+import { setPermissionMode } from "../permissions.js";
+import { trackUsage, shouldCompact, compactMessages, getUsage } from "../context.js";
+import {
+  MAX_TOKENS,
+  MAX_TOOL_TURNS,
+  STREAM_TIMEOUT_MS,
+  TOOL_OUTPUT_CONTEXT_LIMIT,
+} from "../constants.js";
+import {
+  generateSessionId,
+  saveSession,
+  loadSession,
+  listSessions,
+  type Session,
+} from "../sessions.js";
+import {
+  listAgents,
+  getAgent,
+  getLatestRuns,
+  getSteps,
+} from "../agents/db.js";
+import {
+  runAgent,
+  isDaemonRunning,
+  startDaemon,
+  stopDaemon,
+  writeDaemonPid,
+  getDaemonPidPath,
+} from "../agents/daemon.js";
+import { closeDb } from "../agents/db.js";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const publicDir = path.resolve(__dirname, "public");
+
+// Active abort controllers for cancellation
+const activeStreams = new Map<string, AbortController>();
+
+// Track whether we started the daemon in-process
+let daemonStartedInProcess = false;
+
+export interface ServerOptions {
+  port: number;
+  agents?: boolean;  // Start agent daemon in-process (default: true)
+  ui?: boolean;      // Serve web UI (default: true)
+}
+
+export async function startServer(options: ServerOptions): Promise<void> {
+  const { port, agents = true, ui = true } = options;
+
+  // Auto-approve tools in web mode (no readline available)
+  setPermissionMode("auto");
+
+  // Start agent daemon in-process if requested
+  if (agents) {
+    if (isDaemonRunning()) {
+      console.log("  Agent daemon already running (external process)");
+    } else {
+      writeDaemonPid();
+      daemonStartedInProcess = true;
+      startDaemon();
+    }
+  }
+
+  // Graceful shutdown
+  const shutdown = () => {
+    console.log("\n  Shutting down...");
+    if (daemonStartedInProcess) {
+      stopDaemon();
+      try { fs.unlinkSync(getDaemonPidPath()); } catch {}
+    }
+    closeDb();
+    process.exit(0);
+  };
+  process.on("SIGINT", shutdown);
+  process.on("SIGTERM", shutdown);
+
+  const app = new Hono();
+  app.use("/api/*", cors());
+
+  // --- Status ---
+  app.get("/api/status", (c) => {
+    return c.json({
+      provider: getProviderName(),
+      model: getModelId(),
+      cwd: getCwd(),
+      daemon: daemonStartedInProcess || isDaemonRunning(),
+      daemonInProcess: daemonStartedInProcess,
+      agents: agents,
+      ui: ui,
+      usage: getUsage(),
+    });
+  });
+
+  // --- Sessions ---
+  app.get("/api/sessions", (c) => {
+    const sessions = listSessions(30);
+    return c.json(
+      sessions.map((s) => ({
+        id: s.id,
+        name: s.name,
+        cwd: s.cwd,
+        createdAt: s.createdAt,
+        updatedAt: s.updatedAt,
+        messageCount: s.messages.filter((m) => m.role === "user").length,
+      }))
+    );
+  });
+
+  app.get("/api/sessions/:id", (c) => {
+    const session = loadSession(c.req.param("id"));
+    if (!session) return c.json({ error: "Session not found" }, 404);
+    // Return messages without system prompt (large)
+    const messages = session.messages
+      .filter((m) => m.role !== "system")
+      .map((m) => ({
+        role: m.role,
+        content:
+          typeof m.content === "string"
+            ? m.content
+            : Array.isArray(m.content)
+              ? m.content.map((p: any) => (p.type === "text" ? p.text : "[image]")).join("")
+              : null,
+        tool_calls:
+          "tool_calls" in m
+            ? (m as any).tool_calls?.map((tc: any) => ({
+                id: tc.id,
+                name: tc.function?.name,
+                arguments: tc.function?.arguments,
+              }))
+            : undefined,
+        tool_call_id: "tool_call_id" in m ? (m as any).tool_call_id : undefined,
+      }));
+    return c.json({ ...session, messages });
+  });
+
+  app.post("/api/sessions", async (c) => {
+    const body = await c.req.json().catch(() => ({}));
+    const session: Session = {
+      id: generateSessionId(),
+      name: body.name,
+      cwd: getCwd(),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      messages: [{ role: "system", content: buildSystemPrompt() }],
+    };
+    saveSession(session);
+    return c.json({ id: session.id, name: session.name });
+  });
+
+  // --- Agents ---
+  app.get("/api/agents", (c) => {
+    const agents = listAgents();
+    return c.json(
+      agents.map((a) => {
+        const runs = getLatestRuns(a.id, 1);
+        const lastRun = runs[0];
+        return {
+          id: a.id,
+          name: a.name,
+          description: a.description,
+          schedule: a.schedule,
+          enabled: !!a.enabled,
+          lastRun: lastRun
+            ? {
+                id: lastRun.id,
+                status: lastRun.status,
+                startedAt: lastRun.started_at,
+                completedAt: lastRun.completed_at,
+                error: lastRun.error,
+              }
+            : null,
+        };
+      })
+    );
+  });
+
+  app.get("/api/agents/:id", (c) => {
+    const agent = getAgent(c.req.param("id"));
+    if (!agent) return c.json({ error: "Agent not found" }, 404);
+    const runs = getLatestRuns(agent.id, 10);
+    return c.json({
+      ...agent,
+      config: JSON.parse(agent.config || "{}"),
+      runs: runs.map((r) => ({
+        id: r.id,
+        status: r.status,
+        startedAt: r.started_at,
+        completedAt: r.completed_at,
+        error: r.error,
+        trigger: r.trigger,
+      })),
+    });
+  });
+
+  app.get("/api/agents/:id/output", (c) => {
+    const agent = getAgent(c.req.param("id"));
+    if (!agent) return c.json({ error: "Agent not found" }, 404);
+    const runs = getLatestRuns(agent.id, 1);
+    if (runs.length === 0) return c.json({ error: "No runs" }, 404);
+    const steps = getSteps(runs[0].id);
+    return c.json({
+      run: runs[0],
+      steps: steps.map((s) => ({
+        name: s.step_name,
+        status: s.status,
+        output: s.output?.substring(0, 5000),
+        error: s.error,
+        tokensUsed: s.tokens_used,
+      })),
+    });
+  });
+
+  app.post("/api/agents/:id/run", async (c) => {
+    const agentId = c.req.param("id");
+    const result = await runAgent(agentId);
+    return c.json(result);
+  });
+
+  // --- Chat (SSE streaming) ---
+  app.post("/api/chat", async (c) => {
+    const body = await c.req.json();
+    const { sessionId, message } = body as {
+      sessionId?: string;
+      message: string;
+    };
+
+    // Load or create session
+    let session: Session;
+    if (sessionId) {
+      const loaded = loadSession(sessionId);
+      if (loaded) {
+        session = loaded;
+        // Refresh system prompt
+        if (session.messages[0]?.role === "system") {
+          session.messages[0] = { role: "system", content: buildSystemPrompt() };
+        }
+      } else {
+        session = createNewSession();
+      }
+    } else {
+      session = createNewSession();
+    }
+
+    // Add user message
+    session.messages.push({ role: "user", content: message });
+
+    // Set up abort controller
+    const abortController = new AbortController();
+    activeStreams.set(session.id, abortController);
+
+    return streamSSE(c, async (stream) => {
+      try {
+        // Send session ID first
+        await stream.writeSSE({ event: "session", data: JSON.stringify({ id: session.id }) });
+
+        const client = createClient();
+        const updatedMessages = await chatForWeb(
+          client,
+          session.messages,
+          async (event: string, data: any) => {
+            await stream.writeSSE({ event, data: JSON.stringify(data) });
+          },
+          abortController.signal
+        );
+
+        // Update session
+        session.messages = updatedMessages;
+        saveSession(session);
+
+        await stream.writeSSE({
+          event: "done",
+          data: JSON.stringify({ sessionId: session.id }),
+        });
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        await stream.writeSSE({
+          event: "error",
+          data: JSON.stringify({ message: msg }),
+        });
+      } finally {
+        activeStreams.delete(session.id);
+      }
+    });
+  });
+
+  app.post("/api/chat/stop", async (c) => {
+    const { sessionId } = (await c.req.json()) as { sessionId: string };
+    const controller = activeStreams.get(sessionId);
+    if (controller) {
+      controller.abort();
+      activeStreams.delete(sessionId);
+      return c.json({ stopped: true });
+    }
+    return c.json({ stopped: false });
+  });
+
+  // --- Static files ---
+  if (ui) {
+    app.get("*", (c) => {
+      const htmlPath = path.join(publicDir, "index.html");
+      if (fs.existsSync(htmlPath)) {
+        const html = fs.readFileSync(htmlPath, "utf-8");
+        return c.html(html);
+      }
+      return c.text("Kai — index.html not found", 404);
+    });
+  }
+
+  const features = [
+    ui && "web UI",
+    agents && "agent daemon",
+    "API",
+  ].filter(Boolean).join(" + ");
+
+  console.log(`\n  Kai Server starting (${features})\n`);
+
+  const server = serve({ fetch: app.fetch, port }, (info) => {
+    if (ui) console.log(`  UI:          http://localhost:${info.port}`);
+    console.log(`  API:         http://localhost:${info.port}/api`);
+    console.log(`  Provider:    ${getProviderName()} / ${getModelId()}`);
+    console.log(`  Working dir: ${getCwd()}`);
+    if (agents) console.log(`  Agents:      ${daemonStartedInProcess ? "daemon started in-process" : "external daemon running"}`);
+    console.log(`  Permissions: auto\n`);
+  });
+
+  server.on("error", (err: NodeJS.ErrnoException) => {
+    if (err.code === "EADDRINUSE") {
+      console.error(`  Error: Port ${port} is already in use.`);
+      console.error(`  Try: kai server --port ${port + 1}\n`);
+    } else {
+      console.error(`  Error: ${err.message}`);
+    }
+    if (daemonStartedInProcess) {
+      stopDaemon();
+      try { fs.unlinkSync(getDaemonPidPath()); } catch {}
+    }
+    process.exit(1);
+  });
+}
+
+// --- Helpers ---
+
+function buildSystemPrompt(): string {
+  let systemContent = getSystemPrompt(getCwd());
+  const profileCtx = getProfileContext();
+  if (profileCtx) systemContent += `\n\n${profileCtx}`;
+  const archivalCtx = archivalList(10);
+  if (archivalCtx && !archivalCtx.startsWith("No archival")) {
+    systemContent += `\n\n# Archival Knowledge\n${archivalCtx}`;
+  }
+  const git = gitInfo();
+  if (git) systemContent += `\n\n# Git\n${git}`;
+  return systemContent;
+}
+
+function createNewSession(): Session {
+  return {
+    id: generateSessionId(),
+    cwd: getCwd(),
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    messages: [{ role: "system", content: buildSystemPrompt() }],
+  };
+}
+
+/**
+ * Web-specific chat loop adapted from client.ts chat().
+ * Replaces terminal output (spinners, chalk) with SSE events.
+ */
+async function chatForWeb(
+  client: OpenAI,
+  messages: ChatCompletionMessageParam[],
+  emit: (event: string, data: any) => Promise<void>,
+  signal?: AbortSignal
+): Promise<ChatCompletionMessageParam[]> {
+  const activeTools = toolDefinitions as ChatCompletionTool[];
+  const updatedMessages = [...messages];
+
+  // Auto-compact if context is getting large
+  if (shouldCompact(updatedMessages)) {
+    const compacted = compactMessages(updatedMessages);
+    updatedMessages.length = 0;
+    updatedMessages.push(...compacted);
+    await emit("status", { message: "Context auto-compacted" });
+  }
+
+  let turns = 0;
+  let consecutiveErrors = 0;
+  const MAX_CONSECUTIVE_ERRORS = 3;
+
+  while (turns < MAX_TOOL_TURNS) {
+    turns++;
+
+    if (signal?.aborted) break;
+
+    await emit("thinking", { active: true });
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), STREAM_TIMEOUT_MS);
+
+    // Link external abort signal
+    if (signal) {
+      signal.addEventListener("abort", () => controller.abort(), { once: true });
+    }
+
+    let stream;
+    try {
+      stream = await client.chat.completions.create(
+        {
+          model: getModelId(),
+          messages: updatedMessages,
+          tools: activeTools,
+          tool_choice: "auto",
+          stream: true,
+          max_tokens: MAX_TOKENS,
+        },
+        { signal: controller.signal }
+      );
+    } catch (err: unknown) {
+      clearTimeout(timeout);
+      const msg = err instanceof Error ? err.message : String(err);
+      throw new Error(`API request failed: ${msg}`);
+    }
+
+    let content = "";
+    let toolCalls: Array<{
+      id: string;
+      function: { name: string; arguments: string };
+    }> = [];
+    let currentToolCall: {
+      id: string;
+      function: { name: string; arguments: string };
+    } | null = null;
+    let chunkUsage: any = null;
+
+    try {
+      for await (const chunk of stream) {
+        if (signal?.aborted) break;
+
+        const delta = chunk.choices[0]?.delta;
+        if (chunk.usage) chunkUsage = chunk.usage;
+        if (!delta) continue;
+
+        const text = delta.content;
+        if (text) {
+          content += text;
+          await emit("token", { text });
+        }
+
+        if (delta.tool_calls) {
+          for (const tc of delta.tool_calls) {
+            if (tc.id) {
+              if (currentToolCall) toolCalls.push(currentToolCall);
+              currentToolCall = {
+                id: tc.id,
+                function: {
+                  name: tc.function?.name || "",
+                  arguments: tc.function?.arguments || "",
+                },
+              };
+            } else if (currentToolCall) {
+              if (tc.function?.name) currentToolCall.function.name += tc.function.name;
+              if (tc.function?.arguments) currentToolCall.function.arguments += tc.function.arguments;
+            }
+          }
+        }
+      }
+    } finally {
+      clearTimeout(timeout);
+    }
+
+    if (currentToolCall) toolCalls.push(currentToolCall);
+    if (chunkUsage) trackUsage(chunkUsage);
+
+    await emit("thinking", { active: false });
+
+    // Text-only response — done
+    if (toolCalls.length === 0) {
+      updatedMessages.push({ role: "assistant", content });
+      return updatedMessages;
+    }
+
+    // Tool calls — execute and loop
+    const assistantMsg: ChatCompletionMessageParam = {
+      role: "assistant",
+      content: content || null,
+      tool_calls: toolCalls.map((tc) => ({
+        id: tc.id,
+        type: "function" as const,
+        function: tc.function,
+      })),
+    };
+    updatedMessages.push(assistantMsg);
+
+    for (const tc of toolCalls) {
+      if (signal?.aborted) break;
+
+      const toolName = tc.function.name;
+      let args: Record<string, unknown>;
+      let parseError = false;
+      try {
+        args = JSON.parse(tc.function.arguments);
+      } catch {
+        parseError = true;
+        args = {};
+      }
+
+      await emit("tool_call", {
+        id: tc.id,
+        name: toolName,
+        args: summarizeArgs(toolName, args),
+      });
+
+      if (parseError) {
+        const errorMsg = `Error: Tool call truncated — arguments were cut off.`;
+        updatedMessages.push({ role: "tool", tool_call_id: tc.id, content: errorMsg });
+        await emit("tool_result", { id: tc.id, name: toolName, result: errorMsg, error: true });
+        consecutiveErrors++;
+        continue;
+      }
+
+      const resultStr = await executeTool(toolName, args);
+
+      // Truncate for context
+      const contextCharLimit = TOOL_OUTPUT_CONTEXT_LIMIT * 4;
+      let contextContent = resultStr;
+      if (resultStr.length > contextCharLimit) {
+        contextContent =
+          resultStr.substring(0, contextCharLimit) +
+          `\n\n[Output truncated — ${resultStr.length} chars total]`;
+      }
+
+      const isError =
+        resultStr.startsWith("Error") ||
+        resultStr.includes("exit code:") ||
+        resultStr.includes("failed:");
+
+      if (isError) {
+        consecutiveErrors++;
+      } else {
+        consecutiveErrors = 0;
+      }
+
+      updatedMessages.push({ role: "tool", tool_call_id: tc.id, content: contextContent });
+
+      // Send preview to frontend
+      const preview = resultStr.length > 500 ? resultStr.substring(0, 500) + "..." : resultStr;
+      await emit("tool_result", {
+        id: tc.id,
+        name: toolName,
+        result: preview,
+        error: isError,
+      });
+
+      if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
+        updatedMessages.push({
+          role: "user",
+          content: `[SYSTEM: ${MAX_CONSECUTIVE_ERRORS} consecutive tool errors. Stop retrying.]`,
+        });
+        break;
+      }
+    }
+  }
+
+  updatedMessages.push({
+    role: "assistant",
+    content: "[Reached maximum tool call limit.]",
+  });
+  return updatedMessages;
+}
+
+function summarizeArgs(toolName: string, args: Record<string, unknown>): string {
+  switch (toolName) {
+    case "bash":
+      return String(args.command || "").substring(0, 120);
+    case "read_file":
+    case "write_file":
+    case "edit_file":
+      return String(args.file_path || "");
+    case "glob":
+      return String(args.pattern || "");
+    case "grep":
+      return `${args.pattern || ""} ${args.path || ""}`;
+    case "web_fetch":
+      return String(args.url || "").substring(0, 80);
+    case "web_search":
+      return String(args.query || "");
+    case "generate_image":
+      return String(args.prompt || "").substring(0, 80);
+    default:
+      return JSON.stringify(args).substring(0, 80);
+  }
+}

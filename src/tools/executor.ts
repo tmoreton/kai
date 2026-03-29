@@ -10,6 +10,7 @@ import { updateCoreMemory, readCoreMemory } from "../soul.js";
 import { searchRecall } from "../recall.js";
 import { archivalInsert, archivalSearch } from "../archival.js";
 import { generateImage, compositeImage } from "./image-gen.js";
+import { tryExecuteMcpTool } from "./mcp.js";
 
 export type ToolResult = string;
 
@@ -77,8 +78,15 @@ export async function executeTool(
         result = await compositeImage(args as { background: string; overlay: string; output_path?: string; position?: string; overlay_width?: number }); break;
       case "spawn_agent":
         result = await spawnAgent(args as { agent: string; task: string }); break;
-      default:
-        result = `Unknown tool: ${name}`;
+      default: {
+        // Check if it's an MCP tool (mcp__server__tool)
+        const mcpResult = await tryExecuteMcpTool(name, args);
+        if (mcpResult !== null) {
+          result = mcpResult;
+        } else {
+          result = `Unknown tool: ${name}`;
+        }
+      }
     }
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
