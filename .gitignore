@@ -37,6 +37,9 @@ tasks.json
 *.swo
 *~
 
+# Personal workflows & examples (local only)
+examples/
+
 # Temp
 /tmp/
 *.tmp
