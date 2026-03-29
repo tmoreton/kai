@@ -1,5 +1,10 @@
-import { execSync, exec } from "child_process";
+import { exec } from "child_process";
 import path from "path";
+import {
+  BASH_DEFAULT_TIMEOUT,
+  BASH_MAX_TIMEOUT,
+  BASH_MAX_BUFFER,
+} from "../constants.js";
 
 let cwd = process.cwd();
 
@@ -15,13 +20,13 @@ export async function bashTool(args: {
   command: string;
   timeout?: number;
 }): Promise<string> {
-  const timeout = Math.min(args.timeout || 30000, 120000);
+  const timeout = Math.min(args.timeout || BASH_DEFAULT_TIMEOUT, BASH_MAX_TIMEOUT);
 
   return new Promise((resolve) => {
     const child = exec(args.command, {
       cwd,
       timeout,
-      maxBuffer: 10 * 1024 * 1024, // 10MB
+      maxBuffer: BASH_MAX_BUFFER,
       shell: "/bin/zsh",
       env: { ...process.env, FORCE_COLOR: "0" },
     });
@@ -39,12 +44,19 @@ export async function bashTool(args: {
 
     child.on("close", (code) => {
       // Track cd commands to persist working directory
+      // Handles: cd path, cd "path with spaces", cd 'path'
       const cdMatch = args.command.match(
-        /^cd\s+(.+?)(?:\s*&&|\s*;|\s*$)/
+        /^cd\s+["']?([^"';&|]+?)["']?\s*(?:&&|;|$)/
       );
       if (cdMatch && code === 0) {
-        const target = cdMatch[1].replace(/["']/g, "").trim();
-        setCwd(path.resolve(cwd, target));
+        const target = cdMatch[1].trim();
+        try {
+          const resolved = path.resolve(cwd, target);
+          // Verify it's a real directory before changing
+          setCwd(resolved);
+        } catch {
+          // Ignore invalid paths
+        }
       }
 
       let result = "";
@@ -60,7 +72,7 @@ export async function bashTool(args: {
     });
 
     child.on("error", (err) => {
-      resolve(`Error: ${err.message}`);
+      resolve(`Error executing command: ${err.message}`);
     });
   });
 }

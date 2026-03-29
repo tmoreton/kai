@@ -19,13 +19,21 @@ const DEFAULT_RULES: PermissionRule[] = [
   { tool: "write_file", action: "ask" },
   { tool: "edit_file", action: "ask" },
 
-  // Dangerous bash patterns
-  { tool: "bash", pattern: "rm -rf", action: "deny" },
-  { tool: "bash", pattern: "rm -r /", action: "deny" },
+  // Dangerous bash patterns — block destructive system commands
+  { tool: "bash", pattern: "rm -rf /", action: "deny" },
+  { tool: "bash", pattern: "rm -rf ~", action: "deny" },
+  { tool: "bash", pattern: "rm -rf /*", action: "deny" },
   { tool: "bash", pattern: "> /dev/sd", action: "deny" },
+  { tool: "bash", pattern: "> /dev/nv", action: "deny" },
   { tool: "bash", pattern: "mkfs", action: "deny" },
   { tool: "bash", pattern: "dd if=", action: "deny" },
   { tool: "bash", pattern: ":(){ :|:& };:", action: "deny" },
+  { tool: "bash", pattern: "chmod -R 777 /", action: "deny" },
+  { tool: "bash", pattern: "shutdown", action: "deny" },
+  { tool: "bash", pattern: "reboot", action: "deny" },
+  { tool: "bash", pattern: "curl|sh", action: "deny" },
+  { tool: "bash", pattern: "curl|bash", action: "deny" },
+  { tool: "bash", pattern: "wget|sh", action: "deny" },
 
   // Git destructive ops need confirmation
   { tool: "bash", pattern: "git push --force", action: "ask" },

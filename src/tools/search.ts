@@ -2,6 +2,7 @@ import { execSync } from "child_process";
 import path from "path";
 import { getCwd } from "./bash.js";
 import { glob as globFn } from "glob";
+import { EXCLUDED_DIRS, MAX_SEARCH_RESULTS } from "../constants.js";
 
 export async function globTool(args: {
   pattern: string;
@@ -16,16 +17,17 @@ export async function globTool(args: {
       cwd: searchDir,
       nodir: true,
       dot: false,
-      ignore: ["node_modules/**", ".git/**", "dist/**"],
+      ignore: EXCLUDED_DIRS.map((d) => `${d}/**`),
     });
 
     if (matches.length === 0) {
       return "No files matched the pattern.";
     }
 
-    return matches.slice(0, 100).join("\n");
-  } catch (err: any) {
-    return `Error: ${err.message}`;
+    return matches.slice(0, MAX_SEARCH_RESULTS).join("\n");
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return `Error: ${msg}`;
   }
 }
 
@@ -46,10 +48,9 @@ export async function grepTool(args: {
     if (args.context) flags.push(`-C${args.context}`);
     if (args.include) flags.push(`--include=${args.include}`);
 
-    // Exclude common noisy dirs
-    flags.push("--exclude-dir=node_modules");
-    flags.push("--exclude-dir=.git");
-    flags.push("--exclude-dir=dist");
+    for (const dir of EXCLUDED_DIRS) {
+      flags.push(`--exclude-dir=${dir}`);
+    }
 
     const cmd = `grep ${flags.join(" ")} ${JSON.stringify(args.pattern)} ${JSON.stringify(searchPath)}`;
     const result = execSync(cmd, {
@@ -59,15 +60,18 @@ export async function grepTool(args: {
     });
 
     const lines = result.trim().split("\n");
-    if (lines.length > 100) {
+    if (lines.length > MAX_SEARCH_RESULTS) {
       return (
-        lines.slice(0, 100).join("\n") +
-        `\n... (${lines.length} matches total, showing first 100)`
+        lines.slice(0, MAX_SEARCH_RESULTS).join("\n") +
+        `\n... (${lines.length} matches total, showing first ${MAX_SEARCH_RESULTS})`
       );
     }
     return result.trim() || "No matches found.";
-  } catch (err: any) {
-    if (err.status === 1) return "No matches found.";
-    return `Error: ${err.message}`;
+  } catch (err: unknown) {
+    if (err && typeof err === "object" && "status" in err && err.status === 1) {
+      return "No matches found.";
+    }
+    const msg = err instanceof Error ? err.message : String(err);
+    return `Error: ${msg}`;
   }
 }

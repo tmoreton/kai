@@ -1,5 +1,11 @@
 import type { ChatCompletionMessageParam } from "openai/resources/chat/completions";
 import chalk from "chalk";
+import {
+  MAX_CONTEXT_TOKENS,
+  COMPACT_THRESHOLD,
+  COMPACT_RECENT_MIN,
+  COMPACT_RECENT_RATIO,
+} from "./constants.js";
 
 // Rough token estimation: ~4 chars per token for English
 function estimateTokens(text: string): number {
@@ -16,10 +22,11 @@ function messageTokens(msg: ChatCompletionMessageParam): number {
       .join("");
   }
 
-  // Include tool call args in estimate
-  if ("tool_calls" in msg && msg.tool_calls) {
-    for (const tc of msg.tool_calls as any[]) {
-      text += (tc.function?.name || "") + (tc.function?.arguments || "");
+  if ("tool_calls" in msg && Array.isArray(msg.tool_calls)) {
+    for (const tc of msg.tool_calls) {
+      if ("function" in tc && tc.function) {
+        text += (tc.function.name || "") + (tc.function.arguments || "");
+      }
     }
   }
 
@@ -68,10 +75,6 @@ export function estimateContextSize(
   return total;
 }
 
-// Context window limit for Kimi K2.5 (128k)
-const MAX_CONTEXT_TOKENS = 128000;
-const COMPACT_THRESHOLD = 0.85; // Compact at 85% usage
-
 export function shouldCompact(
   messages: ChatCompletionMessageParam[]
 ): boolean {
@@ -84,30 +87,35 @@ export function compactMessages(
 ): ChatCompletionMessageParam[] {
   if (messages.length <= 2) return messages;
 
-  const systemMsg = messages[0]; // Keep system prompt
-  const recentCount = Math.min(10, Math.floor(messages.length / 3));
+  const systemMsg = messages[0];
+  const recentCount = Math.min(
+    COMPACT_RECENT_MIN,
+    Math.floor(messages.length * COMPACT_RECENT_RATIO)
+  );
   const recentMessages = messages.slice(-recentCount);
   const oldMessages = messages.slice(1, -recentCount);
 
-  // Summarize old messages
-  let summary = "Previous conversation summary:\n";
+  // Summarize old messages using array for performance
+  const summaryParts: string[] = ["Previous conversation summary:"];
   for (const msg of oldMessages) {
     if (msg.role === "user") {
       const content =
         typeof msg.content === "string"
           ? msg.content.substring(0, 100)
           : "[complex content]";
-      summary += `- User asked: ${content}\n`;
+      summaryParts.push(`- User asked: ${content}`);
     } else if (msg.role === "assistant") {
-      if ("tool_calls" in msg && msg.tool_calls) {
-        const tools = (msg.tool_calls as any[]).map((tc) => tc.function?.name || "unknown").join(", ");
-        summary += `- Assistant used tools: ${tools}\n`;
+      if ("tool_calls" in msg && Array.isArray(msg.tool_calls)) {
+        const tools = msg.tool_calls
+          .map((tc) => ("function" in tc && tc.function ? tc.function.name : "unknown"))
+          .join(", ");
+        summaryParts.push(`- Assistant used tools: ${tools}`);
       } else {
         const content =
           typeof msg.content === "string"
-            ? msg.content?.substring(0, 100)
+            ? msg.content.substring(0, 100)
             : "";
-        if (content) summary += `- Assistant: ${content}\n`;
+        if (content) summaryParts.push(`- Assistant: ${content}`);
       }
     }
   }
@@ -116,7 +124,7 @@ export function compactMessages(
     systemMsg,
     {
       role: "user" as const,
-      content: `[Context was compacted to save space. Here's what happened before:]\n${summary}`,
+      content: `[Context was compacted to save space. Here's what happened before:]\n${summaryParts.join("\n")}`,
     },
     ...recentMessages,
   ];

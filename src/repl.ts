@@ -53,6 +53,10 @@ export async function startRepl(options: ReplOptions = {}): Promise<void> {
     const recent = getMostRecentSession();
     if (recent) {
       messages = recent.messages;
+      // Refresh system prompt to pick up any changes
+      if (messages.length > 0 && messages[0].role === "system") {
+        messages[0] = { role: "system", content: systemContent };
+      }
       session = recent;
       console.log(chalk.dim(`\n  Resumed session: ${session.name || session.id}\n`));
     } else {
@@ -62,6 +66,9 @@ export async function startRepl(options: ReplOptions = {}): Promise<void> {
     const loaded = loadSession(options.resumeSessionId);
     if (loaded) {
       messages = loaded.messages;
+      if (messages.length > 0 && messages[0].role === "system") {
+        messages[0] = { role: "system", content: systemContent };
+      }
       session = loaded;
       console.log(chalk.dim(`\n  Resumed session: ${session.name || session.id}\n`));
     } else {
@@ -81,11 +88,16 @@ export async function startRepl(options: ReplOptions = {}): Promise<void> {
     chalk.bold.cyan("\n  ⚡ Kai") +
       chalk.dim(" — AI coding assistant powered by Kimi K2.5\n")
   );
-  console.log(chalk.dim(`  Working directory: ${getCwd()}`));
-  if (git) console.log(chalk.dim(`  ${git}`));
-  console.log(chalk.dim(`  Session: ${session.name || session.id}`));
-  console.log(chalk.dim(`  Permission mode: ${getPermissionMode()}`));
-  console.log(chalk.dim(`  Type /help for commands, "exit" to quit.\n`));
+  console.log(chalk.dim(`  cwd:         ${getCwd()}`));
+  if (git) console.log(chalk.dim(`  git:         ${git}`));
+  console.log(chalk.dim(`  session:     ${session.name || session.id}`));
+  console.log(chalk.dim(`  permissions: ${getPermissionMode()}`));
+  console.log("");
+  console.log(chalk.dim("  Tips:"));
+  console.log(chalk.dim("    • Ask me to build, debug, or refactor code"));
+  console.log(chalk.dim("    • I can read/write files, run commands, and search the web"));
+  console.log(chalk.dim("    • Run " + chalk.cyan("kai") + " from any project directory to work in that folder"));
+  console.log(chalk.dim("    • Type /help for all commands\n"));
 
   // Use a simple line-by-line approach with a processing flag
   let processing = false;

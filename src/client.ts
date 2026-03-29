@@ -6,9 +6,18 @@ import type {
 import { toolDefinitions } from "./tools/index.js";
 import { executeTool } from "./tools/executor.js";
 import { trackUsage, shouldCompact, compactMessages } from "./context.js";
+import {
+  DEFAULT_MODEL,
+  MAX_TOKENS,
+  MAX_TOOL_TURNS,
+  STREAM_TIMEOUT_MS,
+  TOOL_OUTPUT_MAX_LINES,
+  TOOL_OUTPUT_PREVIEW_LINES,
+  TOOL_OUTPUT_MAX_CHARS,
+} from "./constants.js";
 import chalk from "chalk";
 
-const MODEL = process.env.MODEL_ID || "moonshotai/Kimi-K2.5";
+const MODEL = process.env.MODEL_ID || DEFAULT_MODEL;
 
 export function createClient(): OpenAI {
   return new OpenAI({
@@ -32,15 +41,36 @@ export async function chat(
     console.log(chalk.dim("  📦 Context auto-compacted to save tokens.\n"));
   }
 
-  while (true) {
-    const stream = await client.chat.completions.create({
-      model: MODEL,
-      messages: updatedMessages,
-      tools: toolDefinitions as ChatCompletionTool[],
-      tool_choice: "auto",
-      stream: true,
-      max_tokens: 8192,
-    });
+  let turns = 0;
+
+  while (turns < MAX_TOOL_TURNS) {
+    turns++;
+
+    // Create stream with timeout
+    const controller = new AbortController();
+    const timeout = setTimeout(
+      () => controller.abort(),
+      STREAM_TIMEOUT_MS
+    );
+
+    let stream;
+    try {
+      stream = await client.chat.completions.create(
+        {
+          model: MODEL,
+          messages: updatedMessages,
+          tools: toolDefinitions as ChatCompletionTool[],
+          tool_choice: "auto",
+          stream: true,
+          max_tokens: MAX_TOKENS,
+        },
+        { signal: controller.signal }
+      );
+    } catch (err: unknown) {
+      clearTimeout(timeout);
+      const msg = err instanceof Error ? err.message : String(err);
+      throw new Error(`API request failed: ${msg}`);
+    }
 
     let content = "";
     let toolCalls: Array<{
@@ -51,53 +81,55 @@ export async function chat(
       id: string;
       function: { name: string; arguments: string };
     } | null = null;
-    let chunkUsage: any = null;
+    let chunkUsage: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number } | null = null;
 
-    for await (const chunk of stream) {
-      const delta = chunk.choices[0]?.delta;
+    try {
+      for await (const chunk of stream) {
+        const delta = chunk.choices[0]?.delta;
 
-      // Track usage from the final chunk
-      if (chunk.usage) {
-        chunkUsage = chunk.usage;
-      }
+        if (chunk.usage) {
+          chunkUsage = chunk.usage;
+        }
 
-      if (!delta) continue;
+        if (!delta) continue;
 
-      if (delta.content) {
-        content += delta.content;
-        onToken?.(delta.content);
-      }
+        if (delta.content) {
+          content += delta.content;
+          onToken?.(delta.content);
+        }
 
-      if (delta.tool_calls) {
-        for (const tc of delta.tool_calls) {
-          if (tc.id) {
-            if (currentToolCall) {
-              toolCalls.push(currentToolCall);
-            }
-            currentToolCall = {
-              id: tc.id,
-              function: {
-                name: tc.function?.name || "",
-                arguments: tc.function?.arguments || "",
-              },
-            };
-          } else if (currentToolCall) {
-            if (tc.function?.name) {
-              currentToolCall.function.name += tc.function.name;
-            }
-            if (tc.function?.arguments) {
-              currentToolCall.function.arguments += tc.function.arguments;
+        if (delta.tool_calls) {
+          for (const tc of delta.tool_calls) {
+            if (tc.id) {
+              if (currentToolCall) {
+                toolCalls.push(currentToolCall);
+              }
+              currentToolCall = {
+                id: tc.id,
+                function: {
+                  name: tc.function?.name || "",
+                  arguments: tc.function?.arguments || "",
+                },
+              };
+            } else if (currentToolCall) {
+              if (tc.function?.name) {
+                currentToolCall.function.name += tc.function.name;
+              }
+              if (tc.function?.arguments) {
+                currentToolCall.function.arguments += tc.function.arguments;
+              }
             }
           }
         }
       }
+    } finally {
+      clearTimeout(timeout);
     }
 
     if (currentToolCall) {
       toolCalls.push(currentToolCall);
     }
 
-    // Track API usage
     if (chunkUsage) {
       trackUsage(chunkUsage);
     }
@@ -143,11 +175,11 @@ export async function chat(
         typeof result === "string" ? result : JSON.stringify(result, null, 2);
 
       const lines = resultStr.split("\n");
-      if (lines.length > 10) {
-        console.log(chalk.gray(`  ↳ ${lines.slice(0, 8).join("\n    ")}...`));
+      if (lines.length > TOOL_OUTPUT_MAX_LINES) {
+        console.log(chalk.gray(`  ↳ ${lines.slice(0, TOOL_OUTPUT_PREVIEW_LINES).join("\n    ")}...`));
         console.log(chalk.gray(`    (${lines.length} lines total)`));
-      } else if (resultStr.length > 500) {
-        console.log(chalk.gray(`  ↳ ${resultStr.substring(0, 500)}...`));
+      } else if (resultStr.length > TOOL_OUTPUT_MAX_CHARS) {
+        console.log(chalk.gray(`  ↳ ${resultStr.substring(0, TOOL_OUTPUT_MAX_CHARS)}...`));
       } else {
         console.log(chalk.gray(`  ↳ ${resultStr}`));
       }
@@ -159,6 +191,14 @@ export async function chat(
       });
     }
   }
+
+  // Hit max turns — return what we have
+  console.log(chalk.yellow(`\n  ⚠ Reached max tool turns (${MAX_TOOL_TURNS}). Stopping.\n`));
+  updatedMessages.push({
+    role: "assistant",
+    content: "[Reached maximum tool call limit. Please continue with a follow-up message if needed.]",
+  });
+  return updatedMessages;
 }
 
 function summarizeArgs(
