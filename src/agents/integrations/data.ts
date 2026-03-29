@@ -13,15 +13,36 @@ function resolvePath(filePath: string): string {
   return filePath.replace(/^~/, process.env.HOME || "~");
 }
 
+/**
+ * Normalize an entry that might be a JSON string from LLM output into an object.
+ */
+function normalizeEntry(entry: any): any {
+  if (typeof entry === "string") {
+    // Try to parse JSON strings (common from LLM output)
+    const trimmed = entry.trim();
+    if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
+      try { return JSON.parse(trimmed); } catch {}
+    }
+    // Extract JSON from markdown code blocks
+    const jsonMatch = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/);
+    if (jsonMatch) {
+      try { return JSON.parse(jsonMatch[1].trim()); } catch {}
+    }
+    // Return as-is if not parseable
+    return { content: entry };
+  }
+  return entry;
+}
+
 export function registerDataIntegration(): void {
   registerIntegration({
     name: "data",
-    description: "Read/write/append JSON data files for cross-agent communication",
+    description: "Read/write/append/archive JSON data files for cross-agent communication",
     actions: {
       // Read a JSON file
       read: async (params) => {
         const file = resolvePath(params.file);
-        if (!fs.existsSync(file)) return params.default || null;
+        if (!fs.existsSync(file)) return params.default ?? null;
 
         const content = fs.readFileSync(file, "utf-8");
         try {
@@ -37,9 +58,15 @@ export function registerDataIntegration(): void {
         const dir = path.dirname(file);
         if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 
-        const data = typeof params.data === "string" ? params.data : JSON.stringify(params.data, null, 2);
-        fs.writeFileSync(file, data, "utf-8");
-        return { written: file, size: data.length };
+        // Normalize: if data is a JSON string, parse it first for clean formatting
+        let data = params.data;
+        if (typeof data === "string") {
+          try { data = JSON.parse(data); } catch {}
+        }
+
+        const output = typeof data === "string" ? data : JSON.stringify(data, null, 2);
+        fs.writeFileSync(file, output, "utf-8");
+        return { written: file, size: output.length };
       },
 
       // Append an entry to a JSON array file
@@ -51,15 +78,17 @@ export function registerDataIntegration(): void {
         let existing: any[] = [];
         if (fs.existsSync(file)) {
           try {
-            existing = JSON.parse(fs.readFileSync(file, "utf-8"));
-            if (!Array.isArray(existing)) existing = [existing];
+            const parsed = JSON.parse(fs.readFileSync(file, "utf-8"));
+            existing = Array.isArray(parsed) ? parsed : [parsed];
           } catch {
             existing = [];
           }
         }
 
+        // Normalize entry — handle JSON strings from LLM, raw objects, etc.
+        const normalized = normalizeEntry(params.entry);
         const entry = {
-          ...params.entry,
+          ...(typeof normalized === "object" && normalized !== null ? normalized : { value: normalized }),
           _timestamp: new Date().toISOString(),
         };
         existing.push(entry);
@@ -74,6 +103,27 @@ export function registerDataIntegration(): void {
         return { appended: file, total_entries: existing.length };
       },
 
+      // Archive a file with timestamp before overwriting (preserves history)
+      archive: async (params) => {
+        const file = resolvePath(params.file);
+        if (!fs.existsSync(file)) return { archived: false, reason: "file does not exist" };
+
+        const archiveDir = resolvePath(params.archive_dir || "~/.kai/youtube/archives");
+        if (!fs.existsSync(archiveDir)) fs.mkdirSync(archiveDir, { recursive: true });
+
+        const basename = path.basename(file, path.extname(file));
+        const ext = path.extname(file);
+        const date = new Date().toISOString().split("T")[0];
+        const archivePath = path.join(archiveDir, `${basename}_${date}${ext}`);
+
+        // Don't overwrite same-day archive
+        if (!fs.existsSync(archivePath)) {
+          fs.copyFileSync(file, archivePath);
+        }
+
+        return { archived: true, path: archivePath };
+      },
+
       // Read a text file (SRT, transcript, etc.)
       read_text: async (params) => {
         const file = resolvePath(params.file);
@@ -86,12 +136,17 @@ export function registerDataIntegration(): void {
         const dir = resolvePath(params.dir);
         if (!fs.existsSync(dir)) return [];
         const files = fs.readdirSync(dir);
-        return files.filter((f: string) => !f.startsWith(".")).map((f: string) => ({
-          name: f,
-          path: path.join(dir, f),
-          size: fs.statSync(path.join(dir, f)).size,
-          modified: fs.statSync(path.join(dir, f)).mtime.toISOString(),
-        }));
+        return files.filter((f: string) => !f.startsWith(".")).map((f: string) => {
+          const fullPath = path.join(dir, f);
+          const stat = fs.statSync(fullPath);
+          return {
+            name: f,
+            path: fullPath,
+            size: stat.size,
+            modified: stat.mtime.toISOString(),
+            is_dir: stat.isDirectory(),
+          };
+        });
       },
     },
   });

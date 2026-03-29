@@ -267,6 +267,51 @@ yt
   });
 
 yt
+  .command("produce [idea]")
+  .description("Trigger the Producer — optionally specify an idea to produce")
+  .action(async (idea?: string) => {
+    const fs = await import("fs");
+    const path = await import("path");
+    const home = process.env.HOME || "~";
+
+    // If an idea is specified, write it to manual-produce.json
+    if (idea) {
+      const manualPath = path.join(home, ".kai/youtube/data/manual-produce.json");
+      const dir = path.dirname(manualPath);
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(manualPath, JSON.stringify({
+        idea,
+        submitted_at: new Date().toISOString(),
+      }, null, 2), "utf-8");
+      console.log(`\n  Queued manual idea: "${idea}"\n`);
+    }
+
+    console.log("  Running Producer agent...\n");
+
+    const { registerAllIntegrations } = await import("./agents/integrations/index.js");
+    const { parseWorkflow, executeWorkflow } = await import("./agents/workflow.js");
+    registerAllIntegrations();
+
+    const workflowPath = path.join(home, ".kai/workflows/yt-producer.yaml");
+    if (!fs.existsSync(workflowPath)) {
+      console.error("  Error: yt-producer.yaml not found.");
+      process.exit(1);
+    }
+
+    const workflow = parseWorkflow(workflowPath);
+    const result = await executeWorkflow(workflow, "yt-producer", {}, (step, status) => {
+      console.log(`    ${step}: ${status}`);
+    });
+
+    if (result.success) {
+      console.log("\n  ✓ Production package ready!\n");
+      console.log(`    ~/.kai/youtube/productions/latest.json`);
+    } else {
+      console.log(`\n  ✗ Failed: ${result.error}`);
+    }
+  });
+
+yt
   .command("board")
   .description("Show the current content board")
   .action(async () => {

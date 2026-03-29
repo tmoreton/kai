@@ -126,11 +126,48 @@ export function parseWorkflow(filePath: string): WorkflowDefinition {
 function interpolate(template: string, ctx: WorkflowContext): string {
   return template.replace(/\$\{([^}]+)\}/g, (_, expr: string) => {
     const parts = expr.trim().split(".");
-    if (parts[0] === "config") return JSON.stringify(ctx.config[parts.slice(1).join(".")]) || "";
-    if (parts[0] === "vars") return typeof ctx.vars[parts[1]] === "string" ? ctx.vars[parts[1]] : JSON.stringify(ctx.vars[parts[1]]) || "";
+    if (parts[0] === "config") {
+      const val = ctx.config[parts.slice(1).join(".")];
+      if (val === undefined || val === null) return "";
+      return typeof val === "string" ? val : JSON.stringify(val);
+    }
+    if (parts[0] === "vars") {
+      const val = ctx.vars[parts[1]];
+      if (val === undefined || val === null) return "";
+      return typeof val === "string" ? val : JSON.stringify(val);
+    }
     if (parts[0] === "env") return ctx.env[parts[1]] || process.env[parts[1]] || "";
     return `\${${expr}}`;
   });
+}
+
+/**
+ * Interpolate a param value, preserving object types when the entire value
+ * is a single ${vars.x} or ${config.x} reference pointing to a non-string.
+ */
+function interpolateParam(value: any, ctx: WorkflowContext): any {
+  if (typeof value !== "string") return value;
+
+  // If the entire value is a single variable reference, return the raw value (preserves objects/arrays)
+  const singleVarMatch = value.match(/^\$\{([^}]+)\}$/);
+  if (singleVarMatch) {
+    const expr = singleVarMatch[1].trim();
+    const parts = expr.split(".");
+    if (parts[0] === "vars") {
+      const val = ctx.vars[parts[1]];
+      // If it's a string that looks like JSON, try to parse it
+      if (typeof val === "string") {
+        try { return JSON.parse(val); } catch { return val; }
+      }
+      return val ?? null;
+    }
+    if (parts[0] === "config") {
+      return ctx.config[parts.slice(1).join(".")] ?? null;
+    }
+  }
+
+  // Otherwise do normal string interpolation
+  return interpolate(value, ctx);
 }
 
 /**
@@ -408,11 +445,11 @@ async function executeIntegrationStep(step: WorkflowStep, ctx: WorkflowContext):
     throw new Error(`Unknown action "${action}" for integration "${step.integration}". Available: ${Object.keys(handler.actions).join(", ")}`);
   }
 
-  // Interpolate params
+  // Interpolate params — preserves objects when param is a single ${vars.x} reference
   const params: Record<string, any> = {};
   if (step.params) {
     for (const [key, value] of Object.entries(step.params)) {
-      params[key] = typeof value === "string" ? interpolate(value, ctx) : value;
+      params[key] = interpolateParam(value, ctx);
     }
   }
 
