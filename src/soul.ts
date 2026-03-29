@@ -133,7 +133,6 @@ export function loadSoul(projectId?: string): Soul {
 }
 
 export function saveSoul(soul: Soul): void {
-  // Kept for backwards compat — saves both
   saveIdentity({ persona: soul.persona, human: soul.human });
   saveProjectContext({ goals: soul.goals, scratchpad: soul.scratchpad });
 }

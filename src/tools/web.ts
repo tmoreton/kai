@@ -23,8 +23,9 @@ export async function webFetch(args: {
     }
 
     return text.substring(0, 50000);
-  } catch (err: any) {
-    return `Error fetching ${args.url}: ${err.message}`;
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return `Error fetching ${args.url}: ${msg}`;
   }
 }
 
@@ -89,8 +90,9 @@ export async function webSearch(args: {
     return parts.length > 0
       ? parts.join("\n\n")
       : "No search results found.";
-  } catch (err: any) {
-    return `Search error: ${err.message}`;
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return `Search error: ${msg}`;
   }
 }
 

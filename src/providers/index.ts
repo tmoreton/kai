@@ -1,5 +1,5 @@
 import OpenAI from "openai";
-import { getConfig } from "../config.js";
+import { getConfig, type ProviderConfig } from "../config.js";
 
 /**
  * Multi-provider support.
@@ -106,7 +106,7 @@ export function resolveProvider(modelOverride?: string): ResolvedProvider {
     }
 
     // Check custom providers from config
-    const customProviders = (config as any).providers as ProviderDefinition[] | undefined;
+    const customProviders = config.providers;
     if (customProviders) {
       for (const cp of customProviders) {
         if (cp.models?.includes(modelId) || cp.name === modelId) {
@@ -114,7 +114,7 @@ export function resolveProvider(modelOverride?: string): ResolvedProvider {
           return {
             client: new OpenAI({ apiKey, baseURL: cp.baseURL }),
             model: modelId,
-            provider: cp,
+            provider: { ...cp, models: cp.models || [] },
           };
         }
       }

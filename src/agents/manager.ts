@@ -193,14 +193,11 @@ async function generateRunSummary(agentId: string): Promise<void> {
   console.log(chalk.dim("  Generating summary...\n"));
 
   try {
-    const OpenAI = (await import("openai")).default;
-    const client = new OpenAI({
-      apiKey: process.env.TOGETHER_API_KEY,
-      baseURL: "https://api.together.xyz/v1",
-    });
+    const { resolveProvider } = await import("../providers/index.js");
+    const { client, model } = resolveProvider();
 
     const response = await client.chat.completions.create({
-      model: process.env.MODEL_ID || "moonshotai/Kimi-K2.5",
+      model,
       messages: [
         {
           role: "system",

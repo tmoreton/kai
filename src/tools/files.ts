@@ -25,8 +25,9 @@ export async function readFile(args: {
       (line, i) => `${start + i + 1}\t${line}`
     );
     return numbered.join("\n");
-  } catch (err: any) {
-    return `Error reading file: ${err.message}`;
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return `Error reading file: ${msg}`;
   }
 }
 
@@ -51,8 +52,9 @@ export async function writeFile(args: {
 
     fs.writeFileSync(fullPath, args.content, "utf-8");
     return `File written successfully: ${fullPath}`;
-  } catch (err: any) {
-    return `Error writing file: ${err.message}`;
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return `Error writing file: ${msg}`;
   }
 }
 
@@ -83,7 +85,8 @@ export async function editFile(args: {
 
     fs.writeFileSync(fullPath, content, "utf-8");
     return `File edited successfully: ${fullPath}`;
-  } catch (err: any) {
-    return `Error editing file: ${err.message}`;
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return `Error editing file: ${msg}`;
   }
 }

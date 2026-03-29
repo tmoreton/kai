@@ -184,9 +184,7 @@ export async function startRepl(options: ReplOptions = {}): Promise<void> {
     }
 
     // Send to model — check for image paths in input
-    const imagePathMatch = input.match(/(?:^|\s)(\/[^\s]+\.(?:png|jpg|jpeg|gif|webp|bmp))(?:\s|$)/i)
-      || input.match(/(?:^|\s)(~[^\s]+\.(?:png|jpg|jpeg|gif|webp|bmp))(?:\s|$)/i)
-      || input.match(/(?:^|\s)([^\s]+\.(?:png|jpg|jpeg|gif|webp|bmp))(?:\s|$)/i);
+    const imagePathMatch = input.match(/(?:^|\s)([^\s]+\.(?:png|jpg|jpeg|gif|webp|bmp))(?:\s|$)/i);
 
     if (imagePathMatch) {
       const imgPath = imagePathMatch[1].replace(/^~/, process.env.HOME || "~");

@@ -434,10 +434,15 @@ async function executeShellStep(step: WorkflowStep, ctx: WorkflowContext): Promi
 }
 
 async function executeNotifyStep(step: WorkflowStep, ctx: WorkflowContext): Promise<string> {
-  const notifier = await import("node-notifier");
   const title = step.params?.title ? interpolate(String(step.params.title), ctx) : "Kai Agent";
   const message = step.params?.message ? interpolate(String(step.params.message), ctx) : "Workflow step completed";
 
-  notifier.default.notify({ title, message, sound: true });
+  try {
+    const notifier = await import("node-notifier");
+    notifier.default.notify({ title, message, sound: true });
+  } catch {
+    // node-notifier may not be available on all platforms — log but don't fail
+    console.log(chalk.dim(`  [notify] ${title}: ${message}`));
+  }
   return `Notification sent: ${title} — ${message}`;
 }

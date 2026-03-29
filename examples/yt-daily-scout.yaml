@@ -1,0 +1,224 @@
+name: YouTube Daily Scout
+description: Daily keyword search, competitor tracking, trend detection, and video idea generation
+schedule: "0 9 * * *"
+
+review:
+  enabled: true
+  max_iterations: 1
+  review_prompt: |
+    Are ideas specific to TheTravellingDeveloper's unique angle (AI + indie hacking + travel)?
+    Do they reference actual competitor data? Are titles genuinely clickable?
+  improve_steps:
+    - generate_ideas
+
+config:
+  my_channel_id: "UCC8yAE278hIstZpHiC0VBLg"
+  channel_context: |
+    TheTravellingDeveloper (formerly Reactive Nerve). 1,720 subs, 50 videos.
+    Rebranded from React Native tutorials to: build & ship apps with the best tool for the job.
+    Uses AI (Cursor, Claude) to code in any language. Now building SwiftUI + React Native.
+    Focus: indie hacking, making money with code, shipping fast, developer travel lifestyle.
+    Currently in Argentina. Website: thetravellingdeveloper.com
+
+  # Core competitors to always track
+  competitors:
+    - id: "UCbxtV_oVIXBtLRmyPfcLKVg"
+      name: "Chris the Freelancer"
+    - id: "UCCIFp-Se_xjfYc94H04oK7Q"
+      name: "Brian Ruiz"
+    - id: "UCsXQTrMEZkcD_UuCR0wMJmQ"
+      name: "Jacob Sucks At Code"
+    - id: "UCCQ6SXMc7MoJ88jjpn6j-8Q"
+      name: "Marko"
+
+  # Keywords to search daily — these get rotated
+  search_keywords:
+    - "build in public developer 2026"
+    - "AI coding assistant claude cursor"
+    - "indie hacker ship app"
+    - "SwiftUI tutorial build app"
+    - "react native vs swift 2026"
+    - "developer digital nomad vlog"
+    - "make money with code side project"
+    - "coding with AI workflow"
+    - "solo developer launch app"
+    - "mobile app from scratch tutorial"
+    - "developer lifestyle vlog"
+    - "OpenClaw AI agent"
+    - "claude code alternative"
+    - "ship fast developer"
+
+steps:
+  # === COMPETITOR TRACKING ===
+
+  - name: competitor_1_videos
+    type: integration
+    integration: youtube
+    action: get_recent_uploads
+    params:
+      channel_id: "UCbxtV_oVIXBtLRmyPfcLKVg"
+      max_results: 5
+
+  - name: competitor_2_videos
+    type: integration
+    integration: youtube
+    action: get_recent_uploads
+    params:
+      channel_id: "UCCIFp-Se_xjfYc94H04oK7Q"
+      max_results: 5
+
+  - name: competitor_3_videos
+    type: integration
+    integration: youtube
+    action: get_recent_uploads
+    params:
+      channel_id: "UCsXQTrMEZkcD_UuCR0wMJmQ"
+      max_results: 5
+
+  - name: competitor_4_videos
+    type: integration
+    integration: youtube
+    action: get_recent_uploads
+    params:
+      channel_id: "UCCQ6SXMc7MoJ88jjpn6j-8Q"
+      max_results: 5
+
+  # === KEYWORD SEARCHES (rotate through different keywords each day) ===
+
+  - name: keyword_search_1
+    type: integration
+    integration: youtube
+    action: search_videos
+    params:
+      query: "build in public developer ship app 2026"
+      order: "viewCount"
+      max_results: 10
+
+  - name: keyword_search_2
+    type: integration
+    integration: youtube
+    action: search_videos
+    params:
+      query: "AI coding cursor claude developer workflow"
+      order: "date"
+      max_results: 10
+
+  - name: keyword_search_3
+    type: integration
+    integration: youtube
+    action: search_videos
+    params:
+      query: "indie hacker solo developer make money app"
+      order: "viewCount"
+      max_results: 10
+
+  - name: keyword_search_4
+    type: integration
+    integration: youtube
+    action: search_videos
+    params:
+      query: "SwiftUI react native mobile app tutorial"
+      order: "viewCount"
+      max_results: 10
+
+  # === DISCOVER NEW COMPETITORS ===
+
+  - name: discover_channels
+    type: integration
+    integration: youtube
+    action: search_videos
+    params:
+      query: "developer vlog build ship indie hacker travel"
+      order: "relevance"
+      max_results: 15
+
+  # === WEB TRENDS ===
+
+  - name: web_trends
+    type: integration
+    integration: web
+    action: search
+    params:
+      query: "trending developer YouTube content ideas indie hacker build in public 2026"
+      max_results: 5
+
+  # === ANALYSIS ===
+
+  - name: daily_analysis
+    type: llm
+    prompt: |
+      You are a YouTube strategist for TheTravellingDeveloper.
+
+      ## Channel Context:
+      ${config.channel_context}
+
+      ## Competitor Videos This Week:
+      **Chris the Freelancer:** ${vars.competitor_1_videos}
+      **Brian Ruiz:** ${vars.competitor_2_videos}
+      **Jacob Sucks At Code:** ${vars.competitor_3_videos}
+      **Marko:** ${vars.competitor_4_videos}
+
+      ## Keyword Search Results:
+      **Build in public:** ${vars.keyword_search_1}
+      **AI coding tools:** ${vars.keyword_search_2}
+      **Indie hacker:** ${vars.keyword_search_3}
+      **SwiftUI/React Native:** ${vars.keyword_search_4}
+
+      ## New Channels Discovered:
+      ${vars.discover_channels}
+
+      ## Web Trends:
+      ${vars.web_trends}
+
+      Provide:
+      1. **Competitor Report** — What did each competitor post? View counts? What's working?
+      2. **New Competitors Found** — Any new channels in the discovered results worth tracking? List channel names and why.
+      3. **Trending Keywords** — Which search terms returned high-view videos? What topics are hot RIGHT NOW?
+      4. **Content Gaps** — What are people searching for that NO ONE is making good content about?
+      5. **Viral Patterns** — What title/thumbnail patterns are getting the most views in our niche?
+
+      Be data-driven. Reference actual video titles and view counts.
+
+  # === IDEA GENERATION ===
+
+  - name: generate_ideas
+    type: llm
+    prompt: |
+      Based on today's analysis, generate 5 video ideas for TheTravellingDeveloper.
+
+      ## Today's Analysis:
+      ${vars.daily_analysis}
+
+      ## Channel Positioning:
+      ${config.channel_context}
+
+      For each idea provide:
+
+      **Title** — 3 variations (short-form friendly + long-form). Must be specific, not generic.
+      **Format** — Long (10-15 min) or Short (60 sec) or Both
+      **Hook** — First 10 seconds. What stops the scroll?
+      **Key Points** — 5 bullet points of what to cover
+      **Why Now** — What trend/data makes this timely?
+      **Estimated Performance** — Based on similar videos in the search data, what views could this get?
+
+      Prioritize by potential impact. Mix formats:
+      - 2 long-form video ideas
+      - 2 short-form / Shorts ideas
+      - 1 "spicy take" or controversial opinion piece
+
+      IMPORTANT: Every idea must connect to either shipping code, making money, AI tools, or the travel lifestyle. No generic tutorials.
+
+  # === STORE IDEAS IN ARCHIVAL MEMORY ===
+
+  - name: store_ideas
+    type: llm
+    prompt: |
+      Extract the top 3 video idea titles from this output and return them as a simple numbered list (just titles, nothing else):
+      ${vars.generate_ideas}
+    output_var: top_titles
+
+  - name: notify
+    type: notify
+    params:
+      title: "YouTube Scout"
+      message: "Daily analysis complete — 5 new video ideas ready"

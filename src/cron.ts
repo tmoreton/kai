@@ -91,22 +91,6 @@ export function listCronJobs(): string {
   return lines.join("\n");
 }
 
-export function pauseCronJob(id: string): string {
-  const job = jobs.get(id);
-  if (!job) return `Cron job "${id}" not found.`;
-  if (job.timerId) clearInterval(job.timerId);
-  job.enabled = false;
-  return `Cron job "${job.name}" paused.`;
-}
-
-export function resumeCronJob(id: string): string {
-  const job = jobs.get(id);
-  if (!job) return `Cron job "${id}" not found.`;
-  job.enabled = true;
-  job.timerId = setInterval(() => runCronJob(job), job.intervalMs);
-  return `Cron job "${job.name}" resumed.`;
-}
-
 async function runCronJob(job: CronJob): Promise<void> {
   if (!job.enabled) return;
 

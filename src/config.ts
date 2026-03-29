@@ -2,8 +2,19 @@ import fs from "fs";
 import path from "path";
 import type { PermissionRule } from "./permissions.js";
 
+export interface ProviderConfig {
+  name: string;
+  baseURL: string;
+  apiKeyEnv: string;
+  models?: string[];
+  defaultModel: string;
+  maxTokens?: number;
+  contextWindow?: number;
+}
+
 export interface KaiConfig {
   model?: string;
+  providers?: ProviderConfig[];
   permissions?: PermissionRule[];
   theme?: string;
   autoCompact?: boolean;

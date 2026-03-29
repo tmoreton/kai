@@ -97,10 +97,14 @@ export function getRecallStats(): { totalEntries: number; fileSizeKB: number } {
 
   try {
     const stat = fs.statSync(filePath);
-    const content = fs.readFileSync(filePath, "utf-8");
-    const lines = content.trim().split("\n").filter(Boolean);
+    // Count newlines without reading entire file into a string array
+    const buf = fs.readFileSync(filePath);
+    let count = 0;
+    for (let i = 0; i < buf.length; i++) {
+      if (buf[i] === 0x0a) count++;
+    }
     return {
-      totalEntries: lines.length,
+      totalEntries: count,
       fileSizeKB: Math.round(stat.size / 1024),
     };
   } catch {
