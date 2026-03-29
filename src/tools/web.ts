@@ -1,5 +1,3 @@
-import chalk from "chalk";
-
 export async function webFetch(args: {
   url: string;
   method?: string;
@@ -20,7 +18,6 @@ export async function webFetch(args: {
 
     const text = await response.text();
 
-    // If HTML, do basic extraction
     if (contentType.includes("text/html")) {
       return htmlToText(text).substring(0, 50000);
     }
@@ -35,51 +32,62 @@ export async function webSearch(args: {
   query: string;
   count?: number;
 }): Promise<string> {
-  // Use DuckDuckGo HTML search as a free fallback
-  try {
-    const encoded = encodeURIComponent(args.query);
-    const url = `https://html.duckduckgo.com/html/?q=${encoded}`;
+  const apiKey = process.env.TAVILY_API_KEY;
+  if (!apiKey) {
+    return "Error: TAVILY_API_KEY not set in .env";
+  }
 
-    const response = await fetch(url, {
+  try {
+    const response = await fetch("https://api.tavily.com/search", {
+      method: "POST",
       headers: {
-        "User-Agent":
-          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+        "Content-Type": "application/json",
       },
-      signal: AbortSignal.timeout(10000),
+      body: JSON.stringify({
+        api_key: apiKey,
+        query: args.query,
+        max_results: args.count || 5,
+        include_answer: true,
+        include_raw_content: false,
+      }),
+      signal: AbortSignal.timeout(15000),
     });
 
-    const html = await response.text();
-
-    // Extract result links and snippets
-    const results: string[] = [];
-    const resultRegex =
-      /<a[^>]*class="result__a"[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/g;
-    const snippetRegex =
-      /<a[^>]*class="result__snippet"[^>]*>([\s\S]*?)<\/a>/g;
-
-    let match;
-    const links: string[] = [];
-    const titles: string[] = [];
-    const snippets: string[] = [];
-
-    while ((match = resultRegex.exec(html)) !== null) {
-      links.push(decodeURIComponent(match[1].replace(/.*uddg=/, "").replace(/&.*/, "")));
-      titles.push(stripHtml(match[2]));
+    if (!response.ok) {
+      const errText = await response.text();
+      return `Tavily API error (${response.status}): ${errText}`;
     }
 
-    while ((match = snippetRegex.exec(html)) !== null) {
-      snippets.push(stripHtml(match[1]));
+    const data = (await response.json()) as {
+      answer?: string;
+      results?: Array<{
+        title: string;
+        url: string;
+        content: string;
+        score: number;
+      }>;
+    };
+
+    const parts: string[] = [];
+
+    // Include Tavily's AI-generated answer if available
+    if (data.answer) {
+      parts.push(`**Answer:** ${data.answer}\n`);
     }
 
-    const count = Math.min(args.count || 5, links.length);
-    for (let i = 0; i < count; i++) {
-      results.push(
-        `${i + 1}. ${titles[i] || "No title"}\n   ${links[i] || ""}\n   ${snippets[i] || ""}`
-      );
+    // Format search results
+    if (data.results && data.results.length > 0) {
+      parts.push("**Sources:**\n");
+      for (let i = 0; i < data.results.length; i++) {
+        const r = data.results[i];
+        parts.push(
+          `${i + 1}. **${r.title}**\n   ${r.url}\n   ${r.content.substring(0, 300)}`
+        );
+      }
     }
 
-    return results.length > 0
-      ? results.join("\n\n")
+    return parts.length > 0
+      ? parts.join("\n\n")
       : "No search results found.";
   } catch (err: any) {
     return `Search error: ${err.message}`;
@@ -100,7 +108,6 @@ function stripHtml(html: string): string {
 }
 
 function htmlToText(html: string): string {
-  // Remove script/style tags
   let text = html
     .replace(/<script[\s\S]*?<\/script>/gi, "")
     .replace(/<style[\s\S]*?<\/style>/gi, "")
@@ -108,7 +115,6 @@ function htmlToText(html: string): string {
     .replace(/<footer[\s\S]*?<\/footer>/gi, "")
     .replace(/<header[\s\S]*?<\/header>/gi, "");
 
-  // Convert common elements
   text = text
     .replace(/<br\s*\/?>/gi, "\n")
     .replace(/<\/p>/gi, "\n\n")
@@ -117,10 +123,7 @@ function htmlToText(html: string): string {
     .replace(/<li>/gi, "- ")
     .replace(/<\/li>/gi, "\n");
 
-  // Strip remaining tags
   text = stripHtml(text);
-
-  // Clean up whitespace
   text = text.replace(/\n{3,}/g, "\n\n").trim();
 
   return text;

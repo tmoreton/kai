@@ -31,14 +31,6 @@ export interface ReplOptions {
   autoApprove?: boolean;
 }
 
-function question(rl: readline.Interface, prompt: string): Promise<string> {
-  return new Promise((resolve) => {
-    rl.question(prompt, (answer) => {
-      resolve(answer);
-    });
-  });
-}
-
 export async function startRepl(options: ReplOptions = {}): Promise<void> {
   const client = createClient();
 
@@ -57,15 +49,12 @@ export async function startRepl(options: ReplOptions = {}): Promise<void> {
 
   let session: Session;
 
-  // Resume existing session?
   if (options.continueSession) {
     const recent = getMostRecentSession();
     if (recent) {
       messages = recent.messages;
       session = recent;
-      console.log(
-        chalk.dim(`\n  Resumed session: ${session.name || session.id}\n`)
-      );
+      console.log(chalk.dim(`\n  Resumed session: ${session.name || session.id}\n`));
     } else {
       session = createNewSession(options, messages);
     }
@@ -74,11 +63,9 @@ export async function startRepl(options: ReplOptions = {}): Promise<void> {
     if (loaded) {
       messages = loaded.messages;
       session = loaded;
-      console.log(
-        chalk.dim(`\n  Resumed session: ${session.name || session.id}\n`)
-      );
+      console.log(chalk.dim(`\n  Resumed session: ${session.name || session.id}\n`));
     } else {
-      console.log(chalk.yellow(`  Session "${options.resumeSessionId}" not found. Starting new.\n`));
+      console.log(chalk.yellow(`  Session not found. Starting new.\n`));
       session = createNewSession(options, messages);
     }
   } else {
@@ -100,34 +87,32 @@ export async function startRepl(options: ReplOptions = {}): Promise<void> {
   console.log(chalk.dim(`  Permission mode: ${getPermissionMode()}`));
   console.log(chalk.dim(`  Type /help for commands, "exit" to quit.\n`));
 
+  // Use a simple line-by-line approach with a processing flag
+  let processing = false;
+  const inputQueue: string[] = [];
+
   const rl = readline.createInterface({
     input: process.stdin,
     output: process.stdout,
+    prompt: chalk.bold.cyan("kai › "),
     terminal: true,
   });
 
-  // Handle Ctrl+C
-  rl.on("SIGINT", () => {
-    session.messages = messages;
-    saveSession(session);
-    console.log(chalk.dim("\n  Session saved. Goodbye!\n"));
-    process.exit(0);
-  });
-
-  // Main input loop
-  while (true) {
-    const input = (await question(rl, chalk.bold.cyan("kai › "))).trim();
-
-    if (!input) continue;
+  async function processInput(input: string) {
+    processing = true;
 
     // Handle slash commands
     if (input.startsWith("/") || input === "exit") {
-      const shouldExit = handleCommand(input, messages, session);
-      if (shouldExit === "exit") {
+      const result = handleCommand(input, messages, session);
+      if (result === "exit") {
         rl.close();
         process.exit(0);
       }
-      if (shouldExit === "handled") continue;
+      if (result === "handled") {
+        processing = false;
+        rl.prompt();
+        return;
+      }
     }
 
     // Send to model
@@ -145,11 +130,9 @@ export async function startRepl(options: ReplOptions = {}): Promise<void> {
 
       process.stdout.write("\n");
 
-      // Show task progress if any
       const taskDisplay = getTasksForDisplay();
       if (taskDisplay) console.log(taskDisplay + "\n");
 
-      // Auto-save session
       session.messages = messages;
       saveSession(session);
     } catch (err: any) {
@@ -158,7 +141,52 @@ export async function startRepl(options: ReplOptions = {}): Promise<void> {
         console.error(chalk.yellow("  Check your TOGETHER_API_KEY in .env\n"));
       }
     }
+
+    processing = false;
+
+    // Process queued input
+    if (inputQueue.length > 0) {
+      const next = inputQueue.shift()!;
+      await processInput(next);
+    } else {
+      rl.prompt();
+    }
   }
+
+  rl.on("line", (line) => {
+    const input = line.trim();
+    if (!input) {
+      if (!processing) rl.prompt();
+      return;
+    }
+
+    if (processing) {
+      inputQueue.push(input);
+    } else {
+      processInput(input);
+    }
+  });
+
+  rl.on("SIGINT", () => {
+    if (processing) {
+      console.log(chalk.dim("\n  Interrupted.\n"));
+      processing = false;
+      rl.prompt();
+    } else {
+      session.messages = messages;
+      saveSession(session);
+      console.log(chalk.dim("\n  Session saved. Goodbye!\n"));
+      process.exit(0);
+    }
+  });
+
+  rl.on("close", () => {
+    session.messages = messages;
+    saveSession(session);
+    process.exit(0);
+  });
+
+  rl.prompt();
 }
 
 function createNewSession(
