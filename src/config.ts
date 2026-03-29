@@ -16,6 +16,7 @@ export interface KaiConfig {
   model?: string;
   providers?: ProviderConfig[];
   permissions?: PermissionRule[];
+  hooks?: Record<string, string>;
   theme?: string;
   autoCompact?: boolean;
   maxTokens?: number;

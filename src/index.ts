@@ -8,7 +8,7 @@ import { createClient, chat } from "./client.js";
 import { getSystemPrompt } from "./system-prompt.js";
 import { startRepl } from "./repl.js";
 import { getCwd } from "./tools/bash.js";
-import { getKaiMdContent } from "./config.js";
+import { getProfileContext } from "./project-profile.js";
 import { archivalList } from "./archival.js";
 import { gitInfo } from "./git.js";
 
@@ -173,8 +173,8 @@ async function runOneShot(prompt: string, autoApprove = false): Promise<void> {
   const client = createClient();
 
   let systemContent = getSystemPrompt(getCwd());
-  const kaiMd = getKaiMdContent();
-  if (kaiMd) systemContent += `\n\n# Project Context (KAI.md)\n${kaiMd}`;
+  const profileCtx = getProfileContext();
+  if (profileCtx) systemContent += `\n\n${profileCtx}`;
   const archivalCtx = archivalList(10);
   if (archivalCtx && !archivalCtx.startsWith("No archival")) {
     systemContent += `\n\n# Archival Knowledge\n${archivalCtx}`;

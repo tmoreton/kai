@@ -4,7 +4,7 @@ import type {
   ChatCompletionTool,
 } from "openai/resources/chat/completions";
 import { toolDefinitions } from "./tools/index.js";
-import { executeTool, type ToolResult } from "./tools/executor.js";
+import { executeTool } from "./tools/executor.js";
 import { trackUsage, shouldCompact, compactMessages } from "./context.js";
 import {
   MAX_TOKENS,
@@ -16,6 +16,7 @@ import {
   TOOL_OUTPUT_CONTEXT_LIMIT,
 } from "./constants.js";
 import { resolveProvider, type ResolvedProvider } from "./providers/index.js";
+import { renderMarkdown } from "./render.js";
 import chalk from "chalk";
 
 let _resolved: ResolvedProvider | null = null;
@@ -247,32 +248,7 @@ export async function chat(
         continue;
       }
 
-      const result: ToolResult = await executeTool(toolName, args);
-
-      // Handle image results (vision)
-      if (typeof result === "object" && result.type === "image") {
-        console.log(chalk.gray(`  ↳ 🖼️  ${result.description}`));
-
-        // Add tool response text
-        updatedMessages.push({
-          role: "tool",
-          tool_call_id: tc.id,
-          content: result.description,
-        });
-
-        // Inject image as a user message so the model can see it
-        updatedMessages.push({
-          role: "user",
-          content: [
-            { type: "text", text: `[Image from ${toolName} tool — analyze this visual output:]` },
-            { type: "image_url", image_url: { url: result.dataUrl } },
-          ],
-        } as ChatCompletionMessageParam);
-        continue;
-      }
-
-      // Normal text result
-      const resultStr = typeof result === "string" ? result : JSON.stringify(result, null, 2);
+      const resultStr: string = await executeTool(toolName, args);
 
       // Display truncated output to user
       const lines = resultStr.split("\n");

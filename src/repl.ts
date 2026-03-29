@@ -5,9 +5,9 @@ import { createClient, chat, getModelId, getProviderName } from "./client.js";
 import { getSystemPrompt } from "./system-prompt.js";
 import { getCwd, cleanupBackgroundProcesses } from "./tools/bash.js";
 import { formatCost, estimateContextSize, formatContextBreakdown } from "./context.js";
-import { getKaiMdContent } from "./config.js";
+import { getProfileContext, generateProfile } from "./project-profile.js";
 import { archivalList } from "./archival.js";
-import { gitInfo } from "./git.js";
+import { gitInfo, gitDiff, gitStatus, gitBranch, isGitRepo } from "./git.js";
 import { getTasksForDisplay } from "./tools/tasks.js";
 import {
   generateSessionId,
@@ -20,14 +20,38 @@ import {
 } from "./sessions.js";
 import { appendRecall, getRecallStats, type RecallEntry } from "./recall.js";
 import { loadSoul } from "./soul.js";
-import { listCronJobs, cleanupCrons } from "./cron.js";
-import { readImageAsDataUrl, isImagePath } from "./tools/vision.js";
+import fs from "fs";
+import path from "path";
 import {
   setPermissionMode,
   getPermissionMode,
 } from "./permissions.js";
 import { getCurrentProject, getProjectLabel, listProjects as listAllProjects } from "./project.js";
 import { compactMessages } from "./context.js";
+import { renderMarkdown } from "./render.js";
+import {
+  loadCustomCommands,
+  findCustomCommand,
+  resolveCommand,
+  formatCustomCommands,
+} from "./commands.js";
+
+const IMAGE_EXTS = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"]);
+const MIME_MAP: Record<string, string> = {
+  ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+  ".gif": "image/gif", ".webp": "image/webp", ".bmp": "image/bmp",
+};
+
+function readImageAsDataUrl(filePath: string): { dataUrl: string; sizeKB: number } | { error: string } {
+  const resolved = path.isAbsolute(filePath) ? filePath : path.resolve(getCwd(), filePath);
+  if (!fs.existsSync(resolved)) return { error: `Image not found: ${resolved}` };
+  const ext = path.extname(resolved).toLowerCase();
+  if (!IMAGE_EXTS.has(ext)) return { error: `Unsupported format: ${ext}` };
+  const stat = fs.statSync(resolved);
+  if (stat.size > 20 * 1024 * 1024) return { error: "Image too large (max 20MB)" };
+  const base64 = fs.readFileSync(resolved).toString("base64");
+  return { dataUrl: `data:${MIME_MAP[ext] || "image/png"};base64,${base64}`, sizeKB: Math.round(stat.size / 1024) };
+}
 
 export interface ReplOptions {
   continueSession?: boolean;
@@ -41,8 +65,8 @@ export async function startRepl(options: ReplOptions = {}): Promise<void> {
 
   // Build system prompt with context
   let systemContent = getSystemPrompt(getCwd());
-  const kaiMd = getKaiMdContent();
-  if (kaiMd) systemContent += `\n\n# Project Context (KAI.md)\n${kaiMd}`;
+  const profileCtx = getProfileContext();
+  if (profileCtx) systemContent += `\n\n${profileCtx}`;
   const archivalCtx = archivalList(10);
   if (archivalCtx && !archivalCtx.startsWith("No archival")) {
     systemContent += `\n\n# Archival Knowledge\n${archivalCtx}`;
@@ -128,20 +152,25 @@ export async function startRepl(options: ReplOptions = {}): Promise<void> {
     { cmd: "/agents", desc: "List background agents" },
     { cmd: "/agent run", desc: "Run an agent now" },
     { cmd: "/agent output", desc: "View agent output" },
-    { cmd: "/crons", desc: "Scheduled jobs" },
+    { cmd: "/init", desc: "Regenerate project profile" },
     { cmd: "/recall", desc: "Recall memory stats" },
     { cmd: "/permissions", desc: "Permission mode" },
     { cmd: "/rename", desc: "Rename session" },
+    { cmd: "/diff", desc: "Show git diff" },
+    { cmd: "/commit", desc: "AI-generate commit message & commit" },
     { cmd: "/git", desc: "Git status" },
     { cmd: "/exit", desc: "Exit Kai" },
   ];
 
   function completer(line: string): [string[], string] {
     if (line.startsWith("/")) {
-      const matches = SLASH_COMMANDS
+      const builtIn = SLASH_COMMANDS
         .filter((c) => c.cmd.startsWith(line))
         .map((c) => c.cmd);
-      return [matches, line];
+      const custom = loadCustomCommands()
+        .filter((c) => `/${c.name}`.startsWith(line))
+        .map((c) => `/${c.name}`);
+      return [[...builtIn, ...custom], line];
     }
     return [[], line];
   }
@@ -169,7 +198,7 @@ export async function startRepl(options: ReplOptions = {}): Promise<void> {
       return;
     }
 
-    // Handle slash commands
+    // Handle built-in slash commands
     if (input.startsWith("/") || input === "exit") {
       const result = await handleCommand(input, messages, session);
       if (result === "exit") {
@@ -183,36 +212,79 @@ export async function startRepl(options: ReplOptions = {}): Promise<void> {
       }
     }
 
-    // Send to model — check for image paths in input
-    const imagePathMatch = input.match(/(?:^|\s)([^\s]+\.(?:png|jpg|jpeg|gif|webp|bmp))(?:\s|$)/i);
+    // Determine what message to send to the model
+    let messageAdded = false;
 
-    if (imagePathMatch) {
-      const imgPath = imagePathMatch[1].replace(/^~/, process.env.HOME || "~");
-      const imgResult = readImageAsDataUrl(imgPath);
-      if ("dataUrl" in imgResult) {
-        const textPart = input.replace(imagePathMatch[1], "").trim() || "Analyze this image.";
-        messages.push({
-          role: "user",
-          content: [
-            { type: "text", text: textPart },
-            { type: "image_url", image_url: { url: imgResult.dataUrl } },
-          ],
-        } as ChatCompletionMessageParam);
-        console.log(chalk.dim(`  🖼️  Image attached: ${imgPath} (${imgResult.sizeKB} KB)`));
+    // Custom slash commands: /review, /test, etc.
+    if (input.startsWith("/")) {
+      const parts = input.substring(1).split(/\s+/);
+      const cmdName = parts[0];
+      const cmdArgs = parts.slice(1).join(" ");
+      const customCmd = findCustomCommand(cmdName);
+      if (customCmd) {
+        const prompt = resolveCommand(customCmd, cmdArgs);
+        console.log(chalk.dim(`  Running command: /${cmdName}\n`));
+        messages.push({ role: "user", content: prompt });
+        messageAdded = true;
       } else {
-        console.log(chalk.yellow(`  ${imgResult.error}`));
+        // Unknown command — pass through as regular input
         messages.push({ role: "user", content: input });
+        messageAdded = true;
       }
-    } else {
+    }
+
+    // Image attachment detection
+    if (!messageAdded) {
+      const imagePathMatch = input.match(/(?:^|\s)([^\s]+\.(?:png|jpg|jpeg|gif|webp|bmp))(?:\s|$)/i);
+      if (imagePathMatch) {
+        const imgPath = imagePathMatch[1].replace(/^~/, process.env.HOME || "~");
+        const imgResult = readImageAsDataUrl(imgPath);
+        if ("dataUrl" in imgResult) {
+          const textPart = input.replace(imagePathMatch[1], "").trim() || "Analyze this image.";
+          messages.push({
+            role: "user",
+            content: [
+              { type: "text", text: textPart },
+              { type: "image_url", image_url: { url: imgResult.dataUrl } },
+            ],
+          } as ChatCompletionMessageParam);
+          console.log(chalk.dim(`  🖼️  Image attached: ${imgPath} (${imgResult.sizeKB} KB)`));
+          messageAdded = true;
+        }
+      }
+    }
+
+    // Regular text input
+    if (!messageAdded) {
       messages.push({ role: "user", content: input });
     }
 
     try {
       process.stdout.write("\n");
 
+      let streamBuffer = "";
+      let streamLineCount = 0;
+
       const updatedMessages = await chat(client, messages, (token) => {
+        streamBuffer += token;
         process.stdout.write(token);
+        // Track newlines for re-render
+        for (const ch of token) {
+          if (ch === "\n") streamLineCount++;
+        }
       });
+
+      // Re-render the final assistant content with markdown formatting
+      const lastMsg = updatedMessages[updatedMessages.length - 1];
+      if (lastMsg?.role === "assistant" && typeof lastMsg.content === "string" && lastMsg.content.trim()) {
+        // Move cursor up to overwrite raw streamed text, then render markdown
+        if (streamLineCount > 0) {
+          process.stdout.write(`\x1b[${streamLineCount + 1}A\x1b[0J`);
+        } else {
+          process.stdout.write("\r\x1b[0J");
+        }
+        process.stdout.write(renderMarkdown(lastMsg.content));
+      }
 
       messages.length = 0;
       messages.push(...updatedMessages);
@@ -282,7 +354,6 @@ export async function startRepl(options: ReplOptions = {}): Promise<void> {
       processing = false;
       rl.prompt();
     } else {
-      cleanupCrons();
       cleanupBackgroundProcesses();
       session.messages = messages;
       saveSession(session);
@@ -292,7 +363,6 @@ export async function startRepl(options: ReplOptions = {}): Promise<void> {
   });
 
   rl.on("close", () => {
-    cleanupCrons();
     session.messages = messages;
     saveSession(session);
     process.exit(0);
@@ -387,6 +457,49 @@ async function handleCommand(
     return "handled";
   }
 
+  if (cmd === "/diff") {
+    if (!isGitRepo()) {
+      console.log(chalk.dim("  Not a git repo.\n"));
+      return "handled";
+    }
+    const staged = gitDiff(true);
+    const unstaged = gitDiff(false);
+    if (!staged && !unstaged) {
+      console.log(chalk.dim("  No changes.\n"));
+    } else {
+      if (staged) {
+        console.log(chalk.bold("\n  Staged changes:\n"));
+        console.log(chalk.green(staged.split("\n").map((l) => `  ${l}`).join("\n")));
+      }
+      if (unstaged) {
+        console.log(chalk.bold("\n  Unstaged changes:\n"));
+        console.log(unstaged.split("\n").map((l) => `  ${l}`).join("\n"));
+      }
+      console.log("");
+    }
+    return "handled";
+  }
+
+  if (cmd === "/commit" || cmd.startsWith("/commit ")) {
+    if (!isGitRepo()) {
+      console.log(chalk.dim("  Not a git repo.\n"));
+      return "handled";
+    }
+    const status = gitStatus();
+    if (!status) {
+      console.log(chalk.dim("  Nothing to commit.\n"));
+      return "handled";
+    }
+    // Inject a commit request into the conversation for the AI to handle
+    const diff = gitDiff(false) || gitDiff(true) || status;
+    const userMsg = cmd.startsWith("/commit ")
+      ? input.substring(8).trim()
+      : "";
+    const prompt = `Generate a concise git commit message for these changes, then stage all modified files and commit. ${userMsg ? `Additional context: ${userMsg}` : ""}\n\nGit status:\n${status}\n\nDiff (first 3000 chars):\n${diff.substring(0, 3000)}`;
+    messages.push({ role: "user", content: prompt });
+    return "passthrough";
+  }
+
   if (cmd === "/git") {
     const info = gitInfo();
     console.log(chalk.dim(info ? `  ${info}` : "  Not a git repo.") + "\n");
@@ -403,10 +516,18 @@ async function handleCommand(
     return "handled";
   }
 
-  if (cmd === "/crons") {
-    const jobs = listCronJobs();
-    console.log(chalk.bold("\n  Scheduled Jobs:\n"));
-    console.log(chalk.dim(jobs) + "\n");
+  if (cmd === "/init") {
+    console.log(chalk.dim("\n  Scanning project...\n"));
+    const profile = generateProfile();
+    console.log(chalk.bold(`  Project: ${profile.name}`));
+    console.log(chalk.dim(`  Language: ${profile.language}`));
+    console.log(chalk.dim(`  Stack: ${profile.techStack.join(", ")}`));
+    console.log(chalk.dim(`  Framework: ${profile.framework}`));
+    console.log(chalk.dim(`  Structure: ${profile.structure}`));
+    if (Object.keys(profile.scripts).length > 0) {
+      console.log(chalk.dim(`  Scripts: ${Object.keys(profile.scripts).join(", ")}`));
+    }
+    console.log(chalk.dim("\n  Profile saved. Context will be auto-loaded.\n"));
     return "handled";
   }
 
@@ -479,7 +600,6 @@ async function handleCommand(
     /rename <name> Rename current session
     /permissions   View/set permission mode
     /soul          View core memory (persona, human, goals, scratchpad)
-    /crons         List scheduled background jobs
     /recall        Show recall memory stats
     /context              Context window breakdown
     /projects             List known projects
@@ -495,6 +615,7 @@ async function handleCommand(
     kai agent create <name> <file.yaml>   Create agent from workflow
     kai agent daemon                      Start background scheduler
     kai agent stop                        Stop scheduler
+${formatCustomCommands()}
 `)
     );
     return "handled";

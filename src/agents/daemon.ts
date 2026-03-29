@@ -73,7 +73,11 @@ function scheduleAgent(agent: AgentRecord): void {
 }
 
 export async function runAgent(agentId: string): Promise<{ success: boolean; error?: string }> {
-  const agent = getAgent(agentId);
+  // Allow both "yt-daily-scout" and "agent-yt-daily-scout"
+  let agent = getAgent(agentId);
+  if (!agent && !agentId.startsWith("agent-")) {
+    agent = getAgent(`agent-${agentId}`);
+  }
   if (!agent) return { success: false, error: `Agent "${agentId}" not found` };
 
   // Register integrations if not already done
