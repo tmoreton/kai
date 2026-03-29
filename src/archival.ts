@@ -1,12 +1,11 @@
 import fs from "fs";
 import path from "path";
-import { ensureKaiDir } from "./config.js";
+import { ensureProjectDir, ensureGlobalDir, getProjectId, listProjects } from "./project.js";
 
 /**
  * Archival Memory: Long-term knowledge store.
- * Unlike recall (auto-populated from conversations), archival memory
- * is explicitly curated — the agent decides what to store here.
- * Used for: learned facts, user preferences, project knowledge, research notes.
+ * Split into global (cross-project) and per-project knowledge.
+ * Uses JSONL format (append-friendly, no full rewrite).
  */
 
 export interface ArchivalEntry {
@@ -14,61 +13,102 @@ export interface ArchivalEntry {
   content: string;
   tags: string[];
   createdAt: string;
-  source?: string; // Where this knowledge came from
+  source?: string;
+  projectId?: string;
 }
 
-function archivalDir(): string {
-  const dir = path.join(ensureKaiDir(), "archival");
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
-  }
-  return dir;
+function globalArchivalPath(): string {
+  const dir = ensureGlobalDir("archival");
+  return path.join(dir, "global.jsonl");
 }
 
-function archivalFilePath(): string {
-  return path.join(archivalDir(), "knowledge.json");
+function projectArchivalPath(projectId?: string): string {
+  const dir = ensureProjectDir("archival", projectId);
+  return path.join(dir, "knowledge.jsonl");
 }
 
-function loadArchival(): ArchivalEntry[] {
-  const filePath = archivalFilePath();
+function appendEntry(filePath: string, entry: ArchivalEntry): void {
+  fs.appendFileSync(filePath, JSON.stringify(entry) + "\n", "utf-8");
+}
+
+function loadEntries(filePath: string): ArchivalEntry[] {
+  if (!fs.existsSync(filePath)) return [];
   try {
-    if (fs.existsSync(filePath)) {
-      return JSON.parse(fs.readFileSync(filePath, "utf-8"));
-    }
+    return fs.readFileSync(filePath, "utf-8")
+      .trim()
+      .split("\n")
+      .filter(Boolean)
+      .map((line) => {
+        try { return JSON.parse(line); } catch { return null; }
+      })
+      .filter(Boolean) as ArchivalEntry[];
   } catch {
-    // corrupt file
+    return [];
   }
-  return [];
 }
 
-function saveArchival(entries: ArchivalEntry[]): void {
-  fs.writeFileSync(archivalFilePath(), JSON.stringify(entries, null, 2), "utf-8");
+// --- Migrate old format if needed ---
+function migrateOldFormat(): void {
+  const oldPath = path.join(ensureGlobalDir("archival"), "knowledge.json");
+  if (!fs.existsSync(oldPath)) return;
+  try {
+    const old = JSON.parse(fs.readFileSync(oldPath, "utf-8"));
+    if (Array.isArray(old)) {
+      const newPath = globalArchivalPath();
+      for (const entry of old) {
+        fs.appendFileSync(newPath, JSON.stringify(entry) + "\n", "utf-8");
+      }
+      fs.renameSync(oldPath, oldPath + ".bak");
+    }
+  } catch {}
 }
+
+// Run migration on load
+migrateOldFormat();
+
+// --- Public API ---
 
 export function archivalInsert(args: {
   content: string;
   tags?: string[];
   source?: string;
+  scope?: "global" | "project";
 }): string {
-  const entries = loadArchival();
+  const scope = args.scope || "project";
   const id = `arch-${Date.now().toString(36)}`;
-  entries.push({
+  const entry: ArchivalEntry = {
     id,
     content: args.content,
     tags: args.tags || [],
     createdAt: new Date().toISOString(),
     source: args.source,
-  });
-  saveArchival(entries);
-  return `Archived knowledge (${id}): "${args.content.substring(0, 80)}..."`;
+    projectId: scope === "project" ? getProjectId() : undefined,
+  };
+
+  const filePath = scope === "global"
+    ? globalArchivalPath()
+    : projectArchivalPath();
+
+  appendEntry(filePath, entry);
+  return `Archived (${scope}/${id}): "${args.content.substring(0, 80)}..."`;
 }
 
 export function archivalSearch(args: {
   query: string;
   tags?: string[];
   limit?: number;
+  scope?: "global" | "project" | "all";
 }): string {
-  const entries = loadArchival();
+  const scope = args.scope || "all";
+  let entries: ArchivalEntry[] = [];
+
+  if (scope === "global" || scope === "all") {
+    entries.push(...loadEntries(globalArchivalPath()));
+  }
+  if (scope === "project" || scope === "all") {
+    entries.push(...loadEntries(projectArchivalPath()));
+  }
+
   if (entries.length === 0) return "No archival memories found.";
 
   const queryLower = args.query.toLowerCase();
@@ -78,22 +118,15 @@ export function archivalSearch(args: {
   for (const entry of entries) {
     const contentLower = entry.content.toLowerCase();
     let score = 0;
-
-    // Score by keyword match
     for (const term of queryTerms) {
       if (contentLower.includes(term)) score++;
     }
-
-    // Boost by tag match
     if (args.tags) {
       for (const tag of args.tags) {
         if (entry.tags.includes(tag)) score += 2;
       }
     }
-
-    if (score > 0) {
-      scored.push({ entry, score });
-    }
+    if (score > 0) scored.push({ entry, score });
   }
 
   scored.sort((a, b) => b.score - a.score);
@@ -104,29 +137,43 @@ export function archivalSearch(args: {
   return results
     .map(
       (r, i) =>
-        `${i + 1}. [${r.entry.id}] (tags: ${r.entry.tags.join(", ") || "none"})\n   ${r.entry.content}`
+        `${i + 1}. [${r.entry.id}] (${r.entry.projectId ? "project" : "global"}, tags: ${r.entry.tags.join(", ") || "none"})\n   ${r.entry.content}`
     )
     .join("\n\n");
 }
 
 export function archivalList(limit = 20): string {
-  const entries = loadArchival();
+  const entries = [
+    ...loadEntries(globalArchivalPath()),
+    ...loadEntries(projectArchivalPath()),
+  ];
+
   if (entries.length === 0) return "No archival memories.";
 
   return entries
     .slice(-limit)
     .map(
       (e) =>
-        `- [${e.id}] ${e.content.substring(0, 100)} (tags: ${e.tags.join(", ") || "none"})`
+        `- [${e.id}] ${e.content.substring(0, 100)} (${e.projectId ? "project" : "global"}, tags: ${e.tags.join(", ") || "none"})`
     )
     .join("\n");
 }
 
 export function archivalDelete(id: string): string {
-  const entries = loadArchival();
-  const index = entries.findIndex((e) => e.id === id);
-  if (index === -1) return `Archival entry "${id}" not found.`;
-  entries.splice(index, 1);
-  saveArchival(entries);
-  return `Archival entry "${id}" deleted.`;
+  // Search both files
+  for (const filePath of [globalArchivalPath(), projectArchivalPath()]) {
+    if (!fs.existsSync(filePath)) continue;
+    const entries = loadEntries(filePath);
+    const filtered = entries.filter((e) => e.id !== id);
+    if (filtered.length < entries.length) {
+      // Rewrite file without the deleted entry
+      fs.writeFileSync(
+        filePath,
+        filtered.map((e) => JSON.stringify(e)).join("\n") + (filtered.length ? "\n" : ""),
+        "utf-8"
+      );
+      return `Archival entry "${id}" deleted.`;
+    }
+  }
+  return `Archival entry "${id}" not found.`;
 }

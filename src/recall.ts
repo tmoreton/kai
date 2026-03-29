@@ -1,11 +1,10 @@
 import fs from "fs";
 import path from "path";
-import { ensureKaiDir } from "./config.js";
+import { ensureProjectDir, getProjectId, listProjects } from "./project.js";
 
 /**
  * Recall Memory: Searchable archive of past conversations.
- * When messages are compacted/evicted from context, they're stored here.
- * The agent can search recall memory to find past exchanges.
+ * Stored per-project as JSONL files (append-only, no full rewrite).
  */
 
 export interface RecallEntry {
@@ -16,65 +15,80 @@ export interface RecallEntry {
   toolName?: string;
 }
 
-function recallDir(): string {
-  const dir = path.join(ensureKaiDir(), "recall");
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
-  }
-  return dir;
+function recallFilePath(projectId?: string): string {
+  const dir = ensureProjectDir("recall", projectId);
+  return path.join(dir, "history.jsonl");
 }
 
-function recallFilePath(): string {
-  return path.join(recallDir(), "history.jsonl");
-}
-
-export function appendRecall(entries: RecallEntry[]): void {
-  const filePath = recallFilePath();
+export function appendRecall(entries: RecallEntry[], projectId?: string): void {
+  const filePath = recallFilePath(projectId);
   const lines = entries.map((e) => JSON.stringify(e)).join("\n") + "\n";
   fs.appendFileSync(filePath, lines, "utf-8");
 }
 
-export function searchRecall(query: string, limit = 10): RecallEntry[] {
-  const filePath = recallFilePath();
+function searchFile(filePath: string, queryTerms: string[], limit: number): { entry: RecallEntry; score: number }[] {
   if (!fs.existsSync(filePath)) return [];
 
   try {
     const lines = fs.readFileSync(filePath, "utf-8").trim().split("\n");
-    const queryLower = query.toLowerCase();
-    const queryTerms = queryLower.split(/\s+/);
-
-    // Score each entry by keyword match
     const scored: { entry: RecallEntry; score: number }[] = [];
+
     for (const line of lines) {
       if (!line.trim()) continue;
       try {
         const entry = JSON.parse(line) as RecallEntry;
         const contentLower = entry.content.toLowerCase();
-
-        // Count matching terms
         let score = 0;
         for (const term of queryTerms) {
           if (contentLower.includes(term)) score++;
         }
-
-        if (score > 0) {
-          scored.push({ entry, score });
-        }
-      } catch {
-        continue;
-      }
+        if (score > 0) scored.push({ entry, score });
+      } catch { continue; }
     }
 
-    // Sort by score descending, then by timestamp descending
     scored.sort((a, b) => {
       if (b.score !== a.score) return b.score - a.score;
       return b.entry.timestamp.localeCompare(a.entry.timestamp);
     });
 
-    return scored.slice(0, limit).map((s) => s.entry);
+    return scored.slice(0, limit);
   } catch {
     return [];
   }
+}
+
+export function searchRecall(
+  query: string,
+  limit = 10,
+  scope: "project" | "all" = "project"
+): RecallEntry[] {
+  const queryTerms = query.toLowerCase().split(/\s+/);
+
+  if (scope === "project") {
+    return searchFile(recallFilePath(), queryTerms, limit).map((s) => s.entry);
+  }
+
+  // Search across all projects
+  const allResults: { entry: RecallEntry; score: number }[] = [];
+  const projects = listProjects();
+
+  for (const proj of projects) {
+    const filePath = path.join(
+      path.resolve(process.env.HOME || "~", ".kai/recall/projects", proj.id),
+      "history.jsonl"
+    );
+    allResults.push(...searchFile(filePath, queryTerms, limit));
+  }
+
+  // Also search global
+  const globalPath = path.join(
+    path.resolve(process.env.HOME || "~", ".kai/recall/projects/__global__"),
+    "history.jsonl"
+  );
+  allResults.push(...searchFile(globalPath, queryTerms, limit));
+
+  allResults.sort((a, b) => b.score - a.score);
+  return allResults.slice(0, limit).map((s) => s.entry);
 }
 
 export function getRecallStats(): { totalEntries: number; fileSizeKB: number } {

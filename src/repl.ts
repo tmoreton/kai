@@ -26,6 +26,7 @@ import {
   setPermissionMode,
   getPermissionMode,
 } from "./permissions.js";
+import { getCurrentProject, getProjectLabel, listProjects as listAllProjects } from "./project.js";
 import { compactMessages } from "./context.js";
 
 export interface ReplOptions {
@@ -92,7 +93,13 @@ export async function startRepl(options: ReplOptions = {}): Promise<void> {
     chalk.bold.cyan("\n  ⚡ Kai") +
       chalk.dim(" — AI coding assistant powered by Kimi K2.5\n")
   );
+  const project = getCurrentProject();
   console.log(chalk.dim(`  cwd:         ${getCwd()}`));
+  if (project) {
+    console.log(chalk.dim(`  project:     ${project.name}`));
+  } else {
+    console.log(chalk.dim(`  project:     (desktop mode — no project detected)`));
+  }
   if (git) console.log(chalk.dim(`  git:         ${git}`));
   console.log(chalk.dim(`  session:     ${session.name || session.id}`));
   console.log(chalk.dim(`  permissions: ${getPermissionMode()}`));
@@ -107,15 +114,55 @@ export async function startRepl(options: ReplOptions = {}): Promise<void> {
   let processing = false;
   const inputQueue: string[] = [];
 
+  const SLASH_COMMANDS = [
+    { cmd: "/help", desc: "Show all commands" },
+    { cmd: "/clear", desc: "Clear conversation" },
+    { cmd: "/compact", desc: "Compress context" },
+    { cmd: "/cost", desc: "Token usage & cost" },
+    { cmd: "/context", desc: "Context breakdown" },
+    { cmd: "/soul", desc: "View core memory" },
+    { cmd: "/sessions", desc: "List sessions" },
+    { cmd: "/projects", desc: "List projects" },
+    { cmd: "/crons", desc: "Scheduled jobs" },
+    { cmd: "/recall", desc: "Recall memory stats" },
+    { cmd: "/permissions", desc: "Permission mode" },
+    { cmd: "/rename", desc: "Rename session" },
+    { cmd: "/git", desc: "Git status" },
+    { cmd: "/exit", desc: "Exit Kai" },
+  ];
+
+  function completer(line: string): [string[], string] {
+    if (line.startsWith("/")) {
+      const matches = SLASH_COMMANDS
+        .filter((c) => c.cmd.startsWith(line))
+        .map((c) => c.cmd);
+      return [matches, line];
+    }
+    return [[], line];
+  }
+
   const rl = readline.createInterface({
     input: process.stdin,
     output: process.stdout,
     prompt: chalk.bold.cyan("kai › "),
     terminal: true,
+    completer,
   });
 
   async function processInput(input: string) {
     processing = true;
+
+    // Show command menu on bare "/"
+    if (input === "/") {
+      console.log(chalk.bold("\n  Commands:\n"));
+      for (const c of SLASH_COMMANDS) {
+        console.log(chalk.cyan(`    ${c.cmd.padEnd(16)}`) + chalk.dim(c.desc));
+      }
+      console.log("");
+      processing = false;
+      rl.prompt();
+      return;
+    }
 
     // Handle slash commands
     if (input.startsWith("/") || input === "exit") {
@@ -371,6 +418,23 @@ function handleCommand(
     return "handled";
   }
 
+  if (cmd === "/projects") {
+    const projects = listAllProjects();
+    console.log(chalk.bold("\n  Known Projects:\n"));
+    if (projects.length === 0) {
+      console.log(chalk.dim("  No projects registered yet.\n"));
+    } else {
+      const current = getCurrentProject();
+      for (const p of projects) {
+        const marker = current && p.id === current.id ? chalk.cyan(" ← current") : "";
+        console.log(chalk.dim(`  ${p.name}${marker}`));
+        console.log(chalk.dim(`    ${p.path}`));
+        console.log(chalk.dim(`    Last: ${new Date(p.lastAccessed).toLocaleString()}\n`));
+      }
+    }
+    return "handled";
+  }
+
   if (cmd === "/help") {
     console.log(
       chalk.dim(`
@@ -385,6 +449,7 @@ function handleCommand(
     /crons         List scheduled background jobs
     /recall        Show recall memory stats
     /context       Show context window breakdown (where tokens go)
+    /projects      List all known projects
     /git           Show git status
     /help          Show this help
     /exit          Exit Kai
