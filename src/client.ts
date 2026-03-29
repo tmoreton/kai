@@ -257,7 +257,9 @@ export async function chat(
       }
 
       console.log(
-        chalk.dim(`\n  ⚡ ${toolName}(`) +
+        chalk.dim(`\n  ⏺ `) +
+          chalk.cyan(formatToolLabel(toolName)) +
+          chalk.dim(`(`) +
           chalk.dim(summarizeArgs(toolName, args)) +
           chalk.dim(")")
       );
@@ -265,7 +267,7 @@ export async function chat(
       // If JSON was truncated/malformed, don't execute — tell model to retry
       if (parseError || (toolName === "write_file" && !args.file_path)) {
         const truncLen = tc.function.arguments.length;
-        console.log(chalk.yellow(`  ↳ Tool call truncated (${truncLen} chars) — arguments were cut off`));
+        console.log(chalk.yellow(`    ⎿  Tool call truncated (${truncLen} chars) — arguments were cut off`));
 
         let recovery = "";
         if (toolName === "bash") {
@@ -290,12 +292,12 @@ export async function chat(
       // Display truncated output to user
       const lines = resultStr.split("\n");
       if (lines.length > TOOL_OUTPUT_MAX_LINES) {
-        console.log(chalk.gray(`  ↳ ${lines.slice(0, TOOL_OUTPUT_PREVIEW_LINES).join("\n    ")}...`));
-        console.log(chalk.gray(`    (${lines.length} lines total)`));
+        console.log(chalk.gray(`    ⎿  ${lines.slice(0, TOOL_OUTPUT_PREVIEW_LINES).join("\n       ")}...`));
+        console.log(chalk.gray(`       (${lines.length} lines total)`));
       } else if (resultStr.length > TOOL_OUTPUT_MAX_CHARS) {
-        console.log(chalk.gray(`  ↳ ${resultStr.substring(0, TOOL_OUTPUT_MAX_CHARS)}...`));
+        console.log(chalk.gray(`    ⎿  ${resultStr.substring(0, TOOL_OUTPUT_MAX_CHARS)}...`));
       } else {
-        console.log(chalk.gray(`  ↳ ${resultStr}`));
+        console.log(chalk.gray(`    ⎿  ${resultStr}`));
       }
 
       // Truncate what goes into context
@@ -337,7 +339,7 @@ export async function chat(
 
       // Circuit breaker: too many consecutive errors
       if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
-        console.log(chalk.yellow(`\n  ⚠ ${MAX_CONSECUTIVE_ERRORS} consecutive errors. Stopping tool loop.\n`));
+        console.log(chalk.yellow(`\n  ! ${MAX_CONSECUTIVE_ERRORS} consecutive errors. Stopping tool loop.\n`));
         updatedMessages.push({
           role: "user",
           content: `[SYSTEM: Tool execution has hit ${MAX_CONSECUTIVE_ERRORS} consecutive errors. Stop retrying and tell the user what went wrong and what you were trying to do.]`,
@@ -349,12 +351,30 @@ export async function chat(
   }
 
   // Hit max turns — return what we have
-  console.log(chalk.yellow(`\n  ⚠ Reached max tool turns (${MAX_TOOL_TURNS}). Stopping.\n`));
+  console.log(chalk.yellow(`\n  ! Reached max tool turns (${MAX_TOOL_TURNS}). Stopping.\n`));
   updatedMessages.push({
     role: "assistant",
     content: "[Reached maximum tool call limit. Please continue with a follow-up message if needed.]",
   });
   return updatedMessages;
+}
+
+function formatToolLabel(toolName: string): string {
+  const labels: Record<string, string> = {
+    bash: "Bash",
+    read_file: "Read",
+    write_file: "Write",
+    edit_file: "Edit",
+    glob: "Glob",
+    grep: "Grep",
+    web_fetch: "WebFetch",
+    web_search: "WebSearch",
+    generate_image: "ImageGen",
+    spawn_agent: "Agent",
+    task_create: "Task",
+    task_update: "Task",
+  };
+  return labels[toolName] || toolName;
 }
 
 function summarizeArgs(

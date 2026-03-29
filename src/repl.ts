@@ -264,8 +264,13 @@ export async function startRepl(options: ReplOptions = {}): Promise<void> {
 
       let streamBuffer = "";
       let streamLineCount = 0;
+      let firstResponseToken = true;
 
       const updatedMessages = await chat(client, messages, (token) => {
+        if (firstResponseToken && token.trim()) {
+          process.stdout.write(chalk.cyan("⏺ "));
+          firstResponseToken = false;
+        }
         streamBuffer += token;
         process.stdout.write(token);
         // Track newlines for re-render

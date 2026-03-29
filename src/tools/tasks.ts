@@ -52,15 +52,15 @@ export function listTasks(): string {
   if (tasks.length === 0) return "No tasks.";
 
   const icons = {
-    pending: "○",
-    in_progress: "◐",
-    completed: "●",
+    pending: "◻",
+    in_progress: "✢",
+    completed: "✔",
   };
 
   return tasks
     .map(
       (t) =>
-        `${icons[t.status]} #${t.id} [${t.status}] ${t.subject}${t.description ? ` — ${t.description}` : ""}`
+        `${icons[t.status]} ${t.subject}${t.description ? ` — ${t.description}` : ""}`
     )
     .join("\n");
 }
@@ -72,8 +72,11 @@ export function getTasksForDisplay(): string {
   const completed = tasks.filter((t) => t.status === "completed").length;
   const total = tasks.length;
 
-  let display = chalk.dim(`  Tasks: ${completed}/${total} done`);
-  if (inProgress > 0) display += chalk.yellow(` (${inProgress} in progress)`);
-
-  return display;
+  const taskLines: string[] = [];
+  for (const t of tasks) {
+    const icon = t.status === "completed" ? chalk.green("✔") : t.status === "in_progress" ? chalk.cyan("✢") : chalk.dim("◻");
+    const text = t.status === "completed" ? chalk.dim(t.subject) : t.subject;
+    taskLines.push(`  ${icon} ${text}`);
+  }
+  return taskLines.join("\n");
 }

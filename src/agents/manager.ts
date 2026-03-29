@@ -69,7 +69,7 @@ export function formatAgentList(): string {
 
   const lines: string[] = [];
   for (const agent of agents) {
-    const status = agent.enabled ? chalk.green("●") : chalk.red("○");
+    const status = agent.enabled ? chalk.green("✔") : chalk.dim("◻");
     const schedule = agent.schedule ? chalk.dim(` (${agent.schedule})`) : "";
     lines.push(`  ${status} ${chalk.bold(agent.name)} ${chalk.dim(`[${agent.id}]`)}${schedule}`);
 
@@ -81,9 +81,9 @@ export function formatAgentList(): string {
     const runs = getLatestRuns(agent.id, 1);
     if (runs.length > 0) {
       const run = runs[0];
-      const statusIcon = run.status === "completed" ? "✓" : run.status === "failed" ? "✗" : "◐";
+      const statusIcon = run.status === "completed" ? chalk.green("✔") : run.status === "failed" ? chalk.red("✗") : chalk.cyan("✢");
       const time = new Date(run.started_at).toLocaleString();
-      lines.push(chalk.dim(`    Last run: ${statusIcon} ${run.status} (${time})`));
+      lines.push(chalk.dim(`    ⎿  ${run.status} (${time})  `) + statusIcon);
     }
     lines.push("");
   }
@@ -117,7 +117,7 @@ export function formatAgentDetail(agentId: string): string {
   if (runs.length > 0) {
     lines.push(chalk.bold("\n  Recent Runs:"));
     for (const run of runs) {
-      const icon = run.status === "completed" ? chalk.green("✓") : run.status === "failed" ? chalk.red("✗") : chalk.yellow("◐");
+      const icon = run.status === "completed" ? chalk.green("✔") : run.status === "failed" ? chalk.red("✗") : chalk.cyan("✢");
       const time = new Date(run.started_at).toLocaleString();
       const duration = run.completed_at
         ? `${Math.round((new Date(run.completed_at).getTime() - new Date(run.started_at).getTime()) / 1000)}s`
@@ -132,7 +132,7 @@ export function formatAgentDetail(agentId: string): string {
       if (run === runs[0]) {
         const steps = getSteps(run.id);
         for (const step of steps) {
-          const sIcon = step.status === "completed" ? "●" : step.status === "failed" ? "✗" : "○";
+          const sIcon = step.status === "completed" ? chalk.green("✔") : step.status === "failed" ? chalk.red("✗") : chalk.dim("◻");
           lines.push(chalk.dim(`      ${sIcon} ${step.step_name} (${step.status})`));
           if (step.error) {
             lines.push(chalk.red(`        ${step.error.substring(0, 200)}`));
@@ -160,7 +160,7 @@ export async function runAgentCommand(agentId: string): Promise<void> {
   console.log(chalk.dim(`\n  Running agent: ${agentId}\n`));
   const result = await runAgent(agentId);
   if (result.success) {
-    console.log(chalk.green(`\n  ✓ Agent completed successfully\n`));
+    console.log(chalk.green(`\n  ✔ Agent completed successfully\n`));
 
     // Generate a summary via LLM
     await generateRunSummary(agentId);
@@ -267,8 +267,8 @@ export function formatAgentOutput(agentId: string, stepName?: string): string {
 
 export function daemonStatus(): string {
   if (isDaemonRunning()) {
-    return chalk.green("  ● Daemon is running\n");
+    return chalk.green("  ✔ Daemon is running\n");
   }
-  return chalk.dim("  ○ Daemon is not running\n") +
+  return chalk.dim("  ◻ Daemon is not running\n") +
     chalk.dim("  Start with: kai agent daemon\n");
 }
