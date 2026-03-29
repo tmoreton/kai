@@ -1,12 +1,12 @@
 import * as readline from "readline";
 import type { ChatCompletionMessageParam } from "openai/resources/chat/completions";
 import chalk from "chalk";
-import { createClient, chat } from "./client.js";
+import { createClient, chat, getModelId, getProviderName } from "./client.js";
 import { getSystemPrompt } from "./system-prompt.js";
 import { getCwd, cleanupBackgroundProcesses } from "./tools/bash.js";
 import { formatCost, estimateContextSize, formatContextBreakdown } from "./context.js";
 import { getKaiMdContent } from "./config.js";
-import { getMemoryContext } from "./memory.js";
+import { archivalList } from "./archival.js";
 import { gitInfo } from "./git.js";
 import { getTasksForDisplay } from "./tools/tasks.js";
 import {
@@ -43,8 +43,10 @@ export async function startRepl(options: ReplOptions = {}): Promise<void> {
   let systemContent = getSystemPrompt(getCwd());
   const kaiMd = getKaiMdContent();
   if (kaiMd) systemContent += `\n\n# Project Context (KAI.md)\n${kaiMd}`;
-  const memoryCtx = getMemoryContext();
-  if (memoryCtx) systemContent += `\n${memoryCtx}`;
+  const archivalCtx = archivalList(10);
+  if (archivalCtx && !archivalCtx.startsWith("No archival")) {
+    systemContent += `\n\n# Archival Knowledge\n${archivalCtx}`;
+  }
   const git = gitInfo();
   if (git) systemContent += `\n\n# Git\n${git}`;
 
@@ -91,7 +93,7 @@ export async function startRepl(options: ReplOptions = {}): Promise<void> {
   // Welcome banner
   console.log(
     chalk.bold.cyan("\n  ⚡ Kai") +
-      chalk.dim(" — AI coding assistant powered by Kimi K2.5\n")
+      chalk.dim(` — AI coding assistant (${getProviderName()}/${getModelId()})\n`)
   );
   const project = getCurrentProject();
   console.log(chalk.dim(`  cwd:         ${getCwd()}`));

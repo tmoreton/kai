@@ -49,7 +49,7 @@ const DEFAULT_RULES: PermissionRule[] = [
   { tool: "web_search", action: "ask" },
 ];
 
-let permissionMode: "default" | "auto" | "deny_all" = "auto";
+let permissionMode: "default" | "auto" | "deny_all" = "default";
 let sessionAllowed = new Set<string>();
 
 export function setPermissionMode(mode: "default" | "auto" | "deny_all") {

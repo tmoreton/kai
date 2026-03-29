@@ -9,7 +9,7 @@ import { getSystemPrompt } from "./system-prompt.js";
 import { startRepl } from "./repl.js";
 import { getCwd } from "./tools/bash.js";
 import { getKaiMdContent } from "./config.js";
-import { getMemoryContext } from "./memory.js";
+import { archivalList } from "./archival.js";
 import { gitInfo } from "./git.js";
 
 // Load .env from all possible locations — override existing env vars
@@ -23,7 +23,7 @@ const program = new Command();
 
 program
   .name("kai")
-  .description("AI agent platform powered by Kimi K2.5 via Together.ai")
+  .description("AI agent platform — multi-provider coding CLI + background agents")
   .version("1.0.0");
 
 // --- Default: Interactive REPL or one-shot ---
@@ -139,11 +139,12 @@ agent
     startDaemon();
 
     // Keep alive
-    process.on("SIGINT", () => {
-      const { stopDaemon, closeDb } = require("./agents/daemon.js");
-      const { getDaemonPidPath } = require("./agents/daemon.js");
+    process.on("SIGINT", async () => {
+      const { stopDaemon, getDaemonPidPath } = await import("./agents/daemon.js");
+      const { closeDb } = await import("./agents/db.js");
+      const fs = await import("fs");
       stopDaemon();
-      try { require("fs").unlinkSync(getDaemonPidPath()); } catch {}
+      try { fs.unlinkSync(getDaemonPidPath()); } catch {}
       closeDb();
       process.exit(0);
     });
@@ -174,8 +175,10 @@ async function runOneShot(prompt: string, autoApprove = false): Promise<void> {
   let systemContent = getSystemPrompt(getCwd());
   const kaiMd = getKaiMdContent();
   if (kaiMd) systemContent += `\n\n# Project Context (KAI.md)\n${kaiMd}`;
-  const memoryCtx = getMemoryContext();
-  if (memoryCtx) systemContent += `\n${memoryCtx}`;
+  const archivalCtx = archivalList(10);
+  if (archivalCtx && !archivalCtx.startsWith("No archival")) {
+    systemContent += `\n\n# Archival Knowledge\n${archivalCtx}`;
+  }
   const git = gitInfo();
   if (git) systemContent += `\n\n# Git\n${git}`;
 

@@ -3,11 +3,6 @@ import { readFile, writeFile, editFile } from "./files.js";
 import { globTool, grepTool } from "./search.js";
 import { webFetch, webSearch } from "./web.js";
 import { createTask, updateTask, listTasks } from "./tasks.js";
-import {
-  saveMemoryTool,
-  listMemoriesTool,
-  deleteMemoryTool,
-} from "./memory-tool.js";
 import { spawnAgent } from "../subagent.js";
 import { checkPermission } from "../permissions.js";
 import { updateCoreMemory, readCoreMemory } from "../soul.js";
@@ -66,14 +61,6 @@ export async function executeTool(
       case "task_list":
         return listTasks();
 
-      // Legacy memory
-      case "save_memory":
-        return await saveMemoryTool(args as { name: string; type: "user" | "project" | "feedback" | "reference"; description: string; content: string; scope?: "user" | "project" });
-      case "list_memories":
-        return await listMemoriesTool(args as { scope?: "user" | "project" });
-      case "delete_memory":
-        return await deleteMemoryTool(args as { name: string; scope?: "user" | "project" });
-
       // Core memory (soul)
       case "core_memory_read":
         return readCoreMemory((args as { block?: "persona" | "human" | "goals" | "scratchpad" }).block);
@@ -101,7 +88,12 @@ export async function executeTool(
 
       // Cron
       case "cron_create":
-        return createCronJob(args as { name: string; prompt: string; intervalMinutes: number; maxRuns?: number });
+        return createCronJob({
+          name: String(args.name),
+          prompt: String(args.prompt),
+          intervalMinutes: Number(args.interval_minutes),
+          maxRuns: args.max_runs ? Number(args.max_runs) : undefined,
+        });
       case "cron_list":
         return listCronJobs();
       case "cron_delete":

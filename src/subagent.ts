@@ -1,6 +1,7 @@
 import OpenAI from "openai";
-import type { ChatCompletionMessageParam } from "openai/resources/chat/completions";
+import type { ChatCompletionMessageParam, ChatCompletionTool } from "openai/resources/chat/completions";
 import { chat, createClient } from "./client.js";
+import { toolDefinitions } from "./tools/index.js";
 import { getCwd } from "./tools/bash.js";
 import chalk from "chalk";
 
@@ -63,11 +64,22 @@ export async function runSubagent(
     { role: "user", content: task },
   ];
 
+  // Filter tools if the subagent config specifies a subset
+  let filteredTools: ChatCompletionTool[] | undefined;
+  if (config.tools && config.tools.length > 0) {
+    const allowed = new Set(config.tools);
+    filteredTools = (toolDefinitions as ChatCompletionTool[]).filter(
+      (t) => allowed.has((t as any).function?.name)
+    );
+  }
+
   console.log(
     chalk.dim(`\n  🤖 Subagent "${config.name}" started...`)
   );
 
-  const result = await chat(client, messages, onToken);
+  const result = await chat(client, messages, onToken, {
+    tools: filteredTools,
+  });
 
   // Extract the final assistant message
   const lastAssistant = [...result]

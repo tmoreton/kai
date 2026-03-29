@@ -1,4 +1,4 @@
-import { execSync } from "child_process";
+import { execFileSync } from "child_process";
 import path from "path";
 import { getCwd } from "./bash.js";
 import { glob as globFn } from "glob";
@@ -51,17 +51,18 @@ export async function grepTool(args: {
     : getCwd();
 
   try {
-    const flags = ["-rn", "--color=never"];
-    if (args.ignore_case) flags.push("-i");
-    if (args.context) flags.push(`-C${args.context}`);
-    if (args.include) flags.push(`--include=${args.include}`);
+    const grepArgs = ["-rn", "--color=never"];
+    if (args.ignore_case) grepArgs.push("-i");
+    if (args.context) grepArgs.push(`-C${args.context}`);
+    if (args.include) grepArgs.push(`--include=${args.include}`);
 
     for (const dir of EXCLUDED_DIRS) {
-      flags.push(`--exclude-dir=${dir}`);
+      grepArgs.push(`--exclude-dir=${dir}`);
     }
 
-    const cmd = `grep ${flags.join(" ")} ${JSON.stringify(args.pattern)} ${JSON.stringify(searchPath)}`;
-    const result = execSync(cmd, {
+    grepArgs.push("--", args.pattern, searchPath);
+
+    const result = execFileSync("grep", grepArgs, {
       maxBuffer: 5 * 1024 * 1024,
       timeout: 15000,
       encoding: "utf-8",

@@ -284,59 +284,6 @@ export const toolDefinitions = [
   {
     type: "function" as const,
     function: {
-      name: "save_memory",
-      description:
-        "Save a piece of information to persistent memory for future sessions. Use to remember user preferences, project context, feedback, etc.",
-      parameters: {
-        type: "object",
-        properties: {
-          name: {
-            type: "string",
-            description: "Name/title for the memory",
-          },
-          type: {
-            type: "string",
-            enum: ["user", "project", "feedback", "reference"],
-            description: "Type of memory",
-          },
-          description: {
-            type: "string",
-            description: "One-line description of what this memory is about",
-          },
-          content: {
-            type: "string",
-            description: "The memory content",
-          },
-          scope: {
-            type: "string",
-            enum: ["user", "project"],
-            description: "Scope: user (global) or project (this project only)",
-          },
-        },
-        required: ["name", "type", "description", "content"],
-      },
-    },
-  },
-  {
-    type: "function" as const,
-    function: {
-      name: "list_memories",
-      description: "List all saved memories.",
-      parameters: {
-        type: "object",
-        properties: {
-          scope: {
-            type: "string",
-            enum: ["user", "project"],
-            description: "Which scope to list (default: project)",
-          },
-        },
-      },
-    },
-  },
-  {
-    type: "function" as const,
-    function: {
       name: "spawn_agent",
       description:
         'Spawn a subagent to handle a task. Available agents: "explorer" (read-only code search), "planner" (design implementation plans), "worker" (full read/write for complex tasks).',

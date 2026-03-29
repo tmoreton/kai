@@ -7,7 +7,6 @@ import { toolDefinitions } from "./tools/index.js";
 import { executeTool, type ToolResult } from "./tools/executor.js";
 import { trackUsage, shouldCompact, compactMessages } from "./context.js";
 import {
-  DEFAULT_MODEL,
   MAX_TOKENS,
   MAX_TOOL_TURNS,
   STREAM_TIMEOUT_MS,
@@ -16,22 +15,35 @@ import {
   TOOL_OUTPUT_MAX_CHARS,
   TOOL_OUTPUT_CONTEXT_LIMIT,
 } from "./constants.js";
+import { resolveProvider, type ResolvedProvider } from "./providers/index.js";
 import chalk from "chalk";
 
-const MODEL = process.env.MODEL_ID || DEFAULT_MODEL;
+let _resolved: ResolvedProvider | null = null;
+
+function getResolved(): ResolvedProvider {
+  if (!_resolved) _resolved = resolveProvider();
+  return _resolved;
+}
 
 export function createClient(): OpenAI {
-  return new OpenAI({
-    apiKey: process.env.TOGETHER_API_KEY,
-    baseURL: "https://api.together.xyz/v1",
-  });
+  return getResolved().client;
+}
+
+export function getModelId(): string {
+  return getResolved().model;
+}
+
+export function getProviderName(): string {
+  return getResolved().provider.name;
 }
 
 export async function chat(
   client: OpenAI,
   messages: ChatCompletionMessageParam[],
-  onToken?: (token: string) => void
+  onToken?: (token: string) => void,
+  options?: { tools?: ChatCompletionTool[] }
 ): Promise<ChatCompletionMessageParam[]> {
+  const activeTools = options?.tools ?? toolDefinitions as ChatCompletionTool[];
   const updatedMessages = [...messages];
 
   // Auto-compact if context is getting large
@@ -74,9 +86,9 @@ export async function chat(
     try {
       stream = await client.chat.completions.create(
         {
-          model: MODEL,
+          model: getModelId(),
           messages: updatedMessages,
-          tools: toolDefinitions as ChatCompletionTool[],
+          tools: activeTools,
           tool_choice: "auto",
           stream: true,
           max_tokens: MAX_TOKENS,
@@ -357,8 +369,6 @@ function summarizeArgs(
       return String(args.subject || "");
     case "task_update":
       return `#${args.task_id} → ${args.status || ""}`;
-    case "save_memory":
-      return String(args.name || "");
     default:
       return JSON.stringify(args).substring(0, 60);
   }

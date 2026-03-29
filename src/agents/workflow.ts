@@ -12,6 +12,20 @@ import {
   getSteps,
   type StepRecord,
 } from "./db.js";
+import { resolveProvider, type ResolvedProvider } from "../providers/index.js";
+
+// Shared resolved provider — reused across all LLM calls in the workflow engine
+let _resolved: ResolvedProvider | null = null;
+
+function getSharedClient(): OpenAI {
+  if (!_resolved) _resolved = resolveProvider();
+  return _resolved.client;
+}
+
+function getSharedModel(): string {
+  if (!_resolved) _resolved = resolveProvider();
+  return _resolved.model;
+}
 
 /**
  * Workflow Engine
@@ -176,6 +190,11 @@ export async function executeWorkflow(
           case "notify":
             result = await executeNotifyStep(step, ctx);
             break;
+          case "review":
+            // Review steps are handled by the post-workflow review loop.
+            // If used inline, treat as an LLM step with review-focused prompt.
+            result = await executeLlmStep(step, ctx);
+            break;
           default:
             throw new Error(`Unknown step type: ${step.type}`);
         }
@@ -319,14 +338,10 @@ Evaluation criteria:
 - Would a human find this genuinely useful?
 ${iteration > 0 ? `\nThis is iteration ${iteration + 1}. Be stricter — earlier iterations already improved the output. If it's good enough now, PASS it.` : ""}`;
 
-  const OpenAI = (await import("openai")).default;
-  const client = new OpenAI({
-    apiKey: process.env.TOGETHER_API_KEY,
-    baseURL: "https://api.together.xyz/v1",
-  });
+  const client = getSharedClient();
 
   const response = await client.chat.completions.create({
-    model: process.env.MODEL_ID || "moonshotai/Kimi-K2.5",
+    model: getSharedModel(),
     messages: [{ role: "user", content: reviewPrompt }],
     max_tokens: 1024,
   });
@@ -358,15 +373,11 @@ async function executeLlmStep(step: WorkflowStep, ctx: WorkflowContext): Promise
   if (!step.prompt) throw new Error("LLM step requires a 'prompt'");
 
   const prompt = interpolate(step.prompt, ctx);
-  const model = process.env.MODEL_ID || "moonshotai/Kimi-K2.5";
 
-  const client = new OpenAI({
-    apiKey: process.env.TOGETHER_API_KEY,
-    baseURL: "https://api.together.xyz/v1",
-  });
+  const client = getSharedClient();
 
   const response = await client.chat.completions.create({
-    model,
+    model: getSharedModel(),
     messages: [
       {
         role: "system",
