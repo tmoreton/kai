@@ -4,7 +4,7 @@ export const toolDefinitions = [
     function: {
       name: "bash",
       description:
-        "Execute a shell command and return its stdout/stderr. Use for running builds, tests, git commands, installations, and any system operation. The working directory persists between calls.",
+        "Execute a shell command and return its stdout/stderr. Use for running builds, tests, git commands, installations, and any system operation. The working directory persists between calls. For long-running processes (dev servers, watchers), use bash_background instead.",
       parameters: {
         type: "object",
         properties: {
@@ -15,6 +15,28 @@ export const toolDefinitions = [
           timeout: {
             type: "number",
             description: "Timeout in milliseconds (default: 30000, max: 120000)",
+          },
+        },
+        required: ["command"],
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "bash_background",
+      description:
+        "Start a long-running background process (dev servers, file watchers, etc.). Returns immediately with PID and initial output. Use this for: npm run dev, python -m http.server, etc. The process runs until you kill it or the session ends.",
+      parameters: {
+        type: "object",
+        properties: {
+          command: {
+            type: "string",
+            description: "The command to run in background",
+          },
+          wait_seconds: {
+            type: "number",
+            description: "Seconds to wait for initial output (default: 3)",
           },
         },
         required: ["command"],

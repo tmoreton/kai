@@ -44,6 +44,10 @@ export async function chat(
 
   let turns = 0;
 
+  let consecutiveErrors = 0;
+  const MAX_CONSECUTIVE_ERRORS = 3;
+  let lastFailedCall = "";
+
   while (turns < MAX_TOOL_TURNS) {
     turns++;
 
@@ -108,14 +112,25 @@ export async function chat(
 
         if (!delta) continue;
 
-        if (delta.content) {
+        // Kimi K2.5 sometimes puts output in "reasoning" field instead of "content"
+        let text = delta.content || (delta as any).reasoning;
+        if (text) {
+          // Filter out Kimi K2.5 internal formatting tokens that leak on truncation
+          text = text.replace(/<\|tool_calls_section_begin\|>/g, "")
+            .replace(/<\|tool_calls_section_end\|>/g, "")
+            .replace(/<\|tool_call_begin\|>/g, "")
+            .replace(/<\|tool_call_end\|>/g, "")
+            .replace(/<\|tool_call_argument_begin\|>/g, "")
+            .replace(/<\|tool_call_argument_end\|>/g, "");
+          if (!text) continue;
+
           if (!firstToken) {
             firstToken = true;
             clearInterval(spinner);
             process.stderr.write("\x1b[2K\r"); // Clear spinner line
           }
-          content += delta.content;
-          onToken?.(delta.content);
+          content += text;
+          onToken?.(text);
         }
 
         if (delta.tool_calls) {
@@ -187,9 +202,11 @@ export async function chat(
     for (const tc of toolCalls) {
       const toolName = tc.function.name;
       let args: Record<string, unknown>;
+      let parseError = false;
       try {
         args = JSON.parse(tc.function.arguments);
       } catch {
+        parseError = true;
         args = {};
       }
 
@@ -198,6 +215,19 @@ export async function chat(
           chalk.dim(summarizeArgs(toolName, args)) +
           chalk.dim(")")
       );
+
+      // If JSON was truncated/malformed, don't execute — tell model to retry
+      if (parseError || (toolName === "write_file" && !args.file_path)) {
+        const truncLen = tc.function.arguments.length;
+        console.log(chalk.yellow(`  ↳ Tool call truncated (${truncLen} chars) — arguments were cut off`));
+        updatedMessages.push({
+          role: "tool",
+          tool_call_id: tc.id,
+          content: `Error: Your tool call was truncated — the JSON arguments were cut off at ${truncLen} characters, likely because the file content is too long for a single write_file call. Split the work: write a smaller file first, or use multiple edit_file calls to build up the file in parts.`,
+        });
+        consecutiveErrors++;
+        continue;
+      }
 
       const result: ToolResult = await executeTool(toolName, args);
 
@@ -246,11 +276,44 @@ export async function chat(
           `\n\n[Output truncated — ${resultStr.length} chars total, showing first ${contextCharLimit}. Use read_file with offset/limit for more.]`;
       }
 
+      // Track errors for loop detection
+      const isError =
+        resultStr.startsWith("Error") ||
+        resultStr.includes("exit code:") ||
+        resultStr.includes("failed:") ||
+        resultStr.includes("ENOENT") ||
+        resultStr.includes("Permission denied");
+
+      const callSignature = `${toolName}:${JSON.stringify(args).substring(0, 100)}`;
+
+      if (isError) {
+        consecutiveErrors++;
+        if (callSignature === lastFailedCall) {
+          // Same call failed twice — inject guidance
+          contextContent += "\n\n[SYSTEM: This exact tool call has failed before with the same error. Try a DIFFERENT approach instead of retrying the same command.]";
+        }
+        lastFailedCall = callSignature;
+      } else {
+        consecutiveErrors = 0;
+        lastFailedCall = "";
+      }
+
       updatedMessages.push({
         role: "tool",
         tool_call_id: tc.id,
         content: contextContent,
       });
+
+      // Circuit breaker: too many consecutive errors
+      if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
+        console.log(chalk.yellow(`\n  ⚠ ${MAX_CONSECUTIVE_ERRORS} consecutive errors. Stopping tool loop.\n`));
+        updatedMessages.push({
+          role: "user",
+          content: `[SYSTEM: Tool execution has hit ${MAX_CONSECUTIVE_ERRORS} consecutive errors. Stop retrying and tell the user what went wrong and what you were trying to do.]`,
+        });
+        // Let the model respond with an explanation
+        break;
+      }
     }
   }
 

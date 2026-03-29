@@ -1,7 +1,4 @@
-import fs from "fs";
-import path from "path";
 import chalk from "chalk";
-import { ensureKaiDir } from "../config.js";
 
 export interface Task {
   id: number;
@@ -11,42 +8,14 @@ export interface Task {
   createdAt: string;
 }
 
+// Tasks are session-scoped — they reset on each new session
 let tasks: Task[] = [];
 let nextId = 1;
 
-function tasksFilePath(): string {
-  return path.join(ensureKaiDir(), "tasks.json");
+export function resetTasks(): void {
+  tasks = [];
+  nextId = 1;
 }
-
-function loadTasksFromDisk(): void {
-  try {
-    const filePath = tasksFilePath();
-    if (fs.existsSync(filePath)) {
-      const data = JSON.parse(fs.readFileSync(filePath, "utf-8"));
-      if (Array.isArray(data.tasks)) {
-        tasks = data.tasks;
-        nextId = data.nextId || (tasks.length > 0 ? Math.max(...tasks.map((t) => t.id)) + 1 : 1);
-      }
-    }
-  } catch {
-    // Start fresh if file is corrupt
-  }
-}
-
-function saveTasksToDisk(): void {
-  try {
-    fs.writeFileSync(
-      tasksFilePath(),
-      JSON.stringify({ tasks, nextId }, null, 2),
-      "utf-8"
-    );
-  } catch {
-    // Silently fail — tasks are still in memory
-  }
-}
-
-// Load on module init
-loadTasksFromDisk();
 
 export function createTask(args: {
   subject: string;
@@ -60,7 +29,6 @@ export function createTask(args: {
     createdAt: new Date().toISOString(),
   };
   tasks.push(task);
-  saveTasksToDisk();
   return `Task #${task.id} created: ${task.subject}`;
 }
 
@@ -77,7 +45,6 @@ export function updateTask(args: {
   if (args.subject) task.subject = args.subject;
   if (args.description) task.description = args.description;
 
-  saveTasksToDisk();
   return `Task #${task.id} updated: [${task.status}] ${task.subject}`;
 }
 

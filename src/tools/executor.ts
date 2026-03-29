@@ -1,4 +1,4 @@
-import { bashTool } from "./bash.js";
+import { bashTool, bashBackgroundTool } from "./bash.js";
 import { readFile, writeFile, editFile } from "./files.js";
 import { globTool, grepTool } from "./search.js";
 import { webFetch, webSearch } from "./web.js";
@@ -39,6 +39,8 @@ export async function executeTool(
       // File operations
       case "bash":
         return await bashTool(args as { command: string; timeout?: number });
+      case "bash_background":
+        return await bashBackgroundTool(args as { command: string; wait_seconds?: number });
       case "read_file":
         return await readFile(args as { file_path: string; offset?: number; limit?: number });
       case "write_file":

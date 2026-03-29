@@ -1,4 +1,4 @@
-import { exec, execSync } from "child_process";
+import { exec, spawn } from "child_process";
 import path from "path";
 import fs from "fs";
 import {
@@ -6,8 +6,12 @@ import {
   BASH_MAX_TIMEOUT,
   BASH_MAX_BUFFER,
 } from "../constants.js";
+import chalk from "chalk";
 
 let cwd = process.cwd();
+
+// Track background processes so we can clean them up
+const backgroundProcesses: { pid: number; label: string }[] = [];
 
 export function getCwd(): string {
   return cwd;
@@ -15,6 +19,17 @@ export function getCwd(): string {
 
 export function setCwd(dir: string): void {
   cwd = path.resolve(dir);
+}
+
+export function cleanupBackgroundProcesses(): void {
+  for (const proc of backgroundProcesses) {
+    try {
+      process.kill(proc.pid);
+    } catch {
+      // already dead
+    }
+  }
+  backgroundProcesses.length = 0;
 }
 
 export async function bashTool(args: {
@@ -35,7 +50,7 @@ export async function bashTool(args: {
       cwd,
       timeout,
       maxBuffer: BASH_MAX_BUFFER,
-      shell: "/bin/zsh",
+      shell: "/bin/bash", // Use bash instead of zsh — more predictable for scripting
       env: { ...process.env, FORCE_COLOR: "0" },
     });
 
@@ -58,7 +73,6 @@ export async function bashTool(args: {
         if (newCwd && fs.existsSync(newCwd)) {
           setCwd(newCwd);
         }
-        // Remove marker and pwd output from visible output
         stdout = parts[0];
       }
 
@@ -77,5 +91,51 @@ export async function bashTool(args: {
     child.on("error", (err) => {
       resolve(`Error executing command: ${err.message}`);
     });
+  });
+}
+
+/**
+ * Start a background process (like a dev server) that persists.
+ * Returns immediately with the PID and initial output.
+ */
+export async function bashBackgroundTool(args: {
+  command: string;
+  wait_seconds?: number;
+}): Promise<string> {
+  const waitMs = (args.wait_seconds || 3) * 1000;
+
+  return new Promise((resolve) => {
+    const child = spawn("/bin/bash", ["-c", args.command], {
+      cwd,
+      stdio: ["ignore", "pipe", "pipe"],
+      detached: true,
+      env: { ...process.env, FORCE_COLOR: "0" },
+    });
+
+    let output = "";
+    const pid = child.pid;
+
+    child.stdout?.on("data", (data) => {
+      output += data.toString();
+    });
+
+    child.stderr?.on("data", (data) => {
+      output += data.toString();
+    });
+
+    // Unref so it doesn't block process exit
+    child.unref();
+
+    if (pid) {
+      backgroundProcesses.push({ pid, label: args.command.substring(0, 60) });
+    }
+
+    // Wait a bit for initial output (e.g., "Server ready on port 5173")
+    setTimeout(() => {
+      const result = output.trim() || "(started in background)";
+      resolve(
+        `Background process started (PID: ${pid})\n${result}`
+      );
+    }, waitMs);
   });
 }

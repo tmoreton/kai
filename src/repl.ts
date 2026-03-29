@@ -3,7 +3,7 @@ import type { ChatCompletionMessageParam } from "openai/resources/chat/completio
 import chalk from "chalk";
 import { createClient, chat } from "./client.js";
 import { getSystemPrompt } from "./system-prompt.js";
-import { getCwd } from "./tools/bash.js";
+import { getCwd, cleanupBackgroundProcesses } from "./tools/bash.js";
 import { formatCost, estimateContextSize, formatContextBreakdown } from "./context.js";
 import { getKaiMdContent } from "./config.js";
 import { getMemoryContext } from "./memory.js";
@@ -233,6 +233,7 @@ export async function startRepl(options: ReplOptions = {}): Promise<void> {
       rl.prompt();
     } else {
       cleanupCrons();
+      cleanupBackgroundProcesses();
       session.messages = messages;
       saveSession(session);
       console.log(chalk.dim("\n  Session saved. Goodbye!\n"));
