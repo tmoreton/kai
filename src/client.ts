@@ -229,6 +229,23 @@ export async function chat(
       }
     }
 
+    // If assistant text ends with a question for the user, stop the tool loop
+    // even if there are pending tool calls — let the user respond first
+    const hasQuestion = content.trim() && /\?\s*$/.test(content.trim());
+    if (hasQuestion && toolCalls.length > 0) {
+      updatedMessages.push({ role: "assistant", content });
+      onToken?.("\n");
+      return updatedMessages;
+    }
+
+    // Nudge the model when approaching the turn limit
+    if (turns === maxTurns - 5) {
+      updatedMessages.push({
+        role: "user",
+        content: "[SYSTEM: You are approaching the tool call limit. Wrap up your current task and provide a summary to the user. Do not start new work.]",
+      });
+    }
+
     // Text-only response — done
     if (toolCalls.length === 0) {
       // If content is empty (model only produced reasoning), use reasoning as fallback
@@ -469,32 +486,61 @@ export function summarizeArgs(
  * <|tool_call_end|>
  * <|tool_calls_section_end|>
  */
-function rescueToolCallsFromText(
+/**
+ * Rescue tool calls that models leak into content text instead of sending
+ * as structured tool_calls. Handles multiple formats:
+ *
+ * 1. Kimi K2.5: functions.tool_name:N <|tool_call_argument_begin|> {...}
+ * 2. Kimi/Qwen: <|tool_call_begin|><|tool_sep|>tool_name\n<|tool_call_argument_begin|>{...}
+ * 3. Some models: <function=name><parameter=key>value</function>
+ */
+export function rescueToolCallsFromText(
   text: string
 ): Array<{ id: string; function: { name: string; arguments: string } }> {
   const rescued: Array<{ id: string; function: { name: string; arguments: string } }> = [];
 
-  // Match: functions.TOOL_NAME:N followed by argument JSON
-  const callPattern = /functions\.(\w+):\d+\s*(?:<\|tool_call_argument_begin\|>)?\s*(\{[\s\S]*?\})\s*(?:<\|tool_call_end\|>)?/g;
+  // Pattern 1: functions.TOOL_NAME:N followed by argument JSON
+  const pattern1 = /functions\.(\w+):\d+\s*(?:<\|tool_call_argument_begin\|>)?\s*(\{[\s\S]*?\})\s*(?:<\|tool_call_end\|>)?/g;
   let match;
-
-  while ((match = callPattern.exec(text)) !== null) {
-    const toolName = match[1];
-    const argsStr = match[2];
-
-    // Validate the JSON parses
+  while ((match = pattern1.exec(text)) !== null) {
     try {
-      JSON.parse(argsStr);
+      JSON.parse(match[2]);
       rescued.push({
         id: `rescued-${Date.now()}-${rescued.length}`,
-        function: {
-          name: toolName,
-          arguments: argsStr,
-        },
+        function: { name: match[1], arguments: match[2] },
       });
-    } catch {
-      // JSON was truncated — skip
-    }
+    } catch {}
+  }
+
+  if (rescued.length > 0) return rescued;
+
+  // Pattern 2: <|tool_call_begin|><|tool_sep|>tool_name\n<|tool_call_argument_begin|>{...}<|tool_call_argument_end|>
+  const pattern2 = /<\|tool_call_begin\|>\s*<\|tool_sep\|>\s*(\w+)\s*\n<\|tool_call_argument_begin\|>([\s\S]*?)<\|tool_call_argument_end\|>/g;
+  while ((match = pattern2.exec(text)) !== null) {
+    try {
+      JSON.parse(match[2].trim());
+      rescued.push({
+        id: `rescued-${Date.now()}-${rescued.length}`,
+        function: { name: match[1], arguments: match[2].trim() },
+      });
+    } catch {}
+  }
+
+  if (rescued.length > 0) return rescued;
+
+  // Pattern 3: <function=name><parameter=key>value</function>
+  const pattern3 = /<function=(\w+)>\s*<parameter=(\w+)>\s*([\s\S]*?)(?:<\/function>|$)/g;
+  const calls: Record<string, Record<string, string>> = {};
+  while ((match = pattern3.exec(text)) !== null) {
+    const fname = match[1];
+    if (!calls[fname]) calls[fname] = {};
+    calls[fname][match[2]] = match[3].trim();
+  }
+  for (const [fname, params] of Object.entries(calls)) {
+    rescued.push({
+      id: `rescued-${Date.now()}-${rescued.length}`,
+      function: { name: fname, arguments: JSON.stringify(params) },
+    });
   }
 
   return rescued;

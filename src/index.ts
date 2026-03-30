@@ -47,15 +47,17 @@ program
 
     if (oneShot || pipedInput) {
       const prompt = [pipedInput, oneShot].filter(Boolean).join("\n\n");
-      if (options.keepAlive) {
+      // -p/--print: true one-shot (run and exit)
+      // Positional arg or piped input: run then continue into REPL
+      if (options.print && !pipedInput) {
+        await runOneShot(prompt, options.yes);
+      } else {
         await runOneShotAndContinue(prompt, {
           continueSession: options.continue,
           resumeSessionId: options.resume,
           sessionName: options.name,
           autoApprove: options.yes,
         });
-      } else {
-        await runOneShot(prompt, options.yes);
       }
     } else {
       await startRepl({

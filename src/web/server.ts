@@ -13,12 +13,12 @@ import type {
 import OpenAI from "openai";
 
 // Kai modules
-import { createClient, getModelId, getProviderName, summarizeArgs } from "../client.js";
+import { createClient, getModelId, getProviderName, summarizeArgs, rescueToolCallsFromText } from "../client.js";
 import { resolveProvider } from "../providers/index.js";
 import { ensureKaiDir } from "../config.js";
 import { buildSystemPrompt } from "../system-prompt.js";
 import { getCwd } from "../tools/bash.js";
-import { toolDefinitions } from "../tools/index.js";
+import { toolDefinitions, getMcpToolDefinitions, initMcpServers } from "../tools/index.js";
 import { executeTool } from "../tools/executor.js";
 import { setPermissionMode } from "../permissions.js";
 import { trackUsage, shouldCompact, compactMessages, getUsage } from "../context.js";
@@ -87,6 +87,9 @@ export async function startServer(options: ServerOptions): Promise<void> {
 
   // Auto-approve tools in web mode (no readline available)
   setPermissionMode("auto");
+
+  // Initialize MCP servers before any interaction
+  await initMcpServers();
 
   // Start agent daemon in-process if requested
   if (agents) {
@@ -627,7 +630,8 @@ async function chatForWeb(
   signal?: AbortSignal,
   modelOverride?: string
 ): Promise<ChatCompletionMessageParam[]> {
-  const activeTools = toolDefinitions as ChatCompletionTool[];
+  const mcpTools = getMcpToolDefinitions();
+  const activeTools = [...toolDefinitions, ...mcpTools] as ChatCompletionTool[];
   const updatedMessages = [...messages];
 
   // Auto-compact if context is getting large
@@ -745,39 +749,15 @@ async function chatForWeb(
     if (currentToolCall) toolCalls.push(currentToolCall);
     if (chunkUsage) trackUsage(chunkUsage);
 
-    // Rescue tool calls leaked as text (Kimi, Qwen <|tool_call_begin|> format)
-    if (toolCalls.length === 0 && content.includes("<|tool_call_begin|>")) {
-      const pattern = /<\|tool_call_begin\|>\s*<\|tool_sep\|>\s*(\w+)\s*\n<\|tool_call_argument_begin\|>([\s\S]*?)<\|tool_call_argument_end\|>/g;
-      let match;
-      while ((match = pattern.exec(content)) !== null) {
-        toolCalls.push({
-          id: `rescued-${Date.now()}-${toolCalls.length}`,
-          function: { name: match[1], arguments: match[2].trim() },
-        });
-      }
-      if (toolCalls.length > 0) {
-        content = content.replace(/<\|tool_calls_section_begin\|>[\s\S]*$/m, "").trim();
-      }
-    }
-
-    // Rescue <function=name> format (some models)
-    if (toolCalls.length === 0 && content.includes("<function=")) {
-      const pattern = /<function=(\w+)>\s*<parameter=(\w+)>\s*([\s\S]*?)(?:<\/function>|$)/g;
-      let match;
-      const calls: Record<string, Record<string, string>> = {};
-      while ((match = pattern.exec(content)) !== null) {
-        const fname = match[1];
-        if (!calls[fname]) calls[fname] = {};
-        calls[fname][match[2]] = match[3].trim();
-      }
-      for (const [fname, params] of Object.entries(calls)) {
-        toolCalls.push({
-          id: `rescued-${Date.now()}-${toolCalls.length}`,
-          function: { name: fname, arguments: JSON.stringify(params) },
-        });
-      }
-      if (toolCalls.length > 0) {
-        content = content.replace(/<function=[\s\S]*$/m, "").trim();
+    // Rescue tool calls leaked as text (handles Kimi, Qwen, and <function=> formats)
+    if (toolCalls.length === 0 && (content.includes("<|tool_call_begin|>") || content.includes("<function=") || content.includes("functions."))) {
+      const rescued = rescueToolCallsFromText(content);
+      if (rescued.length > 0) {
+        toolCalls.push(...rescued);
+        content = content
+          .replace(/<\|tool_calls_section_begin\|>[\s\S]*$/m, "")
+          .replace(/<function=[\s\S]*$/m, "")
+          .trim();
       }
     }
 

@@ -13,12 +13,20 @@ export interface SubagentConfig {
   maxTurns?: number;
 }
 
-const BUILT_IN_AGENTS: SubagentConfig[] = [
+interface BuiltInAgent {
+  name: string;
+  description: string;
+  buildSystemPrompt: () => string;
+  tools?: string[];
+  maxTurns: number;
+}
+
+const BUILT_IN_AGENTS: BuiltInAgent[] = [
   {
     name: "explorer",
     description:
       "Fast read-only agent for exploring codebases. Use for finding files, searching code, answering questions about structure.",
-    systemPrompt: `You are an exploration agent. Your job is to quickly find information in the codebase.
+    buildSystemPrompt: () => `You are an exploration agent. Your job is to quickly find information in the codebase.
 You have read-only access — use glob, grep, and read_file to find what's needed.
 Be concise. Return only the relevant findings.
 Working directory: ${getCwd()}`,
@@ -29,7 +37,7 @@ Working directory: ${getCwd()}`,
     name: "planner",
     description:
       "Planning agent that researches and designs implementation strategies before writing code.",
-    systemPrompt: `You are a planning agent. Research the codebase and create a step-by-step implementation plan.
+    buildSystemPrompt: () => `You are a planning agent. Research the codebase and create a step-by-step implementation plan.
 Use read-only tools to understand the code. Do NOT make changes.
 Return a clear, actionable plan with file paths and specific changes needed.
 Working directory: ${getCwd()}`,
@@ -40,7 +48,7 @@ Working directory: ${getCwd()}`,
     name: "worker",
     description:
       "General-purpose agent that can read, write, and execute code for complex multi-step tasks.",
-    systemPrompt: `You are a worker agent. Complete the assigned task autonomously.
+    buildSystemPrompt: () => `You are a worker agent. Complete the assigned task autonomously.
 You have full access to the filesystem and shell.
 Work step by step: understand → implement → verify.
 Working directory: ${getCwd()}`,
@@ -100,13 +108,22 @@ export async function spawnAgent(args: {
   agent: string;
   task: string;
 }): Promise<string> {
-  const config = BUILT_IN_AGENTS.find(
+  const builtin = BUILT_IN_AGENTS.find(
     (a) => a.name === args.agent
   );
 
-  if (!config) {
+  if (!builtin) {
     return `Unknown agent: "${args.agent}". Available: ${BUILT_IN_AGENTS.map((a) => a.name).join(", ")}`;
   }
+
+  // Build config at spawn time so cwd is current
+  const config: SubagentConfig = {
+    name: builtin.name,
+    description: builtin.description,
+    systemPrompt: builtin.buildSystemPrompt(),
+    tools: builtin.tools,
+    maxTurns: builtin.maxTurns,
+  };
 
   return runSubagent(config, args.task);
 }
