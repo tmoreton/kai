@@ -1,3 +1,5 @@
+import { WEB_CONTENT_LIMIT, FETCH_TIMEOUT_MS } from "../constants.js";
+
 /**
  * Web Search Tool
  *
@@ -21,7 +23,7 @@ export async function webSearch(args: {
         max_results: args.max_results || 5,
         include_answer: true,
       }),
-      signal: AbortSignal.timeout(15000),
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
 
     if (!response.ok) {
@@ -61,7 +63,7 @@ export async function webFetch(args: {
     const response = await fetch(args.url, {
       method: args.method || "GET",
       headers: args.headers,
-      signal: AbortSignal.timeout(15000),
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
 
     const contentType = response.headers.get("content-type") || "";
@@ -73,10 +75,10 @@ export async function webFetch(args: {
     const text = await response.text();
 
     if (contentType.includes("text/html")) {
-      return htmlToText(text).substring(0, 50000);
+      return htmlToText(text).substring(0, WEB_CONTENT_LIMIT);
     }
 
-    return text.substring(0, 50000);
+    return text.substring(0, WEB_CONTENT_LIMIT);
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     return `Error fetching ${args.url}: ${msg}`;

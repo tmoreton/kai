@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Kai</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0%25' stop-color='%230D9488'/%3E%3Cstop offset='100%25' stop-color='%23115E59'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' rx='8' fill='url(%23g)'/%3E%3Cpath d='M9 8v16M9 16l8-8M9 16l8 8' stroke='white' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E">
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -17,8 +18,8 @@
       --text: #1A1A1A;
       --text-secondary: #6B6560;
       --text-muted: #9B958F;
-      --accent: #D97706;
-      --accent-light: #FEF3C7;
+      --accent: #0D9488;
+      --accent-light: #CCFBF1;
       --green: #059669;
       --green-light: #D1FAE5;
       --red: #DC2626;
@@ -163,7 +164,7 @@
 
     .msg-ai { display: flex; gap: 12px; align-items: flex-start; }
     .msg-avatar {
-      width: 28px; height: 28px; border-radius: 50%; background: linear-gradient(135deg, var(--accent), #B45309);
+      width: 28px; height: 28px; border-radius: 50%; background: linear-gradient(135deg, var(--accent), #115E59);
       display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 2px;
       font-size: 13px; color: #fff; font-weight: 700;
     }
@@ -258,7 +259,7 @@
       background: var(--bg-surface); border: 1px solid var(--border);
       border-radius: 24px; transition: border-color .15s, box-shadow .15s;
     }
-    .input-wrap:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(217,119,6,.1); }
+    .input-wrap:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(13,148,136,.1); }
     .attachments-bar {
       display: flex; gap: 6px; flex-wrap: wrap; padding: 8px 16px 0; align-items: center;
     }
@@ -408,7 +409,7 @@
     .btn-danger { background: none; color: var(--red); border: 1px solid rgba(220,38,38,.3); }
     .btn-danger:hover { background: var(--red-light); }
     .btn-fix { background: var(--accent); color: #fff; }
-    .btn-fix:hover { background: #B45309; }
+    .btn-fix:hover { background: #115E59; }
 
     /* Edit form */
     .edit-form { margin-bottom: 24px; animation: fadeIn .2s ease; }
@@ -562,6 +563,68 @@
       .agents-view { flex-direction: column; }
     }
 
+    /* ======================================= */
+    /* ---- Docs view ---- */
+    /* ======================================= */
+    .docs-view { height: 100%; overflow-y: auto; background: var(--bg); }
+    .docs-content {
+      max-width: 760px; margin: 0 auto; padding: 40px 32px 80px;
+    }
+    .docs-content h1 {
+      font-size: 28px; font-weight: 700; color: var(--text); letter-spacing: -0.5px; margin-bottom: 4px;
+    }
+    .docs-subtitle { font-size: 15px; color: var(--text-secondary); margin-bottom: 28px; }
+    .docs-nav {
+      display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 36px;
+      padding: 14px 16px; background: var(--bg-surface); border: 1px solid var(--border);
+      border-radius: var(--radius);
+    }
+    .docs-nav a {
+      font-size: 13px; color: var(--accent); text-decoration: none; padding: 4px 12px;
+      border-radius: 14px; transition: all .15s; font-weight: 500;
+    }
+    .docs-nav a:hover { background: var(--accent-light); }
+    .docs-content section { margin-bottom: 40px; }
+    .docs-content h2 {
+      font-size: 20px; font-weight: 600; color: var(--text); margin-bottom: 12px;
+      padding-bottom: 8px; border-bottom: 1px solid var(--border-light); letter-spacing: -0.3px;
+    }
+    .docs-content section > p { font-size: 14px; color: var(--text-secondary); margin-bottom: 16px; line-height: 1.7; }
+    .docs-content section > ol { font-size: 14px; color: var(--text-secondary); margin-bottom: 16px; padding-left: 24px; line-height: 1.7; }
+    .docs-card {
+      background: var(--bg-surface); border: 1px solid var(--border-light); border-radius: var(--radius);
+      padding: 18px 20px; margin-bottom: 12px;
+    }
+    .docs-card h3 { font-size: 15px; font-weight: 600; color: var(--text); margin-bottom: 10px; }
+    .docs-card p { font-size: 13.5px; color: var(--text-secondary); line-height: 1.7; margin-bottom: 8px; }
+    .docs-card p:last-child { margin-bottom: 0; }
+    .docs-card ul { font-size: 13.5px; color: var(--text-secondary); padding-left: 20px; line-height: 1.8; }
+    .docs-card a { color: var(--accent); text-decoration: none; }
+    .docs-card a:hover { text-decoration: underline; }
+    .docs-card pre {
+      background: #1E1E1E; border-radius: var(--radius-sm); padding: 14px 16px; margin: 8px 0 0;
+      overflow-x: auto;
+    }
+    .docs-card pre code {
+      font-family: var(--mono); font-size: 12.5px; line-height: 1.6; color: #D4D4D4;
+      background: none; padding: 0;
+    }
+    .docs-card table { width: 100%; border-collapse: collapse; margin-top: 4px; }
+    .docs-card th, .docs-card td {
+      border: 1px solid var(--border-light); padding: 7px 12px; font-size: 13px; text-align: left;
+    }
+    .docs-card th { background: var(--bg-sidebar); font-weight: 600; color: var(--text); }
+    .docs-card td { color: var(--text-secondary); }
+    .docs-card td code {
+      font-family: var(--mono); font-size: 12px; background: #F3F1ED; padding: 1px 5px;
+      border-radius: 3px; color: var(--text);
+    }
+
+    @media (max-width: 768px) {
+      .docs-content { padding: 24px 16px 60px; }
+      .docs-nav { flex-direction: column; }
+    }
+
     ::-webkit-scrollbar { width: 6px; }
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
@@ -580,7 +643,7 @@
 
     <aside class="sidebar" id="sidebar">
       <div class="sidebar-brand">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+        <svg width="24" height="24" viewBox="0 0 32 32" style="flex-shrink:0"><defs><linearGradient id="brand-g" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#0D9488"/><stop offset="100%" stop-color="#115E59"/></linearGradient></defs><rect width="32" height="32" rx="8" fill="url(#brand-g)"/><path d="M9 8v16M9 16l8-8M9 16l8 8" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
         Kai
         <button class="sidebar-collapse-btn" onclick="collapseSidebar()" title="Collapse sidebar">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 2L5 8l6 6"/></svg>
@@ -595,6 +658,10 @@
         <button class="sidebar-tab" data-tab="agents" onclick="switchView('agents')">
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="3"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2"/></svg>
           Agents
+        </button>
+        <button class="sidebar-tab" data-tab="docs" onclick="switchView('docs')">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 2h8a1 1 0 011 1v10a1 1 0 01-1 1H4a1 1 0 01-1-1V3a1 1 0 011-1z"/><path d="M5 5h6M5 8h6M5 11h3"/></svg>
+          Docs
         </button>
       </div>
 
@@ -676,6 +743,472 @@
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="4"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
               <span>Select an agent to view details</span>
             </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Docs View -->
+      <div class="view" id="view-docs">
+        <div class="docs-view">
+          <div class="docs-content">
+            <h1>Kai Documentation</h1>
+            <p class="docs-subtitle">AI coding assistant with persistent memory, background agents, and tool use.</p>
+
+            <nav class="docs-nav">
+              <a href="#docs-getting-started">Getting Started</a>
+              <a href="#docs-tools">Tools</a>
+              <a href="#docs-repl">REPL Commands</a>
+              <a href="#docs-cli">CLI Commands</a>
+              <a href="#docs-memory">Memory System</a>
+              <a href="#docs-agents">Background Agents</a>
+              <a href="#docs-config">Configuration</a>
+              <a href="#docs-api">Web API</a>
+            </nav>
+
+            <!-- Getting Started -->
+            <section id="docs-getting-started">
+              <h2>Getting Started</h2>
+              <div class="docs-card">
+                <h3>Installation</h3>
+                <pre><code>npm install
+cp .env.example .env
+# Add your OpenRouter API key to .env
+
+npm run dev       # Development mode
+npm run build     # Build for production
+npm start         # Run built version</code></pre>
+              </div>
+              <div class="docs-card">
+                <h3>Quick Usage</h3>
+                <pre><code># Start interactive REPL
+kai
+
+# One-shot query
+kai "explain this codebase"
+
+# Pipe input
+echo "explain this" | kai
+cat file.ts | kai "review this code"
+
+# Start web UI + API
+kai server</code></pre>
+              </div>
+              <div class="docs-card">
+                <h3>Environment Variables</h3>
+                <table>
+                  <thead><tr><th>Variable</th><th>Required</th><th>Description</th></tr></thead>
+                  <tbody>
+                    <tr><td><code>OPENROUTER_API_KEY</code></td><td>Yes</td><td>OpenRouter API key</td></tr>
+                    <tr><td><code>MODEL_ID</code></td><td>No</td><td>Override default model</td></tr>
+                    <tr><td><code>TAVILY_API_KEY</code></td><td>No</td><td>Enable web search via Tavily</td></tr>
+                    <tr><td><code>YOUTUBE_API_KEY</code></td><td>No</td><td>Enable YouTube agent features</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </section>
+
+            <!-- Tools -->
+            <section id="docs-tools">
+              <h2>Tools</h2>
+              <p>These are the tools available to Kai's LLM during conversations. They are called automatically based on your requests.</p>
+
+              <div class="docs-card">
+                <h3>Shell & File Operations</h3>
+                <table>
+                  <thead><tr><th>Tool</th><th>Description</th></tr></thead>
+                  <tbody>
+                    <tr><td><code>bash</code></td><td>Run shell commands. Working directory persists between calls.</td></tr>
+                    <tr><td><code>bash_background</code></td><td>Start long-running processes (dev servers, watchers). Returns PID immediately.</td></tr>
+                    <tr><td><code>read_file</code></td><td>Read files with line numbers. Supports offset/limit for large files.</td></tr>
+                    <tr><td><code>write_file</code></td><td>Create new files or overwrite existing ones.</td></tr>
+                    <tr><td><code>edit_file</code></td><td>Targeted text replacements. Matches exact strings including whitespace.</td></tr>
+                    <tr><td><code>glob</code></td><td>Find files by pattern (e.g. <code>**/*.ts</code>, <code>src/**/*.test.js</code>).</td></tr>
+                    <tr><td><code>grep</code></td><td>Search file contents with regex. Supports context lines and case-insensitive mode.</td></tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <div class="docs-card">
+                <h3>Web</h3>
+                <table>
+                  <thead><tr><th>Tool</th><th>Description</th></tr></thead>
+                  <tbody>
+                    <tr><td><code>web_fetch</code></td><td>Fetch content from a URL. HTML is converted to readable text.</td></tr>
+                    <tr><td><code>web_search</code></td><td>Search the web via Tavily. Returns an answer plus top results.</td></tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <div class="docs-card">
+                <h3>Memory</h3>
+                <table>
+                  <thead><tr><th>Tool</th><th>Description</th></tr></thead>
+                  <tbody>
+                    <tr><td><code>core_memory_read</code></td><td>Read identity and context memory blocks.</td></tr>
+                    <tr><td><code>core_memory_update</code></td><td>Update persona, human, goals, or scratchpad blocks.</td></tr>
+                    <tr><td><code>recall_search</code></td><td>Search past conversation history across sessions.</td></tr>
+                    <tr><td><code>archival_insert</code></td><td>Store important knowledge for permanent recall.</td></tr>
+                    <tr><td><code>archival_search</code></td><td>Search the long-term knowledge store by keyword or tags.</td></tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <div class="docs-card">
+                <h3>Tasks, Agents & Images</h3>
+                <table>
+                  <thead><tr><th>Tool</th><th>Description</th></tr></thead>
+                  <tbody>
+                    <tr><td><code>task_create</code></td><td>Create tasks for multi-step work tracking.</td></tr>
+                    <tr><td><code>task_update</code></td><td>Update task status (pending, in_progress, completed).</td></tr>
+                    <tr><td><code>task_list</code></td><td>List all active tasks and their status.</td></tr>
+                    <tr><td><code>spawn_agent</code></td><td>Spawn subagents: <strong>explorer</strong> (read-only search), <strong>planner</strong> (design plans), <strong>worker</strong> (full access).</td></tr>
+                    <tr><td><code>generate_image</code></td><td>Generate images via OpenRouter. Describe the scene naturally.</td></tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <div class="docs-card">
+                <h3>MCP (Model Context Protocol)</h3>
+                <p>If MCP servers are configured, their tools appear as <code>mcp__&lt;server&gt;__&lt;tool&gt;</code> and can be called like any other tool. Configure servers in <code>~/.kai/settings.json</code> or via the <code>/mcp add</code> command.</p>
+              </div>
+            </section>
+
+            <!-- REPL Commands -->
+            <section id="docs-repl">
+              <h2>REPL Commands</h2>
+              <p>Type these commands in the interactive terminal REPL. Type <code>/</code> alone to see all commands.</p>
+
+              <div class="docs-card">
+                <h3>General</h3>
+                <table>
+                  <thead><tr><th>Command</th><th>Description</th></tr></thead>
+                  <tbody>
+                    <tr><td><code>/help</code></td><td>Show all available commands</td></tr>
+                    <tr><td><code>/clear</code></td><td>Clear conversation (keep system prompt)</td></tr>
+                    <tr><td><code>/cost</code></td><td>Token usage + context breakdown</td></tr>
+                    <tr><td><code>/cost compact</code></td><td>Compress context to save tokens</td></tr>
+                    <tr><td><code>/sessions</code></td><td>List recent sessions</td></tr>
+                    <tr><td><code>/sessions rename &lt;name&gt;</code></td><td>Rename current session</td></tr>
+                    <tr><td><code>/soul</code></td><td>View core memory + recall stats</td></tr>
+                    <tr><td><code>/exit</code></td><td>Exit Kai</td></tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <div class="docs-card">
+                <h3>Git</h3>
+                <table>
+                  <thead><tr><th>Command</th><th>Description</th></tr></thead>
+                  <tbody>
+                    <tr><td><code>/git</code></td><td>Git status + changed files</td></tr>
+                    <tr><td><code>/git diff</code></td><td>Colorized diff (staged + unstaged)</td></tr>
+                    <tr><td><code>/git commit [msg]</code></td><td>AI-generated commit. Add <code>--push</code> to also push.</td></tr>
+                    <tr><td><code>/git pr [title]</code></td><td>Create PR (branch + commit + push + open)</td></tr>
+                    <tr><td><code>/git branch [name]</code></td><td>List or create/switch branches</td></tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <div class="docs-card">
+                <h3>Agents & MCP</h3>
+                <table>
+                  <thead><tr><th>Command</th><th>Description</th></tr></thead>
+                  <tbody>
+                    <tr><td><code>/agent</code></td><td>List background agents</td></tr>
+                    <tr><td><code>/agent run &lt;id&gt;</code></td><td>Run an agent now</td></tr>
+                    <tr><td><code>/agent output &lt;id&gt;</code></td><td>View latest agent output</td></tr>
+                    <tr><td><code>/agent info &lt;id&gt;</code></td><td>Agent details + run history</td></tr>
+                    <tr><td><code>/mcp</code></td><td>List connected MCP servers + tools</td></tr>
+                    <tr><td><code>/mcp add &lt;name&gt; &lt;cmd&gt;</code></td><td>Add an MCP server</td></tr>
+                    <tr><td><code>/mcp remove &lt;name&gt;</code></td><td>Remove an MCP server</td></tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <div class="docs-card">
+                <h3>Custom Commands</h3>
+                <p>Add custom slash commands by creating markdown files in <code>.kai/commands/</code>. Each file becomes a <code>/command-name</code>. Use <code>{{args}}</code> in the file to inject arguments.</p>
+              </div>
+            </section>
+
+            <!-- CLI Commands -->
+            <section id="docs-cli">
+              <h2>CLI Commands</h2>
+
+              <div class="docs-card">
+                <h3>Interactive & One-shot</h3>
+                <pre><code>kai                         # Start interactive REPL
+kai "prompt"                # One-shot query (runs and exits)
+kai -p "prompt"             # Same as above (--print)
+kai --continue              # Resume most recent session
+kai --resume &lt;id&gt;           # Resume specific session
+kai --name "my session"     # Name the session
+kai --yes                   # Auto-approve all tool calls</code></pre>
+              </div>
+
+              <div class="docs-card">
+                <h3>Web Server</h3>
+                <pre><code>kai server                  # Start on port 3141 (API + UI + agents)
+kai server --port 3000      # Custom port
+kai server --no-ui          # API + agents only (no web UI)
+kai server --no-agents      # API + UI only (no agent daemon)</code></pre>
+              </div>
+
+              <div class="docs-card">
+                <h3>Agent Management</h3>
+                <pre><code>kai agent list               # List all agents
+kai agent create &lt;name&gt; &lt;workflow.yaml&gt; [--schedule "cron"]
+kai agent run &lt;id&gt;           # Run an agent now
+kai agent output &lt;id&gt;        # View latest run output
+kai agent info &lt;id&gt;          # Agent details + run history
+kai agent delete &lt;id&gt;        # Delete an agent
+kai agent daemon             # Start the cron scheduler
+kai agent stop               # Stop the scheduler</code></pre>
+              </div>
+
+              <div class="docs-card">
+                <h3>MCP Servers</h3>
+                <pre><code>kai mcp list                # List configured servers + tools</code></pre>
+              </div>
+            </section>
+
+            <!-- Memory System -->
+            <section id="docs-memory">
+              <h2>Memory System</h2>
+              <p>Kai has three memory layers, all scoped per-project (auto-detected via <code>.git</code>, <code>package.json</code>, etc.).</p>
+
+              <div class="docs-card">
+                <h3>Soul (Core Memory)</h3>
+                <p>Persistent identity and per-project context. Always loaded into every conversation.</p>
+                <table>
+                  <thead><tr><th>Block</th><th>Scope</th><th>Purpose</th></tr></thead>
+                  <tbody>
+                    <tr><td><code>persona</code></td><td>Global</td><td>Kai's identity and behavioral traits</td></tr>
+                    <tr><td><code>human</code></td><td>Global</td><td>What Kai knows about you (updated as it learns)</td></tr>
+                    <tr><td><code>goals</code></td><td>Per-project</td><td>Current objectives for this project</td></tr>
+                    <tr><td><code>scratchpad</code></td><td>Per-project</td><td>Working notes during multi-step tasks</td></tr>
+                  </tbody>
+                </table>
+                <p style="margin-top:12px">Storage: <code>~/.kai/soul/</code> (global) and <code>~/.kai/projects/{id}/</code> (per-project)</p>
+              </div>
+
+              <div class="docs-card">
+                <h3>Archival Memory</h3>
+                <p>Long-term knowledge store for facts, preferences, research findings. Searchable by keyword and tags. Append-only JSONL format.</p>
+                <p>Storage: <code>~/.kai/projects/{id}/archival/knowledge.jsonl</code></p>
+              </div>
+
+              <div class="docs-card">
+                <h3>Recall Memory</h3>
+                <p>Searchable archive of past conversations across sessions. Keyword-based search returns matching messages with timestamps.</p>
+                <p>Storage: <code>~/.kai/projects/{id}/recall/history.jsonl</code></p>
+              </div>
+            </section>
+
+            <!-- Background Agents -->
+            <section id="docs-agents">
+              <h2>Background Agents</h2>
+              <p>Agents run autonomous YAML workflows on a cron schedule. They can chain LLM calls, integrations, shell commands, and self-improvement review loops.</p>
+
+              <div class="docs-card">
+                <h3>Workflow YAML Format</h3>
+                <pre><code>name: nightly-commit
+description: Auto-commit config changes
+schedule: "0 2 * * *"
+config:
+  custom_param: value
+
+# Optional self-improvement loop
+review:
+  enabled: true
+  max_iterations: 3
+
+steps:
+  - name: check_changes
+    type: shell
+    command: "cd ~/.kai && git status --porcelain"
+
+  - name: generate_message
+    type: llm
+    prompt: "Generate a commit message for: ${vars.check_changes}"
+
+  - name: save_data
+    type: integration
+    integration: data
+    action: write
+    params:
+      file: "~/.kai/output.json"
+      data: "${vars.generate_message}"
+
+  - name: notify
+    type: notify
+    params:
+      title: "Kai Agent"
+      message: "Done!"</code></pre>
+              </div>
+
+              <div class="docs-card">
+                <h3>Step Types</h3>
+                <table>
+                  <thead><tr><th>Type</th><th>Description</th><th>Key Fields</th></tr></thead>
+                  <tbody>
+                    <tr><td><code>llm</code></td><td>Send a prompt to the LLM</td><td><code>prompt</code></td></tr>
+                    <tr><td><code>integration</code></td><td>Call a built-in integration</td><td><code>integration</code>, <code>action</code>, <code>params</code></td></tr>
+                    <tr><td><code>shell</code></td><td>Run a shell command</td><td><code>command</code></td></tr>
+                    <tr><td><code>notify</code></td><td>Send a desktop notification</td><td><code>params.title</code>, <code>params.message</code></td></tr>
+                    <tr><td><code>review</code></td><td>Self-improvement review loop</td><td><code>prompt</code></td></tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <div class="docs-card">
+                <h3>Variable Interpolation</h3>
+                <p>Use these in prompts, commands, and params:</p>
+                <table>
+                  <thead><tr><th>Pattern</th><th>Description</th></tr></thead>
+                  <tbody>
+                    <tr><td><code>${vars.step_name}</code></td><td>Output from a previous step</td></tr>
+                    <tr><td><code>${config.param}</code></td><td>Value from workflow config</td></tr>
+                    <tr><td><code>${env.KEY}</code></td><td>Environment variable</td></tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <div class="docs-card">
+                <h3>Built-in Integrations</h3>
+                <table>
+                  <thead><tr><th>Integration</th><th>Actions</th></tr></thead>
+                  <tbody>
+                    <tr><td><code>youtube</code></td><td><code>search_videos</code>, <code>get_video_stats</code>, <code>get_channel</code>, <code>get_recent_uploads</code>, <code>get_trending</code></td></tr>
+                    <tr><td><code>data</code></td><td><code>read</code>, <code>write</code>, <code>append</code>, <code>archive</code>, <code>read_text</code>, <code>list_files</code></td></tr>
+                    <tr><td><code>web</code></td><td><code>fetch</code>, <code>search</code></td></tr>
+                    <tr><td><code>image</code></td><td><code>generate</code></td></tr>
+                    <tr><td><code>mcp</code></td><td><code>call_tool</code> (any configured MCP server)</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </section>
+
+            <!-- Configuration -->
+            <section id="docs-config">
+              <h2>Configuration</h2>
+              <p>Config is loaded from (highest priority first):</p>
+              <ol>
+                <li><code>.kai/settings.json</code> (project-level)</li>
+                <li><code>kai.config.json</code> (project-level)</li>
+                <li><code>~/.kai/settings.json</code> (user-level)</li>
+              </ol>
+
+              <div class="docs-card">
+                <h3>Settings Format</h3>
+                <pre><code>{
+  "model": "moonshotai/kimi-k2.5",
+  "mcp": {
+    "servers": {
+      "filesystem": {
+        "command": "npx",
+        "args": ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"],
+        "env": {}
+      }
+    }
+  },
+  "permissions": {
+    "mode": "default",
+    "allow": [],
+    "deny": []
+  },
+  "hooks": {
+    "before": {},
+    "after": {}
+  }
+}</code></pre>
+              </div>
+
+              <div class="docs-card">
+                <h3>Models</h3>
+                <p>All models are accessed via <a href="https://openrouter.ai" target="_blank">OpenRouter</a>. Override with <code>MODEL_ID</code> in <code>.env</code> or <code>"model"</code> in settings.</p>
+                <table>
+                  <thead><tr><th>Role</th><th>Model</th><th>ID</th></tr></thead>
+                  <tbody>
+                    <tr><td>Primary</td><td>Kimi K2.5</td><td><code>moonshotai/kimi-k2.5</code></td></tr>
+                    <tr><td>Fallback</td><td>Qwen3 235B</td><td><code>qwen/qwen3-235b-a22b</code></td></tr>
+                    <tr><td>Image Gen</td><td>Gemini 2.5 Flash</td><td><code>google/gemini-2.5-flash-image</code></td></tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <div class="docs-card">
+                <h3>Permissions</h3>
+                <p>Tools have permission levels. In default mode, read-only tools are always allowed. Write operations and dangerous commands require confirmation.</p>
+                <ul>
+                  <li><strong>default</strong> &mdash; Interactive confirmation for writes/deletes</li>
+                  <li><strong>auto</strong> &mdash; Approve everything (used in web/server mode)</li>
+                </ul>
+              </div>
+
+              <div class="docs-card">
+                <h3>Hooks</h3>
+                <p>Run shell commands before or after any tool call. Configure in settings:</p>
+                <pre><code>{
+  "hooks": {
+    "before": { "write_file": "echo 'About to write a file'" },
+    "after": { "bash": "echo 'Command finished'" }
+  }
+}</code></pre>
+              </div>
+            </section>
+
+            <!-- Web API -->
+            <section id="docs-api">
+              <h2>Web API</h2>
+              <p>When running <code>kai server</code>, these REST endpoints are available.</p>
+
+              <div class="docs-card">
+                <h3>Chat & Sessions</h3>
+                <table>
+                  <thead><tr><th>Endpoint</th><th>Method</th><th>Description</th></tr></thead>
+                  <tbody>
+                    <tr><td><code>/api/chat</code></td><td>POST</td><td>Chat with SSE streaming. Body: <code>{ sessionId, message, model?, attachments? }</code></td></tr>
+                    <tr><td><code>/api/chat/stop</code></td><td>POST</td><td>Cancel a streaming response. Body: <code>{ sessionId }</code></td></tr>
+                    <tr><td><code>/api/sessions</code></td><td>GET</td><td>List all sessions</td></tr>
+                    <tr><td><code>/api/sessions/:id</code></td><td>GET</td><td>Get session messages</td></tr>
+                    <tr><td><code>/api/sessions</code></td><td>POST</td><td>Create new session</td></tr>
+                    <tr><td><code>/api/sessions/:id</code></td><td>DELETE</td><td>Delete a session</td></tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <div class="docs-card">
+                <h3>Agents</h3>
+                <table>
+                  <thead><tr><th>Endpoint</th><th>Method</th><th>Description</th></tr></thead>
+                  <tbody>
+                    <tr><td><code>/api/agents</code></td><td>GET</td><td>List all agents</td></tr>
+                    <tr><td><code>/api/agents/:id</code></td><td>GET</td><td>Agent details + run history</td></tr>
+                    <tr><td><code>/api/agents/:id</code></td><td>PATCH</td><td>Edit agent (toggle, rename, schedule)</td></tr>
+                    <tr><td><code>/api/agents/:id</code></td><td>DELETE</td><td>Delete an agent</td></tr>
+                    <tr><td><code>/api/agents/:id/run</code></td><td>POST</td><td>Run agent now</td></tr>
+                    <tr><td><code>/api/agents/:id/output</code></td><td>GET</td><td>Latest run output + steps</td></tr>
+                    <tr><td><code>/api/agents/:id/recap</code></td><td>GET</td><td>LLM-generated run summary</td></tr>
+                    <tr><td><code>/api/agents/:id/logs</code></td><td>GET</td><td>Agent logs (query: <code>?limit=50</code>)</td></tr>
+                    <tr><td><code>/api/agents/:id/runs/:runId</code></td><td>GET</td><td>Steps for a specific run</td></tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <div class="docs-card">
+                <h3>Other</h3>
+                <table>
+                  <thead><tr><th>Endpoint</th><th>Method</th><th>Description</th></tr></thead>
+                  <tbody>
+                    <tr><td><code>/api/status</code></td><td>GET</td><td>Server status, model, usage info</td></tr>
+                    <tr><td><code>/api/models</code></td><td>GET</td><td>Available models from OpenRouter (5min cache)</td></tr>
+                    <tr><td><code>/api/image?path=...</code></td><td>GET</td><td>Serve a local image file</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </section>
+
           </div>
         </div>
       </div>
@@ -781,11 +1314,13 @@
     // ---- View switching ----
     window.switchView = function(view) {
       state.activeView = view;
+      const tabMap = { chat: 'chats', agents: 'agents', docs: 'docs' };
       document.querySelectorAll('.sidebar-tab').forEach(t => {
-        t.classList.toggle('active', t.dataset.tab === (view === 'chat' ? 'chats' : 'agents'));
+        t.classList.toggle('active', t.dataset.tab === tabMap[view]);
       });
       $('view-chat').classList.toggle('active', view === 'chat');
       $('view-agents').classList.toggle('active', view === 'agents');
+      $('view-docs').classList.toggle('active', view === 'docs');
       $('sidebar-chat-content').style.display = view === 'chat' ? '' : 'none';
       $('sidebar-agents-content').style.display = view === 'agents' ? '' : 'none';
 
@@ -1448,8 +1983,21 @@
           } else if (m.role === 'tool') {
             const card = document.querySelector(`[data-tid="${m.tool_call_id}"]`);
             if (card) {
-              card.querySelector('.tool-detail').textContent = (typeof m.content === 'string' ? m.content : '').substring(0, 500);
+              const toolContent = typeof m.content === 'string' ? m.content : '';
+              card.querySelector('.tool-detail').textContent = toolContent.substring(0, 500);
               setToolStatus(card, false);
+              const imgMatch = toolContent.match(/(\/[^\s"']+\.(?:png|jpg|jpeg|gif|webp))/i);
+              if (imgMatch) {
+                const imgUrl = `/api/image?path=${encodeURIComponent(imgMatch[1])}`;
+                const wrapper = document.createElement('div');
+                wrapper.style.cssText = 'margin-top:8px;margin-left:40px';
+                wrapper.innerHTML = `<img class="tool-image" src="${imgUrl}" alt="Generated image"
+                  onclick="event.stopPropagation();showLightbox(this.src)"
+                  onerror="this.style.display='none';this.nextElementSibling.style.display='block'"
+                  style="max-width:100%;border-radius:8px;cursor:pointer" />
+                  <a href="${imgUrl}" target="_blank" style="display:none;color:var(--accent);font-size:13px">Open image: ${imgMatch[1].split('/').pop()}</a>`;
+                card.after(wrapper);
+              }
             }
           }
         }

@@ -1,6 +1,7 @@
 import fs from "fs";
 import path from "path";
 import { registerIntegration, type WorkflowContext } from "../workflow.js";
+import { expandHome } from "../../utils.js";
 
 /**
  * File-based Data Integration
@@ -9,9 +10,7 @@ import { registerIntegration, type WorkflowContext } from "../workflow.js";
  * Agents write structured data that other agents can read.
  */
 
-function resolvePath(filePath: string): string {
-  return filePath.replace(/^~/, process.env.HOME || "~");
-}
+const resolvePath = expandHome;
 
 /**
  * Normalize an entry that might be a JSON string from LLM output into an object.

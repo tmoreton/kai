@@ -57,14 +57,22 @@ program
 
 // --- Server (Web UI + Agent Daemon + API) ---
 program
-  .command("server")
+  .command("start")
+  .alias("server")
   .alias("app")
   .alias("ui")
-  .description("Start Kai server — web UI, agent daemon, and API")
+  .description("Build and start Kai — web UI, agent daemon, and API")
   .option("--port <port>", "Port to listen on", "3141")
   .option("--no-ui", "Disable web UI (API + agents only)")
   .option("--no-agents", "Disable agent daemon (UI + API only)")
+  .option("--skip-build", "Skip rebuild step")
   .action(async (options) => {
+    if (!options.skipBuild) {
+      const { execSync } = await import("child_process");
+      const projectRoot = new URL("../", import.meta.url).pathname;
+      console.log("  Building...");
+      execSync("npm run build", { cwd: projectRoot, stdio: "inherit" });
+    }
     const { startServer } = await import("./web/server.js");
     await startServer({
       port: parseInt(options.port),

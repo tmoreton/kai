@@ -32,5 +32,22 @@ export const TOOL_OUTPUT_MAX_CHARS = 500;
 // Sessions
 export const MAX_SESSION_LIST = 20;
 
+// Retry / backoff
+export const RETRY_BASE_DELAY_MS = 3_000;
+export const RETRY_MAX_DELAY_MS = 15_000;
+export const RETRY_MAX_ATTEMPTS = 3;
+export const MAX_CONSECUTIVE_ERRORS = 3;
+export const RETRYABLE_STATUS_CODES = [500, 502, 503, 429];
+
+// Truncation limits (chars)
+export const AGENT_OUTPUT_PREVIEW_LIMIT = 3_000;
+export const WORKFLOW_STEP_OUTPUT_LIMIT = 50_000;
+export const WORKFLOW_REVIEW_OUTPUT_LIMIT = 2_000;
+export const SHELL_STEP_TIMEOUT = 60_000;
+export const SHELL_STEP_MAX_BUFFER = 5 * 1024 * 1024; // 5MB
+
+// Network timeouts
+export const FETCH_TIMEOUT_MS = 15_000;
+
 // Excluded directories for search
 export const EXCLUDED_DIRS = ["node_modules", ".git", "dist", ".next", ".cache"];

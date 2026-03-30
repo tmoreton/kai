@@ -27,7 +27,11 @@ import {
   MAX_TOOL_TURNS,
   STREAM_TIMEOUT_MS,
   TOOL_OUTPUT_CONTEXT_LIMIT,
+  RETRY_MAX_ATTEMPTS,
+  MAX_CONSECUTIVE_ERRORS,
+  RETRYABLE_STATUS_CODES,
 } from "../constants.js";
+import { backoffDelay, sleep } from "../utils.js";
 import {
   generateSessionId,
   saveSession,
@@ -636,7 +640,6 @@ async function chatForWeb(
 
   let turns = 0;
   let consecutiveErrors = 0;
-  const MAX_CONSECUTIVE_ERRORS = 3;
 
   while (turns < MAX_TOOL_TURNS) {
     turns++;
@@ -654,13 +657,11 @@ async function chatForWeb(
     }
 
     let stream: any;
-    const maxRetries = 3;
-    for (let attempt = 0; attempt < maxRetries; attempt++) {
+    for (let attempt = 0; attempt < RETRY_MAX_ATTEMPTS; attempt++) {
       try {
         if (attempt > 0) {
-          const delay = Math.min(3000 * Math.pow(2, attempt - 1), 15000);
-          await emit("thinking", { active: true, message: `Retrying (${attempt + 1}/${maxRetries})...` });
-          await new Promise((r) => setTimeout(r, delay));
+          await emit("thinking", { active: true, message: `Retrying (${attempt + 1}/${RETRY_MAX_ATTEMPTS})...` });
+          await sleep(backoffDelay(attempt - 1));
         }
         stream = await client.chat.completions.create(
           {
@@ -676,8 +677,8 @@ async function chatForWeb(
         break;
       } catch (err: unknown) {
         const status = (err as any)?.status || (err as any)?.response?.status;
-        const isRetryable = status && [500, 502, 503, 429].includes(status);
-        if (!isRetryable || attempt === maxRetries - 1) {
+        const isRetryable = status && RETRYABLE_STATUS_CODES.includes(status);
+        if (!isRetryable || attempt === RETRY_MAX_ATTEMPTS - 1) {
           clearTimeout(timeout);
           const msg = err instanceof Error ? err.message : String(err);
           throw new Error(`API request failed: ${msg}`);

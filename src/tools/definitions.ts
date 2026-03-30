@@ -333,7 +333,7 @@ export const toolDefinitions = [
           },
           output_dir: {
             type: "string",
-            description: "Directory to save generated images (default: ~/.kai/agent-output/thumbnails)",
+            description: "Directory to save generated images. Leave empty to use the default ~/.kai/agent-output/thumbnails. Do NOT use ~/kai/ (without dot).",
           },
         },
         required: ["prompt"],

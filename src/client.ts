@@ -14,7 +14,11 @@ import {
   TOOL_OUTPUT_PREVIEW_LINES,
   TOOL_OUTPUT_MAX_CHARS,
   TOOL_OUTPUT_CONTEXT_LIMIT,
+  MAX_CONSECUTIVE_ERRORS,
+  RETRYABLE_STATUS_CODES,
+  RETRY_MAX_ATTEMPTS,
 } from "./constants.js";
+import { backoffDelay, sleep } from "./utils.js";
 import { resolveProvider, type ResolvedProvider } from "./providers/index.js";
 import { renderMarkdown } from "./render.js";
 import { getLastDiff } from "./tools/files.js";
@@ -63,7 +67,6 @@ export async function chat(
   let turns = 0;
 
   let consecutiveErrors = 0;
-  const MAX_CONSECUTIVE_ERRORS = 3;
   let lastFailedCall = "";
 
   while (turns < MAX_TOOL_TURNS) {
@@ -89,13 +92,11 @@ export async function chat(
     );
 
     let stream: any;
-    const maxRetries = 3;
-    for (let attempt = 0; attempt < maxRetries; attempt++) {
+    for (let attempt = 0; attempt < RETRY_MAX_ATTEMPTS; attempt++) {
       try {
         if (attempt > 0) {
-          const delay = Math.min(3000 * Math.pow(2, attempt - 1), 15000);
-          process.stderr.write(`\x1b[2K\r  Retrying (${attempt + 1}/${maxRetries})...\n`);
-          await new Promise((r) => setTimeout(r, delay));
+          process.stderr.write(`\x1b[2K\r  Retrying (${attempt + 1}/${RETRY_MAX_ATTEMPTS})...\n`);
+          await sleep(backoffDelay(attempt - 1));
         }
         stream = await client.chat.completions.create(
           {
@@ -111,8 +112,8 @@ export async function chat(
         break;
       } catch (err: unknown) {
         const status = (err as any)?.status || (err as any)?.response?.status;
-        const isRetryable = status && [500, 502, 503, 429].includes(status);
-        if (!isRetryable || attempt === maxRetries - 1) {
+        const isRetryable = status && RETRYABLE_STATUS_CODES.includes(status);
+        if (!isRetryable || attempt === RETRY_MAX_ATTEMPTS - 1) {
           clearInterval(spinner);
           clearTimeout(timeout);
           process.stderr.write("\x1b[2K\r"); // Clear spinner

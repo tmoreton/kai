@@ -1,4 +1,5 @@
 import { registerIntegration } from "../workflow.js";
+import { WEB_CONTENT_LIMIT, FETCH_TIMEOUT_MS } from "../../constants.js";
 
 /**
  * Web Integration (built-in)
@@ -14,12 +15,12 @@ export function registerWebIntegration(): void {
         const response = await fetch(params.url, {
           method: params.method || "GET",
           headers: params.headers || {},
-          signal: AbortSignal.timeout(15000),
+          signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
         });
         const text = await response.text();
         return {
           status: response.status,
-          content: text.substring(0, 50000),
+          content: text.substring(0, WEB_CONTENT_LIMIT),
           content_type: response.headers.get("content-type"),
         };
       },
@@ -38,7 +39,7 @@ export function registerWebIntegration(): void {
             max_results: params.max_results || 5,
             include_answer: true,
           }),
-          signal: AbortSignal.timeout(15000),
+          signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
         });
 
         if (!response.ok)

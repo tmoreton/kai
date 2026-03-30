@@ -106,8 +106,19 @@ export function getKaiMdContent(charBudget = 12_000): string {
   return result;
 }
 
+/** Root data directory: ~/.kai */
+export const KAI_HOME = path.resolve(process.env.HOME || "~", ".kai");
+
 export function ensureKaiDir(): string {
-  const dir = path.resolve(process.env.HOME || "~", ".kai");
+  if (!fs.existsSync(KAI_HOME)) {
+    fs.mkdirSync(KAI_HOME, { recursive: true });
+  }
+  return KAI_HOME;
+}
+
+/** Resolve a sub-directory under ~/.kai, creating it if needed. */
+export function kaiPath(...segments: string[]): string {
+  const dir = path.join(KAI_HOME, ...segments);
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
   }

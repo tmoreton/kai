@@ -2,11 +2,9 @@ import fs from "fs";
 import path from "path";
 import { getCwd } from "./bash.js";
 import { generateDiff } from "../diff.js";
+import { resolveFilePath } from "../utils.js";
 
-function resolvePath(filePath: string): string {
-  if (path.isAbsolute(filePath)) return filePath;
-  return path.resolve(getCwd(), filePath);
-}
+const resolvePath = resolveFilePath;
 
 const BINARY_EXTENSIONS = new Set([
   ".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".ico", ".svg",

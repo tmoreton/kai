@@ -1,6 +1,8 @@
 import fs from "fs";
 import path from "path";
 import { resolveProvider, getImageModel } from "../providers/index.js";
+import { kaiPath } from "../config.js";
+import { expandHome, backoffDelay, sleep } from "../utils.js";
 
 /**
  * Image Generation Tool
@@ -42,7 +44,7 @@ export async function generateImage(
   const userContent: any[] = [];
 
   if (args.reference_image) {
-    const refPath = args.reference_image.replace("~", process.env.HOME || "~");
+    const refPath = expandHome(args.reference_image);
     if (fs.existsSync(refPath)) {
       const imgBuffer = fs.readFileSync(refPath);
       const ext = path.extname(refPath).toLowerCase();
@@ -63,8 +65,7 @@ export async function generateImage(
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
       if (attempt > 0) {
-        const delay = 5000 * Math.pow(2, attempt - 1);
-        await new Promise((r) => setTimeout(r, delay));
+        await sleep(backoffDelay(attempt - 1, 5000));
       }
       // Determine aspect ratio from dimensions (default 16:9 for thumbnails)
       let aspectRatio = "16:9";
@@ -99,10 +100,9 @@ export async function generateImage(
   if (!response) throw lastError || new Error("Image gen failed after 3 attempts");
 
   const results: string[] = [];
-  const outDir = (args.output_dir || "~/.kai/agent-output/thumbnails").replace(
-    "~",
-    process.env.HOME || "~"
-  );
+  const outDir = args.output_dir
+    ? expandHome(args.output_dir)
+    : kaiPath("agent-output", "thumbnails");
   if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
 
   // Extract images from the response

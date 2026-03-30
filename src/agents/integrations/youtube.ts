@@ -1,6 +1,7 @@
 import fs from "fs";
 import path from "path";
 import { registerIntegration, type WorkflowContext } from "../workflow.js";
+import { FETCH_TIMEOUT_MS } from "../../constants.js";
 
 /**
  * YouTube Data API v3 Integration (built-in)
@@ -48,7 +49,7 @@ async function youtubeApi(
   }
 
   const response = await fetch(url.toString(), {
-    signal: AbortSignal.timeout(15000),
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
   });
 
   if (!response.ok) {

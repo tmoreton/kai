@@ -13,6 +13,14 @@ import {
   type StepRecord,
 } from "./db.js";
 import { resolveProvider, getFallbackModel, type ResolvedProvider } from "../providers/index.js";
+import { backoffDelay, sleep } from "../utils.js";
+import {
+  RETRYABLE_STATUS_CODES,
+  WORKFLOW_STEP_OUTPUT_LIMIT,
+  WORKFLOW_REVIEW_OUTPUT_LIMIT,
+  SHELL_STEP_TIMEOUT,
+  SHELL_STEP_MAX_BUFFER,
+} from "../constants.js";
 
 // Shared resolved provider — reused across all LLM calls in the workflow engine
 let _resolved: ResolvedProvider | null = null;
@@ -235,7 +243,7 @@ export async function executeWorkflow(
         ctx.vars[varName] = result;
 
         const outputStr = typeof result === "string" ? result : JSON.stringify(result);
-        completeStep(stepId, "completed", outputStr.substring(0, 50000));
+        completeStep(stepId, "completed", outputStr.substring(0, WORKFLOW_STEP_OUTPUT_LIMIT));
         addLog(agentId, "info", `Step "${step.name}" completed`, runId);
         onProgress?.(step.name, "completed");
       } catch (err: unknown) {
@@ -300,7 +308,7 @@ export async function executeWorkflow(
             const varName = stepDef.output_var || stepDef.name;
             ctx.vars[varName] = result;
 
-            completeStep(stepId, "completed", result.substring(0, 50000));
+            completeStep(stepId, "completed", result.substring(0, WORKFLOW_STEP_OUTPUT_LIMIT));
             onProgress?.(stepName, `improved (iteration ${iter + 1})`);
           } catch (err: unknown) {
             const msg = err instanceof Error ? err.message : String(err);
@@ -341,7 +349,7 @@ async function runReviewStep(
       const val = ctx.vars[varName];
       if (val) {
         const str = typeof val === "string" ? val : JSON.stringify(val);
-        outputs.push(`## ${step.name}\n${str.substring(0, 2000)}`);
+        outputs.push(`## ${step.name}\n${str.substring(0, WORKFLOW_REVIEW_OUTPUT_LIMIT)}`);
       }
     }
   }
@@ -380,7 +388,7 @@ ${iteration > 0 ? `\nThis is iteration ${iteration + 1}. Be stricter — earlier
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
         if (attempt > 0) {
-          await new Promise((r) => setTimeout(r, 3000 * Math.pow(2, attempt)));
+          await sleep(backoffDelay(attempt));
         }
 
         const response = await client.chat.completions.create({
@@ -452,8 +460,7 @@ async function executeLlmStep(step: WorkflowStep, ctx: WorkflowContext): Promise
     for (let attempt = 0; attempt < maxRetries; attempt++) {
       try {
         if (attempt > 0) {
-          const delay = Math.min(3000 * Math.pow(2, attempt), 15000);
-          await new Promise((r) => setTimeout(r, delay));
+          await sleep(backoffDelay(attempt));
           console.log(chalk.dim(`    Retrying (attempt ${attempt + 1}/${maxRetries})...`));
         }
 
@@ -470,7 +477,7 @@ async function executeLlmStep(step: WorkflowStep, ctx: WorkflowContext): Promise
         const status = err?.status || err?.response?.status;
         // For non-transient errors on primary model, throw immediately
         // For fallback models, any error just moves to next fallback
-        if (!isFallback && status && ![500, 502, 503, 429].includes(status)) {
+        if (!isFallback && status && !RETRYABLE_STATUS_CODES.includes(status)) {
           throw new Error(`LLM error (${status}): ${err.message}`);
         }
         // Continue to next retry or fallback
@@ -513,7 +520,7 @@ async function executeShellStep(step: WorkflowStep, ctx: WorkflowContext): Promi
   const command = interpolate(step.command, ctx);
 
   return new Promise((resolve, reject) => {
-    exec(command, { timeout: 60000, maxBuffer: 5 * 1024 * 1024 }, (err, stdout, stderr) => {
+    exec(command, { timeout: SHELL_STEP_TIMEOUT, maxBuffer: SHELL_STEP_MAX_BUFFER }, (err, stdout, stderr) => {
       if (err) reject(new Error(`${stderr || err.message}`));
       else resolve(stdout.trim());
     });
