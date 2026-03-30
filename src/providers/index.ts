@@ -50,7 +50,8 @@ export interface ResolvedProvider {
  */
 export function resolveProvider(modelOverride?: string): ResolvedProvider {
   const config = getConfig();
-  const modelId = modelOverride || process.env.MODEL_ID || config.model || OPENROUTER_PROVIDER.defaultModel;
+  // settings.json takes priority over env var so /model set and web UI picker work
+  const modelId = modelOverride || config.model || process.env.MODEL_ID || OPENROUTER_PROVIDER.defaultModel;
   const apiKey = process.env[OPENROUTER_PROVIDER.apiKeyEnv] || "";
 
   if (!apiKey) {

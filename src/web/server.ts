@@ -72,10 +72,12 @@ export interface ServerOptions {
   port: number;
   agents?: boolean;  // Start agent daemon in-process (default: true)
   ui?: boolean;      // Serve web UI (default: true)
+  tailscale?: boolean; // Expose via Tailscale serve (default: false)
+  funnel?: boolean;    // Expose via Tailscale Funnel to internet (default: false)
 }
 
 export async function startServer(options: ServerOptions): Promise<void> {
-  const { port, agents = true, ui = true } = options;
+  const { port, agents = true, ui = true, tailscale = false, funnel = false } = options;
 
   // Check port availability before doing anything else
   const portFree = await checkPort(port);
@@ -103,8 +105,15 @@ export async function startServer(options: ServerOptions): Promise<void> {
   }
 
   // Graceful shutdown
-  const shutdown = () => {
+  const shutdown = async () => {
     console.log("\n  Shutting down...");
+    if (tailscale) {
+      try {
+        const { stopTailscaleServe } = await import("../tailscale.js");
+        stopTailscaleServe(funnel);
+        console.log("  Tailscale serve stopped");
+      } catch {}
+    }
     if (daemonStartedInProcess) {
       stopDaemon();
       try { fs.unlinkSync(getDaemonPidPath()); } catch {}
@@ -129,7 +138,19 @@ export async function startServer(options: ServerOptions): Promise<void> {
       agents: agents,
       ui: ui,
       usage: getUsage(),
+      tailscale: tailscale,
+      funnel: funnel,
     });
+  });
+
+  // --- Tailscale status ---
+  app.get("/api/tailscale", async (c) => {
+    try {
+      const { getTailscaleStatus } = await import("../tailscale.js");
+      return c.json({ ...getTailscaleStatus(), enabled: tailscale, funnel });
+    } catch {
+      return c.json({ installed: false, running: false, enabled: false, funnel: false });
+    }
   });
 
   // --- Models (fetch from OpenRouter) ---
@@ -664,13 +685,27 @@ export async function startServer(options: ServerOptions): Promise<void> {
 
   console.log(`\n  Kai Server starting (${features})\n`);
 
-  serve({ fetch: app.fetch, port }, (info) => {
+  serve({ fetch: app.fetch, port }, async (info) => {
     if (ui) console.log(`  UI:          http://localhost:${info.port}`);
     console.log(`  API:         http://localhost:${info.port}/api`);
     console.log(`  Provider:    ${getProviderName()} / ${getModelId()}`);
     console.log(`  Working dir: ${getCwd()}`);
     if (agents) console.log(`  Agents:      ${daemonStartedInProcess ? "daemon started in-process" : "external daemon running"}`);
-    console.log(`  Permissions: auto\n`);
+    console.log(`  Permissions: auto`);
+
+    // Start Tailscale serve/funnel if requested
+    if (tailscale) {
+      try {
+        const { startTailscaleServe } = await import("../tailscale.js");
+        const tsUrl = await startTailscaleServe({ port: info.port, funnel });
+        const mode = funnel ? "Funnel (public)" : "Serve (tailnet only)";
+        console.log(`  Tailscale:   ${tsUrl}  (${mode})`);
+      } catch (err: any) {
+        console.error(`  Tailscale:   ${err.message}`);
+      }
+    }
+
+    console.log("");
   });
 }
 

@@ -625,11 +625,15 @@
       .sidebar {
         position: fixed; left: 0; top: 0; bottom: 0; z-index: 40;
         transform: translateX(-100%); transition: transform .2s;
-        width: 280px;
+        width: 85vw; max-width: 320px;
         padding-top: env(safe-area-inset-top);
       }
       .sidebar.open { transform: translateX(0); }
       .sidebar-toggle { display: flex; top: calc(env(safe-area-inset-top, 0px) + 8px); }
+      /* Hide hamburger when sidebar drawer is open */
+      .sidebar-toggle.hidden { opacity: 0; pointer-events: none; }
+      /* Hide desktop collapse chevron on mobile, use overlay tap-to-close instead */
+      .sidebar-collapse-btn { display: none; }
 
       /* Chat header: leave room for hamburger */
       .chat-header {
@@ -905,86 +909,53 @@
         <div class="docs-view">
           <div class="docs-content">
             <h1>What can Kai do?</h1>
-            <p class="docs-subtitle">Your AI assistant that can chat, write code, search the web, generate images, remember things, and run tasks on autopilot.</p>
+            <p class="docs-subtitle">Your AI assistant that can chat, search the web, generate images, and run tasks on autopilot.</p>
 
             <nav class="docs-nav">
               <a href="#docs-chat">Chat</a>
-              <a href="#docs-files">Read & Write Files</a>
               <a href="#docs-web">Web Search</a>
               <a href="#docs-images">Images</a>
               <a href="#docs-memory">Memory</a>
               <a href="#docs-agents-section">Agents</a>
-              <a href="#docs-terminal">Terminal Commands</a>
               <a href="#docs-setup">Setup</a>
             </nav>
 
             <!-- Chat -->
             <section id="docs-chat">
               <h2>Chat</h2>
-              <p>Just type what you need. Kai understands natural language and will figure out which tools to use.</p>
-
-              <div class="docs-card">
-                <h3>Things you can ask</h3>
-                <ul>
-                  <li>"Write a blog post about our new product launch"</li>
-                  <li>"Summarize this article" (paste a URL)</li>
-                  <li>"Create a social media calendar for next week"</li>
-                  <li>"Rewrite this email to sound more professional"</li>
-                  <li>"What files are in this project?"</li>
-                  <li>"Generate a thumbnail for my YouTube video"</li>
-                  <li>"Research trending topics in AI marketing"</li>
-                </ul>
-              </div>
-
-              <div class="docs-card">
-                <h3>Tips</h3>
-                <ul>
-                  <li>Be specific about what you want &mdash; the more detail, the better the result</li>
-                  <li>You can attach images by clicking the paperclip icon</li>
-                  <li>Kai remembers your conversation, so you can say "make that shorter" or "try again"</li>
-                  <li>If Kai is working on something complex, you'll see the tools it's using in real time</li>
-                </ul>
-              </div>
-            </section>
-
-            <!-- Files -->
-            <section id="docs-files">
-              <h2>Read & Write Files</h2>
-              <p>Kai can read, create, and edit files on your computer. Just ask naturally.</p>
+              <p>Just type what you need. Kai understands natural language and figures out which tools to use &mdash; including reading and writing files on your computer.</p>
 
               <div class="docs-card">
                 <h3>Examples</h3>
                 <ul>
-                  <li>"Read the file marketing-plan.md and summarize it"</li>
-                  <li>"Create a new file called ideas.txt with these bullet points..."</li>
-                  <li>"Update the pricing section in landing-page.html"</li>
-                  <li>"Find all the markdown files in this folder"</li>
-                  <li>"Search for every mention of 'launch date' in our docs"</li>
+                  <li>"Write a blog post about our new product launch"</li>
+                  <li>"Summarize this article" (paste a URL)</li>
+                  <li>"Read marketing-plan.md and give me the key points"</li>
+                  <li>"Generate a thumbnail for my YouTube video"</li>
+                  <li>"Research trending topics in AI marketing"</li>
                 </ul>
               </div>
             </section>
 
             <!-- Web -->
             <section id="docs-web">
-              <h2>Web Search & Fetch</h2>
-              <p>Kai can search the web and read web pages for you.</p>
+              <h2>Web Search</h2>
+              <p>Kai can search the web and read web pages. Requires a <a href="https://tavily.com" target="_blank">Tavily API key</a> for search. Fetching URLs works out of the box.</p>
 
               <div class="docs-card">
                 <h3>Examples</h3>
                 <ul>
                   <li>"Search for the latest trends in content marketing"</li>
                   <li>"Read this article and give me the key takeaways: https://..."</li>
-                  <li>"What are our competitors doing on social media?"</li>
                   <li>"Find recent news about [topic]"</li>
                 </ul>
-                <p style="margin-top:12px"><strong>Note:</strong> Web search requires a Tavily API key in your setup. Fetching URLs works out of the box.</p>
               </div>
             </section>
 
             <!-- Images -->
             <section id="docs-images">
-              <h2>Image Generation</h2>
-              <p>Kai can generate images from text descriptions. Great for thumbnails, social posts, and concept art.</p>
+              <h2>Images</h2>
+              <p>Generate images from text descriptions. Great for thumbnails, social posts, and concept art. You can also attach a reference photo for style matching.</p>
 
               <div class="docs-card">
                 <h3>Examples</h3>
@@ -993,27 +964,13 @@
                   <li>"Create a social media graphic with a futuristic city background"</li>
                   <li>"Make a hero image for a blog post about productivity"</li>
                 </ul>
-                <p style="margin-top:12px">You can also attach a reference photo and ask Kai to generate an image in a similar style or featuring that person.</p>
               </div>
             </section>
 
             <!-- Memory -->
             <section id="docs-memory">
               <h2>Memory</h2>
-              <p>Kai remembers things across conversations so you don't have to repeat yourself.</p>
-
-              <div class="docs-card">
-                <h3>What Kai remembers</h3>
-                <table>
-                  <thead><tr><th>What</th><th>How it works</th></tr></thead>
-                  <tbody>
-                    <tr><td><strong>About you</strong></td><td>Your name, role, preferences. Updates as it learns about you.</td></tr>
-                    <tr><td><strong>Your goals</strong></td><td>Current objectives for this project. Tell Kai what you're working on.</td></tr>
-                    <tr><td><strong>Long-term knowledge</strong></td><td>Facts, research, and context stored permanently. Ask Kai to "remember this."</td></tr>
-                    <tr><td><strong>Past conversations</strong></td><td>Searchable history of what you've discussed before.</td></tr>
-                  </tbody>
-                </table>
-              </div>
+              <p>Kai remembers things across conversations &mdash; your preferences, goals, and anything you tell it to save. Just say "remember this" or ask "what do you know about me?"</p>
 
               <div class="docs-card">
                 <h3>Examples</h3>
@@ -1021,117 +978,18 @@
                   <li>"Remember that our brand voice is casual and friendly"</li>
                   <li>"What did we decide about the launch date last time?"</li>
                   <li>"My goal for this week is to finish the email sequence"</li>
-                  <li>"Save this research for later"</li>
                 </ul>
               </div>
             </section>
 
             <!-- Agents -->
             <section id="docs-agents-section">
-              <h2>Background Agents</h2>
-              <p>Agents are automated workflows that run on a schedule &mdash; like having a team member who works while you sleep.</p>
+              <h2>Agents</h2>
+              <p>Automated workflows that run on a schedule. Monitor competitors, research trends, generate ideas &mdash; all on autopilot.</p>
 
               <div class="docs-card">
-                <h3>What agents can do</h3>
-                <ul>
-                  <li>Monitor YouTube competitors and report new uploads daily</li>
-                  <li>Research trending topics and generate content ideas weekly</li>
-                  <li>Scout for new content opportunities in your niche</li>
-                  <li>Run multi-step research workflows and save the results</li>
-                  <li>Send desktop notifications when tasks complete</li>
-                </ul>
-              </div>
-
-              <div class="docs-card">
-                <h3>How to use agents</h3>
-                <p>Switch to the <strong>Agents</strong> tab in the sidebar to see your agents, run them manually, or check their latest output.</p>
-                <p>Agents are defined as YAML workflow files. Each workflow has steps that can:</p>
-                <ul>
-                  <li><strong>Ask the AI</strong> &mdash; send a prompt and get a response</li>
-                  <li><strong>Search YouTube</strong> &mdash; find videos, check stats, track channels</li>
-                  <li><strong>Search the web</strong> &mdash; research any topic</li>
-                  <li><strong>Read/write files</strong> &mdash; save results as JSON for other agents to use</li>
-                  <li><strong>Generate images</strong> &mdash; create thumbnails or graphics</li>
-                  <li><strong>Run commands</strong> &mdash; any shell command on your machine</li>
-                  <li><strong>Self-review</strong> &mdash; the AI reviews its own output and improves it</li>
-                </ul>
-              </div>
-
-              <div class="docs-card">
-                <h3>Example: YouTube Scout Agent</h3>
-                <p>This agent runs daily, checks competitor channels, searches for trending topics, and generates 5 video ideas with titles and hooks.</p>
-                <pre><code>name: yt-daily-scout
-description: Daily YouTube research + idea generation
-schedule: "0 8 * * *"
-
-config:
-  channels:
-    - UCxxxxxx  # Competitor 1
-    - UCyyyyyy  # Competitor 2
-  keywords:
-    - "AI marketing"
-    - "content strategy"
-
-steps:
-  - name: check_competitors
-    type: integration
-    integration: youtube
-    action: get_recent_uploads
-    params:
-      channel_id: "${config.channels[0]}"
-
-  - name: search_trends
-    type: integration
-    integration: youtube
-    action: search_videos
-    params:
-      query: "${config.keywords[0]}"
-      order: date
-
-  - name: generate_ideas
-    type: llm
-    prompt: |
-      Based on these competitor uploads and trends,
-      generate 5 video ideas with titles and hooks:
-      ${vars.check_competitors}
-      ${vars.search_trends}</code></pre>
-              </div>
-            </section>
-
-            <!-- Terminal Commands -->
-            <section id="docs-terminal">
-              <h2>Terminal Commands</h2>
-              <p>If you're using Kai from the terminal (not this web UI), these commands are available.</p>
-
-              <div class="docs-card">
-                <h3>Starting Kai</h3>
-                <table>
-                  <thead><tr><th>Command</th><th>What it does</th></tr></thead>
-                  <tbody>
-                    <tr><td><code>kai</code></td><td>Start a chat in your terminal</td></tr>
-                    <tr><td><code>kai "your question"</code></td><td>Ask a quick question (one-shot, no back and forth)</td></tr>
-                    <tr><td><code>kai server</code></td><td>Start this web UI</td></tr>
-                    <tr><td><code>kai --continue</code></td><td>Pick up where you left off</td></tr>
-                  </tbody>
-                </table>
-              </div>
-
-              <div class="docs-card">
-                <h3>In-chat slash commands</h3>
-                <table>
-                  <thead><tr><th>Command</th><th>What it does</th></tr></thead>
-                  <tbody>
-                    <tr><td><code>/help</code></td><td>Show all commands</td></tr>
-                    <tr><td><code>/clear</code></td><td>Start fresh (clears conversation)</td></tr>
-                    <tr><td><code>/cost</code></td><td>See how many tokens you've used</td></tr>
-                    <tr><td><code>/soul</code></td><td>See what Kai remembers about you</td></tr>
-                    <tr><td><code>/sessions</code></td><td>See your past conversations</td></tr>
-                    <tr><td><code>/agent</code></td><td>See your background agents</td></tr>
-                    <tr><td><code>/git commit</code></td><td>Auto-generate a git commit message</td></tr>
-                    <tr><td><code>/git pr</code></td><td>Create a pull request with AI-written description</td></tr>
-                    <tr><td><code>/exit</code></td><td>Quit</td></tr>
-                  </tbody>
-                </table>
+                <h3>How it works</h3>
+                <p>Switch to the <strong>Agents</strong> tab in the sidebar to see your agents, run them manually, or check their output. Agents are defined as YAML workflow files with steps that can use AI, search YouTube, browse the web, read/write files, generate images, and run shell commands.</p>
               </div>
             </section>
 
@@ -1140,36 +998,24 @@ steps:
               <h2>Setup</h2>
 
               <div class="docs-card">
-                <h3>Requirements</h3>
-                <p>You need an <a href="https://openrouter.ai/settings/keys" target="_blank">OpenRouter API key</a> to use Kai. This gives you access to the AI models that power everything.</p>
-                <p>Optional: a <a href="https://tavily.com" target="_blank">Tavily API key</a> for web search, and a YouTube Data API key for YouTube agent features.</p>
-              </div>
-
-              <div class="docs-card">
-                <h3>First-time setup</h3>
-                <pre><code># 1. Install
-npm install
-
-# 2. Set up your API key
-cp .env.example .env
-# Open .env and paste your OpenRouter key
-
-# 3. Start Kai
+                <h3>Quick start</h3>
+                <p>You need an <a href="https://openrouter.ai/settings/keys" target="_blank">OpenRouter API key</a>. Optional: <a href="https://tavily.com" target="_blank">Tavily</a> for web search, YouTube Data API for agent features.</p>
+                <pre><code>npm install
+cp .env.example .env   # add your OpenRouter key
 npm run dev</code></pre>
               </div>
 
               <div class="docs-card">
                 <h3>Models</h3>
-                <p>Kai uses AI models via OpenRouter. The defaults work great, but you can switch to any model available on OpenRouter.</p>
                 <table>
                   <thead><tr><th>Used for</th><th>Default model</th></tr></thead>
                   <tbody>
                     <tr><td>Chat & tasks</td><td>Qwen 3.5 397B</td></tr>
-                    <tr><td>Backup (if primary is down)</td><td>Kimi K2.5</td></tr>
+                    <tr><td>Backup</td><td>Kimi K2.5</td></tr>
                     <tr><td>Image generation</td><td>Gemini 2.5 Flash</td></tr>
                   </tbody>
                 </table>
-                <p style="margin-top:12px">Change the model using the picker at the top of the chat, or set <code>MODEL_ID</code> in your <code>.env</code> file.</p>
+                <p style="margin-top:12px">Change models via the picker at the top of the chat or <code>MODEL_ID</code> in <code>.env</code>.</p>
               </div>
             </section>
 
@@ -2338,12 +2184,15 @@ npm run dev</code></pre>
     window.toggleSidebar = () => {
       const sb = $('sidebar');
       const ov = $('sidebar-overlay');
-      sb.classList.toggle('open');
-      ov.classList.toggle('show', sb.classList.contains('open'));
+      const btn = document.querySelector('.sidebar-toggle');
+      const isOpen = sb.classList.toggle('open');
+      ov.classList.toggle('show', isOpen);
+      btn.classList.toggle('hidden', isOpen);
     };
     function closeSidebar() {
       $('sidebar').classList.remove('open');
       $('sidebar-overlay').classList.remove('show');
+      document.querySelector('.sidebar-toggle').classList.remove('hidden');
     }
 
     // ---- Sidebar collapse (desktop) ----

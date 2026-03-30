@@ -79,6 +79,8 @@ program
   .option("--port <port>", "Port to listen on", "3141")
   .option("--no-ui", "Disable web UI (API + agents only)")
   .option("--no-agents", "Disable agent daemon (UI + API only)")
+  .option("--tailscale", "Expose via Tailscale to your tailnet")
+  .option("--funnel", "Expose via Tailscale Funnel to the public internet")
   .option("--skip-build", "Skip rebuild step")
   .action(async (options) => {
     if (!options.skipBuild) {
@@ -92,6 +94,8 @@ program
       port: parseInt(options.port),
       ui: options.ui,
       agents: options.agents,
+      tailscale: options.tailscale || options.funnel,
+      funnel: options.funnel,
     });
   });
 
