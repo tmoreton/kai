@@ -163,9 +163,6 @@ export function compactMessages(
 
 export function formatCost(): string {
   const u = getUsage();
-  const inputCost = (u.promptTokens / 1_000_000) * 0.3;
-  const outputCost = (u.completionTokens / 1_000_000) * 0.3;
-  const totalCost = inputCost + outputCost;
 
   return [
     chalk.bold("  Token Usage:"),
@@ -174,7 +171,6 @@ export function formatCost(): string {
     chalk.dim(`    Total:      ${u.totalTokens.toLocaleString()} tokens`),
     chalk.dim(`    API calls:  ${u.apiCalls}`),
     chalk.dim(`    Context:    ~${u.estimatedContextTokens.toLocaleString()} / ${MAX_CONTEXT_TOKENS.toLocaleString()} tokens`),
-    chalk.dim(`    Est. cost:  $${totalCost.toFixed(4)}`),
   ].join("\n");
 }
 

@@ -20,7 +20,7 @@ const program = new Command();
 
 program
   .name("kai")
-  .description("AI agent platform — multi-provider coding CLI + background agents")
+  .description("AI coding assistant with persistent memory, background agents, and tool use")
   .version("1.0.0");
 
 // --- Default: Interactive REPL or one-shot ---

@@ -38,6 +38,25 @@ export async function generateImage(
     ? `${args.prompt}\n\nAvoid: ${args.negative_prompt}`
     : args.prompt;
 
+  // Build message content — include reference image if provided
+  const userContent: any[] = [];
+
+  if (args.reference_image) {
+    const refPath = args.reference_image.replace("~", process.env.HOME || "~");
+    if (fs.existsSync(refPath)) {
+      const imgBuffer = fs.readFileSync(refPath);
+      const ext = path.extname(refPath).toLowerCase();
+      const mime = { ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".webp": "image/webp" }[ext] || "image/jpeg";
+      const base64 = imgBuffer.toString("base64");
+      userContent.push({
+        type: "image_url",
+        image_url: { url: `data:${mime};base64,${base64}` },
+      });
+    }
+  }
+
+  userContent.push({ type: "text", text: fullPrompt });
+
   // Retry up to 3 times with backoff
   let response: any;
   let lastError: Error | undefined;
@@ -47,14 +66,26 @@ export async function generateImage(
         const delay = 5000 * Math.pow(2, attempt - 1);
         await new Promise((r) => setTimeout(r, delay));
       }
+      // Determine aspect ratio from dimensions (default 16:9 for thumbnails)
+      let aspectRatio = "16:9";
+      if (args.width && args.height) {
+        const ratio = args.width / args.height;
+        if (Math.abs(ratio - 1) < 0.1) aspectRatio = "1:1";
+        else if (Math.abs(ratio - 4/3) < 0.1) aspectRatio = "4:3";
+        else if (Math.abs(ratio - 3/4) < 0.1) aspectRatio = "3:4";
+        else if (Math.abs(ratio - 9/16) < 0.1) aspectRatio = "9:16";
+        else aspectRatio = "16:9";
+      }
+
       response = await client.chat.completions.create({
         model,
         messages: [
-          { role: "user", content: fullPrompt },
+          { role: "user", content: userContent.length === 1 ? fullPrompt : userContent },
         ],
-        // @ts-ignore — OpenRouter extension for image generation
+        // @ts-ignore — OpenRouter extensions for image generation
         modalities: ["image", "text"],
         max_tokens: 2048,
+        image_config: { aspect_ratio: aspectRatio },
       } as any);
       break;
     } catch (err: any) {

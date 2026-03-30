@@ -1,7 +1,7 @@
 {
   "name": "kai",
   "version": "1.0.0",
-  "description": "AI agent platform — multi-provider coding CLI + background agents",
+  "description": "AI coding assistant with persistent memory, background agents, and tool use",
   "type": "module",
   "main": "dist/index.js",
   "bin": {
@@ -17,9 +17,9 @@
     "cli",
     "coding",
     "agents",
-    "multi-provider"
+    "openrouter"
   ],
-  "author": "",
+  "author": "Tim Moreton",
   "license": "ISC",
   "dependencies": {
     "@hono/node-server": "^1.19.11",

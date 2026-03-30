@@ -81,9 +81,46 @@ export function listSessions(limit = 20): Session[] {
   }
 }
 
+export function deleteSession(sessionId: string): boolean {
+  const filePath = path.join(sessionsDir(), `${sessionId}.json`);
+  try {
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+      return true;
+    }
+  } catch {}
+  return false;
+}
+
 export function getMostRecentSession(): Session | null {
   const sessions = listSessions(1);
   return sessions[0] || null;
+}
+
+/**
+ * Delete sessions older than `maxAgeDays`.
+ * Returns number of sessions removed.
+ */
+export function cleanupSessions(maxAgeDays = 30): number {
+  const dir = sessionsDir();
+  const cutoff = Date.now() - maxAgeDays * 24 * 60 * 60 * 1000;
+  let removed = 0;
+
+  try {
+    const files = fs.readdirSync(dir).filter((f) => f.endsWith(".json"));
+    for (const file of files) {
+      const filePath = path.join(dir, file);
+      try {
+        const stat = fs.statSync(filePath);
+        if (stat.mtimeMs < cutoff) {
+          fs.unlinkSync(filePath);
+          removed++;
+        }
+      } catch {}
+    }
+  } catch {}
+
+  return removed;
 }
 
 export function formatSessionList(sessions: Session[]): string {

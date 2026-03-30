@@ -40,12 +40,31 @@
     .sidebar {
       width: 260px; background: var(--bg-sidebar); border-right: 1px solid var(--border);
       display: flex; flex-direction: column; flex-shrink: 0;
+      transition: width .2s ease, opacity .2s ease;
+      overflow: hidden;
     }
+    .sidebar.collapsed { width: 0; border-right: none; opacity: 0; pointer-events: none; }
     .sidebar-brand {
       padding: 20px 20px 16px; font-size: 18px; font-weight: 700; color: var(--text);
       letter-spacing: -0.3px; display: flex; align-items: center; gap: 8px;
+      white-space: nowrap;
     }
     .sidebar-brand svg { color: var(--accent); }
+    .sidebar-collapse-btn {
+      margin-left: auto; background: none; border: none; color: var(--text-muted); cursor: pointer;
+      padding: 4px; border-radius: 4px; display: flex; align-items: center; justify-content: center;
+      transition: all .15s;
+    }
+    .sidebar-collapse-btn:hover { color: var(--text); background: var(--bg-hover); }
+    .sidebar-expand-btn {
+      position: fixed; top: 12px; left: 12px; z-index: 50;
+      width: 32px; height: 32px; border-radius: var(--radius-sm); border: 1px solid var(--border);
+      background: var(--bg-surface); color: var(--text-muted); cursor: pointer;
+      display: none; align-items: center; justify-content: center;
+      box-shadow: 0 1px 4px rgba(0,0,0,.08); transition: all .15s;
+    }
+    .sidebar-expand-btn:hover { color: var(--text); background: var(--bg-hover); }
+    .sidebar-expand-btn.show { display: flex; }
 
     .sidebar-tabs {
       display: flex; gap: 2px; margin: 0 12px 8px; background: var(--bg-hover); border-radius: var(--radius-sm); padding: 3px;
@@ -84,6 +103,14 @@
     .list-item .icon { width: 18px; text-align: center; flex-shrink: 0; font-size: 14px; }
     .list-item .label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
     .list-item .meta { font-size: 11px; color: var(--text-muted); flex-shrink: 0; }
+    .list-item .delete-btn {
+      display: none; flex-shrink: 0;
+      background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 2px 6px;
+      border-radius: 4px; font-size: 13px; line-height: 1;
+    }
+    .list-item:hover .meta { display: none; }
+    .list-item:hover .delete-btn { display: block; }
+    .list-item .delete-btn:hover { color: var(--red); background: var(--red-light); }
 
     .list-empty { padding: 12px; font-size: 13px; color: var(--text-muted); }
 
@@ -186,6 +213,45 @@
     @keyframes bounce { 0%,80%,100% { opacity:.3; transform:scale(.8); } 40% { opacity:1; transform:scale(1.2); } }
     @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:.4; } }
 
+    /* Model selector bar */
+    .chat-header {
+      display: flex; align-items: center; justify-content: center; padding: 12px 24px;
+      border-bottom: 1px solid var(--border-light); background: var(--bg); flex-shrink: 0;
+    }
+    .model-picker {
+      display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px 6px 10px;
+      background: var(--bg-surface); border: 1px solid var(--border); border-radius: 20px;
+      cursor: pointer; transition: all .15s; position: relative;
+    }
+    .model-picker:hover { border-color: var(--text-muted); box-shadow: 0 1px 4px rgba(0,0,0,.06); }
+    .model-picker-icon {
+      width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+      font-size: 11px; font-weight: 700; color: #fff; flex-shrink: 0;
+    }
+    .model-picker-name { font-size: 13px; font-weight: 500; color: var(--text); }
+    .model-picker-arrow { font-size: 10px; color: var(--text-muted); margin-left: 2px; }
+    .model-dropdown {
+      display: none; position: absolute; top: calc(100% + 6px); left: 50%; transform: translateX(-50%);
+      background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius);
+      box-shadow: 0 8px 30px rgba(0,0,0,.12); min-width: 280px; z-index: 50; overflow: hidden;
+      padding: 4px;
+    }
+    .model-dropdown.show { display: block; }
+    .model-option {
+      display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: var(--radius-sm);
+      cursor: pointer; transition: background .1s; font-size: 13px;
+    }
+    .model-option:hover { background: var(--bg-hover); }
+    .model-option.active { background: var(--accent-light); }
+    .model-option-icon {
+      width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+      font-size: 10px; font-weight: 700; color: #fff; flex-shrink: 0;
+    }
+    .model-option-info { flex: 1; }
+    .model-option-name { font-weight: 500; color: var(--text); }
+    .model-option-desc { font-size: 11px; color: var(--text-muted); }
+    .model-option-check { color: var(--accent); font-size: 14px; font-weight: 700; }
+
     .input-area { padding: 16px 24px 28px; background: var(--bg); }
     .input-wrap {
       max-width: 680px; margin: 0 auto; position: relative;
@@ -193,8 +259,40 @@
       border-radius: 24px; transition: border-color .15s, box-shadow .15s;
     }
     .input-wrap:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(217,119,6,.1); }
+    .attachments-bar {
+      display: flex; gap: 6px; flex-wrap: wrap; padding: 8px 16px 0; align-items: center;
+    }
+    .attachments-bar:empty { display: none; }
+    .attach-chip {
+      display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px 3px 6px;
+      background: var(--bg-hover); border-radius: 14px; font-size: 12px; color: var(--text-secondary);
+      max-width: 200px;
+    }
+    .attach-chip img {
+      width: 22px; height: 22px; border-radius: 4px; object-fit: cover;
+    }
+    .attach-chip .chip-icon {
+      width: 16px; height: 16px; display: flex; align-items: center; justify-content: center;
+      color: var(--text-muted);
+    }
+    .attach-chip .chip-name {
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1;
+    }
+    .attach-chip .chip-remove {
+      cursor: pointer; color: var(--text-muted); font-size: 14px; line-height: 1;
+      margin-left: 2px; border: none; background: none; padding: 0;
+    }
+    .attach-chip .chip-remove:hover { color: var(--red); }
+    .input-row { display: flex; align-items: flex-end; }
+    .attach-btn {
+      width: 36px; height: 36px; border: none; background: none; color: var(--text-muted);
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0; margin-left: 4px; margin-bottom: 8px; border-radius: 50%; transition: all .15s;
+    }
+    .attach-btn:hover { color: var(--text); background: var(--bg-hover); }
+    .attach-btn svg { width: 18px; height: 18px; }
     .input-box {
-      width: 100%; min-height: 52px; max-height: 200px; padding: 14px 52px 14px 20px;
+      width: 100%; min-height: 52px; max-height: 200px; padding: 14px 52px 14px 4px;
       background: transparent; border: none; border-radius: 24px;
       color: var(--text); font-family: var(--sans); font-size: 15px; line-height: 1.5; resize: none; outline: none;
     }
@@ -305,6 +403,39 @@
     .btn-primary { background: var(--text); color: #fff; }
     .btn-primary:hover { background: #333; }
     .btn-primary:disabled { opacity: .4; cursor: not-allowed; }
+    .btn-ghost { background: none; color: var(--text-secondary); border: 1px solid var(--border); }
+    .btn-ghost:hover { background: var(--bg-hover); color: var(--text); }
+    .btn-danger { background: none; color: var(--red); border: 1px solid rgba(220,38,38,.3); }
+    .btn-danger:hover { background: var(--red-light); }
+    .btn-fix { background: var(--accent); color: #fff; }
+    .btn-fix:hover { background: #B45309; }
+
+    /* Edit form */
+    .edit-form { margin-bottom: 24px; animation: fadeIn .2s ease; }
+    .edit-field { margin-bottom: 14px; }
+    .edit-label { display: block; font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: 4px; }
+    .edit-input, .edit-textarea {
+      width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm);
+      font-family: var(--sans); font-size: 13px; color: var(--text); background: var(--bg-surface);
+      outline: none; transition: border-color .15s;
+    }
+    .edit-input:focus, .edit-textarea:focus { border-color: var(--accent); }
+    .edit-textarea { resize: vertical; min-height: 60px; }
+    .edit-actions { display: flex; gap: 8px; margin-top: 16px; }
+
+    /* Confirm dialog */
+    .confirm-overlay {
+      display: none; position: fixed; inset: 0; background: rgba(0,0,0,.4);
+      z-index: 300; align-items: center; justify-content: center; backdrop-filter: blur(4px);
+    }
+    .confirm-overlay.show { display: flex; }
+    .confirm-box {
+      background: var(--bg-surface); border-radius: 16px; padding: 24px; max-width: 380px; width: 90%;
+      box-shadow: 0 20px 60px rgba(0,0,0,.15); text-align: center;
+    }
+    .confirm-title { font-size: 16px; font-weight: 600; margin-bottom: 8px; }
+    .confirm-msg { font-size: 13px; color: var(--text-secondary); margin-bottom: 20px; line-height: 1.6; }
+    .confirm-actions { display: flex; gap: 8px; justify-content: center; }
 
     /* Agent detail tabs */
     .agent-tabs {
@@ -443,10 +574,17 @@
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><line x1="2" y1="4" x2="14" y2="4"/><line x1="2" y1="8" x2="14" y2="8"/><line x1="2" y1="12" x2="14" y2="12"/></svg>
     </button>
 
+    <button class="sidebar-expand-btn" id="sidebar-expand" onclick="expandSidebar()">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><line x1="2" y1="4" x2="14" y2="4"/><line x1="2" y1="8" x2="14" y2="8"/><line x1="2" y1="12" x2="14" y2="12"/></svg>
+    </button>
+
     <aside class="sidebar" id="sidebar">
       <div class="sidebar-brand">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
         Kai
+        <button class="sidebar-collapse-btn" onclick="collapseSidebar()" title="Collapse sidebar">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 2L5 8l6 6"/></svg>
+        </button>
       </div>
 
       <div class="sidebar-tabs">
@@ -484,6 +622,14 @@
     <main class="main">
       <!-- Chat View -->
       <div class="view active" id="view-chat">
+        <div class="chat-header">
+          <div class="model-picker" id="model-picker" onclick="toggleModelDropdown(event)">
+            <div class="model-picker-icon" id="model-picker-icon" style="background:#6366F1">K</div>
+            <span class="model-picker-name" id="model-picker-name">Kimi K2.5</span>
+            <span class="model-picker-arrow">&#9662;</span>
+            <div class="model-dropdown" id="model-dropdown"></div>
+          </div>
+        </div>
         <div class="chat-area" id="chat-area">
           <div class="messages" id="messages">
             <div class="welcome" id="welcome">
@@ -506,10 +652,17 @@
         </div>
         <div class="input-area">
           <div class="input-wrap">
-            <textarea class="input-box" id="input" placeholder="How can I help you today?" rows="1" autofocus></textarea>
-            <button class="action-btn send" id="action-btn" onclick="sendMessage()">
-              <svg viewBox="0 0 16 16" fill="currentColor"><path d="M3 13l10-5L3 3v4l6 1-6 1z"/></svg>
-            </button>
+            <div class="attachments-bar" id="attachments-bar"></div>
+            <div class="input-row">
+              <button class="attach-btn" onclick="document.getElementById('file-input').click()" title="Attach image or file">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
+              </button>
+              <input type="file" id="file-input" multiple accept="image/*,.txt,.md,.json,.csv,.js,.ts,.py,.html,.css,.xml,.yaml,.yml,.toml,.log" style="display:none" />
+              <textarea class="input-box" id="input" placeholder="How can I help you today?" rows="1" autofocus></textarea>
+              <button class="action-btn send" id="action-btn" onclick="sendMessage()">
+                <svg viewBox="0 0 16 16" fill="currentColor"><path d="M3 13l10-5L3 3v4l6 1-6 1z"/></svg>
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -533,10 +686,22 @@
     <img id="lightbox-img" src="" />
   </div>
 
+  <div class="confirm-overlay" id="confirm-overlay" onclick="if(event.target===this)closeConfirm()">
+    <div class="confirm-box">
+      <div class="confirm-title" id="confirm-title">Confirm</div>
+      <div class="confirm-msg" id="confirm-msg">Are you sure?</div>
+      <div class="confirm-actions">
+        <button class="btn btn-ghost" onclick="closeConfirm()">Cancel</button>
+        <button class="btn btn-danger" id="confirm-action" onclick="">Delete</button>
+      </div>
+    </div>
+  </div>
+
   <script type="module">
     const state = {
       sessionId: null, sessions: [], agents: [], streaming: false, status: null,
       activeView: 'chat', selectedAgentId: null, selectedRunId: null,
+      attachments: [], // { name, mimeType, data (base64), type: 'image'|'file', preview? }
     };
 
     marked.setOptions({ breaks: true, gfm: true });
@@ -545,6 +710,7 @@
       get: (u) => fetch(u).then(r => r.json()),
       post: (u, b) => fetch(u, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(b) }).then(r => r.json()),
       patch: (u, b) => fetch(u, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify(b) }).then(r => r.json()),
+      del: (u) => fetch(u, { method:'DELETE' }).then(r => r.json()),
       stopChat: (sid) => fetch('/api/chat/stop', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({sessionId:sid}) }),
     };
 
@@ -577,12 +743,20 @@
       const p = cron.split(' ');
       if (p.length !== 5) return cron;
       const [min, hr, , , dow] = p;
-      const h = parseInt(hr); const ampm = h >= 12 ? 'PM' : 'AM'; const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+      const h = parseInt(hr);
+      if (isNaN(h)) {
+        if (hr === '*') return dow === '*' ? 'Every hour' : `Hourly on ${dow}`;
+        if (hr.startsWith('*/')) return `Every ${hr.slice(2)}h`;
+        return cron;
+      }
+      const ampm = h >= 12 ? 'PM' : 'AM'; const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
       const time = `${h12}:${min.padStart(2,'0')} ${ampm}`;
-      if (dow === '*' && p[2] === '*') return `Daily at ${time}`;
-      if (dow === '0') return `Sundays at ${time}`;
-      if (dow === '1') return `Mondays at ${time}`;
       const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+      if (dow === '*' && p[2] === '*') return `Daily at ${time}`;
+      if (dow.includes(',')) {
+        const dayNames = dow.split(',').map(d => days[parseInt(d)] || d).join(', ');
+        return `${dayNames} at ${time}`;
+      }
       if (dow !== '*') return `${days[parseInt(dow)] || dow} at ${time}`;
       return `${time}`;
     }
@@ -619,6 +793,128 @@
       closeSidebar();
     };
 
+    // ---- Attachments ----
+    function fileToBase64(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result.split(',')[1]);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+    }
+
+    document.getElementById('file-input').addEventListener('change', async (e) => {
+      const files = Array.from(e.target.files || []);
+      for (const file of files) {
+        const isImage = file.type.startsWith('image/');
+        const data = await fileToBase64(file);
+        const att = { name: file.name, mimeType: file.type, data, type: isImage ? 'image' : 'file' };
+        if (isImage) att.preview = URL.createObjectURL(file);
+        state.attachments.push(att);
+      }
+      renderAttachments();
+      e.target.value = '';
+    });
+
+    function renderAttachments() {
+      const bar = $('attachments-bar');
+      bar.innerHTML = state.attachments.map((a, i) => `
+        <span class="attach-chip">
+          ${a.type === 'image' ? `<img src="${a.preview}" alt="" />` : `<span class="chip-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="14" height="14"><path d="M4 1h5l4 4v9a1 1 0 01-1 1H4a1 1 0 01-1-1V2a1 1 0 011-1z"/><path d="M9 1v4h4"/></svg></span>`}
+          <span class="chip-name">${esc(a.name)}</span>
+          <button class="chip-remove" onclick="removeAttachment(${i})">&times;</button>
+        </span>
+      `).join('');
+    }
+
+    window.removeAttachment = function(i) {
+      const att = state.attachments.splice(i, 1)[0];
+      if (att?.preview) URL.revokeObjectURL(att.preview);
+      renderAttachments();
+    };
+
+    // ---- Models ----
+    const MODELS = [
+      { id: 'moonshotai/kimi-k2.5', name: 'Kimi K2.5', desc: 'Fast & capable', color: '#6366F1', letter: 'K' },
+      { id: 'deepseek/deepseek-v3.2', name: 'DeepSeek V3.2', desc: 'Strong all-rounder', color: '#0EA5E9', letter: 'D' },
+      { id: 'qwen/qwen3.5-397b-a17b', name: 'Qwen 3.5 397B', desc: 'Hybrid reasoning', color: '#1D4ED8', letter: 'Q' },
+      { id: 'z-ai/glm-5-turbo', name: 'GLM-5 Turbo', desc: 'Fast inference', color: '#10B981', letter: 'G' },
+      { id: 'minimax/minimax-m2.7', name: 'MiniMax M2.7', desc: 'Multimodal', color: '#EC4899', letter: 'M' },
+      { id: 'openai/gpt-oss-120b', name: 'GPT-OSS 120B', desc: 'Open weights', color: '#10A37F', letter: 'G' },
+      { id: 'xiaomi/mimo-v2-pro', name: 'MiMo V2 Pro', desc: 'Reasoning model', color: '#F97316', letter: 'M' },
+      { id: 'mistralai/mistral-large-2512', name: 'Mistral Large', desc: 'Multilingual', color: '#F97316', letter: 'M' },
+    ];
+
+    state.selectedModel = null; // Set from server on init
+
+    function renderModelDropdown() {
+      const dropdown = $('model-dropdown');
+      const isCustom = !MODELS.find(m => m.id === state.selectedModel);
+      dropdown.innerHTML = MODELS.map(m => `
+        <div class="model-option ${m.id === state.selectedModel ? 'active' : ''}" onclick="event.stopPropagation();pickModel('${m.id}')">
+          <div class="model-option-icon" style="background:${m.color}">${m.letter}</div>
+          <div class="model-option-info">
+            <div class="model-option-name">${esc(m.name)}</div>
+            <div class="model-option-desc">${esc(m.desc)}</div>
+          </div>
+          ${m.id === state.selectedModel ? '<span class="model-option-check">&#10003;</span>' : ''}
+        </div>
+      `).join('') + `
+        <div style="border-top:1px solid var(--border-light);margin:4px 0;padding:8px 8px 4px">
+          <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;padding:0 4px">Custom model</div>
+          <form onsubmit="event.preventDefault();pickCustomModel()" onclick="event.stopPropagation()">
+            <input type="text" id="custom-model-input" placeholder="e.g. xiaomi/mimo-v2-pro"
+              value="${isCustom ? esc(state.selectedModel) : ''}"
+              style="width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--mono);color:var(--text);background:var(--bg);outline:none" />
+          </form>
+        </div>
+      `;
+    }
+
+    function updateModelPicker() {
+      const m = MODELS.find(m => m.id === state.selectedModel);
+      if (m) {
+        $('model-picker-icon').style.background = m.color;
+        $('model-picker-icon').textContent = m.letter;
+        $('model-picker-name').textContent = m.name;
+      } else {
+        // Custom model
+        const short = state.selectedModel.split('/').pop() || state.selectedModel;
+        $('model-picker-icon').style.background = '#6B7280';
+        $('model-picker-icon').textContent = short[0]?.toUpperCase() || '?';
+        $('model-picker-name').textContent = short;
+      }
+    }
+
+    window.pickCustomModel = function() {
+      const input = $('custom-model-input');
+      const val = input?.value.trim();
+      if (val) {
+        state.selectedModel = val;
+        updateModelPicker();
+        $('model-dropdown').classList.remove('show');
+      }
+    };
+
+    window.toggleModelDropdown = function(e) {
+      e.stopPropagation();
+      const dd = $('model-dropdown');
+      const isOpen = dd.classList.contains('show');
+      dd.classList.toggle('show');
+      if (!isOpen) renderModelDropdown();
+    };
+
+    window.pickModel = function(id) {
+      state.selectedModel = id;
+      updateModelPicker();
+      $('model-dropdown').classList.remove('show');
+    };
+
+    // Close dropdown on outside click
+    document.addEventListener('click', () => {
+      $('model-dropdown').classList.remove('show');
+    });
+
     // ---- Init ----
     async function init() {
       const welcomeH2 = document.querySelector('.welcome h2');
@@ -629,8 +925,15 @@
           api.get('/api/status'), api.get('/api/sessions'), api.get('/api/agents'),
         ]);
         state.status = status; state.sessions = sessions; state.agents = agents;
+
+        // Sync model picker with server's configured model
+        const serverModel = (status.model || '').toLowerCase();
+        const match = MODELS.find(m => serverModel.includes(m.id.split('/').pop().toLowerCase()));
+        state.selectedModel = match ? match.id : (status.model || MODELS[0].id);
+
         renderNav();
         renderFooter();
+        updateModelPicker();
       } catch {
         $('footer').innerHTML = '<span class="status-dot off"></span> Connection error';
       }
@@ -645,6 +948,7 @@
             <span class="icon"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 3h12v8H5l-3 3V3z"/></svg></span>
             <span class="label">${esc(sessionLabel(s))}</span>
             <span class="meta">${timeAgo(s.updatedAt)}</span>
+            <button class="delete-btn" onclick="event.stopPropagation();confirmDeleteSession('${s.id}')" title="Delete chat">&#10005;</button>
           </div>
         `).join('');
 
@@ -738,6 +1042,12 @@
                 <span>${agent.enabled ? 'Enabled' : 'Disabled'}</span>
                 <button class="toggle ${agent.enabled ? 'on' : ''}" id="agent-toggle" onclick="toggleAgent('${agent.id}', ${!agent.enabled})"></button>
               </div>
+              <button class="btn btn-ghost" onclick="editAgent('${agent.id}')">Edit</button>
+              <button class="btn btn-danger" onclick="confirmDeleteAgent('${agent.id}', '${esc(fn)}')">Delete</button>
+              ${lastRun?.status === 'failed' ? `<button class="btn btn-fix" onclick="fixAgent('${agent.id}', '${esc(fn)}')">
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 1l4 4-7 7-4-4 7-7z"/><path d="M4 8L1 15l7-3"/></svg>
+                Fix
+              </button>` : ''}
               <button class="btn btn-primary" id="run-btn" onclick="runAgentNow('${agent.id}')">
                 <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><polygon points="4,2 14,8 4,14"/></svg>
                 Run Now
@@ -797,7 +1107,7 @@
           </div>`;
         api.get(`/api/agents/${agentId}/recap`).then(d => {
           const body = $('recap-body');
-          if (body && d.recap) body.innerHTML = marked.parse(d.recap);
+          if (body && d.recap) body.innerHTML = renderMd(d.recap);
           else if (body) body.textContent = 'All steps completed successfully.';
         }).catch(() => {
           const body = $('recap-body');
@@ -833,7 +1143,7 @@
             ${hasOutput ? `<div class="step-output">
               ${imgMatch ? `<div style="margin-bottom:10px"><img class="tool-image" src="/api/image?path=${encodeURIComponent(imgMatch[1])}" onclick="event.stopPropagation();showLightbox(this.src)" style="max-width:300px" /></div>` : ''}
               ${s.error ? `<div class="step-error">${esc(s.error)}</div>` : ''}
-              ${s.output ? (isMarkdown ? `<div class="msg-body">${marked.parse(s.output)}</div>` : `<div class="step-output-raw">${esc(s.output)}</div>`) : ''}
+              ${s.output ? (isMarkdown ? `<div class="msg-body">${renderMd(s.output)}</div>` : `<div class="step-output-raw">${esc(s.output)}</div>`) : ''}
             </div>` : ''}
           </div>
         `;
@@ -897,7 +1207,7 @@
               ${hasOutput ? `<div class="step-output">
                 ${imgMatch ? `<div style="margin-bottom:10px"><img class="tool-image" src="/api/image?path=${encodeURIComponent(imgMatch[1])}" onclick="event.stopPropagation();showLightbox(this.src)" style="max-width:300px" /></div>` : ''}
                 ${s.error ? `<div class="step-error">${esc(s.error)}</div>` : ''}
-                ${s.output ? (isMarkdown ? `<div class="msg-body">${marked.parse(s.output)}</div>` : `<div class="step-output-raw">${esc(s.output)}</div>`) : ''}
+                ${s.output ? (isMarkdown ? `<div class="msg-body">${renderMd(s.output)}</div>` : `<div class="step-output-raw">${esc(s.output)}</div>`) : ''}
               </div>` : ''}
             </div>
           `;
@@ -970,6 +1280,130 @@
       }
     };
 
+    window.fixAgent = async function(id, name) {
+      // Gather error info from latest run + logs
+      let errorInfo = '';
+      try {
+        const [output, logs] = await Promise.all([
+          api.get(`/api/agents/${id}/output`).catch(() => null),
+          api.get(`/api/agents/${id}/logs?limit=10`).catch(() => []),
+        ]);
+        if (output?.run?.error) errorInfo += `Error: ${output.run.error}\n`;
+        const failedSteps = (output?.steps || []).filter(s => s.status === 'failed');
+        if (failedSteps.length) errorInfo += `Failed steps: ${failedSteps.map(s => `${s.name}: ${s.error || 'unknown'}`).join('; ')}\n`;
+        const errorLogs = (Array.isArray(logs) ? logs : []).filter(l => l.level === 'error').slice(0, 5);
+        if (errorLogs.length) errorInfo += `Recent errors:\n${errorLogs.map(l => `- ${l.message}`).join('\n')}`;
+      } catch {}
+
+      const prompt = `My "${name}" agent (id: ${id}) is failing. Please investigate and fix it.\n\n${errorInfo}`;
+      switchView('chat');
+      newChat();
+      $input.value = prompt;
+      sendMessage();
+    };
+
+    // ==============================
+    // CONFIRM / DELETE / EDIT
+    // ==============================
+
+    let confirmCallback = null;
+
+    function showConfirm(title, msg, actionLabel, callback) {
+      $('confirm-title').textContent = title;
+      $('confirm-msg').textContent = msg;
+      $('confirm-action').textContent = actionLabel;
+      confirmCallback = callback;
+      $('confirm-action').onclick = async () => {
+        $('confirm-action').disabled = true;
+        $('confirm-action').textContent = 'Deleting...';
+        await callback();
+        closeConfirm();
+      };
+      $('confirm-overlay').classList.add('show');
+    }
+
+    window.closeConfirm = function() {
+      $('confirm-overlay').classList.remove('show');
+      $('confirm-action').disabled = false;
+      confirmCallback = null;
+    };
+
+    window.confirmDeleteSession = function(id) {
+      showConfirm('Delete chat', 'This chat and all its messages will be permanently deleted.', 'Delete', async () => {
+        try {
+          await fetch(`/api/sessions/${id}`, { method: 'DELETE' });
+          if (state.sessionId === id) { state.sessionId = null; newChat(); }
+          state.sessions = await api.get('/api/sessions');
+          renderNav();
+        } catch {}
+      });
+    };
+
+    window.confirmDeleteAgent = function(id, name) {
+      showConfirm('Delete agent', `"${name}" and all its run history will be permanently deleted.`, 'Delete', async () => {
+        try {
+          await fetch(`/api/agents/${id}`, { method: 'DELETE' });
+          state.agents = await api.get('/api/agents');
+          state.selectedAgentId = null;
+          renderNav();
+          renderAgentsList();
+          $('agents-detail-panel').innerHTML = `
+            <div class="agents-empty">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="4"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg>
+              <span>Select an agent to view details</span>
+            </div>`;
+        } catch {}
+      });
+    };
+
+    window.editAgent = async function(id) {
+      const agent = await api.get(`/api/agents/${id}`);
+      const fn = friendlyName(agent.name);
+      const panel = $('agents-detail-panel');
+      panel.innerHTML = `
+        <div class="agent-detail">
+          <button class="run-detail-back" onclick="selectAgent('${id}')">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 2L4 8l6 6"/></svg>
+            Back
+          </button>
+          <h2 style="font-size:20px;font-weight:600;margin-bottom:20px">Edit Agent</h2>
+          <div class="edit-form">
+            <div class="edit-field">
+              <label class="edit-label">Name</label>
+              <input class="edit-input" id="edit-name" value="${esc(agent.name)}" />
+            </div>
+            <div class="edit-field">
+              <label class="edit-label">Description</label>
+              <textarea class="edit-textarea" id="edit-desc">${esc(agent.description || '')}</textarea>
+            </div>
+            <div class="edit-field">
+              <label class="edit-label">Schedule (cron expression)</label>
+              <input class="edit-input" id="edit-schedule" value="${esc(agent.schedule || '')}" placeholder="e.g. 0 9 * * * for daily at 9am" />
+              ${agent.schedule ? `<div style="font-size:11px;color:var(--text-muted);margin-top:4px">Currently: ${cronToWords(agent.schedule)}</div>` : ''}
+            </div>
+            <div class="edit-actions">
+              <button class="btn btn-primary" onclick="saveAgentEdit('${id}')">Save Changes</button>
+              <button class="btn btn-ghost" onclick="selectAgent('${id}')">Cancel</button>
+            </div>
+          </div>
+        </div>
+      `;
+    };
+
+    window.saveAgentEdit = async function(id) {
+      const name = $('edit-name').value.trim();
+      const description = $('edit-desc').value.trim();
+      const schedule = $('edit-schedule').value.trim();
+      if (!name) return;
+      try {
+        await api.patch(`/api/agents/${id}`, { name, description, schedule });
+        state.agents = await api.get('/api/agents');
+        renderNav();
+        renderAgentsList();
+        await selectAgent(id);
+      } catch {}
+    };
+
     // ==============================
     // CHAT VIEW
     // ==============================
@@ -1031,16 +1465,37 @@
       if (state.activeView !== 'chat') switchView('chat');
 
       const w = $('welcome'); if (w) w.remove();
-      addUserMsg(text);
-      $input.value = ''; autoResize();
 
+      // Show attachments in user message
+      const attachNames = state.attachments.map(a => a.name);
+      const displayText = attachNames.length > 0 ? `[${attachNames.join(', ')}] ${text}` : text;
+      addUserMsg(displayText);
+
+      // Gather payload
+      const selectedModel = state.selectedModel || undefined;
+      const payload = {
+        sessionId: state.sessionId,
+        message: text,
+        model: selectedModel || undefined,
+        attachments: state.attachments.length > 0
+          ? state.attachments.map(a => ({ type: a.type, name: a.name, mimeType: a.mimeType, data: a.data }))
+          : undefined,
+      };
+
+      // Clear attachments
+      state.attachments.forEach(a => a.preview && URL.revokeObjectURL(a.preview));
+      state.attachments = [];
+      renderAttachments();
+
+      $input.value = ''; autoResize();
       state.streaming = true;
       updateBtn();
+      showThinking();
 
       try {
         const res = await fetch('/api/chat', {
           method: 'POST', headers: {'Content-Type':'application/json'},
-          body: JSON.stringify({ sessionId: state.sessionId, message: text }),
+          body: JSON.stringify(payload),
         });
         const reader = res.body.getReader();
         const dec = new TextDecoder();
@@ -1076,23 +1531,32 @@
           streamEl.querySelector('.msg-body').textContent = streamText;
           scroll();
           break;
-        case 'tool_call': hideThinking(); addTool(data.id, data.name, data.args); scroll(); break;
+        case 'tool_call':
+          hideThinking();
+          if (streamEl && streamText) { streamEl.querySelector('.msg-body').innerHTML = renderMd(streamText); }
+          streamEl = null; streamText = '';
+          addTool(data.id, data.name, data.args); scroll();
+          break;
         case 'tool_result': {
           const card = document.querySelector(`[data-tid="${data.id}"]`);
           if (card) {
-            card.querySelector('.tool-detail').textContent = data.result || '(no output)';
+            const detail = card.querySelector('.tool-detail');
+            detail.textContent = data.result || '(no output)';
             setToolStatus(card, data.error);
-            const imgMatch = (data.result || '').match(/(?:saved|wrote|generated|created|output).*?(\/[^\s"']+\.(?:png|jpg|jpeg|gif|webp))/i)
-              || (data.result || '').match(/(\/[^\s"']+\.(?:png|jpg|jpeg|gif|webp))/i);
+            const imgMatch = (data.result || '').match(/(\/[^\s"']+\.(?:png|jpg|jpeg|gif|webp))/i);
             if (imgMatch) {
-              const img = document.createElement('img');
-              img.className = 'tool-image';
-              img.src = `/api/image?path=${encodeURIComponent(imgMatch[1])}`;
-              img.alt = 'Generated image';
-              img.onclick = (e) => { e.stopPropagation(); showLightbox(img.src); };
-              card.after(img);
+              const imgUrl = `/api/image?path=${encodeURIComponent(imgMatch[1])}`;
+              const wrapper = document.createElement('div');
+              wrapper.style.cssText = 'margin-top:8px;margin-left:40px';
+              wrapper.innerHTML = `<img class="tool-image" src="${imgUrl}" alt="Generated image"
+                onclick="event.stopPropagation();showLightbox(this.src)"
+                onerror="this.style.display='none';this.nextElementSibling.style.display='block'"
+                style="max-width:100%;border-radius:8px;cursor:pointer" />
+                <a href="${imgUrl}" target="_blank" style="display:none;color:var(--accent);font-size:13px">Open image: ${imgMatch[1].split('/').pop()}</a>`;
+              card.after(wrapper);
             }
           }
+          showThinking();
           scroll();
           break;
         }
@@ -1104,7 +1568,7 @@
     }
 
     function finalize() {
-      if (streamEl && streamText) streamEl.querySelector('.msg-body').innerHTML = marked.parse(streamText);
+      if (streamEl && streamText) streamEl.querySelector('.msg-body').innerHTML = renderMd(streamText);
       streamEl = null; streamText = '';
       hideThinking();
     }
@@ -1117,7 +1581,7 @@
 
     function addAiMsg(content, streaming) {
       const d = document.createElement('div'); d.className = 'msg msg-ai';
-      d.innerHTML = `<div class="msg-avatar">K</div><div class="msg-body">${streaming ? '' : marked.parse(content)}</div>`;
+      d.innerHTML = `<div class="msg-avatar">K</div><div class="msg-body">${streaming ? '' : renderMd(content)}</div>`;
       $msgs.appendChild(d); scroll(); return d;
     }
 
@@ -1168,6 +1632,19 @@
       if (data.toolsUsed > 0) { $msgs.appendChild(d); scroll(); }
     }
 
+    // Rewrite local file paths in rendered HTML to use /api/image proxy
+    function proxyImages(html) {
+      return html.replace(
+        /(<img\s[^>]*src=["'])(\/?(?:Users|home|tmp)[^\s"']+\.(?:png|jpg|jpeg|gif|webp))(["'])/gi,
+        (_, pre, filepath, post) => `${pre}/api/image?path=${encodeURIComponent(filepath)}${post}`
+      );
+    }
+
+    // Render markdown with image proxy applied
+    function renderMd(text) {
+      return proxyImages(marked.parse(text));
+    }
+
     window.showLightbox = function(src) {
       $('lightbox-img').src = src;
       $('lightbox').classList.add('show');
@@ -1203,9 +1680,33 @@
     window.toggleSidebar = () => $('sidebar').classList.toggle('open');
     function closeSidebar() { $('sidebar').classList.remove('open'); }
 
+    // ---- Sidebar collapse (desktop) ----
+    window.collapseSidebar = function() {
+      $('sidebar').classList.add('collapsed');
+      $('sidebar-expand').classList.add('show');
+    };
+    window.expandSidebar = function() {
+      $('sidebar').classList.remove('collapsed');
+      $('sidebar-expand').classList.remove('show');
+    };
+
     // ---- Input ----
     $input.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } });
     $input.addEventListener('input', autoResize);
+    $input.addEventListener('paste', async (e) => {
+      const items = Array.from(e.clipboardData?.items || []);
+      for (const item of items) {
+        if (item.type.startsWith('image/')) {
+          e.preventDefault();
+          const file = item.getAsFile();
+          if (!file) continue;
+          const data = await fileToBase64(file);
+          const name = `pasted-image.${file.type.split('/')[1] || 'png'}`;
+          state.attachments.push({ name, mimeType: file.type, data, type: 'image', preview: URL.createObjectURL(file) });
+          renderAttachments();
+        }
+      }
+    });
     function autoResize() { $input.style.height = 'auto'; $input.style.height = Math.min($input.scrollHeight, 200) + 'px'; }
 
     // ---- Boot ----

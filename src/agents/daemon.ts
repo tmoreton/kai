@@ -31,8 +31,25 @@ import {
 
 const scheduledJobs = new Map<string, ReturnType<typeof cron.schedule>>();
 
-export async function startDaemon(): Promise<void> {
+const MAX_RESTARTS = 5;
+const RESTART_WINDOW_MS = 10 * 60 * 1000; // 10 minutes
+const RESTART_DELAY_MS = 3000;
+
+let restartTimestamps: number[] = [];
+
+async function startDaemonInner(): Promise<void> {
   console.log(chalk.bold.cyan("\n  ⚡ Kai Agent Daemon starting...\n"));
+
+  // Catch unhandled errors from scheduled agent runs so they don't kill the daemon
+  process.on("uncaughtException", (err) => {
+    console.error(chalk.red(`  Uncaught exception: ${err.message}`));
+    addLog("__daemon__", "error", `Uncaught: ${err.message}`);
+  });
+  process.on("unhandledRejection", (reason) => {
+    const msg = reason instanceof Error ? reason.message : String(reason);
+    console.error(chalk.red(`  Unhandled rejection: ${msg}`));
+    addLog("__daemon__", "error", `Unhandled rejection: ${msg}`);
+  });
 
   // Register all integrations
   await registerAllIntegrations();
@@ -55,6 +72,37 @@ export async function startDaemon(): Promise<void> {
     const count = scheduledJobs.size;
     addLog("__daemon__", "info", `Heartbeat: ${count} agents scheduled`);
   }, 5 * 60 * 1000); // Every 5 minutes
+}
+
+/**
+ * Start the daemon with auto-restart on crash.
+ * Restarts up to MAX_RESTARTS times within RESTART_WINDOW_MS.
+ * If the limit is exceeded, gives up and exits.
+ */
+export async function startDaemon(): Promise<void> {
+  try {
+    await startDaemonInner();
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error(chalk.red(`\n  Daemon crashed: ${msg}\n`));
+    addLog("__daemon__", "error", `Crashed: ${msg}`);
+
+    // Track restarts within the window
+    const now = Date.now();
+    restartTimestamps = restartTimestamps.filter((t) => now - t < RESTART_WINDOW_MS);
+    restartTimestamps.push(now);
+
+    if (restartTimestamps.length >= MAX_RESTARTS) {
+      console.error(chalk.red(`  Too many crashes (${MAX_RESTARTS} in ${RESTART_WINDOW_MS / 60000}m). Giving up.\n`));
+      addLog("__daemon__", "error", `Exceeded restart limit (${MAX_RESTARTS}). Shutting down.`);
+      process.exit(1);
+    }
+
+    console.log(chalk.yellow(`  Restarting in ${RESTART_DELAY_MS / 1000}s... (${restartTimestamps.length}/${MAX_RESTARTS})\n`));
+    stopDaemon(); // Clean up old scheduled jobs
+    await new Promise((r) => setTimeout(r, RESTART_DELAY_MS));
+    return startDaemon(); // Recursive restart
+  }
 }
 
 function scheduleAgent(agent: AgentRecord): void {
@@ -82,6 +130,18 @@ export async function runAgent(agentId: string): Promise<{ success: boolean; err
 
   // Register integrations if not already done
   await registerAllIntegrations();
+
+  // Validate workflow path exists
+  if (!agent.workflow_path) {
+    const msg = `Agent "${agent.name}" has no workflow path configured. Re-register it with: kai agent add <workflow.yaml>`;
+    addLog(agentId, "error", `Failed to run: ${msg}`);
+    return { success: false, error: msg };
+  }
+  if (!fs.existsSync(agent.workflow_path)) {
+    const msg = `Workflow file not found: ${agent.workflow_path}`;
+    addLog(agentId, "error", `Failed to run: ${msg}`);
+    return { success: false, error: msg };
+  }
 
   try {
     const workflow = parseWorkflow(agent.workflow_path);

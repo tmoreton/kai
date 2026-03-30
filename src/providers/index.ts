@@ -1,5 +1,6 @@
 import OpenAI from "openai";
-import { getConfig, type ProviderConfig } from "../config.js";
+import chalk from "chalk";
+import { getConfig } from "../config.js";
 
 /**
  * OpenRouter-only provider.
@@ -50,6 +51,14 @@ export function resolveProvider(modelOverride?: string): ResolvedProvider {
   const config = getConfig();
   const modelId = modelOverride || process.env.MODEL_ID || config.model || OPENROUTER_PROVIDER.defaultModel;
   const apiKey = process.env[OPENROUTER_PROVIDER.apiKeyEnv] || "";
+
+  if (!apiKey) {
+    console.error(chalk.red("\n  Error: OPENROUTER_API_KEY is not set."));
+    console.error(chalk.dim("  1. Get a key at https://openrouter.ai/settings/keys"));
+    console.error(chalk.dim("  2. Add it to your .env file: OPENROUTER_API_KEY=sk-or-v1-..."));
+    console.error(chalk.dim("  3. Or copy .env.example to .env and fill in your key\n"));
+    process.exit(1);
+  }
 
   return {
     client: new OpenAI({ apiKey, baseURL: OPENROUTER_PROVIDER.baseURL }),

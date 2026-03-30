@@ -17,6 +17,7 @@ import {
   getMostRecentSession,
   listSessions,
   formatSessionList,
+  cleanupSessions,
   type Session,
 } from "./sessions.js";
 import { appendRecall, getRecallStats, type RecallEntry } from "./recall.js";
@@ -58,6 +59,12 @@ export interface ReplOptions {
 }
 
 export async function startRepl(options: ReplOptions = {}): Promise<void> {
+  // Prune sessions older than 30 days on startup
+  const pruned = cleanupSessions(30);
+  if (pruned > 0) {
+    console.log(chalk.dim(`  Cleaned up ${pruned} old session(s).\n`));
+  }
+
   const client = createClient();
 
   let messages: ChatCompletionMessageParam[] = [

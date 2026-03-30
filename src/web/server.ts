@@ -14,6 +14,8 @@ import OpenAI from "openai";
 
 // Kai modules
 import { createClient, getModelId, getProviderName, summarizeArgs } from "../client.js";
+import { resolveProvider } from "../providers/index.js";
+import { ensureKaiDir } from "../config.js";
 import { buildSystemPrompt } from "../system-prompt.js";
 import { getCwd } from "../tools/bash.js";
 import { toolDefinitions } from "../tools/index.js";
@@ -31,6 +33,7 @@ import {
   saveSession,
   loadSession,
   listSessions,
+  deleteSession,
   type Session,
 } from "../sessions.js";
 import {
@@ -40,6 +43,7 @@ import {
   getSteps,
   getAgentLogs,
   saveAgent,
+  deleteAgent,
 } from "../agents/db.js";
 import {
   runAgent,
@@ -119,6 +123,41 @@ export async function startServer(options: ServerOptions): Promise<void> {
       ui: ui,
       usage: getUsage(),
     });
+  });
+
+  // --- Models (fetch from OpenRouter) ---
+  let cachedModels: any[] | null = null;
+  let modelsCacheTime = 0;
+  const MODELS_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+  app.get("/api/models", async (c) => {
+    const now = Date.now();
+    if (cachedModels && now - modelsCacheTime < MODELS_CACHE_TTL) {
+      return c.json(cachedModels);
+    }
+    try {
+      const apiKey = process.env.OPENROUTER_API_KEY || "";
+      const res = await fetch("https://openrouter.ai/api/v1/models", {
+        headers: { Authorization: `Bearer ${apiKey}` },
+      });
+      const data = await res.json() as { data?: any[] };
+      const models = (data.data || [])
+        .filter((m: any) => m.id && m.name)
+        .map((m: any) => ({
+          id: m.id,
+          name: m.name,
+          contextLength: m.context_length,
+          pricing: m.pricing,
+        }))
+        .sort((a: any, b: any) => a.name.localeCompare(b.name));
+      cachedModels = models;
+      modelsCacheTime = now;
+      return c.json(models);
+    } catch (err) {
+      // Fallback to configured models
+      const provider = resolveProvider().provider;
+      return c.json(provider.models.map((id: string) => ({ id, name: id })));
+    }
   });
 
   // --- Sessions ---
@@ -263,16 +302,32 @@ export async function startServer(options: ServerOptions): Promise<void> {
     return c.json(result);
   });
 
-  // --- Toggle agent enabled/disabled ---
+  // --- Edit agent (toggle, rename, description, schedule) ---
   app.patch("/api/agents/:id", async (c) => {
     const agent = getAgent(c.req.param("id"));
     if (!agent) return c.json({ error: "Agent not found" }, 404);
     const body = await c.req.json().catch(() => ({}));
-    if (typeof body.enabled === "boolean") {
-      agent.enabled = body.enabled ? 1 : 0;
-    }
+    if (typeof body.enabled === "boolean") agent.enabled = body.enabled ? 1 : 0;
+    if (typeof body.name === "string" && body.name.trim()) agent.name = body.name.trim();
+    if (typeof body.description === "string") agent.description = body.description.trim();
+    if (typeof body.schedule === "string") agent.schedule = body.schedule.trim();
     saveAgent(agent);
-    return c.json({ id: agent.id, enabled: !!agent.enabled });
+    return c.json({ id: agent.id, name: agent.name, description: agent.description, schedule: agent.schedule, enabled: !!agent.enabled });
+  });
+
+  // --- Delete agent ---
+  app.delete("/api/agents/:id", (c) => {
+    const agent = getAgent(c.req.param("id"));
+    if (!agent) return c.json({ error: "Agent not found" }, 404);
+    deleteAgent(agent.id);
+    return c.json({ deleted: true });
+  });
+
+  // --- Delete session ---
+  app.delete("/api/sessions/:id", (c) => {
+    const deleted = deleteSession(c.req.param("id"));
+    if (!deleted) return c.json({ error: "Session not found" }, 404);
+    return c.json({ deleted: true });
   });
 
   // --- Get steps for a specific run ---
@@ -345,9 +400,11 @@ export async function startServer(options: ServerOptions): Promise<void> {
   // --- Chat (SSE streaming) ---
   app.post("/api/chat", async (c) => {
     const body = await c.req.json();
-    const { sessionId, message } = body as {
+    const { sessionId, message, model, attachments } = body as {
       sessionId?: string;
       message: string;
+      model?: string;
+      attachments?: Array<{ type: "image" | "file"; name: string; mimeType: string; data: string }>;
     };
 
     // Load or create session
@@ -367,8 +424,42 @@ export async function startServer(options: ServerOptions): Promise<void> {
       session = createNewSession();
     }
 
-    // Add user message
-    session.messages.push({ role: "user", content: message });
+    // Build user message content (multipart if attachments present)
+    if (attachments && attachments.length > 0) {
+      const parts: any[] = [];
+      const savedPaths: string[] = [];
+      for (const att of attachments) {
+        if (att.type === "image") {
+          // Save to disk so tools (e.g. generate_image) can reference the file
+          const uploadsDir = path.join(ensureKaiDir(), "uploads");
+          if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+          const ext = att.name.match(/\.\w+$/)?.[0] || ".png";
+          const savedPath = path.join(uploadsDir, `${Date.now()}-${att.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`)
+          fs.writeFileSync(savedPath, Buffer.from(att.data, "base64"));
+          savedPaths.push(savedPath);
+
+          parts.push({
+            type: "image_url",
+            image_url: { url: `data:${att.mimeType};base64,${att.data}` },
+          });
+        } else {
+          // Non-image files: include as text content
+          parts.push({
+            type: "text",
+            text: `[File: ${att.name}]\n${Buffer.from(att.data, "base64").toString("utf-8")}`,
+          });
+        }
+      }
+      // Include saved file paths so the LLM can pass them to tools like generate_image(reference_image)
+      let text = message;
+      if (savedPaths.length > 0) {
+        text += `\n\n[Attached images saved to: ${savedPaths.join(", ")}]`;
+      }
+      parts.push({ type: "text", text });
+      session.messages.push({ role: "user", content: parts });
+    } else {
+      session.messages.push({ role: "user", content: message });
+    }
 
     // Set up abort controller
     const abortController = new AbortController();
@@ -386,7 +477,8 @@ export async function startServer(options: ServerOptions): Promise<void> {
           async (event: string, data: any) => {
             await stream.writeSSE({ event, data: JSON.stringify(data) });
           },
-          abortController.signal
+          abortController.signal,
+          model
         );
 
         // Update session
@@ -528,7 +620,8 @@ async function chatForWeb(
   client: OpenAI,
   messages: ChatCompletionMessageParam[],
   emit: (event: string, data: any) => Promise<void>,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  modelOverride?: string
 ): Promise<ChatCompletionMessageParam[]> {
   const activeTools = toolDefinitions as ChatCompletionTool[];
   const updatedMessages = [...messages];
@@ -571,7 +664,7 @@ async function chatForWeb(
         }
         stream = await client.chat.completions.create(
           {
-            model: getModelId(),
+            model: modelOverride || getModelId(),
             messages: updatedMessages,
             tools: activeTools,
             tool_choice: "auto",
