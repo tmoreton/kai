@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import { ensureProjectDir, ensureGlobalDir, getProjectId, listProjects } from "./project.js";
+import { ensureProjectDir, ensureGlobalDir, getProjectId } from "./project.js";
 
 /**
  * Archival Memory: Long-term knowledge store.
@@ -46,25 +46,6 @@ function loadEntries(filePath: string): ArchivalEntry[] {
     return [];
   }
 }
-
-// --- Migrate old format if needed ---
-function migrateOldFormat(): void {
-  const oldPath = path.join(ensureGlobalDir("archival"), "knowledge.json");
-  if (!fs.existsSync(oldPath)) return;
-  try {
-    const old = JSON.parse(fs.readFileSync(oldPath, "utf-8"));
-    if (Array.isArray(old)) {
-      const newPath = globalArchivalPath();
-      for (const entry of old) {
-        fs.appendFileSync(newPath, JSON.stringify(entry) + "\n", "utf-8");
-      }
-      fs.renameSync(oldPath, oldPath + ".bak");
-    }
-  } catch {}
-}
-
-// Run migration on load
-migrateOldFormat();
 
 // --- Public API ---
 

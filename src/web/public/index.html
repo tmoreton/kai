@@ -9,209 +9,219 @@
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --bg: #0a0a0a;
-      --bg-surface: #141414;
-      --bg-elevated: #1a1a1a;
-      --bg-hover: #222;
-      --text: #ececec;
-      --text-secondary: #999;
-      --text-muted: #555;
-      --accent: #6b8afd;
-      --green: #34d399;
-      --red: #f87171;
-      --yellow: #fbbf24;
-      --border: #222;
+      --bg: #FAF9F7;
+      --bg-sidebar: #F0EFEB;
+      --bg-surface: #FFFFFF;
+      --bg-hover: #E8E6E1;
+      --bg-active: #E2E0DB;
+      --text: #1A1A1A;
+      --text-secondary: #6B6560;
+      --text-muted: #9B958F;
+      --accent: #D97706;
+      --accent-light: #FEF3C7;
+      --green: #059669;
+      --green-light: #D1FAE5;
+      --red: #DC2626;
+      --red-light: #FEE2E2;
+      --blue: #2563EB;
+      --border: #E5E2DD;
+      --border-light: #EDEBE7;
       --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
-      --mono: 'SF Mono', 'Fira Code', monospace;
-      --radius: 16px;
+      --mono: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+      --radius: 12px;
+      --radius-sm: 8px;
     }
 
-    html, body { height: 100%; font-family: var(--sans); background: var(--bg); color: var(--text); font-size: 14px; line-height: 1.6; }
+    html, body { height: 100%; font-family: var(--sans); background: var(--bg); color: var(--text); font-size: 15px; line-height: 1.6; -webkit-font-smoothing: antialiased; }
 
     .app { display: flex; height: 100vh; }
 
     /* ---- Sidebar ---- */
     .sidebar {
-      width: 260px; background: var(--bg-surface); border-right: 1px solid var(--border);
+      width: 260px; background: var(--bg-sidebar); border-right: 1px solid var(--border);
       display: flex; flex-direction: column; flex-shrink: 0;
     }
-    .sidebar-brand { padding: 20px 20px 16px; font-size: 20px; font-weight: 700; color: var(--accent); letter-spacing: -0.5px; }
+    .sidebar-brand {
+      padding: 20px 20px 16px; font-size: 18px; font-weight: 700; color: var(--text);
+      letter-spacing: -0.3px; display: flex; align-items: center; gap: 8px;
+    }
+    .sidebar-brand svg { color: var(--accent); }
+
+    .sidebar-tabs {
+      display: flex; gap: 2px; margin: 0 12px 8px; background: var(--bg-hover); border-radius: var(--radius-sm); padding: 3px;
+    }
+    .sidebar-tab {
+      flex: 1; padding: 7px 0; border: none; background: none; border-radius: 6px;
+      font-size: 13px; font-weight: 500; color: var(--text-secondary); cursor: pointer;
+      transition: all .15s; display: flex; align-items: center; justify-content: center; gap: 5px;
+    }
+    .sidebar-tab:hover { color: var(--text); }
+    .sidebar-tab.active { background: var(--bg-surface); color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,.06); }
+    .sidebar-tab svg { width: 14px; height: 14px; }
+
     .new-chat-btn {
-      margin: 0 12px 12px; padding: 10px 14px; background: var(--accent); border: none; border-radius: 10px;
-      color: #fff; font-size: 13px; font-weight: 600; cursor: pointer; text-align: center; transition: opacity .15s;
+      margin: 4px 12px 12px; padding: 9px 14px; background: none; border: 1px solid var(--border);
+      border-radius: var(--radius-sm); color: var(--text); font-size: 13px; font-weight: 500;
+      cursor: pointer; text-align: left; transition: all .15s;
+      display: flex; align-items: center; gap: 8px;
     }
-    .new-chat-btn:hover { opacity: .85; }
+    .new-chat-btn:hover { background: var(--bg-hover); }
+    .new-chat-btn svg { width: 16px; height: 16px; color: var(--text-muted); }
 
-    .sidebar-nav { flex: 1; overflow-y: auto; }
-    .nav-section { padding: 16px 0 4px; }
-    .nav-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted); padding: 0 20px 6px; }
-
-    .nav-item {
-      display: flex; align-items: center; gap: 10px; padding: 9px 20px; cursor: pointer;
-      font-size: 13px; color: var(--text-secondary); transition: all .1s; border-left: 3px solid transparent;
+    .sidebar-list { flex: 1; overflow-y: auto; padding: 0 8px; }
+    .list-label {
+      font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .8px;
+      color: var(--text-muted); padding: 12px 12px 6px;
     }
-    .nav-item:hover { background: var(--bg-hover); color: var(--text); }
-    .nav-item.active { background: var(--bg-elevated); color: var(--text); border-left-color: var(--accent); }
-    .nav-item .icon { font-size: 15px; width: 20px; text-align: center; flex-shrink: 0; }
-    .nav-item .label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
-    .nav-item .meta { font-size: 10px; color: var(--text-muted); flex-shrink: 0; }
 
-    .nav-empty { padding: 8px 20px; font-size: 12px; color: var(--text-muted); }
+    .list-item {
+      display: flex; align-items: center; gap: 10px; padding: 8px 12px; cursor: pointer;
+      font-size: 13.5px; color: var(--text-secondary); transition: all .1s; border-radius: var(--radius-sm);
+      margin-bottom: 1px;
+    }
+    .list-item:hover { background: var(--bg-hover); color: var(--text); }
+    .list-item.active { background: var(--bg-active); color: var(--text); }
+    .list-item .icon { width: 18px; text-align: center; flex-shrink: 0; font-size: 14px; }
+    .list-item .label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+    .list-item .meta { font-size: 11px; color: var(--text-muted); flex-shrink: 0; }
+
+    .list-empty { padding: 12px; font-size: 13px; color: var(--text-muted); }
 
     .sidebar-footer {
-      padding: 12px 16px; border-top: 1px solid var(--border); font-size: 11px; color: var(--text-muted);
-      display: flex; align-items: center; gap: 6px;
+      padding: 12px 16px; border-top: 1px solid var(--border); font-size: 12px; color: var(--text-muted);
+      display: flex; align-items: center; gap: 8px;
     }
-    .dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
-    .dot.on { background: var(--green); }
-    .dot.off { background: var(--red); }
+    .status-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+    .status-dot.on { background: var(--green); }
+    .status-dot.off { background: var(--red); }
+
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
 
     /* ---- Main ---- */
-    .main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+    .main { flex: 1; display: flex; flex-direction: column; min-width: 0; background: var(--bg); }
 
+    /* ---- View switching ---- */
+    .view { display: none; flex-direction: column; height: 100%; }
+    .view.active { display: flex; }
+
+    /* ---- Chat view ---- */
     .chat-area { flex: 1; overflow-y: auto; }
-    .messages { max-width: 720px; margin: 0 auto; padding: 24px 24px 0; }
+    .messages { max-width: 680px; margin: 0 auto; padding: 24px 24px 0; }
 
-    /* ---- Welcome ---- */
     .welcome {
       display: flex; flex-direction: column; align-items: center; justify-content: center;
       height: 100%; text-align: center; padding: 40px;
     }
-    .welcome h2 { font-size: 28px; font-weight: 700; margin-bottom: 8px; color: var(--text); }
-    .welcome p { font-size: 15px; color: var(--text-secondary); max-width: 400px; line-height: 1.6; margin-bottom: 28px; }
-    .welcome-cards { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+    .welcome-icon { font-size: 32px; margin-bottom: 16px; }
+    .welcome h2 { font-size: 28px; font-weight: 600; margin-bottom: 8px; color: var(--text); letter-spacing: -0.5px; }
+    .welcome p { font-size: 15px; color: var(--text-secondary); max-width: 440px; line-height: 1.7; margin-bottom: 32px; }
+    .welcome-cards { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
     .welcome-card {
-      background: var(--bg-surface); border: 1px solid var(--border); border-radius: 12px;
+      background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius);
       padding: 14px 18px; font-size: 13px; color: var(--text-secondary); cursor: pointer;
-      transition: all .15s; max-width: 200px; text-align: left;
+      transition: all .15s; max-width: 200px; text-align: left; line-height: 1.5;
     }
-    .welcome-card:hover { border-color: var(--accent); color: var(--text); }
-    .welcome-card strong { display: block; color: var(--text); font-size: 13px; margin-bottom: 4px; }
+    .welcome-card:hover { border-color: var(--accent); background: var(--accent-light); }
+    .welcome-card strong { display: block; color: var(--text); font-size: 13.5px; margin-bottom: 3px; }
 
-    /* ---- Messages ---- */
-    .msg { margin-bottom: 28px; animation: fadeIn .2s ease; }
+    .msg { margin-bottom: 24px; animation: fadeIn .2s ease; }
     @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; } }
 
-    .msg-role { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 6px; }
-    .msg-role.you { color: var(--accent); }
-    .msg-role.kai { color: var(--green); }
+    .msg-user { display: flex; justify-content: flex-end; }
+    .msg-user .msg-bubble {
+      background: var(--text); color: #fff; border-radius: 20px 20px 4px 20px;
+      padding: 10px 16px; max-width: 80%; font-size: 14.5px; line-height: 1.6;
+    }
 
-    .msg-body { font-size: 14.5px; line-height: 1.75; color: var(--text); }
+    .msg-ai { display: flex; gap: 12px; align-items: flex-start; }
+    .msg-avatar {
+      width: 28px; height: 28px; border-radius: 50%; background: linear-gradient(135deg, var(--accent), #B45309);
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 2px;
+      font-size: 13px; color: #fff; font-weight: 700;
+    }
+    .msg-body { font-size: 14.5px; line-height: 1.75; color: var(--text); flex: 1; min-width: 0; }
     .msg-body p { margin-bottom: 12px; }
     .msg-body p:last-child { margin-bottom: 0; }
     .msg-body ul, .msg-body ol { margin: 8px 0; padding-left: 24px; }
     .msg-body li { margin-bottom: 4px; }
-    .msg-body a { color: var(--accent); text-decoration: none; }
+    .msg-body a { color: var(--blue); text-decoration: none; }
     .msg-body a:hover { text-decoration: underline; }
     .msg-body h1, .msg-body h2, .msg-body h3 { margin: 16px 0 8px; font-weight: 600; }
     .msg-body h1 { font-size: 20px; } .msg-body h2 { font-size: 17px; } .msg-body h3 { font-size: 15px; }
-    .msg-body code { font-family: var(--mono); font-size: 13px; background: var(--bg-surface); padding: 2px 6px; border-radius: 4px; }
-    .msg-body pre { background: var(--bg-surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; margin: 12px 0; overflow-x: auto; }
-    .msg-body pre code { background: none; padding: 0; font-size: 13px; line-height: 1.5; }
+    .msg-body code { font-family: var(--mono); font-size: 13px; background: #F3F1ED; padding: 2px 6px; border-radius: 4px; }
+    .msg-body pre { background: #1E1E1E; border-radius: var(--radius-sm); padding: 14px 16px; margin: 12px 0; overflow-x: auto; }
+    .msg-body pre code { background: none; padding: 0; font-size: 13px; line-height: 1.5; color: #D4D4D4; }
     .msg-body table { border-collapse: collapse; margin: 12px 0; width: 100%; }
-    .msg-body th, .msg-body td { border: 1px solid var(--border); padding: 6px 10px; font-size: 13px; text-align: left; }
-    .msg-body th { background: var(--bg-surface); font-weight: 600; }
+    .msg-body th, .msg-body td { border: 1px solid var(--border); padding: 8px 12px; font-size: 13px; text-align: left; }
+    .msg-body th { background: var(--bg-sidebar); font-weight: 600; }
 
-    /* ---- Tool calls ---- */
     .tool {
-      margin: 6px 0; border: 1px solid var(--border); border-radius: 10px; background: var(--bg-surface); overflow: hidden;
+      margin: 8px 0; border: 1px solid var(--border-light); border-radius: var(--radius-sm);
+      background: var(--bg-surface); overflow: hidden;
     }
     .tool-head {
-      padding: 7px 12px; display: flex; align-items: center; gap: 8px; cursor: pointer;
-      font-size: 12px; color: var(--text-secondary); user-select: none;
+      padding: 8px 12px; display: flex; align-items: center; gap: 8px; cursor: pointer;
+      font-size: 13px; color: var(--text-secondary); user-select: none;
     }
     .tool-head:hover { background: var(--bg-hover); }
-    .tool-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
-    .tool-dot.running { background: var(--yellow); }
+    .tool-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+    .tool-dot.running { background: var(--accent); animation: pulse 1.5s infinite; }
     .tool-dot.done { background: var(--green); }
     .tool-dot.err { background: var(--red); }
-    .tool-label { font-weight: 600; color: var(--text); font-size: 12px; }
-    .tool-summary { color: var(--text-muted); font-family: var(--mono); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+    .tool-label { font-weight: 600; color: var(--text); font-size: 13px; }
+    .tool-summary { color: var(--text-muted); font-family: var(--mono); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
     .tool-chevron { color: var(--text-muted); transition: transform .15s; font-size: 10px; }
     .tool.open .tool-chevron { transform: rotate(90deg); }
     .tool-detail {
-      display: none; padding: 0 12px 10px; font-family: var(--mono); font-size: 11px; line-height: 1.5;
+      display: none; padding: 0 12px 10px; font-family: var(--mono); font-size: 12px; line-height: 1.5;
       color: var(--text-secondary); white-space: pre-wrap; word-break: break-all; max-height: 250px; overflow-y: auto;
     }
     .tool.open .tool-detail { display: block; }
 
-    /* ---- Thinking ---- */
-    .thinking { display: flex; align-items: center; gap: 8px; padding: 12px 0; color: var(--text-muted); font-size: 13px; }
-    .thinking-dots span { display: inline-block; width: 5px; height: 5px; border-radius: 50%; background: var(--text-muted); animation: pulse 1.4s infinite ease-in-out; }
+    .thinking { display: flex; align-items: center; gap: 10px; padding: 12px 0; padding-left: 40px; color: var(--text-muted); font-size: 13px; }
+    .thinking-dots span { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); animation: bounce 1.4s infinite ease-in-out; }
     .thinking-dots span:nth-child(2) { animation-delay: .2s; }
     .thinking-dots span:nth-child(3) { animation-delay: .4s; }
-    @keyframes pulse { 0%,80%,100% { opacity:.3; transform:scale(.8); } 40% { opacity:1; transform:scale(1.2); } }
+    @keyframes bounce { 0%,80%,100% { opacity:.3; transform:scale(.8); } 40% { opacity:1; transform:scale(1.2); } }
+    @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:.4; } }
 
-    /* ---- Input ---- */
-    .input-area { border-top: 1px solid var(--border); padding: 16px 24px 24px; background: var(--bg); }
-    .input-wrap { max-width: 720px; margin: 0 auto; position: relative; }
-    .input-box {
-      width: 100%; min-height: 52px; max-height: 200px; padding: 14px 52px 14px 18px;
-      background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius);
-      color: var(--text); font-family: var(--sans); font-size: 14.5px; line-height: 1.5; resize: none; outline: none;
-      transition: border-color .15s;
+    .input-area { padding: 16px 24px 28px; background: var(--bg); }
+    .input-wrap {
+      max-width: 680px; margin: 0 auto; position: relative;
+      background: var(--bg-surface); border: 1px solid var(--border);
+      border-radius: 24px; transition: border-color .15s, box-shadow .15s;
     }
-    .input-box:focus { border-color: var(--accent); }
+    .input-wrap:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(217,119,6,.1); }
+    .input-box {
+      width: 100%; min-height: 52px; max-height: 200px; padding: 14px 52px 14px 20px;
+      background: transparent; border: none; border-radius: 24px;
+      color: var(--text); font-family: var(--sans); font-size: 15px; line-height: 1.5; resize: none; outline: none;
+    }
     .input-box::placeholder { color: var(--text-muted); }
 
     .action-btn {
-      position: absolute; right: 8px; bottom: 10px; width: 36px; height: 36px; border-radius: 10px; border: none;
-      color: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: opacity .15s;
+      position: absolute; right: 8px; bottom: 8px; width: 36px; height: 36px; border-radius: 50%; border: none;
+      color: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all .15s;
     }
-    .action-btn.send { background: var(--accent); }
-    .action-btn.send:hover { opacity: .85; }
+    .action-btn.send { background: var(--text); }
+    .action-btn.send:hover { background: #333; }
     .action-btn.stop { background: var(--red); }
     .action-btn svg { width: 16px; height: 16px; }
 
-    /* ---- Agent overlay ---- */
-    .overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.65); z-index:100; align-items:center; justify-content:center; }
-    .overlay.show { display:flex; }
-    .panel {
-      background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius);
-      width: 90%; max-width: 580px; max-height: 80vh; overflow-y: auto; padding: 28px;
-    }
-    .panel-title { font-size: 18px; font-weight: 600; margin-bottom: 4px; display: flex; align-items: center; justify-content: space-between; }
-    .panel-desc { font-size: 13px; color: var(--text-secondary); margin-bottom: 16px; line-height: 1.5; }
-    .panel-close { background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:20px; padding:4px; }
-    .panel-close:hover { color: var(--text); }
-    .panel-btn {
-      padding: 8px 18px; background: var(--green); border: none; border-radius: 8px;
-      color: #fff; font-size: 13px; font-weight: 600; cursor: pointer; margin-bottom: 16px;
-    }
-    .panel-btn:hover { opacity: .85; }
-    .panel-btn:disabled { opacity: .4; cursor: not-allowed; }
-    .panel-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--text-muted); margin: 16px 0 8px; }
-    .run-row { font-size: 12px; color: var(--text-secondary); padding: 4px 0; display: flex; align-items: center; gap: 6px; }
-    .step-box { border: 1px solid var(--border); border-radius: 8px; margin-bottom: 6px; overflow: hidden; }
-    .step-name { padding: 8px 12px; font-size: 12px; font-weight: 500; display: flex; justify-content: space-between; }
-    .step-body { padding: 8px 12px; font-family: var(--mono); font-size: 11px; color: var(--text-secondary); white-space: pre-wrap; max-height: 180px; overflow-y: auto; border-top: 1px solid var(--border); }
-
-    /* ---- Recap / Done banner ---- */
     .recap-banner {
-      margin: 16px 0 24px; padding: 16px 20px; border-radius: 12px;
-      background: linear-gradient(135deg, rgba(52,211,153,.08), rgba(107,138,253,.08));
-      border: 1px solid rgba(52,211,153,.25);
+      margin: 16px 0 24px; margin-left: 40px; padding: 14px 18px; border-radius: var(--radius);
+      background: var(--green-light); border: 1px solid rgba(5,150,105,.2);
       animation: fadeIn .3s ease;
     }
-    .recap-header {
-      display: flex; align-items: center; gap: 8px; margin-bottom: 8px;
-      font-size: 13px; font-weight: 600; color: var(--green);
-    }
-    .recap-header .check { font-size: 16px; }
-    .recap-stats {
-      display: flex; gap: 16px; flex-wrap: wrap;
-    }
-    .recap-stat {
-      font-size: 12px; color: var(--text-secondary);
-      display: flex; align-items: center; gap: 4px;
-    }
+    .recap-header { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 13px; font-weight: 600; color: var(--green); }
+    .recap-stats { display: flex; gap: 14px; flex-wrap: wrap; }
+    .recap-stat { font-size: 12px; color: var(--text-secondary); display: flex; align-items: center; gap: 4px; }
     .recap-stat strong { color: var(--text); font-weight: 600; }
 
-    /* ---- Inline images ---- */
     .tool-image {
-      max-width: 100%; border-radius: 8px; margin-top: 8px;
-      border: 1px solid var(--border); cursor: pointer;
-      transition: transform .15s;
+      max-width: 100%; border-radius: var(--radius-sm); margin-top: 8px;
+      border: 1px solid var(--border); cursor: pointer; transition: transform .15s;
     }
     .tool-image:hover { transform: scale(1.02); }
     .image-lightbox {
@@ -219,12 +229,195 @@
       z-index: 200; align-items: center; justify-content: center; cursor: pointer;
     }
     .image-lightbox.show { display: flex; }
-    .image-lightbox img { max-width: 90vw; max-height: 90vh; border-radius: 8px; }
+    .image-lightbox img { max-width: 90vw; max-height: 90vh; border-radius: var(--radius-sm); }
+
+    /* ======================================= */
+    /* ---- Agents view ---- */
+    /* ======================================= */
+    .agents-view { display: flex; height: 100%; }
+
+    .agents-list-panel {
+      width: 280px; border-right: 1px solid var(--border); background: var(--bg);
+      display: flex; flex-direction: column; flex-shrink: 0; overflow-y: auto;
+    }
+    .agents-list-header {
+      padding: 20px 20px 12px; font-size: 18px; font-weight: 600; color: var(--text);
+      border-bottom: 1px solid var(--border-light);
+    }
+
+    .agent-card {
+      padding: 14px 20px; border-bottom: 1px solid var(--border-light); cursor: pointer;
+      transition: background .1s;
+    }
+    .agent-card:hover { background: var(--bg-hover); }
+    .agent-card.active { background: var(--accent-light); border-left: 3px solid var(--accent); }
+    .agent-card-name { font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 2px; }
+    .agent-card-meta { font-size: 12px; color: var(--text-muted); display: flex; align-items: center; gap: 8px; }
+    .agent-card-status {
+      display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 600;
+      padding: 2px 8px; border-radius: 10px;
+    }
+    .agent-card-status.completed { background: var(--green-light); color: var(--green); }
+    .agent-card-status.failed { background: var(--red-light); color: var(--red); }
+    .agent-card-status.never { background: var(--bg-hover); color: var(--text-muted); }
+    .agent-card-status.disabled { background: var(--bg-hover); color: var(--text-muted); }
+
+    .agents-detail-panel {
+      flex: 1; overflow-y: auto; padding: 0;
+    }
+
+    .agents-empty {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      height: 100%; color: var(--text-muted); font-size: 14px; gap: 8px;
+    }
+    .agents-empty svg { width: 40px; height: 40px; opacity: .3; }
+
+    /* Agent detail */
+    .agent-detail { max-width: 740px; margin: 0 auto; padding: 28px 32px; }
+
+    .agent-detail-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 24px; }
+    .agent-detail-title { font-size: 22px; font-weight: 600; color: var(--text); letter-spacing: -0.3px; }
+    .agent-detail-desc { font-size: 14px; color: var(--text-secondary); margin-top: 4px; line-height: 1.6; }
+    .agent-detail-schedule { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+
+    .agent-actions { display: flex; gap: 8px; align-items: center; flex-shrink: 0; }
+
+    .toggle-wrap {
+      display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-secondary);
+    }
+    .toggle {
+      width: 40px; height: 22px; border-radius: 11px; border: none; cursor: pointer;
+      position: relative; transition: background .2s; background: var(--bg-hover);
+    }
+    .toggle.on { background: var(--green); }
+    .toggle::after {
+      content: ''; position: absolute; top: 3px; left: 3px;
+      width: 16px; height: 16px; border-radius: 50%; background: #fff;
+      transition: transform .2s; box-shadow: 0 1px 3px rgba(0,0,0,.15);
+    }
+    .toggle.on::after { transform: translateX(18px); }
+
+    .btn {
+      padding: 8px 18px; border: none; border-radius: var(--radius-sm);
+      font-size: 13px; font-weight: 600; cursor: pointer; transition: all .15s;
+      display: inline-flex; align-items: center; gap: 6px;
+    }
+    .btn-primary { background: var(--text); color: #fff; }
+    .btn-primary:hover { background: #333; }
+    .btn-primary:disabled { opacity: .4; cursor: not-allowed; }
+
+    /* Agent detail tabs */
+    .agent-tabs {
+      display: flex; gap: 0; border-bottom: 1px solid var(--border); margin-bottom: 20px;
+    }
+    .agent-tab {
+      padding: 10px 20px; border: none; background: none; font-size: 13px; font-weight: 500;
+      color: var(--text-muted); cursor: pointer; border-bottom: 2px solid transparent;
+      transition: all .15s;
+    }
+    .agent-tab:hover { color: var(--text); }
+    .agent-tab.active { color: var(--text); border-bottom-color: var(--accent); }
+
+    .agent-tab-content { display: none; }
+    .agent-tab-content.active { display: block; }
+
+    /* Recap section */
+    .agent-recap {
+      padding: 18px 20px; border-radius: var(--radius); margin-bottom: 20px;
+      background: var(--green-light); border: 1px solid rgba(5,150,105,.2);
+    }
+    .agent-recap.failed { background: var(--red-light); border-color: rgba(220,38,38,.2); }
+    .agent-recap-title { font-size: 14px; font-weight: 600; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+    .agent-recap-title.success { color: var(--green); }
+    .agent-recap-title.error { color: var(--red); }
+    .agent-recap-body { font-size: 13px; line-height: 1.7; color: var(--text-secondary); }
+    .agent-recap-body p { margin-bottom: 8px; }
+    .agent-recap-body p:last-child { margin-bottom: 0; }
+
+    /* Steps */
+    .step-card {
+      border: 1px solid var(--border-light); border-radius: var(--radius-sm);
+      margin-bottom: 8px; overflow: hidden; background: var(--bg-surface);
+    }
+    .step-header {
+      padding: 10px 14px; display: flex; align-items: center; gap: 10px; cursor: pointer;
+      user-select: none; transition: background .1s;
+    }
+    .step-header:hover { background: var(--bg-hover); }
+    .step-status-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .step-status-dot.completed { background: var(--green); }
+    .step-status-dot.failed { background: var(--red); }
+    .step-status-dot.running { background: var(--accent); animation: pulse 1.5s infinite; }
+    .step-status-dot.pending { background: var(--border); }
+    .step-name { font-size: 13px; font-weight: 600; color: var(--text); flex: 1; }
+    .step-tokens { font-size: 11px; color: var(--text-muted); }
+    .step-chevron { color: var(--text-muted); transition: transform .15s; font-size: 10px; }
+    .step-card.open .step-chevron { transform: rotate(90deg); }
+    .step-output {
+      display: none; border-top: 1px solid var(--border-light); padding: 14px;
+      font-size: 13px; line-height: 1.7; color: var(--text-secondary);
+      max-height: 500px; overflow-y: auto;
+    }
+    .step-card.open .step-output { display: block; }
+    .step-output pre { background: #1E1E1E; border-radius: var(--radius-sm); padding: 12px 14px; margin: 8px 0; overflow-x: auto; }
+    .step-output pre code { font-family: var(--mono); font-size: 12px; color: #D4D4D4; line-height: 1.5; }
+    .step-output-raw {
+      font-family: var(--mono); font-size: 12px; line-height: 1.5; white-space: pre-wrap;
+      word-break: break-word; background: var(--bg); padding: 12px; border-radius: var(--radius-sm);
+    }
+    .step-error { color: var(--red); font-size: 13px; margin-top: 8px; }
+
+    /* Runs list */
+    .run-item {
+      display: flex; align-items: center; gap: 12px; padding: 10px 0;
+      border-bottom: 1px solid var(--border-light); cursor: pointer; transition: background .1s;
+    }
+    .run-item:last-child { border-bottom: none; }
+    .run-item:hover { background: var(--bg-hover); margin: 0 -8px; padding: 10px 8px; border-radius: var(--radius-sm); }
+    .run-item.active { background: var(--accent-light); margin: 0 -8px; padding: 10px 8px; border-radius: var(--radius-sm); }
+    .run-status-badge {
+      font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 10px;
+    }
+    .run-status-badge.completed { background: var(--green-light); color: var(--green); }
+    .run-status-badge.failed { background: var(--red-light); color: var(--red); }
+    .run-status-badge.running { background: var(--accent-light); color: var(--accent); }
+    .run-info { flex: 1; }
+    .run-info-main { font-size: 13px; color: var(--text); font-weight: 500; }
+    .run-info-sub { font-size: 11px; color: var(--text-muted); margin-top: 1px; }
+    .run-error-preview { font-size: 12px; color: var(--red); margin-top: 2px; max-width: 400px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .run-arrow { color: var(--text-muted); font-size: 12px; }
+
+    /* Logs */
+    .log-entry {
+      display: flex; gap: 10px; padding: 4px 0; font-size: 12px; font-family: var(--mono); line-height: 1.5;
+    }
+    .log-time { color: var(--text-muted); flex-shrink: 0; white-space: nowrap; }
+    .log-level { font-weight: 600; flex-shrink: 0; width: 40px; }
+    .log-level.info { color: var(--blue); }
+    .log-level.warn { color: var(--accent); }
+    .log-level.error { color: var(--red); }
+    .log-msg { color: var(--text-secondary); word-break: break-word; }
+
+    /* Run detail inline view */
+    .run-detail-back {
+      display: inline-flex; align-items: center; gap: 4px; font-size: 13px;
+      color: var(--text-muted); cursor: pointer; margin-bottom: 16px; padding: 4px 0;
+      border: none; background: none; transition: color .15s;
+    }
+    .run-detail-back:hover { color: var(--text); }
+    .run-detail-back svg { width: 14px; height: 14px; }
+
+    /* Spinner */
+    .spinner {
+      display: inline-block; width: 16px; height: 16px; border: 2px solid var(--border);
+      border-top-color: var(--accent); border-radius: 50%; animation: spin .6s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
 
     /* ---- Mobile ---- */
     .sidebar-toggle {
       display: none; position: fixed; top: 12px; left: 12px; z-index: 50;
-      width: 36px; height: 36px; border-radius: 10px; border: 1px solid var(--border);
+      width: 36px; height: 36px; border-radius: var(--radius-sm); border: 1px solid var(--border);
       background: var(--bg-surface); color: var(--text); cursor: pointer; align-items: center; justify-content: center;
     }
     @media (max-width: 768px) {
@@ -234,11 +427,14 @@
       .messages { padding: 20px 16px 0; }
       .input-area { padding: 12px 16px 16px; }
       .welcome-cards { flex-direction: column; align-items: center; }
+      .agents-list-panel { width: 100%; }
+      .agents-view { flex-direction: column; }
     }
 
-    ::-webkit-scrollbar { width: 5px; }
+    ::-webkit-scrollbar { width: 6px; }
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
   </style>
 </head>
 <body>
@@ -248,50 +444,86 @@
     </button>
 
     <aside class="sidebar" id="sidebar">
-      <div class="sidebar-brand">Kai</div>
-      <button class="new-chat-btn" onclick="newChat()">+ New Chat</button>
-      <nav class="sidebar-nav">
-        <div class="nav-section">
-          <div class="nav-label">Recent</div>
+      <div class="sidebar-brand">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+        Kai
+      </div>
+
+      <div class="sidebar-tabs">
+        <button class="sidebar-tab active" data-tab="chats" onclick="switchView('chat')">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 3h12v8H5l-3 3V3z"/></svg>
+          Chats
+        </button>
+        <button class="sidebar-tab" data-tab="agents" onclick="switchView('agents')">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="3"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2"/></svg>
+          Agents
+        </button>
+      </div>
+
+      <div id="sidebar-chat-content">
+        <button class="new-chat-btn" onclick="newChat()">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="8" y1="3" x2="8" y2="13"/><line x1="3" y1="8" x2="13" y2="8"/></svg>
+          New chat
+        </button>
+        <div class="sidebar-list">
+          <div class="list-label">Recent</div>
           <div id="nav-chats"></div>
         </div>
-        <div class="nav-section">
-          <div class="nav-label">Agents</div>
+      </div>
+
+      <div id="sidebar-agents-content" style="display:none;flex:1;overflow-y:auto;">
+        <div class="sidebar-list">
+          <div class="list-label">Your Agents</div>
           <div id="nav-agents"></div>
         </div>
-      </nav>
+      </div>
+
       <div class="sidebar-footer" id="footer"></div>
     </aside>
 
     <main class="main">
-      <div class="chat-area" id="chat-area">
-        <div class="messages" id="messages">
-          <div class="welcome" id="welcome">
-            <h2>Hey, I'm Kai</h2>
-            <p>Your AI assistant. I can write code, run commands, search the web, and manage background tasks. How can I help?</p>
-            <div class="welcome-cards">
-              <div class="welcome-card" onclick="prefill('Help me build a landing page')">
-                <strong>Build something</strong>
-                Create a website, app, or script
-              </div>
-              <div class="welcome-card" onclick="prefill('What are my agents doing?')">
-                <strong>Check agents</strong>
-                See what's running in the background
-              </div>
-              <div class="welcome-card" onclick="prefill('Explain this codebase')">
-                <strong>Understand code</strong>
-                Get an overview of any project
+      <!-- Chat View -->
+      <div class="view active" id="view-chat">
+        <div class="chat-area" id="chat-area">
+          <div class="messages" id="messages">
+            <div class="welcome" id="welcome">
+              <div class="welcome-icon">&#x2728;</div>
+              <h2>Good afternoon, Tim</h2>
+              <p>How can I help you today?</p>
+              <div class="welcome-cards">
+                <div class="welcome-card" onclick="prefill('Help me build a landing page')">
+                  <strong>Build something</strong>Create a website, app, or script
+                </div>
+                <div class="welcome-card" onclick="prefill('What are my agents doing?')">
+                  <strong>Check agents</strong>See background tasks & status
+                </div>
+                <div class="welcome-card" onclick="prefill('Explain this codebase')">
+                  <strong>Understand code</strong>Get an overview of any project
+                </div>
               </div>
             </div>
           </div>
         </div>
+        <div class="input-area">
+          <div class="input-wrap">
+            <textarea class="input-box" id="input" placeholder="How can I help you today?" rows="1" autofocus></textarea>
+            <button class="action-btn send" id="action-btn" onclick="sendMessage()">
+              <svg viewBox="0 0 16 16" fill="currentColor"><path d="M3 13l10-5L3 3v4l6 1-6 1z"/></svg>
+            </button>
+          </div>
+        </div>
       </div>
-      <div class="input-area">
-        <div class="input-wrap">
-          <textarea class="input-box" id="input" placeholder="Ask Kai anything..." rows="1" autofocus></textarea>
-          <button class="action-btn send" id="action-btn" onclick="sendMessage()">
-            <svg viewBox="0 0 16 16" fill="currentColor"><path d="M2.5 13.5L14 8L2.5 2.5V7L10 8L2.5 9Z"/></svg>
-          </button>
+
+      <!-- Agents View -->
+      <div class="view" id="view-agents">
+        <div class="agents-view">
+          <div class="agents-list-panel" id="agents-list-panel"></div>
+          <div class="agents-detail-panel" id="agents-detail-panel">
+            <div class="agents-empty">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="4"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+              <span>Select an agent to view details</span>
+            </div>
+          </div>
         </div>
       </div>
     </main>
@@ -301,27 +533,24 @@
     <img id="lightbox-img" src="" />
   </div>
 
-  <div class="overlay" id="overlay" onclick="if(event.target===this)closePanel()">
-    <div class="panel" id="panel"></div>
-  </div>
-
   <script type="module">
-    const state = { sessionId: null, sessions: [], agents: [], streaming: false, status: null };
+    const state = {
+      sessionId: null, sessions: [], agents: [], streaming: false, status: null,
+      activeView: 'chat', selectedAgentId: null, selectedRunId: null,
+    };
 
     marked.setOptions({ breaks: true, gfm: true });
 
-    // ---- API ----
     const api = {
       get: (u) => fetch(u).then(r => r.json()),
       post: (u, b) => fetch(u, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(b) }).then(r => r.json()),
+      patch: (u, b) => fetch(u, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify(b) }).then(r => r.json()),
       stopChat: (sid) => fetch('/api/chat/stop', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({sessionId:sid}) }),
     };
 
-    // ---- DOM ----
     const $ = id => document.getElementById(id);
     const $msgs = $('messages'), $chat = $('chat-area'), $input = $('input');
 
-    // ---- Helpers ----
     function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
 
     function timeAgo(iso) {
@@ -335,6 +564,12 @@
       const days = Math.floor(hrs / 24);
       if (days < 7) return `${days}d ago`;
       return new Date(iso).toLocaleDateString();
+    }
+
+    function formatDate(iso) {
+      if (!iso) return '';
+      const d = new Date(iso);
+      return d.toLocaleString(undefined, { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' });
     }
 
     function cronToWords(cron) {
@@ -358,8 +593,37 @@
       return 'New chat';
     }
 
+    function getGreeting() {
+      const h = new Date().getHours();
+      if (h < 12) return 'Good morning';
+      if (h < 17) return 'Good afternoon';
+      return 'Good evening';
+    }
+
+    function friendlyName(name) {
+      return name.replace(/^(agent-|yt-)/g, '').replace(/-/g, ' ');
+    }
+
+    // ---- View switching ----
+    window.switchView = function(view) {
+      state.activeView = view;
+      document.querySelectorAll('.sidebar-tab').forEach(t => {
+        t.classList.toggle('active', t.dataset.tab === (view === 'chat' ? 'chats' : 'agents'));
+      });
+      $('view-chat').classList.toggle('active', view === 'chat');
+      $('view-agents').classList.toggle('active', view === 'agents');
+      $('sidebar-chat-content').style.display = view === 'chat' ? '' : 'none';
+      $('sidebar-agents-content').style.display = view === 'agents' ? '' : 'none';
+
+      if (view === 'agents') renderAgentsList();
+      closeSidebar();
+    };
+
     // ---- Init ----
     async function init() {
+      const welcomeH2 = document.querySelector('.welcome h2');
+      if (welcomeH2) welcomeH2.textContent = `${getGreeting()}, Tim`;
+
       try {
         const [status, sessions, agents] = await Promise.all([
           api.get('/api/status'), api.get('/api/sessions'), api.get('/api/agents'),
@@ -368,35 +632,31 @@
         renderNav();
         renderFooter();
       } catch {
-        $('footer').innerHTML = '<span class="dot off"></span> Connection error';
+        $('footer').innerHTML = '<span class="status-dot off"></span> Connection error';
       }
     }
 
-    // ---- Sidebar rendering ----
     function renderNav() {
-      // Chats — show only ones with messages, max 10
-      const chats = state.sessions.filter(s => s.messageCount > 0).slice(0, 10);
+      const chats = state.sessions.filter(s => s.messageCount > 0).slice(0, 15);
       $('nav-chats').innerHTML = chats.length === 0
-        ? '<div class="nav-empty">No chats yet</div>'
+        ? '<div class="list-empty">No chats yet</div>'
         : chats.map(s => `
-          <div class="nav-item ${s.id === state.sessionId ? 'active' : ''}" onclick="loadSession('${s.id}')">
-            <span class="icon">\u{1F4AC}</span>
+          <div class="list-item ${s.id === state.sessionId ? 'active' : ''}" onclick="loadSession('${s.id}')">
+            <span class="icon"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 3h12v8H5l-3 3V3z"/></svg></span>
             <span class="label">${esc(sessionLabel(s))}</span>
             <span class="meta">${timeAgo(s.updatedAt)}</span>
           </div>
         `).join('');
 
-      // Agents
       $('nav-agents').innerHTML = state.agents.length === 0
-        ? '<div class="nav-empty">No agents configured</div>'
+        ? '<div class="list-empty">No agents configured</div>'
         : state.agents.map(a => {
-          const statusColor = !a.lastRun ? 'var(--text-muted)' : a.lastRun.status === 'completed' ? 'var(--green)' : 'var(--red)';
-          const statusText = !a.lastRun ? 'Never run' : a.lastRun.status === 'completed' ? timeAgo(a.lastRun.completedAt) : 'Failed';
+          const sc = !a.lastRun ? 'var(--text-muted)' : a.lastRun.status === 'completed' ? 'var(--green)' : 'var(--red)';
           return `
-            <div class="nav-item" onclick="openAgent('${a.id}')">
-              <span class="icon" style="color:${statusColor}">\u{26A1}</span>
-              <span class="label">${esc(a.name.replace(/^(agent-|yt-)/g, '').replace(/-/g, ' '))}</span>
-              <span class="meta">${statusText}</span>
+            <div class="list-item ${a.id === state.selectedAgentId ? 'active' : ''}" onclick="selectAgent('${a.id}')">
+              <span class="icon"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="${sc}" stroke-width="1.5"><circle cx="8" cy="8" r="3"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2"/></svg></span>
+              <span class="label">${esc(friendlyName(a.name))}</span>
+              <span class="meta">${!a.lastRun ? '' : a.lastRun.status === 'completed' ? timeAgo(a.lastRun.completedAt) : 'Failed'}</span>
             </div>
           `;
         }).join('');
@@ -405,23 +665,326 @@
     function renderFooter() {
       const s = state.status;
       if (!s) return;
-      const agentCount = state.agents.length;
       $('footer').innerHTML = `
-        <span class="dot ${s.daemon ? 'on' : 'off'}"></span>
-        ${agentCount} agent${agentCount !== 1 ? 's' : ''} ${s.daemon ? 'active' : 'paused'}
+        <span class="status-dot ${s.daemon ? 'on' : 'off'}"></span>
+        ${s.daemon ? 'Connected' : 'Disconnected'} &middot; ${state.agents.length} agent${state.agents.length !== 1 ? 's' : ''}
       `;
     }
 
-    // ---- Chat ----
+    // ==============================
+    // AGENTS VIEW
+    // ==============================
+
+    function renderAgentsList() {
+      const panel = $('agents-list-panel');
+      let h = '<div class="agents-list-header">Agents</div>';
+      if (state.agents.length === 0) {
+        h += '<div style="padding:20px;color:var(--text-muted);font-size:13px">No agents configured. Use <code>kai agent create</code> to add one.</div>';
+      } else {
+        for (const a of state.agents) {
+          const statusClass = !a.enabled ? 'disabled' : !a.lastRun ? 'never' : a.lastRun.status;
+          const statusLabel = !a.enabled ? 'Disabled' : !a.lastRun ? 'Never run' : a.lastRun.status === 'completed' ? 'Completed' : 'Failed';
+          h += `
+            <div class="agent-card ${a.id === state.selectedAgentId ? 'active' : ''}" onclick="selectAgent('${a.id}')">
+              <div class="agent-card-name">${esc(friendlyName(a.name))}</div>
+              <div class="agent-card-meta">
+                <span class="agent-card-status ${statusClass}">${statusLabel}</span>
+                ${a.lastRun ? `<span>${timeAgo(a.lastRun.completedAt || a.lastRun.startedAt)}</span>` : ''}
+                ${a.schedule ? `<span>${cronToWords(a.schedule)}</span>` : ''}
+              </div>
+            </div>
+          `;
+        }
+      }
+      panel.innerHTML = h;
+    }
+
+    window.selectAgent = async function(id) {
+      state.selectedAgentId = id;
+      state.selectedRunId = null;
+      if (state.activeView !== 'agents') switchView('agents');
+      renderAgentsList();
+      renderNav();
+      await loadAgentDetail(id);
+    };
+
+    async function loadAgentDetail(id) {
+      const panel = $('agents-detail-panel');
+      panel.innerHTML = '<div class="agents-empty"><div class="spinner"></div><span>Loading...</span></div>';
+
+      try {
+        const agent = await api.get(`/api/agents/${id}`);
+        renderAgentDetail(agent);
+      } catch {
+        panel.innerHTML = '<div class="agents-empty"><span style="color:var(--red)">Failed to load agent</span></div>';
+      }
+    }
+
+    function renderAgentDetail(agent) {
+      const panel = $('agents-detail-panel');
+      const fn = friendlyName(agent.name);
+      const lastRun = agent.runs?.[0];
+
+      panel.innerHTML = `
+        <div class="agent-detail">
+          <div class="agent-detail-header">
+            <div>
+              <div class="agent-detail-title">${esc(fn)}</div>
+              ${agent.description ? `<div class="agent-detail-desc">${esc(agent.description)}</div>` : ''}
+              ${agent.schedule ? `<div class="agent-detail-schedule">Schedule: ${cronToWords(agent.schedule)}</div>` : ''}
+            </div>
+            <div class="agent-actions">
+              <div class="toggle-wrap">
+                <span>${agent.enabled ? 'Enabled' : 'Disabled'}</span>
+                <button class="toggle ${agent.enabled ? 'on' : ''}" id="agent-toggle" onclick="toggleAgent('${agent.id}', ${!agent.enabled})"></button>
+              </div>
+              <button class="btn btn-primary" id="run-btn" onclick="runAgentNow('${agent.id}')">
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><polygon points="4,2 14,8 4,14"/></svg>
+                Run Now
+              </button>
+            </div>
+          </div>
+
+          <div class="agent-tabs">
+            <button class="agent-tab active" data-atab="overview" onclick="switchAgentTab('overview')">Overview</button>
+            <button class="agent-tab" data-atab="runs" onclick="switchAgentTab('runs')">Runs (${agent.runs?.length || 0})</button>
+            <button class="agent-tab" data-atab="logs" onclick="switchAgentTab('logs')">Logs</button>
+          </div>
+
+          <div class="agent-tab-content active" id="atab-overview">
+            <div id="agent-recap-container"></div>
+            <div id="agent-steps-container"></div>
+          </div>
+
+          <div class="agent-tab-content" id="atab-runs">
+            <div id="agent-runs-list"></div>
+          </div>
+
+          <div class="agent-tab-content" id="atab-logs">
+            <div id="agent-logs-container"><div class="spinner" style="margin:20px auto;display:block"></div></div>
+          </div>
+        </div>
+      `;
+
+      // Load overview (latest run)
+      if (lastRun) {
+        loadRunOverview(agent.id, lastRun);
+      } else {
+        $('agent-recap-container').innerHTML = '<div style="color:var(--text-muted);font-size:13px;padding:8px 0">This agent has never been run.</div>';
+      }
+
+      // Render runs list
+      renderRunsList(agent);
+
+      // Lazy-load logs when tab is clicked
+    }
+
+    async function loadRunOverview(agentId, run) {
+      // Load steps
+      try {
+        const data = await api.get(`/api/agents/${agentId}/runs/${run.id}`);
+        renderSteps(data.steps);
+      } catch {
+        $('agent-steps-container').innerHTML = '<div style="color:var(--text-muted);font-size:13px">Could not load steps.</div>';
+      }
+
+      // Load recap
+      if (run.status === 'completed') {
+        $('agent-recap-container').innerHTML = `
+          <div class="agent-recap">
+            <div class="agent-recap-title success">&#10003; Run Completed &middot; ${formatDate(run.completedAt || run.completed_at)}</div>
+            <div class="agent-recap-body" id="recap-body"><div class="spinner"></div> Generating summary...</div>
+          </div>`;
+        api.get(`/api/agents/${agentId}/recap`).then(d => {
+          const body = $('recap-body');
+          if (body && d.recap) body.innerHTML = marked.parse(d.recap);
+          else if (body) body.textContent = 'All steps completed successfully.';
+        }).catch(() => {
+          const body = $('recap-body');
+          if (body) body.textContent = 'All steps completed successfully.';
+        });
+      } else if (run.status === 'failed') {
+        $('agent-recap-container').innerHTML = `
+          <div class="agent-recap failed">
+            <div class="agent-recap-title error">&#10007; Run Failed &middot; ${formatDate(run.completedAt || run.completed_at)}</div>
+            ${run.error ? `<div class="agent-recap-body">${esc(run.error)}</div>` : ''}
+          </div>`;
+      }
+    }
+
+    function renderSteps(steps) {
+      if (!steps || steps.length === 0) {
+        $('agent-steps-container').innerHTML = '';
+        return;
+      }
+      let h = '<div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.8px;color:var(--text-muted);margin:20px 0 10px">Steps</div>';
+      for (const s of steps) {
+        const hasOutput = s.output || s.error;
+        const isMarkdown = s.output && (s.output.includes('#') || s.output.includes('**') || s.output.includes('- '));
+        const imgMatch = s.output?.match(/(\/[^\s"']+\.(?:png|jpg|jpeg|gif|webp))/i);
+        h += `
+          <div class="step-card ${hasOutput ? '' : ''}" onclick="this.classList.toggle('open')">
+            <div class="step-header">
+              <span class="step-status-dot ${s.status}"></span>
+              <span class="step-name">${esc(s.name.replace(/_/g, ' '))}</span>
+              ${s.tokensUsed ? `<span class="step-tokens">${s.tokensUsed.toLocaleString()} tokens</span>` : ''}
+              ${hasOutput ? '<span class="step-chevron">&#9654;</span>' : ''}
+            </div>
+            ${hasOutput ? `<div class="step-output">
+              ${imgMatch ? `<div style="margin-bottom:10px"><img class="tool-image" src="/api/image?path=${encodeURIComponent(imgMatch[1])}" onclick="event.stopPropagation();showLightbox(this.src)" style="max-width:300px" /></div>` : ''}
+              ${s.error ? `<div class="step-error">${esc(s.error)}</div>` : ''}
+              ${s.output ? (isMarkdown ? `<div class="msg-body">${marked.parse(s.output)}</div>` : `<div class="step-output-raw">${esc(s.output)}</div>`) : ''}
+            </div>` : ''}
+          </div>
+        `;
+      }
+      $('agent-steps-container').innerHTML = h;
+    }
+
+    function renderRunsList(agent) {
+      const runs = agent.runs || [];
+      if (runs.length === 0) {
+        $('agent-runs-list').innerHTML = '<div style="color:var(--text-muted);font-size:13px;padding:8px 0">No runs yet.</div>';
+        return;
+      }
+      let h = '';
+      for (const r of runs) {
+        h += `
+          <div class="run-item" onclick="viewRun('${agent.id}', '${r.id}')">
+            <span class="run-status-badge ${r.status}">${r.status}</span>
+            <div class="run-info">
+              <div class="run-info-main">${formatDate(r.startedAt)}</div>
+              <div class="run-info-sub">${r.trigger || 'manual'} trigger${r.completedAt ? ' &middot; completed ' + timeAgo(r.completedAt) : ''}</div>
+              ${r.error ? `<div class="run-error-preview">${esc(r.error.substring(0, 100))}</div>` : ''}
+            </div>
+            <span class="run-arrow">&#9654;</span>
+          </div>
+        `;
+      }
+      $('agent-runs-list').innerHTML = h;
+    }
+
+    window.viewRun = async function(agentId, runId) {
+      const container = $('atab-runs');
+      container.innerHTML = `
+        <button class="run-detail-back" onclick="backToRunsList('${agentId}')">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 2L4 8l6 6"/></svg>
+          Back to runs
+        </button>
+        <div id="run-detail-steps"><div class="spinner" style="margin:12px 0"></div></div>
+      `;
+      try {
+        const data = await api.get(`/api/agents/${agentId}/runs/${runId}`);
+        const stepsContainer = $('run-detail-steps');
+        if (!data.steps?.length) {
+          stepsContainer.innerHTML = '<div style="color:var(--text-muted);font-size:13px">No step data for this run.</div>';
+          return;
+        }
+        // Reuse renderSteps but target a different container
+        let h = '';
+        for (const s of data.steps) {
+          const hasOutput = s.output || s.error;
+          const isMarkdown = s.output && (s.output.includes('#') || s.output.includes('**') || s.output.includes('- '));
+          const imgMatch = s.output?.match(/(\/[^\s"']+\.(?:png|jpg|jpeg|gif|webp))/i);
+          h += `
+            <div class="step-card" onclick="this.classList.toggle('open')">
+              <div class="step-header">
+                <span class="step-status-dot ${s.status}"></span>
+                <span class="step-name">${esc(s.name.replace(/_/g, ' '))}</span>
+                ${s.tokensUsed ? `<span class="step-tokens">${s.tokensUsed.toLocaleString()} tokens</span>` : ''}
+                ${hasOutput ? '<span class="step-chevron">&#9654;</span>' : ''}
+              </div>
+              ${hasOutput ? `<div class="step-output">
+                ${imgMatch ? `<div style="margin-bottom:10px"><img class="tool-image" src="/api/image?path=${encodeURIComponent(imgMatch[1])}" onclick="event.stopPropagation();showLightbox(this.src)" style="max-width:300px" /></div>` : ''}
+                ${s.error ? `<div class="step-error">${esc(s.error)}</div>` : ''}
+                ${s.output ? (isMarkdown ? `<div class="msg-body">${marked.parse(s.output)}</div>` : `<div class="step-output-raw">${esc(s.output)}</div>`) : ''}
+              </div>` : ''}
+            </div>
+          `;
+        }
+        stepsContainer.innerHTML = h;
+      } catch {
+        $('run-detail-steps').innerHTML = '<div style="color:var(--red);font-size:13px">Failed to load run details.</div>';
+      }
+    };
+
+    window.backToRunsList = async function(agentId) {
+      const agent = await api.get(`/api/agents/${agentId}`);
+      renderRunsList(agent);
+      // Re-activate runs tab content
+      switchAgentTab('runs');
+    };
+
+    window.switchAgentTab = function(tab) {
+      document.querySelectorAll('.agent-tab').forEach(t => t.classList.toggle('active', t.dataset.atab === tab));
+      document.querySelectorAll('.agent-tab-content').forEach(c => c.classList.toggle('active', c.id === `atab-${tab}`));
+
+      // Lazy-load logs
+      if (tab === 'logs' && state.selectedAgentId) {
+        loadAgentLogs(state.selectedAgentId);
+      }
+    };
+
+    async function loadAgentLogs(agentId) {
+      const container = $('agent-logs-container');
+      container.innerHTML = '<div class="spinner" style="margin:12px 0"></div>';
+      try {
+        const logs = await api.get(`/api/agents/${agentId}/logs?limit=100`);
+        if (logs.length === 0) {
+          container.innerHTML = '<div style="color:var(--text-muted);font-size:13px">No logs yet.</div>';
+          return;
+        }
+        container.innerHTML = logs.map(l => `
+          <div class="log-entry">
+            <span class="log-time">${formatDate(l.created_at)}</span>
+            <span class="log-level ${l.level}">${l.level}</span>
+            <span class="log-msg">${esc(l.message)}</span>
+          </div>
+        `).join('');
+      } catch {
+        container.innerHTML = '<div style="color:var(--red);font-size:13px">Failed to load logs.</div>';
+      }
+    }
+
+    window.toggleAgent = async function(id, enabled) {
+      try {
+        await api.patch(`/api/agents/${id}`, { enabled });
+        state.agents = await api.get('/api/agents');
+        renderNav();
+        renderAgentsList();
+        await loadAgentDetail(id);
+      } catch { /* ignore */ }
+    };
+
+    window.runAgentNow = async function(id) {
+      const btn = $('run-btn');
+      if (btn) { btn.disabled = true; btn.innerHTML = '<div class="spinner"></div> Running...'; }
+      try {
+        const r = await api.post(`/api/agents/${id}/run`);
+        state.agents = await api.get('/api/agents');
+        renderNav();
+        renderAgentsList();
+        await loadAgentDetail(id);
+      } catch {
+        if (btn) { btn.textContent = 'Error'; btn.style.background = 'var(--red)'; }
+      }
+    };
+
+    // ==============================
+    // CHAT VIEW
+    // ==============================
+
     window.newChat = function() {
       state.sessionId = null;
+      switchView('chat');
       $msgs.innerHTML = `
         <div class="welcome" id="welcome">
-          <h2>Hey, I'm Kai</h2>
-          <p>Your AI assistant. I can write code, run commands, search the web, and manage background tasks. How can I help?</p>
+          <div class="welcome-icon">&#x2728;</div>
+          <h2>${getGreeting()}, Tim</h2>
+          <p>How can I help you today?</p>
           <div class="welcome-cards">
             <div class="welcome-card" onclick="prefill('Help me build a landing page')"><strong>Build something</strong>Create a website, app, or script</div>
-            <div class="welcome-card" onclick="prefill('What are my agents doing?')"><strong>Check agents</strong>See what's running in the background</div>
+            <div class="welcome-card" onclick="prefill('What are my agents doing?')"><strong>Check agents</strong>See background tasks & status</div>
             <div class="welcome-card" onclick="prefill('Explain this codebase')"><strong>Understand code</strong>Get an overview of any project</div>
           </div>
         </div>`;
@@ -431,6 +994,7 @@
     };
 
     window.prefill = function(text) {
+      switchView('chat');
       $input.value = text;
       $input.focus();
       autoResize();
@@ -438,6 +1002,7 @@
 
     window.loadSession = async function(id) {
       try {
+        switchView('chat');
         const session = await api.get(`/api/sessions/${id}`);
         state.sessionId = id;
         $msgs.innerHTML = '';
@@ -463,6 +1028,7 @@
     window.sendMessage = async function() {
       const text = $input.value.trim();
       if (!text || state.streaming) return;
+      if (state.activeView !== 'chat') switchView('chat');
 
       const w = $('welcome'); if (w) w.remove();
       addUserMsg(text);
@@ -514,17 +1080,14 @@
         case 'tool_result': {
           const card = document.querySelector(`[data-tid="${data.id}"]`);
           if (card) {
-            const detail = card.querySelector('.tool-detail');
-            detail.textContent = data.result || '(no output)';
+            card.querySelector('.tool-detail').textContent = data.result || '(no output)';
             setToolStatus(card, data.error);
-            // Check if result contains an image path
             const imgMatch = (data.result || '').match(/(?:saved|wrote|generated|created|output).*?(\/[^\s"']+\.(?:png|jpg|jpeg|gif|webp))/i)
               || (data.result || '').match(/(\/[^\s"']+\.(?:png|jpg|jpeg|gif|webp))/i);
             if (imgMatch) {
-              const imgPath = imgMatch[1];
               const img = document.createElement('img');
               img.className = 'tool-image';
-              img.src = `/api/image?path=${encodeURIComponent(imgPath)}`;
+              img.src = `/api/image?path=${encodeURIComponent(imgMatch[1])}`;
               img.alt = 'Generated image';
               img.onclick = (e) => { e.stopPropagation(); showLightbox(img.src); };
               card.after(img);
@@ -546,21 +1109,21 @@
       hideThinking();
     }
 
-    // ---- DOM builders ----
     function addUserMsg(text) {
-      const d = document.createElement('div'); d.className = 'msg';
-      d.innerHTML = `<div class="msg-role you">You</div><div class="msg-body">${esc(text)}</div>`;
+      const d = document.createElement('div'); d.className = 'msg msg-user';
+      d.innerHTML = `<div class="msg-bubble">${esc(text)}</div>`;
       $msgs.appendChild(d); scroll(); return d;
     }
 
     function addAiMsg(content, streaming) {
-      const d = document.createElement('div'); d.className = 'msg';
-      d.innerHTML = `<div class="msg-role kai">Kai</div><div class="msg-body">${streaming ? '' : marked.parse(content)}</div>`;
+      const d = document.createElement('div'); d.className = 'msg msg-ai';
+      d.innerHTML = `<div class="msg-avatar">K</div><div class="msg-body">${streaming ? '' : marked.parse(content)}</div>`;
       $msgs.appendChild(d); scroll(); return d;
     }
 
     function addTool(id, name, args) {
       const d = document.createElement('div'); d.className = 'tool'; d.setAttribute('data-tid', id);
+      d.style.marginLeft = '40px';
       const friendly = { bash:'Running command', read_file:'Reading file', write_file:'Writing file', edit_file:'Editing file',
         glob:'Finding files', grep:'Searching code', web_fetch:'Fetching page', web_search:'Searching web',
         generate_image:'Generating image', spawn_agent:'Running sub-agent' }[name] || name;
@@ -569,7 +1132,7 @@
           <span class="tool-dot running"></span>
           <span class="tool-label">${esc(friendly)}</span>
           <span class="tool-summary">${esc(String(args))}</span>
-          <span class="tool-chevron">\u25B6</span>
+          <span class="tool-chevron">&#9654;</span>
         </div>
         <div class="tool-detail">Working...</div>
       `;
@@ -577,20 +1140,18 @@
     }
 
     function setToolStatus(card, isError) {
-      const dot = card.querySelector('.tool-dot');
-      dot.className = `tool-dot ${isError ? 'err' : 'done'}`;
+      card.querySelector('.tool-dot').className = `tool-dot ${isError ? 'err' : 'done'}`;
     }
 
     function addNote(text) {
       const d = document.createElement('div'); d.className = 'msg';
-      d.innerHTML = `<div class="msg-body" style="color:var(--text-muted);font-size:12px;font-style:italic">${esc(text)}</div>`;
+      d.innerHTML = `<div class="msg-body" style="color:var(--text-muted);font-size:13px;font-style:italic;padding-left:40px">${esc(text)}</div>`;
       $msgs.appendChild(d); scroll();
     }
 
     function showRecap(data) {
-      finalize(); // render any pending markdown
-      const d = document.createElement('div');
-      d.className = 'recap-banner';
+      finalize();
+      const d = document.createElement('div'); d.className = 'recap-banner';
       const toolList = (data.toolNames || [])
         .map(n => ({ bash:'commands', read_file:'file reads', write_file:'file writes', edit_file:'edits',
           glob:'file searches', grep:'code searches', web_fetch:'web fetches', web_search:'web searches',
@@ -600,16 +1161,11 @@
         data.toolsUsed > 0 ? `<div class="recap-stat"><strong>${data.toolsUsed}</strong> tool call${data.toolsUsed !== 1 ? 's' : ''}</div>` : '',
         toolList.length > 0 ? `<div class="recap-stat">${toolList.join(', ')}</div>` : '',
       ].filter(Boolean).join('');
-
       d.innerHTML = `
-        <div class="recap-header"><span class="check">\u2705</span> Done</div>
+        <div class="recap-header"><span>&#10003;</span> Done</div>
         ${statsHtml ? `<div class="recap-stats">${statsHtml}</div>` : ''}
       `;
-      // Only show if tools were actually used (otherwise the text response is self-evident)
-      if (data.toolsUsed > 0) {
-        $msgs.appendChild(d);
-        scroll();
-      }
+      if (data.toolsUsed > 0) { $msgs.appendChild(d); scroll(); }
     }
 
     window.showLightbox = function(src) {
@@ -634,97 +1190,13 @@
         btn.innerHTML = '<svg viewBox="0 0 16 16" fill="currentColor"><rect x="3" y="3" width="10" height="10" rx="2"/></svg>';
       } else {
         btn.className = 'action-btn send'; btn.onclick = sendMessage;
-        btn.innerHTML = '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M2.5 13.5L14 8L2.5 2.5V7L10 8L2.5 9Z"/></svg>';
+        btn.innerHTML = '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M3 13l10-5L3 3v4l6 1-6 1z"/></svg>';
       }
     }
 
     window.stopStreaming = async function() {
       if (state.sessionId) await api.stopChat(state.sessionId);
       state.streaming = false; finalize(); updateBtn();
-    };
-
-    // ---- Agent panel ----
-    window.openAgent = async function(id) {
-      const p = $('panel'); p.innerHTML = '<p style="color:var(--text-muted)">Loading...</p>';
-      $('overlay').classList.add('show');
-      try {
-        const [agent, output] = await Promise.all([
-          api.get(`/api/agents/${id}`), api.get(`/api/agents/${id}/output`).catch(() => null),
-        ]);
-        const friendlyName = agent.name.replace(/^(agent-|yt-)/g, '').replace(/-/g, ' ');
-        let h = `
-          <div class="panel-title">${esc(friendlyName)}<button class="panel-close" onclick="closePanel()">\u2715</button></div>
-          <div class="panel-desc">
-            ${agent.description ? esc(agent.description) : ''}
-            ${agent.schedule ? `<br>Runs: ${cronToWords(agent.schedule)}` : ''}
-          </div>
-          <button class="panel-btn" id="run-btn" onclick="runAgentNow('${id}')">Run Now</button>
-        `;
-
-        // Recap summary placeholder (loaded async)
-        const lastRun = agent.runs?.[0];
-        if (lastRun?.status === 'completed') {
-          h += `<div class="recap-banner" id="agent-recap" style="margin:12px 0">
-            <div class="recap-header"><span class="check">\u2705</span> Run Complete</div>
-            <div id="recap-body" class="msg-body" style="font-size:13px;margin-top:8px;color:var(--text-secondary)">Generating summary...</div>
-          </div>`;
-        } else if (lastRun?.status === 'failed') {
-          h += `<div class="recap-banner" style="margin:12px 0;border-color:rgba(248,113,113,.25);background:linear-gradient(135deg,rgba(248,113,113,.08),rgba(107,138,253,.05))">
-            <div class="recap-header" style="color:var(--red)"><span class="check">\u274C</span> Run Failed</div>
-            ${lastRun.error ? `<div style="font-size:12px;color:var(--text-secondary);margin-top:4px">${esc(lastRun.error.substring(0, 200))}</div>` : ''}
-          </div>`;
-        }
-
-        if (agent.runs?.length > 0) {
-          h += '<div class="panel-label">History</div>';
-          for (const r of agent.runs.slice(0, 5)) {
-            const icon = r.status==='completed' ? '\u2705' : r.status==='failed' ? '\u274C' : '\u23F3';
-            h += `<div class="run-row">${icon} ${r.status === 'completed' ? 'Completed' : r.status === 'failed' ? 'Failed' : 'Running'} ${timeAgo(r.startedAt)}</div>`;
-          }
-        }
-        if (output?.steps?.length > 0) {
-          h += '<div class="panel-label">Step Details</div>';
-          for (const s of output.steps) {
-            const icon = s.status==='completed' ? '\u2705' : s.status==='failed' ? '\u274C' : '\u2B1C';
-            // Check for image paths in step output
-            const imgMatch = s.output?.match(/(\/[^\s"']+\.(?:png|jpg|jpeg|gif|webp))/i);
-            h += `<div class="step-box">
-              <div class="step-name"><span>${icon} ${esc(s.name.replace(/_/g,' '))}</span></div>
-              ${imgMatch ? `<div style="padding:8px 12px"><img class="tool-image" src="/api/image?path=${encodeURIComponent(imgMatch[1])}" onclick="event.stopPropagation();showLightbox(this.src)" /></div>` : ''}
-              ${s.output ? `<div class="step-body">${esc(s.output.substring(0, 2000))}</div>` : ''}
-              ${s.error ? `<div class="step-body" style="color:var(--red)">${esc(s.error)}</div>` : ''}
-            </div>`;
-          }
-        }
-        p.innerHTML = h;
-
-        // Load recap async (don't block panel render)
-        if (lastRun?.status === 'completed') {
-          api.get(`/api/agents/${id}/recap`).then(data => {
-            const body = $('recap-body');
-            if (body && data.recap) {
-              body.innerHTML = marked.parse(data.recap);
-            } else if (body) {
-              body.textContent = 'All steps completed successfully.';
-            }
-          }).catch(() => {
-            const body = $('recap-body');
-            if (body) body.textContent = 'All steps completed successfully.';
-          });
-        }
-      } catch { p.innerHTML = '<p style="color:var(--red)">Could not load agent</p><button class="panel-close" onclick="closePanel()" style="margin-top:12px">\u2715 Close</button>'; }
-    };
-
-    window.closePanel = () => $('overlay').classList.remove('show');
-
-    window.runAgentNow = async function(id) {
-      const btn = $('run-btn'); if (btn) { btn.disabled = true; btn.textContent = 'Running...'; }
-      try {
-        const r = await api.post(`/api/agents/${id}/run`);
-        if (btn) { btn.textContent = r.success ? 'Done!' : 'Failed'; btn.style.background = r.success ? 'var(--green)' : 'var(--red)'; }
-        state.agents = await api.get('/api/agents'); renderNav();
-        setTimeout(() => openAgent(id), 1000);
-      } catch { if (btn) { btn.textContent = 'Error'; btn.style.background = 'var(--red)'; } }
     };
 
     // ---- Mobile ----

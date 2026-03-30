@@ -4,8 +4,7 @@ import chalk from "chalk";
 import { createClient, chat, getModelId, getProviderName } from "./client.js";
 import { buildSystemPrompt } from "./system-prompt.js";
 import { getCwd, cleanupBackgroundProcesses } from "./tools/bash.js";
-import { formatCost, estimateContextSize, formatContextBreakdown } from "./context.js";
-import { generateProfile } from "./project-profile.js";
+import { formatCost, estimateContextSize, formatContextBreakdown, compactMessages } from "./context.js";
 import {
   gitInfo, gitDiff, gitStatus, gitBranch, gitLog, gitBaseBranch,
   gitDiffAgainstBase, gitListBranches, gitRemote, ghAvailable, isGitRepo,
@@ -24,12 +23,8 @@ import { appendRecall, getRecallStats, type RecallEntry } from "./recall.js";
 import { loadSoul } from "./soul.js";
 import fs from "fs";
 import path from "path";
-import {
-  setPermissionMode,
-  getPermissionMode,
-} from "./permissions.js";
-import { getCurrentProject, listProjects as listAllProjects } from "./project.js";
-import { compactMessages } from "./context.js";
+import { setPermissionMode, getPermissionMode } from "./permissions.js";
+import { getCurrentProject } from "./project.js";
 import { renderMarkdown } from "./render.js";
 import {
   loadCustomCommands,
@@ -135,24 +130,21 @@ export async function startRepl(options: ReplOptions = {}): Promise<void> {
   const SLASH_COMMANDS = [
     { cmd: "/help", desc: "Show all commands" },
     { cmd: "/clear", desc: "Clear conversation" },
-    { cmd: "/compact", desc: "Compress context" },
-    { cmd: "/cost", desc: "Token usage & cost" },
-    { cmd: "/context", desc: "Context breakdown" },
-    { cmd: "/soul", desc: "View core memory" },
+    { cmd: "/cost", desc: "Token usage + context" },
     { cmd: "/sessions", desc: "List sessions" },
-    { cmd: "/projects", desc: "List projects" },
-    { cmd: "/agents", desc: "List background agents" },
-    { cmd: "/agent run", desc: "Run an agent now" },
-    { cmd: "/agent output", desc: "View agent output" },
-    { cmd: "/init", desc: "Regenerate project profile" },
-    { cmd: "/recall", desc: "Recall memory stats" },
-    { cmd: "/permissions", desc: "Permission mode" },
-    { cmd: "/rename", desc: "Rename session" },
-    { cmd: "/diff", desc: "Show git diff" },
-    { cmd: "/commit", desc: "AI-generate commit message & commit" },
-    { cmd: "/pr", desc: "Create a PR (branch + commit + push + open)" },
-    { cmd: "/branch", desc: "List/create/switch branches" },
-    { cmd: "/git", desc: "Git status" },
+    { cmd: "/soul", desc: "View memory" },
+    { cmd: "/git", desc: "Git commands" },
+    { cmd: "/git diff", desc: "Colorized diff" },
+    { cmd: "/git commit", desc: "AI commit" },
+    { cmd: "/git pr", desc: "Create PR" },
+    { cmd: "/git branch", desc: "Branch management" },
+    { cmd: "/agent", desc: "List agents" },
+    { cmd: "/agent run", desc: "Run agent" },
+    { cmd: "/agent output", desc: "View output" },
+    { cmd: "/agent info", desc: "Agent details" },
+    { cmd: "/mcp", desc: "List MCP servers" },
+    { cmd: "/mcp add", desc: "Add MCP server" },
+    { cmd: "/mcp remove", desc: "Remove MCP server" },
     { cmd: "/exit", desc: "Exit Kai" },
   ];
 
@@ -389,7 +381,7 @@ async function handleCommand(
   messages: ChatCompletionMessageParam[],
   session: Session
 ): Promise<"exit" | "handled" | "passthrough"> {
-  const cmd = input.toLowerCase();
+  const cmd = input.toLowerCase().trim();
 
   if (cmd === "exit" || cmd === "/exit" || cmd === "/quit") {
     session.messages = messages;
@@ -398,6 +390,7 @@ async function handleCommand(
     return "exit";
   }
 
+  // === /clear ===
   if (cmd === "/clear") {
     const systemMsg = messages[0];
     messages.length = 0;
@@ -406,61 +399,67 @@ async function handleCommand(
     return "handled";
   }
 
-  if (cmd === "/compact") {
+  // === /cost [compact] — token usage + context breakdown ===
+  if (cmd === "/cost") {
+    console.log("\n" + formatCost());
+    console.log(formatContextBreakdown(messages));
+    return "handled";
+  }
+  if (cmd === "/cost compact") {
     const before = estimateContextSize(messages);
     const compacted = compactMessages(messages);
     messages.length = 0;
     messages.push(...compacted);
     const after = estimateContextSize(messages);
-    console.log(
-      chalk.dim(`  Compacted: ~${before.toLocaleString()} → ~${after.toLocaleString()} tokens\n`)
-    );
+    console.log(chalk.dim(`  Compacted: ~${before.toLocaleString()} → ~${after.toLocaleString()} tokens\n`));
     return "handled";
   }
 
-  if (cmd === "/cost") {
-    console.log("\n" + formatCost() + "\n");
-    return "handled";
-  }
-
+  // === /sessions [rename <name>] ===
   if (cmd === "/sessions") {
     const sessions = listSessions();
     console.log(chalk.bold("\n  Recent sessions:\n"));
     console.log(formatSessionList(sessions) + "\n");
     return "handled";
   }
-
-  if (cmd.startsWith("/rename ")) {
-    session.name = input.substring(8).trim();
+  if (cmd.startsWith("/sessions rename ")) {
+    session.name = input.substring(17).trim();
     saveSession(session);
     console.log(chalk.dim(`  Session renamed to: ${session.name}\n`));
     return "handled";
   }
 
-  if (cmd === "/permissions") {
-    const mode = getPermissionMode();
-    console.log(chalk.dim(`  Current mode: ${mode}`));
-    console.log(chalk.dim("  Options: default, auto, deny_all"));
-    console.log(chalk.dim("  Usage: /permissions auto\n"));
-    return "handled";
-  }
-
-  if (cmd.startsWith("/permissions ")) {
-    const mode = input.substring(13).trim() as any;
-    if (["default", "auto", "deny_all"].includes(mode)) {
-      setPermissionMode(mode);
-      console.log(chalk.dim(`  Permission mode set to: ${mode}\n`));
-    } else {
-      console.log(chalk.yellow("  Invalid mode. Use: default, auto, deny_all\n"));
+  // === /soul — core memory + recall stats ===
+  if (cmd === "/soul") {
+    const soul = loadSoul();
+    console.log(chalk.bold("\n  Core Memory:\n"));
+    for (const [key, block] of Object.entries(soul)) {
+      console.log(chalk.cyan(`  [${key}]`));
+      console.log(chalk.dim(`  ${block.content}\n`));
     }
+    const stats = getRecallStats();
+    console.log(chalk.dim(`  Recall: ${stats.totalEntries} past messages (${stats.fileSizeKB} KB)\n`));
     return "handled";
   }
 
-  if (cmd === "/diff") {
+  // === /git [diff|commit|pr|branch] ===
+  if (cmd === "/git") {
     if (!isGitRepo()) {
       console.log(chalk.dim("  Not a git repo.\n"));
       return "handled";
     }
+    const info = gitInfo();
+    const status = gitStatus();
+    console.log(chalk.bold(`\n  ${info}\n`));
+    if (status) {
+      console.log(status.split("\n").map((l) => chalk.dim(`  ${l}`)).join("\n"));
+      console.log("");
+    }
+    return "handled";
+  }
+
+  if (cmd === "/git diff") {
+    if (!isGitRepo()) { console.log(chalk.dim("  Not a git repo.\n")); return "handled"; }
     const { renderColorDiff } = await import("./diff.js");
     const staged = gitDiff(true);
     const unstaged = gitDiff(false);
@@ -468,11 +467,11 @@ async function handleCommand(
       console.log(chalk.dim("  No changes.\n"));
     } else {
       if (staged) {
-        console.log(chalk.bold("\n  Staged changes:\n"));
+        console.log(chalk.bold("\n  Staged:\n"));
         console.log(renderColorDiff(staged, 100).split("\n").map((l) => `  ${l}`).join("\n"));
       }
       if (unstaged) {
-        console.log(chalk.bold("\n  Unstaged changes:\n"));
+        console.log(chalk.bold("\n  Unstaged:\n"));
         console.log(renderColorDiff(unstaged, 100).split("\n").map((l) => `  ${l}`).join("\n"));
       }
       console.log("");
@@ -480,20 +479,14 @@ async function handleCommand(
     return "handled";
   }
 
-  if (cmd === "/commit" || cmd.startsWith("/commit ")) {
-    if (!isGitRepo()) {
-      console.log(chalk.dim("  Not a git repo.\n"));
-      return "handled";
-    }
+  if (cmd.startsWith("/git commit")) {
+    if (!isGitRepo()) { console.log(chalk.dim("  Not a git repo.\n")); return "handled"; }
     const status = gitStatus();
-    if (!status) {
-      console.log(chalk.dim("  Nothing to commit.\n"));
-      return "handled";
-    }
+    if (!status) { console.log(chalk.dim("  Nothing to commit.\n")); return "handled"; }
     const diff = gitDiff(false) || gitDiff(true) || status;
     const recentLog = gitLog(5);
     const branch = gitBranch();
-    const flags = input.substring(7).trim();
+    const flags = input.substring(11).trim();
     const shouldPush = flags.includes("--push");
     const userMsg = flags.replace("--push", "").trim();
     const prompt = `Generate a concise git commit message for these changes, then stage all modified files and commit.
@@ -513,22 +506,16 @@ ${diff.substring(0, 3000)}`;
     return "passthrough";
   }
 
-  if (cmd === "/pr" || cmd.startsWith("/pr ")) {
-    if (!isGitRepo()) {
-      console.log(chalk.dim("  Not a git repo.\n"));
-      return "handled";
-    }
-    if (!ghAvailable()) {
-      console.log(chalk.yellow("  GitHub CLI (gh) not installed. Install: https://cli.github.com\n"));
-      return "handled";
-    }
+  if (cmd.startsWith("/git pr")) {
+    if (!isGitRepo()) { console.log(chalk.dim("  Not a git repo.\n")); return "handled"; }
+    if (!ghAvailable()) { console.log(chalk.yellow("  GitHub CLI (gh) not installed. Install: https://cli.github.com\n")); return "handled"; }
     const status = gitStatus();
     const branch = gitBranch();
     const baseBranch = gitBaseBranch();
     const remote = gitRemote();
     const recentLog = gitLog(10);
     const diffAgainstBase = gitDiffAgainstBase();
-    const userTitle = input.substring(3).trim();
+    const userTitle = input.substring(7).trim();
 
     const prompt = `Create a pull request for the current changes. Follow these steps:
 1. If on ${baseBranch}, create a descriptive branch name and switch to it using: git checkout -b <branch-name>
@@ -557,14 +544,10 @@ ${(gitDiff(false) || "(none)").substring(0, 2000)}`;
     return "passthrough";
   }
 
-  if (cmd === "/branch" || cmd.startsWith("/branch ")) {
-    if (!isGitRepo()) {
-      console.log(chalk.dim("  Not a git repo.\n"));
-      return "handled";
-    }
-    const arg = input.substring(7).trim();
+  if (cmd.startsWith("/git branch")) {
+    if (!isGitRepo()) { console.log(chalk.dim("  Not a git repo.\n")); return "handled"; }
+    const arg = input.substring(11).trim();
     if (!arg) {
-      // List branches
       const current = gitBranch();
       const branches = gitListBranches();
       console.log(chalk.bold(`\n  Current: ${current}\n`));
@@ -572,94 +555,30 @@ ${(gitDiff(false) || "(none)").substring(0, 2000)}`;
       console.log("");
       return "handled";
     }
-    // Create/switch branch — let the AI handle it
     const prompt = `Switch to branch "${arg}". If it doesn't exist, create it. Use: git checkout -b ${arg} (for new) or git checkout ${arg} (for existing).`;
     messages.push({ role: "user", content: prompt });
     return "passthrough";
   }
 
-  if (cmd === "/git") {
-    const info = gitInfo();
-    console.log(chalk.dim(info ? `  ${info}` : "  Not a git repo.") + "\n");
-    return "handled";
-  }
-
-  if (cmd === "/soul") {
-    const soul = loadSoul();
-    console.log(chalk.bold("\n  Soul (Core Memory):\n"));
-    for (const [key, block] of Object.entries(soul)) {
-      console.log(chalk.cyan(`  [${key}]`));
-      console.log(chalk.dim(`  ${block.content}\n`));
-    }
-    return "handled";
-  }
-
-  if (cmd === "/init") {
-    console.log(chalk.dim("\n  Scanning project...\n"));
-    const profile = generateProfile();
-    console.log(chalk.bold(`  Project: ${profile.name}`));
-    console.log(chalk.dim(`  Language: ${profile.language}`));
-    console.log(chalk.dim(`  Stack: ${profile.techStack.join(", ")}`));
-    console.log(chalk.dim(`  Framework: ${profile.framework}`));
-    console.log(chalk.dim(`  Structure: ${profile.structure}`));
-    if (Object.keys(profile.scripts).length > 0) {
-      console.log(chalk.dim(`  Scripts: ${Object.keys(profile.scripts).join(", ")}`));
-    }
-    console.log(chalk.dim("\n  Profile saved. Context will be auto-loaded.\n"));
-    return "handled";
-  }
-
-  if (cmd === "/recall") {
-    const stats = getRecallStats();
-    console.log(chalk.dim(`  Recall memory: ${stats.totalEntries} entries (${stats.fileSizeKB} KB)\n`));
-    return "handled";
-  }
-
-  if (cmd === "/context") {
-    console.log(formatContextBreakdown(messages));
-    return "handled";
-  }
-
-  if (cmd === "/projects") {
-    const projects = listAllProjects();
-    console.log(chalk.bold("\n  Known Projects:\n"));
-    if (projects.length === 0) {
-      console.log(chalk.dim("  No projects registered yet.\n"));
-    } else {
-      const current = getCurrentProject();
-      for (const p of projects) {
-        const marker = current && p.id === current.id ? chalk.cyan(" ← current") : "";
-        console.log(chalk.dim(`  ${p.name}${marker}`));
-        console.log(chalk.dim(`    ${p.path}`));
-        console.log(chalk.dim(`    Last: ${new Date(p.lastAccessed).toLocaleString()}\n`));
-      }
-    }
-    return "handled";
-  }
-
-  if (cmd === "/agents") {
+  // === /agent [list|run|output|info] ===
+  if (cmd === "/agent" || cmd === "/agent list") {
     const { formatAgentList, daemonStatus } = await import("./agents/manager.js");
     console.log(daemonStatus());
     console.log(formatAgentList());
     return "handled";
   }
-
   if (cmd.startsWith("/agent run ")) {
     const agentId = input.substring(11).trim();
     const { runAgentCommand } = await import("./agents/manager.js");
     await runAgentCommand(agentId);
     return "handled";
   }
-
   if (cmd.startsWith("/agent output ")) {
     const parts = input.substring(14).trim().split(/\s+/);
-    const agentId = parts[0];
-    const stepName = parts[1];
     const { formatAgentOutput } = await import("./agents/manager.js");
-    console.log(formatAgentOutput(agentId, stepName));
+    console.log(formatAgentOutput(parts[0], parts[1]));
     return "handled";
   }
-
   if (cmd.startsWith("/agent info ")) {
     const agentId = input.substring(12).trim();
     const { formatAgentDetail } = await import("./agents/manager.js");
@@ -667,36 +586,95 @@ ${(gitDiff(false) || "(none)").substring(0, 2000)}`;
     return "handled";
   }
 
+  // === /mcp [list|add|remove] ===
+  if (cmd === "/mcp" || cmd === "/mcp list") {
+    const { listMcpServers } = await import("./tools/index.js");
+    const servers = listMcpServers();
+    if (servers.length === 0) {
+      console.log(chalk.dim("\n  No MCP servers configured."));
+      console.log(chalk.dim("  Add one: /mcp add <name> <command> [args...]\n"));
+    } else {
+      console.log(chalk.bold("\n  MCP Servers:\n"));
+      for (const s of servers) {
+        const icon = s.ready ? chalk.green("●") : chalk.red("●");
+        console.log(`  ${icon} ${chalk.bold(s.name)}`);
+        for (const t of s.tools) {
+          console.log(chalk.dim(`    - ${t}`));
+        }
+      }
+      console.log("");
+    }
+    return "handled";
+  }
+  if (cmd.startsWith("/mcp add ")) {
+    const parts = input.substring(9).trim().split(/\s+/);
+    if (parts.length < 2) {
+      console.log(chalk.yellow("  Usage: /mcp add <name> <command> [args...]"));
+      console.log(chalk.dim("  Examples:"));
+      console.log(chalk.dim("    /mcp add filesystem npx -y @modelcontextprotocol/server-filesystem /tmp"));
+      console.log(chalk.dim("    /mcp add github npx -y @modelcontextprotocol/server-github"));
+      console.log(chalk.dim("    /mcp add slack npx -y @anthropic/mcp-server-slack\n"));
+      return "handled";
+    }
+    const name = parts[0];
+    const command = parts[1];
+    const args = parts.slice(2);
+    const settingsPath = path.resolve(process.env.HOME || "~", ".kai/settings.json");
+    let settings: any = {};
+    try { if (fs.existsSync(settingsPath)) settings = JSON.parse(fs.readFileSync(settingsPath, "utf-8")); } catch {}
+    if (!settings.mcp) settings.mcp = {};
+    if (!settings.mcp.servers) settings.mcp.servers = {};
+    settings.mcp.servers[name] = { command, args };
+    fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2), "utf-8");
+    console.log(chalk.green(`\n  Added MCP server "${name}"`));
+    console.log(chalk.dim(`  Command: ${command} ${args.join(" ")}`));
+    console.log(chalk.dim("  Restart Kai to connect.\n"));
+    return "handled";
+  }
+  if (cmd.startsWith("/mcp remove ")) {
+    const name = input.substring(12).trim();
+    if (!name) { console.log(chalk.yellow("  Usage: /mcp remove <name>\n")); return "handled"; }
+    const settingsPath = path.resolve(process.env.HOME || "~", ".kai/settings.json");
+    let settings: any = {};
+    try { if (fs.existsSync(settingsPath)) settings = JSON.parse(fs.readFileSync(settingsPath, "utf-8")); } catch {}
+    if (settings.mcp?.servers?.[name]) {
+      delete settings.mcp.servers[name];
+      fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2), "utf-8");
+      console.log(chalk.green(`\n  Removed MCP server "${name}". Restart Kai to apply.\n`));
+    } else {
+      console.log(chalk.yellow(`\n  MCP server "${name}" not found.\n`));
+    }
+    return "handled";
+  }
+
+  // === /help ===
   if (cmd === "/help") {
     console.log(
       chalk.dim(`
-  Commands:
-    /clear         Clear conversation history
-    /compact       Compress context to save tokens
-    /cost          Show token usage and estimated cost
-    /sessions      List recent sessions
-    /rename <name> Rename current session
-    /permissions   View/set permission mode
-    /soul          View core memory (persona, human, goals, scratchpad)
-    /recall        Show recall memory stats
-    /context              Context window breakdown
-    /projects             List known projects
-    /agents               List background agents
-    /agent run <id>       Run an agent now
-    /agent output <id>    View agent output
-    /agent info <id>      Agent details + run history
-    /diff                 Show git diff (staged + unstaged)
-    /commit [msg]         AI commit (supports --push)
-    /pr [title]           Create PR (branch + commit + push + open)
-    /branch [name]        List or create/switch branches
-    /git                  Git status
-    /help                 Show this help
-    /exit                 Exit Kai
+  /clear                  Clear conversation
+  /cost                   Token usage + context breakdown
+  /cost compact           Compress context to save tokens
+  /sessions               List recent sessions
+  /sessions rename <name> Rename current session
+  /soul                   View memory (persona, human, goals, scratchpad, recall)
 
-  CLI Agent Commands (outside REPL):
-    kai agent create <name> <file.yaml>   Create agent from workflow
-    kai agent daemon                      Start background scheduler
-    kai agent stop                        Stop scheduler
+  /git                    Status + changed files
+  /git diff               Colorized diff (staged + unstaged)
+  /git commit [msg]       AI commit (--push to also push)
+  /git pr [title]         Create PR (branch + commit + push + open)
+  /git branch [name]      List or create/switch branches
+
+  /agent                  List background agents
+  /agent run <id>         Run an agent now
+  /agent output <id>      View agent output
+  /agent info <id>        Agent details + run history
+
+  /mcp                    List connected MCP servers + tools
+  /mcp add <name> <cmd>   Add an MCP server
+  /mcp remove <name>      Remove an MCP server
+
+  /help                   Show this help
+  /exit                   Exit Kai
 ${formatCustomCommands()}
 `)
     );

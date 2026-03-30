@@ -1,6 +1,5 @@
 import fs from "fs";
 import path from "path";
-import { ensureKaiDir } from "./config.js";
 import { getProjectId, ensureProjectDir, ensureGlobalDir } from "./project.js";
 
 /**
@@ -78,20 +77,6 @@ export function loadIdentity(): Identity {
         persona: { ...DEFAULT_IDENTITY.persona, ...data.persona },
         human: { ...DEFAULT_IDENTITY.human, ...data.human },
       };
-    }
-  } catch {}
-
-  // Migrate from old soul.json if it exists
-  try {
-    const oldPath = path.join(ensureKaiDir(), "soul.json");
-    if (fs.existsSync(oldPath)) {
-      const old = JSON.parse(fs.readFileSync(oldPath, "utf-8"));
-      const identity: Identity = {
-        persona: old.persona || DEFAULT_IDENTITY.persona,
-        human: old.human || DEFAULT_IDENTITY.human,
-      };
-      saveIdentity(identity);
-      return identity;
     }
   } catch {}
 

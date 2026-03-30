@@ -38,6 +38,8 @@ import {
   getAgent,
   getLatestRuns,
   getSteps,
+  getAgentLogs,
+  saveAgent,
 } from "../agents/db.js";
 import {
   runAgent,
@@ -259,6 +261,46 @@ export async function startServer(options: ServerOptions): Promise<void> {
     const agentId = c.req.param("id");
     const result = await runAgent(agentId);
     return c.json(result);
+  });
+
+  // --- Toggle agent enabled/disabled ---
+  app.patch("/api/agents/:id", async (c) => {
+    const agent = getAgent(c.req.param("id"));
+    if (!agent) return c.json({ error: "Agent not found" }, 404);
+    const body = await c.req.json().catch(() => ({}));
+    if (typeof body.enabled === "boolean") {
+      agent.enabled = body.enabled ? 1 : 0;
+    }
+    saveAgent(agent);
+    return c.json({ id: agent.id, enabled: !!agent.enabled });
+  });
+
+  // --- Get steps for a specific run ---
+  app.get("/api/agents/:id/runs/:runId", (c) => {
+    const agent = getAgent(c.req.param("id"));
+    if (!agent) return c.json({ error: "Agent not found" }, 404);
+    const steps = getSteps(c.req.param("runId"));
+    return c.json({
+      steps: steps.map((s) => ({
+        name: s.step_name,
+        index: s.step_index,
+        status: s.status,
+        output: s.output,
+        error: s.error,
+        tokensUsed: s.tokens_used,
+        startedAt: s.started_at,
+        completedAt: s.completed_at,
+      })),
+    });
+  });
+
+  // --- Agent logs ---
+  app.get("/api/agents/:id/logs", (c) => {
+    const agent = getAgent(c.req.param("id"));
+    if (!agent) return c.json({ error: "Agent not found" }, 404);
+    const limit = parseInt(c.req.query("limit") || "50");
+    const logs = getAgentLogs(agent.id, limit);
+    return c.json(logs);
   });
 
   // --- Agent recap (LLM-generated summary) ---
