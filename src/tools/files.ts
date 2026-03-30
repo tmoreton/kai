@@ -1,6 +1,7 @@
 import fs from "fs";
 import path from "path";
 import { getCwd } from "./bash.js";
+import { generateDiff } from "../diff.js";
 
 function resolvePath(filePath: string): string {
   if (path.isAbsolute(filePath)) return filePath;
@@ -31,7 +32,7 @@ export async function readFile(args: {
       const stat = fs.statSync(fullPath);
       const sizeKB = Math.round(stat.size / 1024);
       if ([".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp"].includes(ext)) {
-        return `Binary image file: ${fullPath} (${sizeKB} KB). Use the view_image tool to see this image, not read_file.`;
+        return `Binary image file: ${fullPath} (${sizeKB} KB). Cannot read binary image files as text.`;
       }
       return `Binary file: ${fullPath} (${sizeKB} KB, ${ext}). Cannot read binary files as text.`;
     }
@@ -62,6 +63,14 @@ export async function readFile(args: {
   }
 }
 
+// Store the last diff for display by the client
+let _lastDiff = "";
+export function getLastDiff(): string {
+  const d = _lastDiff;
+  _lastDiff = "";
+  return d;
+}
+
 export async function writeFile(args: {
   file_path: string;
   content: string;
@@ -75,13 +84,22 @@ export async function writeFile(args: {
   const fullPath = resolvePath(args.file_path);
 
   try {
-    // Create parent directories if needed
     const dir = path.dirname(fullPath);
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
     }
 
+    // Capture old content for diff
+    const oldContent = fs.existsSync(fullPath)
+      ? fs.readFileSync(fullPath, "utf-8")
+      : "";
+
     fs.writeFileSync(fullPath, args.content, "utf-8");
+
+    // Generate diff for display
+    const relativePath = path.relative(getCwd(), fullPath) || fullPath;
+    _lastDiff = generateDiff(relativePath, oldContent, args.content);
+
     return `File written successfully: ${fullPath}`;
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -98,23 +116,29 @@ export async function editFile(args: {
   const fullPath = resolvePath(args.file_path);
 
   try {
-    let content = fs.readFileSync(fullPath, "utf-8");
+    const oldContent = fs.readFileSync(fullPath, "utf-8");
 
-    if (!content.includes(args.old_string)) {
+    if (!oldContent.includes(args.old_string)) {
       return `Error: old_string not found in file. Make sure it matches exactly (including whitespace).`;
     }
 
+    let newContent: string;
     if (args.replace_all) {
-      content = content.split(args.old_string).join(args.new_string);
+      newContent = oldContent.split(args.old_string).join(args.new_string);
     } else {
-      const index = content.indexOf(args.old_string);
-      content =
-        content.substring(0, index) +
+      const index = oldContent.indexOf(args.old_string);
+      newContent =
+        oldContent.substring(0, index) +
         args.new_string +
-        content.substring(index + args.old_string.length);
+        oldContent.substring(index + args.old_string.length);
     }
 
-    fs.writeFileSync(fullPath, content, "utf-8");
+    fs.writeFileSync(fullPath, newContent, "utf-8");
+
+    // Generate diff for display
+    const relativePath = path.relative(getCwd(), fullPath) || fullPath;
+    _lastDiff = generateDiff(relativePath, oldContent, newContent);
+
     return `File edited successfully: ${fullPath}`;
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);

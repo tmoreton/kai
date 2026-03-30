@@ -84,13 +84,7 @@ export function registerIntegration(handler: IntegrationHandler): void {
   integrations.set(handler.name, handler);
 }
 
-export function getIntegration(name: string): IntegrationHandler | undefined {
-  return integrations.get(name);
-}
 
-export function listIntegrations(): IntegrationHandler[] {
-  return [...integrations.values()];
-}
 
 /**
  * Parse a workflow YAML file into a WorkflowDefinition.
@@ -379,7 +373,7 @@ ${iteration > 0 ? `\nThis is iteration ${iteration + 1}. Be stricter — earlier
   const model = getSharedModel();
   const models = [
     model,
-    "Qwen/Qwen3.5-397B-A17B",
+    "moonshotai/Kimi-K2.5",
   ];
 
   for (const currentModel of models) {
@@ -445,7 +439,7 @@ async function executeLlmStep(step: WorkflowStep, ctx: WorkflowContext): Promise
   // Try primary model with retries, then fallback models
   const fallbackModels = [
     model,
-    "Qwen/Qwen3.5-397B-A17B",
+    "qwen/qwen3-235b-a22b",
   ];
 
   for (const currentModel of fallbackModels) {

@@ -81,3 +81,64 @@ export function gitInfo(): string {
   }
   return info;
 }
+
+export function gitBaseBranch(): string {
+  // Detect main or master
+  try {
+    const branches = execSync("git branch -a", {
+      cwd: getCwd(),
+      encoding: "utf-8",
+      stdio: "pipe",
+    });
+    if (branches.includes("main")) return "main";
+    if (branches.includes("master")) return "master";
+  } catch {}
+  return "main";
+}
+
+export function gitRemote(): string {
+  try {
+    return execSync("git remote get-url origin", {
+      cwd: getCwd(),
+      encoding: "utf-8",
+      stdio: "pipe",
+    }).trim();
+  } catch {
+    return "";
+  }
+}
+
+export function gitDiffAgainstBase(base?: string): string {
+  const baseBranch = base || gitBaseBranch();
+  try {
+    return execSync(`git diff ${baseBranch}...HEAD`, {
+      cwd: getCwd(),
+      encoding: "utf-8",
+      stdio: "pipe",
+      maxBuffer: 5 * 1024 * 1024,
+    }).trim();
+  } catch {
+    return "";
+  }
+}
+
+export function gitListBranches(): string {
+  try {
+    return execSync("git branch -vv", {
+      cwd: getCwd(),
+      encoding: "utf-8",
+      stdio: "pipe",
+    }).trim();
+  } catch {
+    return "";
+  }
+}
+
+export function ghAvailable(): boolean {
+  try {
+    execSync("gh --version", { stdio: "pipe" });
+    return true;
+  } catch {
+    return false;
+  }
+}

@@ -282,6 +282,64 @@ export const toolDefinitions = [
       },
     },
   },
+  // === WEB SEARCH ===
+  {
+    type: "function" as const,
+    function: {
+      name: "web_search",
+      description:
+        "Search the web using Tavily. Returns an answer plus top results with titles, URLs, and snippets.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: {
+            type: "string",
+            description: "The search query",
+          },
+          max_results: {
+            type: "number",
+            description: "Maximum number of results (default: 5)",
+          },
+        },
+        required: ["query"],
+      },
+    },
+  },
+  // === IMAGE GENERATION ===
+  {
+    type: "function" as const,
+    function: {
+      name: "generate_image",
+      description:
+        "Generate images using Together.ai. Describe the scene naturally.",
+      parameters: {
+        type: "object",
+        properties: {
+          prompt: {
+            type: "string",
+            description: "Detailed description of the image to generate",
+          },
+          reference_image: {
+            type: "string",
+            description: "Path to a reference photo to include that person in the scene",
+          },
+          width: {
+            type: "number",
+            description: "Image width in pixels (default: 1280)",
+          },
+          height: {
+            type: "number",
+            description: "Image height in pixels (default: 720)",
+          },
+          output_dir: {
+            type: "string",
+            description: "Directory to save generated images (default: ~/.kai/agent-output/thumbnails)",
+          },
+        },
+        required: ["prompt"],
+      },
+    },
+  },
   // === CORE MEMORY (Soul) ===
   {
     type: "function" as const,

@@ -186,6 +186,41 @@
     .step-name { padding: 8px 12px; font-size: 12px; font-weight: 500; display: flex; justify-content: space-between; }
     .step-body { padding: 8px 12px; font-family: var(--mono); font-size: 11px; color: var(--text-secondary); white-space: pre-wrap; max-height: 180px; overflow-y: auto; border-top: 1px solid var(--border); }
 
+    /* ---- Recap / Done banner ---- */
+    .recap-banner {
+      margin: 16px 0 24px; padding: 16px 20px; border-radius: 12px;
+      background: linear-gradient(135deg, rgba(52,211,153,.08), rgba(107,138,253,.08));
+      border: 1px solid rgba(52,211,153,.25);
+      animation: fadeIn .3s ease;
+    }
+    .recap-header {
+      display: flex; align-items: center; gap: 8px; margin-bottom: 8px;
+      font-size: 13px; font-weight: 600; color: var(--green);
+    }
+    .recap-header .check { font-size: 16px; }
+    .recap-stats {
+      display: flex; gap: 16px; flex-wrap: wrap;
+    }
+    .recap-stat {
+      font-size: 12px; color: var(--text-secondary);
+      display: flex; align-items: center; gap: 4px;
+    }
+    .recap-stat strong { color: var(--text); font-weight: 600; }
+
+    /* ---- Inline images ---- */
+    .tool-image {
+      max-width: 100%; border-radius: 8px; margin-top: 8px;
+      border: 1px solid var(--border); cursor: pointer;
+      transition: transform .15s;
+    }
+    .tool-image:hover { transform: scale(1.02); }
+    .image-lightbox {
+      display: none; position: fixed; inset: 0; background: rgba(0,0,0,.85);
+      z-index: 200; align-items: center; justify-content: center; cursor: pointer;
+    }
+    .image-lightbox.show { display: flex; }
+    .image-lightbox img { max-width: 90vw; max-height: 90vh; border-radius: 8px; }
+
     /* ---- Mobile ---- */
     .sidebar-toggle {
       display: none; position: fixed; top: 12px; left: 12px; z-index: 50;
@@ -260,6 +295,10 @@
         </div>
       </div>
     </main>
+  </div>
+
+  <div class="image-lightbox" id="lightbox" onclick="this.classList.remove('show')">
+    <img id="lightbox-img" src="" />
   </div>
 
   <div class="overlay" id="overlay" onclick="if(event.target===this)closePanel()">
@@ -472,11 +511,29 @@
           scroll();
           break;
         case 'tool_call': hideThinking(); addTool(data.id, data.name, data.args); scroll(); break;
-        case 'tool_result':
+        case 'tool_result': {
           const card = document.querySelector(`[data-tid="${data.id}"]`);
-          if (card) { card.querySelector('.tool-detail').textContent = data.result || '(no output)'; setToolStatus(card, data.error); }
+          if (card) {
+            const detail = card.querySelector('.tool-detail');
+            detail.textContent = data.result || '(no output)';
+            setToolStatus(card, data.error);
+            // Check if result contains an image path
+            const imgMatch = (data.result || '').match(/(?:saved|wrote|generated|created|output).*?(\/[^\s"']+\.(?:png|jpg|jpeg|gif|webp))/i)
+              || (data.result || '').match(/(\/[^\s"']+\.(?:png|jpg|jpeg|gif|webp))/i);
+            if (imgMatch) {
+              const imgPath = imgMatch[1];
+              const img = document.createElement('img');
+              img.className = 'tool-image';
+              img.src = `/api/image?path=${encodeURIComponent(imgPath)}`;
+              img.alt = 'Generated image';
+              img.onclick = (e) => { e.stopPropagation(); showLightbox(img.src); };
+              card.after(img);
+            }
+          }
           scroll();
           break;
+        }
+        case 'recap': showRecap(data); break;
         case 'done': finalize(); break;
         case 'error': addNote(`Error: ${data.message}`); break;
         case 'status': addNote(data.message); break;
@@ -530,6 +587,36 @@
       $msgs.appendChild(d); scroll();
     }
 
+    function showRecap(data) {
+      finalize(); // render any pending markdown
+      const d = document.createElement('div');
+      d.className = 'recap-banner';
+      const toolList = (data.toolNames || [])
+        .map(n => ({ bash:'commands', read_file:'file reads', write_file:'file writes', edit_file:'edits',
+          glob:'file searches', grep:'code searches', web_fetch:'web fetches', web_search:'web searches',
+          generate_image:'images', spawn_agent:'sub-agents' }[n] || n))
+        .filter((v, i, a) => a.indexOf(v) === i);
+      const statsHtml = [
+        data.toolsUsed > 0 ? `<div class="recap-stat"><strong>${data.toolsUsed}</strong> tool call${data.toolsUsed !== 1 ? 's' : ''}</div>` : '',
+        toolList.length > 0 ? `<div class="recap-stat">${toolList.join(', ')}</div>` : '',
+      ].filter(Boolean).join('');
+
+      d.innerHTML = `
+        <div class="recap-header"><span class="check">\u2705</span> Done</div>
+        ${statsHtml ? `<div class="recap-stats">${statsHtml}</div>` : ''}
+      `;
+      // Only show if tools were actually used (otherwise the text response is self-evident)
+      if (data.toolsUsed > 0) {
+        $msgs.appendChild(d);
+        scroll();
+      }
+    }
+
+    window.showLightbox = function(src) {
+      $('lightbox-img').src = src;
+      $('lightbox').classList.add('show');
+    };
+
     function showThinking() {
       if ($('thk')) return;
       const d = document.createElement('div'); d.id = 'thk'; d.className = 'thinking';
@@ -573,6 +660,21 @@
           </div>
           <button class="panel-btn" id="run-btn" onclick="runAgentNow('${id}')">Run Now</button>
         `;
+
+        // Recap summary placeholder (loaded async)
+        const lastRun = agent.runs?.[0];
+        if (lastRun?.status === 'completed') {
+          h += `<div class="recap-banner" id="agent-recap" style="margin:12px 0">
+            <div class="recap-header"><span class="check">\u2705</span> Run Complete</div>
+            <div id="recap-body" class="msg-body" style="font-size:13px;margin-top:8px;color:var(--text-secondary)">Generating summary...</div>
+          </div>`;
+        } else if (lastRun?.status === 'failed') {
+          h += `<div class="recap-banner" style="margin:12px 0;border-color:rgba(248,113,113,.25);background:linear-gradient(135deg,rgba(248,113,113,.08),rgba(107,138,253,.05))">
+            <div class="recap-header" style="color:var(--red)"><span class="check">\u274C</span> Run Failed</div>
+            ${lastRun.error ? `<div style="font-size:12px;color:var(--text-secondary);margin-top:4px">${esc(lastRun.error.substring(0, 200))}</div>` : ''}
+          </div>`;
+        }
+
         if (agent.runs?.length > 0) {
           h += '<div class="panel-label">History</div>';
           for (const r of agent.runs.slice(0, 5)) {
@@ -581,17 +683,35 @@
           }
         }
         if (output?.steps?.length > 0) {
-          h += '<div class="panel-label">Latest Results</div>';
+          h += '<div class="panel-label">Step Details</div>';
           for (const s of output.steps) {
             const icon = s.status==='completed' ? '\u2705' : s.status==='failed' ? '\u274C' : '\u2B1C';
+            // Check for image paths in step output
+            const imgMatch = s.output?.match(/(\/[^\s"']+\.(?:png|jpg|jpeg|gif|webp))/i);
             h += `<div class="step-box">
               <div class="step-name"><span>${icon} ${esc(s.name.replace(/_/g,' '))}</span></div>
+              ${imgMatch ? `<div style="padding:8px 12px"><img class="tool-image" src="/api/image?path=${encodeURIComponent(imgMatch[1])}" onclick="event.stopPropagation();showLightbox(this.src)" /></div>` : ''}
               ${s.output ? `<div class="step-body">${esc(s.output.substring(0, 2000))}</div>` : ''}
               ${s.error ? `<div class="step-body" style="color:var(--red)">${esc(s.error)}</div>` : ''}
             </div>`;
           }
         }
         p.innerHTML = h;
+
+        // Load recap async (don't block panel render)
+        if (lastRun?.status === 'completed') {
+          api.get(`/api/agents/${id}/recap`).then(data => {
+            const body = $('recap-body');
+            if (body && data.recap) {
+              body.innerHTML = marked.parse(data.recap);
+            } else if (body) {
+              body.textContent = 'All steps completed successfully.';
+            }
+          }).catch(() => {
+            const body = $('recap-body');
+            if (body) body.textContent = 'All steps completed successfully.';
+          });
+        }
       } catch { p.innerHTML = '<p style="color:var(--red)">Could not load agent</p><button class="panel-close" onclick="closePanel()" style="margin-top:12px">\u2715 Close</button>'; }
     };
 

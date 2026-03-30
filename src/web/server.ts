@@ -13,12 +13,9 @@ import type {
 import OpenAI from "openai";
 
 // Kai modules
-import { createClient, getModelId, getProviderName } from "../client.js";
-import { getSystemPrompt } from "../system-prompt.js";
+import { createClient, getModelId, getProviderName, summarizeArgs } from "../client.js";
+import { buildSystemPrompt } from "../system-prompt.js";
 import { getCwd } from "../tools/bash.js";
-import { getProfileContext } from "../project-profile.js";
-import { archivalList } from "../archival.js";
-import { gitInfo } from "../git.js";
 import { toolDefinitions } from "../tools/index.js";
 import { executeTool } from "../tools/executor.js";
 import { setPermissionMode } from "../permissions.js";
@@ -264,6 +261,45 @@ export async function startServer(options: ServerOptions): Promise<void> {
     return c.json(result);
   });
 
+  // --- Agent recap (LLM-generated summary) ---
+  app.get("/api/agents/:id/recap", async (c) => {
+    const agent = getAgent(c.req.param("id"));
+    if (!agent) return c.json({ error: "Agent not found" }, 404);
+    const runs = getLatestRuns(agent.id, 1);
+    if (runs.length === 0) return c.json({ error: "No runs" }, 404);
+    const steps = getSteps(runs[0].id);
+    const completedSteps = steps.filter((s) => s.status === "completed" && s.output);
+    if (completedSteps.length === 0) return c.json({ recap: null });
+
+    const keyOutputs = completedSteps.map((s) =>
+      `## ${s.step_name}\n${(s.output || "").substring(0, 3000)}`
+    );
+
+    try {
+      const recapClient = createClient();
+      const response = await recapClient.chat.completions.create({
+        model: getModelId(),
+        messages: [
+          {
+            role: "system",
+            content: "You are summarizing the results of an AI agent workflow run. Be concise, highlight the most actionable insights, and format with clear headers. Keep it under 300 words. Use markdown formatting.",
+          },
+          {
+            role: "user",
+            content: `Summarize the key results from this "${agent.name}" agent run:\n\n${keyOutputs.join("\n\n---\n\n")}`,
+          },
+        ],
+        max_tokens: 2048,
+      });
+
+      const content = response.choices[0]?.message?.content
+        || (response.choices[0]?.message as any)?.reasoning || "";
+      return c.json({ recap: content, run: runs[0] });
+    } catch {
+      return c.json({ recap: null, run: runs[0] });
+    }
+  });
+
   // --- Chat (SSE streaming) ---
   app.post("/api/chat", async (c) => {
     const body = await c.req.json();
@@ -315,6 +351,34 @@ export async function startServer(options: ServerOptions): Promise<void> {
         session.messages = updatedMessages;
         saveSession(session);
 
+        // Count tools used for recap
+        const toolCallMsgs = updatedMessages.filter(
+          (m) => m.role === "assistant" && "tool_calls" in m && (m as any).tool_calls?.length > 0
+        );
+        const totalToolCalls = toolCallMsgs.reduce(
+          (sum, m) => sum + ((m as any).tool_calls?.length || 0), 0
+        );
+        const toolNames = new Set<string>();
+        for (const m of toolCallMsgs) {
+          for (const tc of (m as any).tool_calls || []) {
+            toolNames.add(tc.function?.name || tc.name || "unknown");
+          }
+        }
+
+        // Find the last assistant text message as the final answer
+        const lastAssistant = [...updatedMessages]
+          .reverse()
+          .find((m) => m.role === "assistant" && typeof m.content === "string" && m.content && m.content.length > 0);
+
+        await stream.writeSSE({
+          event: "recap",
+          data: JSON.stringify({
+            toolsUsed: totalToolCalls,
+            toolNames: [...toolNames],
+            turns: updatedMessages.filter((m) => m.role === "assistant").length,
+          }),
+        });
+
         await stream.writeSSE({
           event: "done",
           data: JSON.stringify({ sessionId: session.id }),
@@ -340,6 +404,25 @@ export async function startServer(options: ServerOptions): Promise<void> {
       return c.json({ stopped: true });
     }
     return c.json({ stopped: false });
+  });
+
+  // --- Serve local images (for generated images, thumbnails, etc.) ---
+  app.get("/api/image", (c) => {
+    const filePath = c.req.query("path");
+    if (!filePath) return c.text("Missing path", 400);
+    // Security: only allow image files
+    const ext = path.extname(filePath).toLowerCase();
+    const allowedExts = [".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg"];
+    if (!allowedExts.includes(ext)) return c.text("Not an image", 403);
+    if (!fs.existsSync(filePath)) return c.text("Not found", 404);
+    const mimeTypes: Record<string, string> = {
+      ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+      ".gif": "image/gif", ".webp": "image/webp", ".svg": "image/svg+xml",
+    };
+    const data = fs.readFileSync(filePath);
+    return new Response(data, {
+      headers: { "Content-Type": mimeTypes[ext] || "application/octet-stream", "Cache-Control": "public, max-age=3600" },
+    });
   });
 
   // --- Static files ---
@@ -384,19 +467,6 @@ function checkPort(port: number): Promise<boolean> {
 }
 
 // --- Helpers ---
-
-function buildSystemPrompt(): string {
-  let systemContent = getSystemPrompt(getCwd());
-  const profileCtx = getProfileContext();
-  if (profileCtx) systemContent += `\n\n${profileCtx}`;
-  const archivalCtx = archivalList(10);
-  if (archivalCtx && !archivalCtx.startsWith("No archival")) {
-    systemContent += `\n\n# Archival Knowledge\n${archivalCtx}`;
-  }
-  const git = gitInfo();
-  if (git) systemContent += `\n\n# Git\n${git}`;
-  return systemContent;
-}
 
 function createNewSession(): Session {
   return {
@@ -448,23 +518,36 @@ async function chatForWeb(
       signal.addEventListener("abort", () => controller.abort(), { once: true });
     }
 
-    let stream;
-    try {
-      stream = await client.chat.completions.create(
-        {
-          model: getModelId(),
-          messages: updatedMessages,
-          tools: activeTools,
-          tool_choice: "auto",
-          stream: true,
-          max_tokens: MAX_TOKENS,
-        },
-        { signal: controller.signal }
-      );
-    } catch (err: unknown) {
-      clearTimeout(timeout);
-      const msg = err instanceof Error ? err.message : String(err);
-      throw new Error(`API request failed: ${msg}`);
+    let stream: any;
+    const maxRetries = 3;
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        if (attempt > 0) {
+          const delay = Math.min(3000 * Math.pow(2, attempt - 1), 15000);
+          await emit("thinking", { active: true, message: `Retrying (${attempt + 1}/${maxRetries})...` });
+          await new Promise((r) => setTimeout(r, delay));
+        }
+        stream = await client.chat.completions.create(
+          {
+            model: getModelId(),
+            messages: updatedMessages,
+            tools: activeTools,
+            tool_choice: "auto",
+            stream: true,
+            max_tokens: MAX_TOKENS,
+          },
+          { signal: controller.signal }
+        );
+        break;
+      } catch (err: unknown) {
+        const status = (err as any)?.status || (err as any)?.response?.status;
+        const isRetryable = status && [500, 502, 503, 429].includes(status);
+        if (!isRetryable || attempt === maxRetries - 1) {
+          clearTimeout(timeout);
+          const msg = err instanceof Error ? err.message : String(err);
+          throw new Error(`API request failed: ${msg}`);
+        }
+      }
     }
 
     let content = "";
@@ -486,10 +569,19 @@ async function chatForWeb(
         if (chunk.usage) chunkUsage = chunk.usage;
         if (!delta) continue;
 
-        const text = delta.content;
+        let text = delta.content;
         if (text) {
-          content += text;
-          await emit("token", { text });
+          // Filter out model-specific tool call markup that leaks into content
+          text = text.replace(/<\|tool_calls_section_begin\|>/g, "")
+            .replace(/<\|tool_calls_section_end\|>/g, "")
+            .replace(/<\|tool_call_begin\|>/g, "")
+            .replace(/<\|tool_call_end\|>/g, "")
+            .replace(/<\|tool_call_argument_begin\|>/g, "")
+            .replace(/<\|tool_call_argument_end\|>/g, "");
+          if (text) {
+            content += text;
+            await emit("token", { text });
+          }
         }
 
         if (delta.tool_calls) {
@@ -516,6 +608,42 @@ async function chatForWeb(
 
     if (currentToolCall) toolCalls.push(currentToolCall);
     if (chunkUsage) trackUsage(chunkUsage);
+
+    // Rescue tool calls leaked as text (Kimi, Qwen <|tool_call_begin|> format)
+    if (toolCalls.length === 0 && content.includes("<|tool_call_begin|>")) {
+      const pattern = /<\|tool_call_begin\|>\s*<\|tool_sep\|>\s*(\w+)\s*\n<\|tool_call_argument_begin\|>([\s\S]*?)<\|tool_call_argument_end\|>/g;
+      let match;
+      while ((match = pattern.exec(content)) !== null) {
+        toolCalls.push({
+          id: `rescued-${Date.now()}-${toolCalls.length}`,
+          function: { name: match[1], arguments: match[2].trim() },
+        });
+      }
+      if (toolCalls.length > 0) {
+        content = content.replace(/<\|tool_calls_section_begin\|>[\s\S]*$/m, "").trim();
+      }
+    }
+
+    // Rescue <function=name> format (some models)
+    if (toolCalls.length === 0 && content.includes("<function=")) {
+      const pattern = /<function=(\w+)>\s*<parameter=(\w+)>\s*([\s\S]*?)(?:<\/function>|$)/g;
+      let match;
+      const calls: Record<string, Record<string, string>> = {};
+      while ((match = pattern.exec(content)) !== null) {
+        const fname = match[1];
+        if (!calls[fname]) calls[fname] = {};
+        calls[fname][match[2]] = match[3].trim();
+      }
+      for (const [fname, params] of Object.entries(calls)) {
+        toolCalls.push({
+          id: `rescued-${Date.now()}-${toolCalls.length}`,
+          function: { name: fname, arguments: JSON.stringify(params) },
+        });
+      }
+      if (toolCalls.length > 0) {
+        content = content.replace(/<function=[\s\S]*$/m, "").trim();
+      }
+    }
 
     await emit("thinking", { active: false });
 
@@ -566,6 +694,11 @@ async function chatForWeb(
 
       const resultStr = await executeTool(toolName, args);
 
+      // Capture diff for file operations
+      const { getLastDiff } = await import("../tools/files.js");
+      const isFileOp = toolName === "write_file" || toolName === "edit_file";
+      const diff = isFileOp ? getLastDiff() : "";
+
       // Truncate for context
       const contextCharLimit = TOOL_OUTPUT_CONTEXT_LIMIT * 4;
       let contextContent = resultStr;
@@ -588,12 +721,13 @@ async function chatForWeb(
 
       updatedMessages.push({ role: "tool", tool_call_id: tc.id, content: contextContent });
 
-      // Send preview to frontend
+      // Send preview to frontend (include diff if available)
       const preview = resultStr.length > 500 ? resultStr.substring(0, 500) + "..." : resultStr;
       await emit("tool_result", {
         id: tc.id,
         name: toolName,
         result: preview,
+        diff: diff || undefined,
         error: isError,
       });
 
@@ -614,25 +748,3 @@ async function chatForWeb(
   return updatedMessages;
 }
 
-function summarizeArgs(toolName: string, args: Record<string, unknown>): string {
-  switch (toolName) {
-    case "bash":
-      return String(args.command || "").substring(0, 120);
-    case "read_file":
-    case "write_file":
-    case "edit_file":
-      return String(args.file_path || "");
-    case "glob":
-      return String(args.pattern || "");
-    case "grep":
-      return `${args.pattern || ""} ${args.path || ""}`;
-    case "web_fetch":
-      return String(args.url || "").substring(0, 80);
-    case "web_search":
-      return String(args.query || "");
-    case "generate_image":
-      return String(args.prompt || "").substring(0, 80);
-    default:
-      return JSON.stringify(args).substring(0, 80);
-  }
-}

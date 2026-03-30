@@ -17,6 +17,8 @@ import {
 } from "./constants.js";
 import { resolveProvider, type ResolvedProvider } from "./providers/index.js";
 import { renderMarkdown } from "./render.js";
+import { getLastDiff } from "./tools/files.js";
+import { renderColorDiff } from "./diff.js";
 import chalk from "chalk";
 
 let _resolved: ResolvedProvider | null = null;
@@ -86,25 +88,38 @@ export async function chat(
       STREAM_TIMEOUT_MS
     );
 
-    let stream;
-    try {
-      stream = await client.chat.completions.create(
-        {
-          model: getModelId(),
-          messages: updatedMessages,
-          tools: activeTools,
-          tool_choice: "auto",
-          stream: true,
-          max_tokens: MAX_TOKENS,
-        },
-        { signal: controller.signal }
-      );
-    } catch (err: unknown) {
-      clearInterval(spinner);
-      clearTimeout(timeout);
-      process.stderr.write("\x1b[2K\r"); // Clear spinner
-      const msg = err instanceof Error ? err.message : String(err);
-      throw new Error(`API request failed: ${msg}`);
+    let stream: any;
+    const maxRetries = 3;
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        if (attempt > 0) {
+          const delay = Math.min(3000 * Math.pow(2, attempt - 1), 15000);
+          process.stderr.write(`\x1b[2K\r  Retrying (${attempt + 1}/${maxRetries})...\n`);
+          await new Promise((r) => setTimeout(r, delay));
+        }
+        stream = await client.chat.completions.create(
+          {
+            model: getModelId(),
+            messages: updatedMessages,
+            tools: activeTools,
+            tool_choice: "auto",
+            stream: true,
+            max_tokens: MAX_TOKENS,
+          },
+          { signal: controller.signal }
+        );
+        break;
+      } catch (err: unknown) {
+        const status = (err as any)?.status || (err as any)?.response?.status;
+        const isRetryable = status && [500, 502, 503, 429].includes(status);
+        if (!isRetryable || attempt === maxRetries - 1) {
+          clearInterval(spinner);
+          clearTimeout(timeout);
+          process.stderr.write("\x1b[2K\r"); // Clear spinner
+          const msg = err instanceof Error ? err.message : String(err);
+          throw new Error(`API request failed: ${msg}`);
+        }
+      }
     }
 
     let content = "";       // Visible output (streamed to user)
@@ -290,17 +305,44 @@ export async function chat(
         continue;
       }
 
+      // Show spinner for slow tools (image gen, web fetch, agents)
+      const slowTools = ["generate_image", "web_search", "spawn_agent"];
+      const isSlow = slowTools.includes(toolName) || toolName.startsWith("mcp__");
+      let toolSpinner: ReturnType<typeof setInterval> | null = null;
+      const spinChars = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+      let si = 0;
+      if (isSlow) {
+        toolSpinner = setInterval(() => {
+          process.stderr.write(`\x1b[2K\r${chalk.dim(`    ${spinChars[si++ % spinChars.length]} Working...`)}`);
+        }, 100);
+      }
+
       const resultStr: string = await executeTool(toolName, args);
 
-      // Display truncated output to user
-      const lines = resultStr.split("\n");
-      if (lines.length > TOOL_OUTPUT_MAX_LINES) {
-        console.log(chalk.gray(`    ⎿  ${lines.slice(0, TOOL_OUTPUT_PREVIEW_LINES).join("\n       ")}...`));
-        console.log(chalk.gray(`       (${lines.length} lines total)`));
-      } else if (resultStr.length > TOOL_OUTPUT_MAX_CHARS) {
-        console.log(chalk.gray(`    ⎿  ${resultStr.substring(0, TOOL_OUTPUT_MAX_CHARS)}...`));
-      } else {
+      if (toolSpinner) {
+        clearInterval(toolSpinner);
+        process.stderr.write("\x1b[2K\r");
+      }
+
+      // Display tool output — show diff for file operations
+      const isFileOp = toolName === "write_file" || toolName === "edit_file";
+      const diff = isFileOp ? getLastDiff() : "";
+
+      if (diff) {
+        // Show colorized diff
         console.log(chalk.gray(`    ⎿  ${resultStr}`));
+        const rendered = renderColorDiff(diff);
+        console.log(rendered.split("\n").map((l) => `       ${l}`).join("\n"));
+      } else {
+        const lines = resultStr.split("\n");
+        if (lines.length > TOOL_OUTPUT_MAX_LINES) {
+          console.log(chalk.gray(`    ⎿  ${lines.slice(0, TOOL_OUTPUT_PREVIEW_LINES).join("\n       ")}...`));
+          console.log(chalk.gray(`       (${lines.length} lines total)`));
+        } else if (resultStr.length > TOOL_OUTPUT_MAX_CHARS) {
+          console.log(chalk.gray(`    ⎿  ${resultStr.substring(0, TOOL_OUTPUT_MAX_CHARS)}...`));
+        } else {
+          console.log(chalk.gray(`    ⎿  ${resultStr}`));
+        }
       }
 
       // Truncate what goes into context
@@ -382,13 +424,13 @@ function formatToolLabel(toolName: string): string {
   return labels[toolName] || toolName;
 }
 
-function summarizeArgs(
+export function summarizeArgs(
   toolName: string,
   args: Record<string, unknown>
 ): string {
   switch (toolName) {
     case "bash":
-      return String(args.command || "").substring(0, 80);
+      return String(args.command || "").substring(0, 120);
     case "read_file":
     case "write_file":
     case "edit_file":
@@ -398,7 +440,11 @@ function summarizeArgs(
     case "grep":
       return `${args.pattern || ""} ${args.path || ""}`;
     case "web_fetch":
-      return String(args.url || "").substring(0, 60);
+      return String(args.url || "").substring(0, 80);
+    case "web_search":
+      return String(args.query || "");
+    case "generate_image":
+      return String(args.prompt || "").substring(0, 80);
     case "spawn_agent":
       return `${args.agent}: ${String(args.task || "").substring(0, 50)}`;
     case "task_create":
@@ -406,7 +452,7 @@ function summarizeArgs(
     case "task_update":
       return `#${args.task_id} → ${args.status || ""}`;
     default:
-      return JSON.stringify(args).substring(0, 60);
+      return JSON.stringify(args).substring(0, 80);
   }
 }
 

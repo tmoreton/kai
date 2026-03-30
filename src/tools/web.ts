@@ -1,3 +1,57 @@
+/**
+ * Web Search Tool
+ *
+ * Uses Tavily API for web search.
+ * Requires TAVILY_API_KEY in environment.
+ */
+export async function webSearch(args: {
+  query: string;
+  max_results?: number;
+}): Promise<string> {
+  const apiKey = process.env.TAVILY_API_KEY;
+  if (!apiKey) return "Error: TAVILY_API_KEY not set. Add it to ~/.kai/.env";
+
+  try {
+    const response = await fetch("https://api.tavily.com/search", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        api_key: apiKey,
+        query: args.query,
+        max_results: args.max_results || 5,
+        include_answer: true,
+      }),
+      signal: AbortSignal.timeout(15000),
+    });
+
+    if (!response.ok) {
+      return `Tavily search error: HTTP ${response.status}`;
+    }
+
+    const data = (await response.json()) as {
+      answer?: string;
+      results?: Array<{ title: string; url: string; content: string }>;
+    };
+
+    let output = "";
+    if (data.answer) {
+      output += `**Answer:** ${data.answer}\n\n`;
+    }
+    if (data.results) {
+      output += data.results
+        .map(
+          (r) =>
+            `### ${r.title}\n${r.url}\n${r.content?.substring(0, 500) || ""}`
+        )
+        .join("\n\n");
+    }
+    return output || "No results found.";
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return `Error searching: ${msg}`;
+  }
+}
+
 export async function webFetch(args: {
   url: string;
   method?: string;

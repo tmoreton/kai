@@ -1,7 +1,8 @@
 import { bashTool, bashBackgroundTool } from "./bash.js";
 import { readFile, writeFile, editFile } from "./files.js";
 import { globTool, grepTool } from "./search.js";
-import { webFetch } from "./web.js";
+import { webFetch, webSearch } from "./web.js";
+import { generateImageTool } from "./image.js";
 import { createTask, updateTask, listTasks } from "./tasks.js";
 import { spawnAgent } from "../subagent.js";
 import { checkPermission } from "../permissions.js";
@@ -44,6 +45,8 @@ export async function executeTool(
         result = await grepTool(args as { pattern: string; path?: string; include?: string; context?: number; ignore_case?: boolean }); break;
       case "web_fetch":
         result = await webFetch(args as { url: string; method?: string; headers?: Record<string, string> }); break;
+      case "web_search":
+        result = await webSearch(args as { query: string; max_results?: number }); break;
       case "task_create":
         result = createTask(args as { subject: string; description: string }); break;
       case "task_update":
@@ -71,6 +74,8 @@ export async function executeTool(
         result = archivalSearch(args as { query: string; tags?: string[]; limit?: number }); break;
       case "spawn_agent":
         result = await spawnAgent(args as { agent: string; task: string }); break;
+      case "generate_image":
+        result = await generateImageTool(args as { prompt: string; reference_image?: string; width?: number; height?: number; output_dir?: string }); break;
       default: {
         // Check if it's an MCP tool (mcp__server__tool)
         const mcpResult = await tryExecuteMcpTool(name, args);

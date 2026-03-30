@@ -1,4 +1,25 @@
 import { getCoreMemoryContext } from "./soul.js";
+import { getProfileContext } from "./project-profile.js";
+import { archivalList } from "./archival.js";
+import { gitInfo } from "./git.js";
+import { getCwd } from "./tools/bash.js";
+
+/**
+ * Build the full system prompt with all context (profile, archival, git).
+ * Use this instead of assembling the prompt manually in each entry point.
+ */
+export function buildSystemPrompt(): string {
+  let systemContent = getSystemPrompt(getCwd());
+  const profileCtx = getProfileContext();
+  if (profileCtx) systemContent += `\n\n${profileCtx}`;
+  const archivalCtx = archivalList(10);
+  if (archivalCtx && !archivalCtx.startsWith("No archival")) {
+    systemContent += `\n\n# Archival Knowledge\n${archivalCtx}`;
+  }
+  const git = gitInfo();
+  if (git) systemContent += `\n\n# Git\n${git}`;
+  return systemContent;
+}
 
 export function getSystemPrompt(cwd: string): string {
   const coreMemory = getCoreMemoryContext();
@@ -30,8 +51,8 @@ ${coreMemory}
 - **grep** — Search file contents with regex
 
 ## Web
-- **web_fetch** — Fetch content from a URL
-- **web_search** — Search the web (Tavily)
+- **web_fetch** — Fetch content from a URL (HTML converted to readable text)
+- **web_search** — Search the web via Tavily. Returns an answer plus top results.
 
 ## Core Memory (Soul)
 - **core_memory_read** — Read your core memory blocks
@@ -52,10 +73,7 @@ ${coreMemory}
 - **task_create** / **task_update** / **task_list** — Track multi-step work
 
 ## Image Generation
-- **generate_image** — Generate images using Google Gemini 3 Pro. Describe the scene naturally.
-  - To include a specific person (e.g., the user), pass their photo as **reference_image**. The AI will generate them IN the scene — not paste/overlay, but fully integrated.
-  - Example: generate_image({ prompt: "developer excitedly showing an app on iPhone at a cafe", reference_image: "/path/to/portrait.jpg" })
-  - NEVER use composite_image for putting people in scenes — always use generate_image with reference_image instead.
+- **generate_image** — Generate images using Together.ai. Describe the scene naturally.
 
 ## Agents
 - **spawn_agent** — Spawn subagents: "explorer", "planner", "worker"
@@ -134,6 +152,5 @@ Ask yourself: "Would I be proud to show this to the user?" If not, keep iteratin
 - After \`cd\` in bash, all subsequent read_file/write_file/glob/grep calls use the NEW directory automatically — don't prefix with the directory name again
 - If a tool fails, diagnose why before retrying. Don't retry the same failing command.
 - If you hit 3 consecutive errors, stop and tell the user what's wrong.
-- Do NOT use read_file on images/binary files — use view_image instead.
 - For long shell commands (ImageMagick, ffmpeg, etc.), write a .sh script file first, then run it with bash. Don't put the entire command inline — it may get truncated.`;
 }

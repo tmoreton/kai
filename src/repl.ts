@@ -2,12 +2,14 @@ import * as readline from "readline";
 import type { ChatCompletionMessageParam } from "openai/resources/chat/completions";
 import chalk from "chalk";
 import { createClient, chat, getModelId, getProviderName } from "./client.js";
-import { getSystemPrompt } from "./system-prompt.js";
+import { buildSystemPrompt } from "./system-prompt.js";
 import { getCwd, cleanupBackgroundProcesses } from "./tools/bash.js";
 import { formatCost, estimateContextSize, formatContextBreakdown } from "./context.js";
-import { getProfileContext, generateProfile } from "./project-profile.js";
-import { archivalList } from "./archival.js";
-import { gitInfo, gitDiff, gitStatus, gitBranch, isGitRepo } from "./git.js";
+import { generateProfile } from "./project-profile.js";
+import {
+  gitInfo, gitDiff, gitStatus, gitBranch, gitLog, gitBaseBranch,
+  gitDiffAgainstBase, gitListBranches, gitRemote, ghAvailable, isGitRepo,
+} from "./git.js";
 import { getTasksForDisplay } from "./tools/tasks.js";
 import {
   generateSessionId,
@@ -63,19 +65,8 @@ export interface ReplOptions {
 export async function startRepl(options: ReplOptions = {}): Promise<void> {
   const client = createClient();
 
-  // Build system prompt with context
-  let systemContent = getSystemPrompt(getCwd());
-  const profileCtx = getProfileContext();
-  if (profileCtx) systemContent += `\n\n${profileCtx}`;
-  const archivalCtx = archivalList(10);
-  if (archivalCtx && !archivalCtx.startsWith("No archival")) {
-    systemContent += `\n\n# Archival Knowledge\n${archivalCtx}`;
-  }
-  const git = gitInfo();
-  if (git) systemContent += `\n\n# Git\n${git}`;
-
   let messages: ChatCompletionMessageParam[] = [
-    { role: "system", content: systemContent },
+    { role: "system", content: buildSystemPrompt() },
   ];
 
   let session: Session;
@@ -86,7 +77,7 @@ export async function startRepl(options: ReplOptions = {}): Promise<void> {
       messages = recent.messages;
       // Refresh system prompt to pick up any changes
       if (messages.length > 0 && messages[0].role === "system") {
-        messages[0] = { role: "system", content: systemContent };
+        messages[0] = { role: "system", content: buildSystemPrompt() };
       }
       session = recent;
       console.log(chalk.dim(`\n  Resumed session: ${session.name || session.id}\n`));
@@ -98,7 +89,7 @@ export async function startRepl(options: ReplOptions = {}): Promise<void> {
     if (loaded) {
       messages = loaded.messages;
       if (messages.length > 0 && messages[0].role === "system") {
-        messages[0] = { role: "system", content: systemContent };
+        messages[0] = { role: "system", content: buildSystemPrompt() };
       }
       session = loaded;
       console.log(chalk.dim(`\n  Resumed session: ${session.name || session.id}\n`));
@@ -126,7 +117,8 @@ export async function startRepl(options: ReplOptions = {}): Promise<void> {
   } else {
     console.log(chalk.dim(`  project:     (desktop mode — no project detected)`));
   }
-  if (git) console.log(chalk.dim(`  git:         ${git}`));
+  const gitSummary = gitInfo();
+  if (gitSummary) console.log(chalk.dim(`  git:         ${gitSummary}`));
   console.log(chalk.dim(`  session:     ${session.name || session.id}`));
   console.log(chalk.dim(`  permissions: ${getPermissionMode()}`));
   console.log("");
@@ -158,6 +150,8 @@ export async function startRepl(options: ReplOptions = {}): Promise<void> {
     { cmd: "/rename", desc: "Rename session" },
     { cmd: "/diff", desc: "Show git diff" },
     { cmd: "/commit", desc: "AI-generate commit message & commit" },
+    { cmd: "/pr", desc: "Create a PR (branch + commit + push + open)" },
+    { cmd: "/branch", desc: "List/create/switch branches" },
     { cmd: "/git", desc: "Git status" },
     { cmd: "/exit", desc: "Exit Kai" },
   ];
@@ -324,7 +318,7 @@ export async function startRepl(options: ReplOptions = {}): Promise<void> {
       const msg = err instanceof Error ? err.message : String(err);
       console.error(chalk.red(`\n  Error: ${msg}\n`));
       if (msg.includes("401")) {
-        console.error(chalk.yellow("  Check your TOGETHER_API_KEY in .env\n"));
+        console.error(chalk.yellow("  Check your OPENROUTER_API_KEY in .env\n"));
       }
     }
 
@@ -467,6 +461,7 @@ async function handleCommand(
       console.log(chalk.dim("  Not a git repo.\n"));
       return "handled";
     }
+    const { renderColorDiff } = await import("./diff.js");
     const staged = gitDiff(true);
     const unstaged = gitDiff(false);
     if (!staged && !unstaged) {
@@ -474,11 +469,11 @@ async function handleCommand(
     } else {
       if (staged) {
         console.log(chalk.bold("\n  Staged changes:\n"));
-        console.log(chalk.green(staged.split("\n").map((l) => `  ${l}`).join("\n")));
+        console.log(renderColorDiff(staged, 100).split("\n").map((l) => `  ${l}`).join("\n"));
       }
       if (unstaged) {
         console.log(chalk.bold("\n  Unstaged changes:\n"));
-        console.log(unstaged.split("\n").map((l) => `  ${l}`).join("\n"));
+        console.log(renderColorDiff(unstaged, 100).split("\n").map((l) => `  ${l}`).join("\n"));
       }
       console.log("");
     }
@@ -495,12 +490,90 @@ async function handleCommand(
       console.log(chalk.dim("  Nothing to commit.\n"));
       return "handled";
     }
-    // Inject a commit request into the conversation for the AI to handle
     const diff = gitDiff(false) || gitDiff(true) || status;
-    const userMsg = cmd.startsWith("/commit ")
-      ? input.substring(8).trim()
-      : "";
-    const prompt = `Generate a concise git commit message for these changes, then stage all modified files and commit. ${userMsg ? `Additional context: ${userMsg}` : ""}\n\nGit status:\n${status}\n\nDiff (first 3000 chars):\n${diff.substring(0, 3000)}`;
+    const recentLog = gitLog(5);
+    const branch = gitBranch();
+    const flags = input.substring(7).trim();
+    const shouldPush = flags.includes("--push");
+    const userMsg = flags.replace("--push", "").trim();
+    const prompt = `Generate a concise git commit message for these changes, then stage all modified files and commit.
+${shouldPush ? "After committing, push to origin." : ""}
+${userMsg ? `Additional context: ${userMsg}` : ""}
+
+Branch: ${branch}
+Recent commits (match this style):
+${recentLog}
+
+Git status:
+${status}
+
+Diff (first 3000 chars):
+${diff.substring(0, 3000)}`;
+    messages.push({ role: "user", content: prompt });
+    return "passthrough";
+  }
+
+  if (cmd === "/pr" || cmd.startsWith("/pr ")) {
+    if (!isGitRepo()) {
+      console.log(chalk.dim("  Not a git repo.\n"));
+      return "handled";
+    }
+    if (!ghAvailable()) {
+      console.log(chalk.yellow("  GitHub CLI (gh) not installed. Install: https://cli.github.com\n"));
+      return "handled";
+    }
+    const status = gitStatus();
+    const branch = gitBranch();
+    const baseBranch = gitBaseBranch();
+    const remote = gitRemote();
+    const recentLog = gitLog(10);
+    const diffAgainstBase = gitDiffAgainstBase();
+    const userTitle = input.substring(3).trim();
+
+    const prompt = `Create a pull request for the current changes. Follow these steps:
+1. If on ${baseBranch}, create a descriptive branch name and switch to it using: git checkout -b <branch-name>
+2. Stage and commit any uncommitted changes with a good message
+3. Push to origin: git push -u origin <branch-name>
+4. Create the PR using: gh pr create --title "<title>" --body "<body>"
+   - The body should summarize the changes (use markdown)
+   - Keep the title under 70 chars
+${userTitle ? `\nUser-provided title/context: ${userTitle}` : ""}
+
+Current state:
+- Branch: ${branch}
+- Base branch: ${baseBranch}
+- Remote: ${remote}
+- Status: ${status || "(clean)"}
+
+Recent commits on this branch:
+${recentLog}
+
+Diff against ${baseBranch} (first 4000 chars):
+${diffAgainstBase.substring(0, 4000) || "(no diff — changes may not be committed yet)"}
+
+Unstaged diff (first 2000 chars):
+${(gitDiff(false) || "(none)").substring(0, 2000)}`;
+    messages.push({ role: "user", content: prompt });
+    return "passthrough";
+  }
+
+  if (cmd === "/branch" || cmd.startsWith("/branch ")) {
+    if (!isGitRepo()) {
+      console.log(chalk.dim("  Not a git repo.\n"));
+      return "handled";
+    }
+    const arg = input.substring(7).trim();
+    if (!arg) {
+      // List branches
+      const current = gitBranch();
+      const branches = gitListBranches();
+      console.log(chalk.bold(`\n  Current: ${current}\n`));
+      console.log(branches.split("\n").map((l) => `  ${l}`).join("\n"));
+      console.log("");
+      return "handled";
+    }
+    // Create/switch branch — let the AI handle it
+    const prompt = `Switch to branch "${arg}". If it doesn't exist, create it. Use: git checkout -b ${arg} (for new) or git checkout ${arg} (for existing).`;
     messages.push({ role: "user", content: prompt });
     return "passthrough";
   }
@@ -612,6 +685,10 @@ async function handleCommand(
     /agent run <id>       Run an agent now
     /agent output <id>    View agent output
     /agent info <id>      Agent details + run history
+    /diff                 Show git diff (staged + unstaged)
+    /commit [msg]         AI commit (supports --push)
+    /pr [title]           Create PR (branch + commit + push + open)
+    /branch [name]        List or create/switch branches
     /git                  Git status
     /help                 Show this help
     /exit                 Exit Kai
