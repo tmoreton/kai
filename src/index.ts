@@ -245,6 +245,7 @@ yt
     // Run the inbox workflow directly
     const { registerAllIntegrations } = await import("./agents/integrations/index.js");
     const { parseWorkflow, executeWorkflow } = await import("./agents/workflow.js");
+    const { ensureAgent } = await import("./agents/db.js");
     await registerAllIntegrations();
 
     const workflowPath = path.join(home, ".kai/workflows/yt-inbox.yaml");
@@ -253,6 +254,7 @@ yt
       process.exit(1);
     }
 
+    ensureAgent("yt-inbox", "YouTube Inbox", workflowPath);
     const workflow = parseWorkflow(workflowPath);
     const result = await executeWorkflow(workflow, "yt-inbox", config, (step, status) => {
       console.log(`    ${step}: ${status}`);
@@ -300,6 +302,7 @@ yt
 
     const { registerAllIntegrations } = await import("./agents/integrations/index.js");
     const { parseWorkflow, executeWorkflow } = await import("./agents/workflow.js");
+    const { ensureAgent } = await import("./agents/db.js");
     await registerAllIntegrations();
 
     const workflowPath = path.join(home, ".kai/workflows/yt-inbox.yaml");
@@ -308,6 +311,7 @@ yt
       process.exit(1);
     }
 
+    ensureAgent("yt-inbox", "YouTube Inbox", workflowPath);
     const workflow = parseWorkflow(workflowPath);
     const result = await executeWorkflow(workflow, "yt-inbox", config, (step, status) => {
       console.log(`    ${step}: ${status}`);
@@ -346,8 +350,10 @@ yt
 
     const { registerAllIntegrations } = await import("./agents/integrations/index.js");
     const { parseWorkflow, executeWorkflow } = await import("./agents/workflow.js");
+    const { ensureAgent } = await import("./agents/db.js");
     await registerAllIntegrations();
 
+    ensureAgent("yt-producer", "YouTube Producer");
     const workflowPath = path.join(home, ".kai/workflows/yt-producer.yaml");
     if (!fs.existsSync(workflowPath)) {
       console.error("  Error: yt-producer.yaml not found.");
