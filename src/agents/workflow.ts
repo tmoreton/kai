@@ -381,7 +381,7 @@ ${iteration > 0 ? `\nThis is iteration ${iteration + 1}. Be stricter — earlier
   const model = getSharedModel();
   const models = [
     model,
-    "moonshotai/Kimi-K2.5",
+    "qwen/qwen3.5-397b-a17b",
   ];
 
   for (const currentModel of models) {

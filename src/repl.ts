@@ -58,7 +58,7 @@ export interface ReplOptions {
   autoApprove?: boolean;
 }
 
-export async function startRepl(options: ReplOptions = {}): Promise<void> {
+export async function startRepl(options: ReplOptions = {}, initialMessages?: ChatCompletionMessageParam[]): Promise<void> {
   // Prune sessions older than 30 days on startup
   const pruned = cleanupSessions(30);
   if (pruned > 0) {
@@ -67,13 +67,25 @@ export async function startRepl(options: ReplOptions = {}): Promise<void> {
 
   const client = createClient();
 
-  let messages: ChatCompletionMessageParam[] = [
+  let messages: ChatCompletionMessageParam[] = initialMessages || [
     { role: "system", content: buildSystemPrompt() },
   ];
 
   let session: Session;
 
-  if (options.continueSession) {
+  if (initialMessages) {
+    // Continue existing session with provided messages
+    const { getCwd } = await import("./tools/bash.js");
+    const { getMostRecentSession } = await import("./sessions.js");
+    const recent = getMostRecentSession();
+    if (recent) {
+      session = recent;
+      session.messages = messages;
+      session.updatedAt = new Date().toISOString();
+    } else {
+      session = createNewSession(options, messages);
+    }
+  } else if (options.continueSession) {
     const recent = getMostRecentSession();
     if (recent) {
       messages = recent.messages;

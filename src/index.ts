@@ -4,6 +4,8 @@ import { config } from "dotenv";
 import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
 import { Command } from "commander";
+import chalk from "chalk";
+import type { ChatCompletionMessageParam } from "openai/resources/chat/completions";
 import { createClient, chat } from "./client.js";
 import { buildSystemPrompt } from "./system-prompt.js";
 import { startRepl } from "./repl.js";
@@ -27,6 +29,7 @@ program
 program
   .argument("[prompt]", "One-shot prompt (runs and exits)")
   .option("-p, --print <prompt>", "Run a one-shot prompt and print result")
+  .option("-k, --keep-alive", "Keep session alive after one-shot for follow-up questions")
   .option("-c, --continue", "Continue most recent session")
   .option("-r, --resume <id>", "Resume a specific session by ID")
   .option("-n, --name <name>", "Name for the session")
@@ -44,7 +47,16 @@ program
 
     if (oneShot || pipedInput) {
       const prompt = [pipedInput, oneShot].filter(Boolean).join("\n\n");
-      await runOneShot(prompt, options.yes);
+      if (options.keepAlive) {
+        await runOneShotAndContinue(prompt, {
+          continueSession: options.continue,
+          resumeSessionId: options.resume,
+          sessionName: options.name,
+          autoApprove: options.yes,
+        });
+      } else {
+        await runOneShot(prompt, options.yes);
+      }
     } else {
       await startRepl({
         continueSession: options.continue,
@@ -188,6 +200,75 @@ agent
     }
   });
 
+// --- Model commands ---
+const model = program.command("model").description("Manage default model");
+
+model
+  .command("list")
+  .description("List available models")
+  .action(async () => {
+    const chalk = (await import("chalk")).default;
+    const { OPENROUTER_PROVIDER } = await import("./providers/index.js");
+    
+    console.log(chalk.bold("\n  Available Models\n"));
+    console.log(`  ${chalk.green("●")} ${OPENROUTER_PROVIDER.defaultModel} ${chalk.dim("(default)")}`);
+    console.log(`  ${chalk.dim("○")} ${OPENROUTER_PROVIDER.fallbackModel} ${chalk.dim("(fallback)")}`);
+    console.log(`  ${chalk.dim("○")} ${OPENROUTER_PROVIDER.imageModel} ${chalk.dim("(image generation)")}`);
+    console.log(chalk.dim("\n  Use 'kai model set <model-id>' to change the default\n"));
+  });
+
+model
+  .command("set <model-id>")
+  .description("Set the default model")
+  .action(async (modelId) => {
+    const chalk = (await import("chalk")).default;
+    const fs = await import("fs");
+    const path = await import("path");
+    const { ensureKaiDir } = await import("./config.js");
+    
+    const configPath = path.resolve(ensureKaiDir(), "settings.json");
+    let config = {};
+    
+    try {
+      if (fs.existsSync(configPath)) {
+        config = JSON.parse(fs.readFileSync(configPath, "utf-8"));
+      }
+    } catch {
+      // Start fresh if invalid
+    }
+    
+    (config as any).model = modelId;
+    fs.writeFileSync(configPath, JSON.stringify(config, null, 2) + "\n");
+    
+    console.log(chalk.green(`  ✓ Default model set to: ${modelId}`));
+    console.log(chalk.dim("  This will be used for all future sessions.\n"));
+  });
+
+model
+  .command("show")
+  .alias("get")
+  .description("Show current default model")
+  .action(async () => {
+    const chalk = (await import("chalk")).default;
+    const { getConfig } = await import("./config.js");
+    const { OPENROUTER_PROVIDER } = await import("./providers/index.js");
+    
+    const config = getConfig();
+    const currentModel = config.model || process.env.MODEL_ID || OPENROUTER_PROVIDER.defaultModel;
+    
+    console.log(chalk.bold("\n  Current Model\n"));
+    console.log(`  ${chalk.green("●")} ${currentModel}`);
+    
+    if (config.model) {
+      console.log(chalk.dim("    (from ~/.kai/settings.json)"));
+    } else if (process.env.MODEL_ID) {
+      console.log(chalk.dim("    (from MODEL_ID environment variable)"));
+    } else {
+      console.log(chalk.dim("    (built-in default)"));
+    }
+    console.log("");
+  });
+
 // --- MCP commands ---
 const mcp = program.command("mcp").description("Manage MCP server connections");
 
@@ -251,6 +332,64 @@ async function runOneShot(prompt: string, autoApprove = false): Promise<void> {
     console.error(`Error: ${msg}`);
     process.exit(1);
   }
+}
+
+interface ReplOptions {
+  continueSession?: boolean;
+  resumeSessionId?: string;
+  sessionName?: string;
+  autoApprove?: boolean;
+}
+
+async function runOneShotAndContinue(prompt: string, options: ReplOptions): Promise<void> {
+  if (options.autoApprove) {
+    const { setPermissionMode } = await import("./permissions.js");
+    setPermissionMode("auto");
+  }
+
+  const client = createClient();
+
+  const messages: ChatCompletionMessageParam[] = [
+    { role: "system" as const, content: buildSystemPrompt() },
+    { role: "user" as const, content: prompt },
+  ];
+
+  try {
+    await chat(client, messages, (token) => {
+      process.stdout.write(token);
+    });
+    process.stdout.write("\n\n");
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error(`Error: ${msg}`);
+    process.exit(1);
+  }
+
+  // Save the conversation and continue into REPL
+  const { getCwd } = await import("./tools/bash.js");
+  const { generateSessionId, saveSession } = await import("./sessions.js");
+
+  const session = {
+    id: generateSessionId(),
+    name: options.sessionName,
+    cwd: getCwd(),
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    messages,
+  };
+
+  saveSession(session);
+
+  console.log(chalk.dim(`  Session saved: ${session.name || session.id}\n`));
+  console.log(chalk.dim("  Continuing session — type your next question or /help for commands\n\n"));
+
+  // Continue into REPL with the existing messages
+  await startRepl({
+    continueSession: false,
+    resumeSessionId: undefined,
+    sessionName: options.sessionName,
+    autoApprove: options.autoApprove,
+  }, messages);
 }
 
 function readStdin(): Promise<string> {

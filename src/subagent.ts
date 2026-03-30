@@ -75,6 +75,7 @@ export async function runSubagent(
 
   const result = await chat(client, messages, onToken, {
     tools: filteredTools,
+    maxTurns: config.maxTurns,
   });
 
   // Extract the final assistant message
@@ -91,7 +92,8 @@ export async function runSubagent(
     chalk.dim(`  🤖 Subagent "${config.name}" finished.\n`)
   );
 
-  return content;
+  // Add continuation marker to help main session continue
+  return `[SUBAGENT COMPLETE]\n\n${content}\n\n[END SUBAGENT OUTPUT - Continue with the original task using this result.]`;
 }
 
 export async function spawnAgent(args: {

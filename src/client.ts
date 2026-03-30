@@ -48,12 +48,13 @@ export async function chat(
   client: OpenAI,
   messages: ChatCompletionMessageParam[],
   onToken?: (token: string) => void,
-  options?: { tools?: ChatCompletionTool[] }
+  options?: { tools?: ChatCompletionTool[]; maxTurns?: number }
 ): Promise<ChatCompletionMessageParam[]> {
   // Merge built-in tools with any MCP server tools
   const mcpTools = getMcpToolDefinitions();
   const allTools = [...toolDefinitions, ...mcpTools] as ChatCompletionTool[];
   const activeTools = options?.tools ?? allTools;
+  const maxTurns = options?.maxTurns ?? MAX_TOOL_TURNS;
   const updatedMessages = [...messages];
 
   // Auto-compact if context is getting large
@@ -69,7 +70,7 @@ export async function chat(
   let consecutiveErrors = 0;
   let lastFailedCall = "";
 
-  while (turns < MAX_TOOL_TURNS) {
+  while (turns < maxTurns) {
     turns++;
 
     // Show thinking indicator
@@ -397,7 +398,7 @@ export async function chat(
   }
 
   // Hit max turns — return what we have
-  console.log(chalk.yellow(`\n  ! Reached max tool turns (${MAX_TOOL_TURNS}). Stopping.\n`));
+  console.log(chalk.yellow(`\n  ! Reached max tool turns (${maxTurns}). Stopping.\n`));
   updatedMessages.push({
     role: "assistant",
     content: "[Reached maximum tool call limit. Please continue with a follow-up message if needed.]",

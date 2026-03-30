@@ -21,17 +21,18 @@ export interface ProviderDefinition {
   contextWindow?: number;
 }
 
-const OPENROUTER_PROVIDER: ProviderDefinition = {
+export const OPENROUTER_PROVIDER: ProviderDefinition = {
   name: "openrouter",
   baseURL: "https://openrouter.ai/api/v1",
   apiKeyEnv: "OPENROUTER_API_KEY",
   models: [
+    "qwen/qwen3.5-397b-a17b",
     "moonshotai/kimi-k2.5",
     "qwen/qwen3-235b-a22b",
     "google/gemini-2.5-flash-image",
   ],
   defaultModel: "moonshotai/kimi-k2.5",
-  fallbackModel: "qwen/qwen3-235b-a22b",
+  fallbackModel: "qwen/qwen3.5-397b-a17b",
   imageModel: "google/gemini-2.5-flash-image",
   maxTokens: 16384,
   contextWindow: 128_000,

@@ -67,40 +67,47 @@
     .sidebar-expand-btn:hover { color: var(--text); background: var(--bg-hover); }
     .sidebar-expand-btn.show { display: flex; }
 
-    .sidebar-tabs {
-      display: flex; gap: 2px; margin: 0 12px 8px; background: var(--bg-hover); border-radius: var(--radius-sm); padding: 3px;
-    }
-    .sidebar-tab {
-      flex: 1; padding: 7px 0; border: none; background: none; border-radius: 6px;
-      font-size: 13px; font-weight: 500; color: var(--text-secondary); cursor: pointer;
-      transition: all .15s; display: flex; align-items: center; justify-content: center; gap: 5px;
-    }
-    .sidebar-tab:hover { color: var(--text); }
-    .sidebar-tab.active { background: var(--bg-surface); color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,.06); }
-    .sidebar-tab svg { width: 14px; height: 14px; }
-
     .new-chat-btn {
-      margin: 4px 12px 12px; padding: 9px 14px; background: none; border: 1px solid var(--border);
-      border-radius: var(--radius-sm); color: var(--text); font-size: 13px; font-weight: 500;
+      margin: 4px 12px 8px; padding: 7px 12px; background: none; border: 1px dashed var(--border);
+      border-radius: var(--radius-sm); color: var(--text-secondary); font-size: 13px; font-weight: 500;
       cursor: pointer; text-align: left; transition: all .15s;
-      display: flex; align-items: center; gap: 8px;
+      display: flex; align-items: center; gap: 8px; width: calc(100% - 24px);
     }
-    .new-chat-btn:hover { background: var(--bg-hover); }
-    .new-chat-btn svg { width: 16px; height: 16px; color: var(--text-muted); }
+    .new-chat-btn:hover { background: var(--bg-hover); border-color: var(--text-muted); color: var(--text); }
+    .new-chat-btn svg { width: 14px; height: 14px; }
 
-    .sidebar-list { flex: 1; overflow-y: auto; padding: 0 8px; }
-    .list-label {
-      font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .8px;
-      color: var(--text-muted); padding: 12px 12px 6px;
+    /* Sidebar Sections (Claude-style) */
+    .sidebar-sections { flex: 1; overflow-y: auto; padding: 8px 0; }
+    .sidebar-section { margin-bottom: 12px; }
+    .sidebar-section-header {
+      display: flex; align-items: center; gap: 8px; padding: 8px 16px; cursor: pointer;
+      user-select: none; transition: all .15s; color: var(--text);
+      font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;
+      border-radius: var(--radius-sm); margin: 0 8px;
+    }
+    .sidebar-section-header:hover { background: var(--bg-hover); }
+    .sidebar-section-title {
+      display: flex; align-items: center; gap: 10px; flex: 1;
+    }
+    .sidebar-section-title svg { width: 15px; height: 15px; stroke-width: 1.8; }
+    .sidebar-section-chevron {
+      width: 12px; height: 12px; color: var(--text-muted); transition: transform .15s;
+    }
+    .sidebar-section.collapsed .sidebar-section-chevron { transform: rotate(-90deg); }
+    .sidebar-section-content {
+      padding: 4px 0; overflow: hidden; transition: all .15s;
+    }
+    .sidebar-section.collapsed .sidebar-section-content {
+      max-height: 0; padding-top: 0; padding-bottom: 0;
     }
 
     .list-item {
-      display: flex; align-items: center; gap: 10px; padding: 8px 12px; cursor: pointer;
-      font-size: 13.5px; color: var(--text-secondary); transition: all .1s; border-radius: var(--radius-sm);
-      margin-bottom: 1px;
+      display: flex; align-items: center; gap: 10px; padding: 6px 12px; cursor: pointer;
+      font-size: 13px; color: var(--text-secondary); transition: all .1s; border-radius: var(--radius-sm);
+      margin: 1px 8px; font-weight: 400;
     }
     .list-item:hover { background: var(--bg-hover); color: var(--text); }
-    .list-item.active { background: var(--bg-active); color: var(--text); }
+    .list-item.active { background: var(--bg-active); color: var(--text); font-weight: 500; }
     .list-item .icon { width: 18px; text-align: center; flex-shrink: 0; font-size: 14px; }
     .list-item .label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
     .list-item .meta { font-size: 11px; color: var(--text-muted); flex-shrink: 0; }
@@ -650,36 +657,47 @@
         </button>
       </div>
 
-      <div class="sidebar-tabs">
-        <button class="sidebar-tab active" data-tab="chats" onclick="switchView('chat')">
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 3h12v8H5l-3 3V3z"/></svg>
-          Chats
-        </button>
-        <button class="sidebar-tab" data-tab="agents" onclick="switchView('agents')">
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="3"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2"/></svg>
-          Agents
-        </button>
-        <button class="sidebar-tab" data-tab="docs" onclick="switchView('docs')">
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 2h8a1 1 0 011 1v10a1 1 0 01-1 1H4a1 1 0 01-1-1V3a1 1 0 011-1z"/><path d="M5 5h6M5 8h6M5 11h3"/></svg>
-          Docs
-        </button>
-      </div>
-
-      <div id="sidebar-chat-content">
-        <button class="new-chat-btn" onclick="newChat()">
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="8" y1="3" x2="8" y2="13"/><line x1="3" y1="8" x2="13" y2="8"/></svg>
-          New chat
-        </button>
-        <div class="sidebar-list">
-          <div class="list-label">Recent</div>
-          <div id="nav-chats"></div>
+      <div class="sidebar-sections">
+        <!-- Chat Section -->
+        <div class="sidebar-section">
+          <div class="sidebar-section-header" onclick="toggleSidebarSection('chat-section')">
+            <span class="sidebar-section-title">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 3h12v8H5l-3 3V3z"/></svg>
+              Chat
+            </span>
+            <svg class="sidebar-section-chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6l4 4 4-4"/></svg>
+          </div>
+          <div class="sidebar-section-content" id="chat-section">
+            <button class="new-chat-btn" onclick="newChat()">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="8" y1="3" x2="8" y2="13"/><line x1="3" y1="8" x2="13" y2="8"/></svg>
+              New chat
+            </button>
+            <div id="nav-chats"></div>
+          </div>
         </div>
-      </div>
 
-      <div id="sidebar-agents-content" style="display:none;flex:1;overflow-y:auto;">
-        <div class="sidebar-list">
-          <div class="list-label">Your Agents</div>
-          <div id="nav-agents"></div>
+        <!-- Agents Section -->
+        <div class="sidebar-section">
+          <div class="sidebar-section-header" onclick="toggleSidebarSection('agents-section')">
+            <span class="sidebar-section-title">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="3"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2"/></svg>
+              Agents
+            </span>
+            <svg class="sidebar-section-chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6l4 4 4-4"/></svg>
+          </div>
+          <div class="sidebar-section-content" id="agents-section">
+            <div id="nav-agents"></div>
+          </div>
+        </div>
+
+        <!-- Docs Section -->
+        <div class="sidebar-section">
+          <div class="sidebar-section-header" onclick="switchView('docs')">
+            <span class="sidebar-section-title">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 2h8a1 1 0 011 1v10a1 1 0 01-1 1H4a1 1 0 01-1-1V3a1 1 0 011-1z"/><path d="M5 5h6M5 8h6M5 11h3"/></svg>
+              Docs
+            </span>
+          </div>
         </div>
       </div>
 
@@ -691,8 +709,8 @@
       <div class="view active" id="view-chat">
         <div class="chat-header">
           <div class="model-picker" id="model-picker" onclick="toggleModelDropdown(event)">
-            <div class="model-picker-icon" id="model-picker-icon" style="background:#6366F1">K</div>
-            <span class="model-picker-name" id="model-picker-name">Kimi K2.5</span>
+            <div class="model-picker-icon" id="model-picker-icon" style="background:#1D4ED8">Q</div>
+            <span class="model-picker-name" id="model-picker-name">Qwen 3.5 397B</span>
             <span class="model-picker-arrow">&#9662;</span>
             <div class="model-dropdown" id="model-dropdown"></div>
           </div>
@@ -1011,8 +1029,8 @@ npm run dev</code></pre>
                 <table>
                   <thead><tr><th>Used for</th><th>Default model</th></tr></thead>
                   <tbody>
-                    <tr><td>Chat & tasks</td><td>Kimi K2.5</td></tr>
-                    <tr><td>Backup (if primary is down)</td><td>Qwen3 235B</td></tr>
+                    <tr><td>Chat & tasks</td><td>Qwen 3.5 397B</td></tr>
+                    <tr><td>Backup (if primary is down)</td><td>Kimi K2.5</td></tr>
                     <tr><td>Image generation</td><td>Gemini 2.5 Flash</td></tr>
                   </tbody>
                 </table>
@@ -1125,15 +1143,9 @@ npm run dev</code></pre>
     // ---- View switching ----
     window.switchView = function(view) {
       state.activeView = view;
-      const tabMap = { chat: 'chats', agents: 'agents', docs: 'docs' };
-      document.querySelectorAll('.sidebar-tab').forEach(t => {
-        t.classList.toggle('active', t.dataset.tab === tabMap[view]);
-      });
       $('view-chat').classList.toggle('active', view === 'chat');
       $('view-agents').classList.toggle('active', view === 'agents');
       $('view-docs').classList.toggle('active', view === 'docs');
-      $('sidebar-chat-content').style.display = view === 'chat' ? '' : 'none';
-      $('sidebar-agents-content').style.display = view === 'agents' ? '' : 'none';
 
       if (view === 'agents') renderAgentsList();
       closeSidebar();
@@ -1181,9 +1193,9 @@ npm run dev</code></pre>
 
     // ---- Models ----
     const MODELS = [
+      { id: 'qwen/qwen3.5-397b-a17b', name: 'Qwen 3.5 397B', desc: 'Hybrid reasoning', color: '#1D4ED8', letter: 'Q' },
       { id: 'moonshotai/kimi-k2.5', name: 'Kimi K2.5', desc: 'Fast & capable', color: '#6366F1', letter: 'K' },
       { id: 'deepseek/deepseek-v3.2', name: 'DeepSeek V3.2', desc: 'Strong all-rounder', color: '#0EA5E9', letter: 'D' },
-      { id: 'qwen/qwen3.5-397b-a17b', name: 'Qwen 3.5 397B', desc: 'Hybrid reasoning', color: '#1D4ED8', letter: 'Q' },
       { id: 'z-ai/glm-5-turbo', name: 'GLM-5 Turbo', desc: 'Fast inference', color: '#10B981', letter: 'G' },
       { id: 'minimax/minimax-m2.7', name: 'MiniMax M2.7', desc: 'Multimodal', color: '#EC4899', letter: 'M' },
       { id: 'openai/gpt-oss-120b', name: 'GPT-OSS 120B', desc: 'Open weights', color: '#10A37F', letter: 'G' },
@@ -1286,10 +1298,15 @@ npm run dev</code></pre>
     }
 
     function renderNav() {
-      const chats = state.sessions.filter(s => s.messageCount > 0).slice(0, 15);
-      $('nav-chats').innerHTML = chats.length === 0
-        ? '<div class="list-empty">No chats yet</div>'
-        : chats.map(s => `
+      // Show only most recent 5 chats
+      const allChats = state.sessions.filter(s => s.messageCount > 0).sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
+      const chats = allChats.slice(0, 5);
+      const hasMoreChats = allChats.length > 5;
+      
+      if (chats.length === 0) {
+        $('nav-chats').innerHTML = '<div class="list-empty">No chats yet</div>';
+      } else {
+        let html = chats.map(s => `
           <div class="list-item ${s.id === state.sessionId ? 'active' : ''}" onclick="loadSession('${s.id}')">
             <span class="icon"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 3h12v8H5l-3 3V3z"/></svg></span>
             <span class="label">${esc(sessionLabel(s))}</span>
@@ -1297,10 +1314,25 @@ npm run dev</code></pre>
             <button class="delete-btn" onclick="event.stopPropagation();confirmDeleteSession('${s.id}')" title="Delete chat">&#10005;</button>
           </div>
         `).join('');
+        if (hasMoreChats) {
+          html += `<div class="list-item" onclick="switchView('chat')">View all ${allChats.length} chats</div>`;
+        }
+        $('nav-chats').innerHTML = html;
+      }
 
-      $('nav-agents').innerHTML = state.agents.length === 0
-        ? '<div class="list-empty">No agents configured</div>'
-        : state.agents.map(a => {
+      // Show only most recent 5 agents (by last run time)
+      const sortedAgents = [...state.agents].sort((a, b) => {
+        const aTime = a.lastRun ? new Date(a.lastRun.completedAt || a.lastRun.startedAt).getTime() : 0;
+        const bTime = b.lastRun ? new Date(b.lastRun.completedAt || b.lastRun.startedAt).getTime() : 0;
+        return bTime - aTime;
+      });
+      const agents = sortedAgents.slice(0, 5);
+      const hasMoreAgents = sortedAgents.length > 5;
+
+      if (agents.length === 0) {
+        $('nav-agents').innerHTML = '<div class="list-empty">No agents yet</div>';
+      } else {
+        let html = agents.map(a => {
           const sc = !a.lastRun ? 'var(--text-muted)' : a.lastRun.status === 'completed' ? 'var(--green)' : 'var(--red)';
           return `
             <div class="list-item ${a.id === state.selectedAgentId ? 'active' : ''}" onclick="selectAgent('${a.id}')">
@@ -1310,6 +1342,11 @@ npm run dev</code></pre>
             </div>
           `;
         }).join('');
+        if (hasMoreAgents) {
+          html += `<div class="list-item" onclick="switchView('agents')">View all ${sortedAgents.length} agents</div>`;
+        }
+        $('nav-agents').innerHTML = html;
+      }
     }
 
     function renderFooter() {
@@ -1748,6 +1785,18 @@ npm run dev</code></pre>
         renderAgentsList();
         await selectAgent(id);
       } catch {}
+    };
+
+    // ==============================
+    // SIDEBAR SECTION TOGGLE
+    // ==============================
+
+    window.toggleSidebarSection = function(sectionId) {
+      const section = document.getElementById(sectionId);
+      if (section) {
+        const parent = section.parentElement;
+        parent.classList.toggle('collapsed');
+      }
     };
 
     // ==============================
