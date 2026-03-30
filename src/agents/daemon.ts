@@ -31,11 +31,11 @@ import {
 
 const scheduledJobs = new Map<string, ReturnType<typeof cron.schedule>>();
 
-export function startDaemon(): void {
+export async function startDaemon(): Promise<void> {
   console.log(chalk.bold.cyan("\n  ⚡ Kai Agent Daemon starting...\n"));
 
   // Register all integrations
-  registerAllIntegrations();
+  await registerAllIntegrations();
 
   // Load all agents and schedule them
   const agents = listAgents();
@@ -81,7 +81,7 @@ export async function runAgent(agentId: string): Promise<{ success: boolean; err
   if (!agent) return { success: false, error: `Agent "${agentId}" not found` };
 
   // Register integrations if not already done
-  registerAllIntegrations();
+  await registerAllIntegrations();
 
   try {
     const workflow = parseWorkflow(agent.workflow_path);

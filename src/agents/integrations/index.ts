@@ -1,17 +1,15 @@
-import { registerYouTubeIntegration } from "./youtube.js";
-import { registerImageGenIntegration } from "./image-gen.js";
-import { registerWebIntegration } from "./web.js";
 import { registerDataIntegration } from "./data.js";
 import { registerMcpIntegration } from "./mcp.js";
+import { loadCustomIntegrations } from "./custom.js";
 
 /**
- * Register all built-in integrations.
- * Call this once at startup.
+ * Register all integrations.
+ *
+ * Built-in: data (cross-agent communication), mcp (MCP server bridge)
+ * Custom: loaded from ~/.kai/integrations/*.js at runtime
  */
-export function registerAllIntegrations(): void {
-  registerYouTubeIntegration();
-  registerImageGenIntegration();
-  registerWebIntegration();
+export async function registerAllIntegrations(): Promise<void> {
   registerDataIntegration();
   registerMcpIntegration();
+  await loadCustomIntegrations();
 }

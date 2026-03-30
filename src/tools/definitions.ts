@@ -202,28 +202,6 @@ export const toolDefinitions = [
   {
     type: "function" as const,
     function: {
-      name: "web_search",
-      description:
-        "Search the web and return results with titles, URLs, and snippets. Use when you need current information not in local files.",
-      parameters: {
-        type: "object",
-        properties: {
-          query: {
-            type: "string",
-            description: "Search query",
-          },
-          count: {
-            type: "number",
-            description: "Number of results (default: 5, max: 10)",
-          },
-        },
-        required: ["query"],
-      },
-    },
-  },
-  {
-    type: "function" as const,
-    function: {
       name: "task_create",
       description:
         "Create a task to track progress on multi-step work. Use for complex tasks requiring multiple steps.",
@@ -426,68 +404,6 @@ export const toolDefinitions = [
           },
         },
         required: ["query"],
-      },
-    },
-  },
-  // === IMAGE GENERATION ===
-  {
-    type: "function" as const,
-    function: {
-      name: "generate_image",
-      description:
-        "Generate an image using Google Gemini 3 Pro. Describe the scene naturally — the prompt is auto-refined. For YouTube thumbnails or images with a specific person, provide their portrait photo as reference_image and the AI will generate them in the scene.",
-      parameters: {
-        type: "object",
-        properties: {
-          prompt: {
-            type: "string",
-            description: "What you want the image to show. Be specific about the scene, subject, mood, and style.",
-          },
-          reference_image: {
-            type: "string",
-            description: "Path to a portrait/reference photo. The generated image will include a person matching this photo in the scene.",
-          },
-          output_path: {
-            type: "string",
-            description: "Where to save the image (default: /tmp/kai-images/)",
-          },
-        },
-        required: ["prompt"],
-      },
-    },
-  },
-  {
-    type: "function" as const,
-    function: {
-      name: "composite_image",
-      description:
-        "Composite two images together (e.g., AI-generated background + portrait photo for YouTube thumbnails). Uses ImageMagick. The overlay image is resized and placed on the background at the specified position.",
-      parameters: {
-        type: "object",
-        properties: {
-          background: {
-            type: "string",
-            description: "Path to the background image",
-          },
-          overlay: {
-            type: "string",
-            description: "Path to the overlay image (e.g., portrait photo)",
-          },
-          output_path: {
-            type: "string",
-            description: "Where to save the result",
-          },
-          position: {
-            type: "string",
-            enum: ["left", "right", "center"],
-            description: "Where to place the overlay (default: right)",
-          },
-          overlay_width: {
-            type: "number",
-            description: "Overlay width as percentage of background (default: 40)",
-          },
-        },
-        required: ["background", "overlay"],
       },
     },
   },

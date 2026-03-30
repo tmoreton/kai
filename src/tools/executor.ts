@@ -1,7 +1,7 @@
 import { bashTool, bashBackgroundTool } from "./bash.js";
 import { readFile, writeFile, editFile } from "./files.js";
 import { globTool, grepTool } from "./search.js";
-import { webFetch, webSearch } from "./web.js";
+import { webFetch } from "./web.js";
 import { createTask, updateTask, listTasks } from "./tasks.js";
 import { spawnAgent } from "../subagent.js";
 import { checkPermission } from "../permissions.js";
@@ -9,7 +9,6 @@ import { runHooks } from "../hooks.js";
 import { updateCoreMemory, readCoreMemory } from "../soul.js";
 import { searchRecall } from "../recall.js";
 import { archivalInsert, archivalSearch } from "../archival.js";
-import { generateImage, compositeImage } from "./image-gen.js";
 import { tryExecuteMcpTool } from "./mcp.js";
 
 export type ToolResult = string;
@@ -45,8 +44,6 @@ export async function executeTool(
         result = await grepTool(args as { pattern: string; path?: string; include?: string; context?: number; ignore_case?: boolean }); break;
       case "web_fetch":
         result = await webFetch(args as { url: string; method?: string; headers?: Record<string, string> }); break;
-      case "web_search":
-        result = await webSearch(args as { query: string; count?: number }); break;
       case "task_create":
         result = createTask(args as { subject: string; description: string }); break;
       case "task_update":
@@ -72,10 +69,6 @@ export async function executeTool(
         result = archivalInsert(args as { content: string; tags?: string[]; source?: string }); break;
       case "archival_search":
         result = archivalSearch(args as { query: string; tags?: string[]; limit?: number }); break;
-      case "generate_image":
-        result = await generateImage(args as { prompt: string; output_path?: string; reference_image?: string }); break;
-      case "composite_image":
-        result = await compositeImage(args as { background: string; overlay: string; output_path?: string; position?: string; overlay_width?: number }); break;
       case "spawn_agent":
         result = await spawnAgent(args as { agent: string; task: string }); break;
       default: {

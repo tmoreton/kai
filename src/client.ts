@@ -371,8 +371,6 @@ function formatToolLabel(toolName: string): string {
     glob: "Glob",
     grep: "Grep",
     web_fetch: "WebFetch",
-    web_search: "WebSearch",
-    generate_image: "ImageGen",
     spawn_agent: "Agent",
     task_create: "Task",
     task_update: "Task",
@@ -401,10 +399,6 @@ function summarizeArgs(
       return `${args.pattern || ""} ${args.path || ""}`;
     case "web_fetch":
       return String(args.url || "").substring(0, 60);
-    case "web_search":
-      return String(args.query || "");
-    case "generate_image":
-      return String(args.prompt || "").substring(0, 60);
     case "spawn_agent":
       return `${args.agent}: ${String(args.task || "").substring(0, 50)}`;
     case "task_create":

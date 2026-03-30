@@ -245,7 +245,7 @@ yt
     // Run the inbox workflow directly
     const { registerAllIntegrations } = await import("./agents/integrations/index.js");
     const { parseWorkflow, executeWorkflow } = await import("./agents/workflow.js");
-    registerAllIntegrations();
+    await registerAllIntegrations();
 
     const workflowPath = path.join(home, ".kai/workflows/yt-inbox.yaml");
     if (!fs.existsSync(workflowPath)) {
@@ -300,7 +300,7 @@ yt
 
     const { registerAllIntegrations } = await import("./agents/integrations/index.js");
     const { parseWorkflow, executeWorkflow } = await import("./agents/workflow.js");
-    registerAllIntegrations();
+    await registerAllIntegrations();
 
     const workflowPath = path.join(home, ".kai/workflows/yt-inbox.yaml");
     if (!fs.existsSync(workflowPath)) {
@@ -346,7 +346,7 @@ yt
 
     const { registerAllIntegrations } = await import("./agents/integrations/index.js");
     const { parseWorkflow, executeWorkflow } = await import("./agents/workflow.js");
-    registerAllIntegrations();
+    await registerAllIntegrations();
 
     const workflowPath = path.join(home, ".kai/workflows/yt-producer.yaml");
     if (!fs.existsSync(workflowPath)) {
