@@ -379,8 +379,7 @@ ${iteration > 0 ? `\nThis is iteration ${iteration + 1}. Be stricter — earlier
   const model = getSharedModel();
   const models = [
     model,
-    "meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8",
-    "deepseek-ai/DeepSeek-V3",
+    "Qwen/Qwen3.5-397B-A17B",
   ];
 
   for (const currentModel of models) {
@@ -446,8 +445,7 @@ async function executeLlmStep(step: WorkflowStep, ctx: WorkflowContext): Promise
   // Try primary model with retries, then fallback models
   const fallbackModels = [
     model,
-    "meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8",
-    "deepseek-ai/DeepSeek-V3",
+    "Qwen/Qwen3.5-397B-A17B",
   ];
 
   for (const currentModel of fallbackModels) {
