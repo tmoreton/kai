@@ -889,11 +889,10 @@
       <!-- Agents View -->
       <div class="view" id="view-agents">
         <div class="agents-view">
-          <div class="agents-list-panel" id="agents-list-panel"></div>
-          <div class="agents-detail-panel" id="agents-detail-panel">
+          <div class="agents-detail-panel" id="agents-detail-panel" style="flex:1;width:100%;">
             <div class="agents-empty">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="4"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
-              <span>Select an agent to view details</span>
+              <span>Select an agent from the sidebar</span>
             </div>
           </div>
         </div>
@@ -1376,27 +1375,7 @@ npm run dev</code></pre>
     // ==============================
 
     function renderAgentsList() {
-      const panel = $('agents-list-panel');
-      let h = '<div class="agents-list-header">Agents</div>';
-      if (state.agents.length === 0) {
-        h += '<div style="padding:20px;color:var(--text-muted);font-size:13px">No agents configured. Use <code>kai agent create</code> to add one.</div>';
-      } else {
-        for (const a of state.agents) {
-          const statusClass = !a.enabled ? 'disabled' : !a.lastRun ? 'never' : a.lastRun.status;
-          const statusLabel = !a.enabled ? 'Disabled' : !a.lastRun ? 'Never run' : a.lastRun.status === 'completed' ? 'Completed' : 'Failed';
-          h += `
-            <div class="agent-card ${a.id === state.selectedAgentId ? 'active' : ''}" onclick="selectAgent('${a.id}')">
-              <div class="agent-card-name">${esc(friendlyName(a.name))}</div>
-              <div class="agent-card-meta">
-                <span class="agent-card-status ${statusClass}">${statusLabel}</span>
-                ${a.lastRun ? `<span>${timeAgo(a.lastRun.completedAt || a.lastRun.startedAt)}</span>` : ''}
-                ${a.schedule ? `<span>${cronToWords(a.schedule)}</span>` : ''}
-              </div>
-            </div>
-          `;
-        }
-      }
-      panel.innerHTML = h;
+      // Agents list is rendered in the sidebar only
     }
 
     window.selectAgent = async function(id) {
