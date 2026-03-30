@@ -71,18 +71,3 @@ export function getFallbackModel(): string {
 export function getImageModel(): string {
   return OPENROUTER_PROVIDER.imageModel!;
 }
-
-/**
- * Get the list of all known providers and their models.
- */
-export function listProviders(): ProviderDefinition[] {
-  return [OPENROUTER_PROVIDER];
-}
-
-/**
- * Get active provider name for display.
- */
-export function getActiveProviderName(): string {
-  const resolved = resolveProvider();
-  return `${resolved.provider.name}/${resolved.model}`;
-}

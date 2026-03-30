@@ -12,7 +12,7 @@ import {
   getSteps,
   type StepRecord,
 } from "./db.js";
-import { resolveProvider, type ResolvedProvider } from "../providers/index.js";
+import { resolveProvider, getFallbackModel, type ResolvedProvider } from "../providers/index.js";
 
 // Shared resolved provider — reused across all LLM calls in the workflow engine
 let _resolved: ResolvedProvider | null = null;
@@ -439,7 +439,7 @@ async function executeLlmStep(step: WorkflowStep, ctx: WorkflowContext): Promise
   // Try primary model with retries, then fallback models
   const fallbackModels = [
     model,
-    "qwen/qwen3-235b-a22b",
+    getFallbackModel(),
   ];
 
   for (const currentModel of fallbackModels) {

@@ -132,11 +132,6 @@ export function loadSoul(projectId?: string): Soul {
   return { ...identity, ...context };
 }
 
-export function saveSoul(soul: Soul): void {
-  saveIdentity({ persona: soul.persona, human: soul.human });
-  saveProjectContext({ goals: soul.goals, scratchpad: soul.scratchpad });
-}
-
 export function updateCoreMemory(
   block: keyof Soul,
   operation: "replace" | "append",

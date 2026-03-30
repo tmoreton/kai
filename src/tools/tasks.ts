@@ -12,11 +12,6 @@ export interface Task {
 let tasks: Task[] = [];
 let nextId = 1;
 
-export function resetTasks(): void {
-  tasks = [];
-  nextId = 1;
-}
-
 export function createTask(args: {
   subject: string;
   description: string;

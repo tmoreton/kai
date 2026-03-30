@@ -28,7 +28,7 @@ import {
   setPermissionMode,
   getPermissionMode,
 } from "./permissions.js";
-import { getCurrentProject, getProjectLabel, listProjects as listAllProjects } from "./project.js";
+import { getCurrentProject, listProjects as listAllProjects } from "./project.js";
 import { compactMessages } from "./context.js";
 import { renderMarkdown } from "./render.js";
 import {

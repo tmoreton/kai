@@ -48,10 +48,6 @@ Working directory: ${getCwd()}`,
   },
 ];
 
-export function getBuiltInAgents(): SubagentConfig[] {
-  return BUILT_IN_AGENTS;
-}
-
 export async function runSubagent(
   config: SubagentConfig,
   task: string,

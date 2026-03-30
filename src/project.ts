@@ -89,13 +89,6 @@ export function getCurrentProject(): ProjectInfo | null {
   return resolveProject();
 }
 
-/**
- * Check if we're in desktop/global mode (no project).
- */
-export function isDesktopMode(): boolean {
-  return resolveProject() === null;
-}
-
 // --- Project Registry ---
 
 function registryPath(): string {
@@ -156,13 +149,3 @@ export function ensureGlobalDir(subsystem: string): string {
   return dir;
 }
 
-/**
- * Get the display label for the current context.
- */
-export function getProjectLabel(): string {
-  const project = resolveProject();
-  if (project) {
-    return `${project.name} (${project.path})`;
-  }
-  return "desktop mode (no project)";
-}

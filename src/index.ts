@@ -214,10 +214,6 @@ mcp
     await shutdownMcpServers();
   });
 
-// --- YouTube commands ---
-import { registerYouTubeCommands } from "./yt.js";
-registerYouTubeCommands(program);
-
 // Graceful shutdown of MCP servers on exit
 process.on("exit", () => { shutdownMcpServers(); });
 process.on("SIGINT", () => { shutdownMcpServers(); process.exit(0); });

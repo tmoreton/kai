@@ -311,7 +311,7 @@ export const toolDefinitions = [
     function: {
       name: "generate_image",
       description:
-        "Generate images using Together.ai. Describe the scene naturally.",
+        "Generate images via OpenRouter (Nano Banana). Describe the scene naturally.",
       parameters: {
         type: "object",
         properties: {

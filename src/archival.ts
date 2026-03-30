@@ -159,21 +159,3 @@ export function archivalList(limit = 20): string {
     .join("\n");
 }
 
-export function archivalDelete(id: string): string {
-  // Search both files
-  for (const filePath of [globalArchivalPath(), projectArchivalPath()]) {
-    if (!fs.existsSync(filePath)) continue;
-    const entries = loadEntries(filePath);
-    const filtered = entries.filter((e) => e.id !== id);
-    if (filtered.length < entries.length) {
-      // Rewrite file without the deleted entry
-      fs.writeFileSync(
-        filePath,
-        filtered.map((e) => JSON.stringify(e)).join("\n") + (filtered.length ? "\n" : ""),
-        "utf-8"
-      );
-      return `Archival entry "${id}" deleted.`;
-    }
-  }
-  return `Archival entry "${id}" not found.`;
-}
