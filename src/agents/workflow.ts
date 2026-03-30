@@ -466,7 +466,7 @@ async function executeLlmStep(step: WorkflowStep, ctx: WorkflowContext): Promise
         const response = await client.chat.completions.create({
           model: currentModel,
           messages,
-          max_tokens: 4096,
+          max_tokens: 16384,
         });
 
         const content = response.choices[0]?.message?.content || "";

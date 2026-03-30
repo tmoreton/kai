@@ -388,7 +388,28 @@ yt
       return;
     }
 
-    const board = JSON.parse(fs.readFileSync(boardPath, "utf-8"));
+    let raw = fs.readFileSync(boardPath, "utf-8");
+    let board;
+    try {
+      board = JSON.parse(raw);
+    } catch {
+      // LLM output may be truncated or have bad escaping — try to repair
+      let repaired = raw
+        .replace(/[\n\r]+/g, " ")       // flatten newlines
+        .replace(/,\s*([}\]])/g, "$1"); // remove trailing commas
+      // If truncated mid-string, close it and close all brackets
+      if (!repaired.trimEnd().endsWith("}")) {
+        repaired = repaired.replace(/[^"]*$/, "") + '"}]}';
+      }
+      try {
+        board = JSON.parse(repaired);
+      } catch {
+        console.log(chalk.yellow("  Content board JSON is corrupted (LLM truncated output)."));
+        console.log(chalk.dim("  Re-running strategist to regenerate..."));
+        console.log(chalk.dim("  Run: kai agent run agent-yt-strategist\n"));
+        return;
+      }
+    }
     console.log(chalk.bold("\n  📋 Content Board\n"));
     if (board.week_summary) {
       console.log(chalk.dim(`  ${board.week_summary}\n`));
