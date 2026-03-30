@@ -90,19 +90,18 @@ export async function chat(
       }
     }, 80);
 
-    // Create stream with timeout
-    const controller = new AbortController();
-    const timeout = setTimeout(
-      () => controller.abort(),
-      STREAM_TIMEOUT_MS
-    );
+    // Create stream with timeout — reset per retry attempt
+    let controller: AbortController;
+    let timeout: ReturnType<typeof setTimeout>;
 
     let stream: any;
     for (let attempt = 0; attempt < RETRY_MAX_ATTEMPTS; attempt++) {
+      controller = new AbortController();
+      timeout = setTimeout(() => controller.abort(), STREAM_TIMEOUT_MS);
       try {
         if (attempt > 0) {
           process.stderr.write(`\x1b[2K\r  Retrying (${attempt + 1}/${RETRY_MAX_ATTEMPTS})...\n`);
-          await sleep(backoffDelay(attempt - 1));
+          await sleep(backoffDelay(attempt));
         }
         stream = await client.chat.completions.create(
           {
@@ -117,11 +116,11 @@ export async function chat(
         );
         break;
       } catch (err: unknown) {
+        clearTimeout(timeout!);
         const status = (err as any)?.status || (err as any)?.response?.status;
         const isRetryable = status && RETRYABLE_STATUS_CODES.includes(status);
         if (!isRetryable || attempt === RETRY_MAX_ATTEMPTS - 1) {
           clearInterval(spinner);
-          clearTimeout(timeout);
           process.stderr.write("\x1b[2K\r"); // Clear spinner
           const msg = err instanceof Error ? err.message : String(err);
           throw new Error(`API request failed: ${msg}`);
@@ -143,7 +142,7 @@ export async function chat(
 
     try {
       for await (const chunk of stream) {
-        const delta = chunk.choices[0]?.delta;
+        const delta = chunk.choices?.[0]?.delta;
 
         if (chunk.usage) {
           chunkUsage = chunk.usage;
@@ -174,7 +173,7 @@ export async function chat(
             process.stderr.write("\x1b[2K\r"); // Clear spinner line
           }
           content += text;
-          onToken?.(text);
+          try { onToken?.(text); } catch {}
         }
 
         if (delta.tool_calls) {
@@ -206,9 +205,16 @@ export async function chat(
           }
         }
       }
+    } catch (streamErr: unknown) {
+      // Handle stream errors gracefully instead of crashing
+      if (!content && !toolCalls.length) {
+        const msg = streamErr instanceof Error ? streamErr.message : String(streamErr);
+        throw new Error(`Stream failed: ${msg}`);
+      }
+      // If we already have partial content/tool calls, continue with what we have
     } finally {
       clearInterval(spinner);
-      clearTimeout(timeout);
+      clearTimeout(timeout!);
       if (!firstToken) {
         process.stderr.write("\x1b[2K\r");
       }
@@ -286,6 +292,14 @@ export async function chat(
     updatedMessages.push(assistantMsg);
 
     if (content) onToken?.("\n");
+
+    // Re-check compaction after tool results accumulate
+    if (shouldCompact(updatedMessages)) {
+      const compacted = compactMessages(updatedMessages);
+      updatedMessages.length = 0;
+      updatedMessages.push(...compacted);
+      console.log(chalk.dim("  📦 Context auto-compacted to save tokens.\n"));
+    }
 
     for (const tc of toolCalls) {
       const toolName = tc.function.name;

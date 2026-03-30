@@ -133,10 +133,13 @@ export function listAgents(): AgentRecord[] {
 
 export function deleteAgent(id: string): void {
   const db = getDb();
-  db.prepare("DELETE FROM steps WHERE run_id IN (SELECT id FROM runs WHERE agent_id = ?)").run(id);
-  db.prepare("DELETE FROM runs WHERE agent_id = ?").run(id);
-  db.prepare("DELETE FROM logs WHERE agent_id = ?").run(id);
-  db.prepare("DELETE FROM agents WHERE id = ?").run(id);
+  const deleteAll = db.transaction(() => {
+    db.prepare("DELETE FROM steps WHERE run_id IN (SELECT id FROM runs WHERE agent_id = ?)").run(id);
+    db.prepare("DELETE FROM runs WHERE agent_id = ?").run(id);
+    db.prepare("DELETE FROM logs WHERE agent_id = ?").run(id);
+    db.prepare("DELETE FROM agents WHERE id = ?").run(id);
+  });
+  deleteAll();
 }
 
 // --- Run CRUD ---

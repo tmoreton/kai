@@ -18,6 +18,14 @@ export function registerWebIntegration(): void {
           signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
         });
         const text = await response.text();
+        if (!response.ok) {
+          return {
+            status: response.status,
+            error: `HTTP ${response.status}: ${text.substring(0, 500)}`,
+            content: text.substring(0, WEB_CONTENT_LIMIT),
+            content_type: response.headers.get("content-type"),
+          };
+        }
         return {
           status: response.status,
           content: text.substring(0, WEB_CONTENT_LIMIT),

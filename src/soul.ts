@@ -120,7 +120,8 @@ export function loadSoul(projectId?: string): Soul {
 export function updateCoreMemory(
   block: keyof Soul,
   operation: "replace" | "append",
-  content: string
+  content: string,
+  projectId?: string
 ): string {
   // Route to the right storage
   if (block === "persona" || block === "human") {
@@ -137,7 +138,7 @@ export function updateCoreMemory(
     }
     saveIdentity(identity);
   } else {
-    const ctx = loadProjectContext();
+    const ctx = loadProjectContext(projectId);
     const mem = ctx[block as "goals" | "scratchpad"];
     if (operation === "replace") {
       mem.content = content;
@@ -148,7 +149,7 @@ export function updateCoreMemory(
     if (mem.content.length > charLimit) {
       mem.content = mem.content.substring(mem.content.length - charLimit);
     }
-    saveProjectContext(ctx);
+    saveProjectContext(ctx, projectId);
   }
 
   const scope = (block === "persona" || block === "human") ? "global" : "project";

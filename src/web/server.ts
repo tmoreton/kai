@@ -654,12 +654,18 @@ export async function startServer(options: ServerOptions): Promise<void> {
     const ext = path.extname(filePath).toLowerCase();
     const allowedExts = [".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg"];
     if (!allowedExts.includes(ext)) return c.text("Not an image", 403);
-    if (!fs.existsSync(filePath)) return c.text("Not found", 404);
+    // Security: resolve to absolute and block path traversal
+    const resolved = path.resolve(filePath);
+    const kaiDir = path.resolve(process.env.HOME || "", ".kai");
+    if (!resolved.startsWith(kaiDir) && !resolved.startsWith("/tmp")) {
+      return c.text("Forbidden: path outside allowed directories", 403);
+    }
+    if (!fs.existsSync(resolved)) return c.text("Not found", 404);
     const mimeTypes: Record<string, string> = {
       ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
       ".gif": "image/gif", ".webp": "image/webp", ".svg": "image/svg+xml",
     };
-    const data = fs.readFileSync(filePath);
+    const data = fs.readFileSync(resolved);
     return new Response(data, {
       headers: { "Content-Type": mimeTypes[ext] || "application/octet-stream", "Cache-Control": "public, max-age=3600" },
     });

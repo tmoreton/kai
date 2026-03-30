@@ -5,9 +5,6 @@ import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
 import { Command } from "commander";
 import chalk from "chalk";
-import type { ChatCompletionMessageParam } from "openai/resources/chat/completions";
-import { createClient, chat } from "./client.js";
-import { buildSystemPrompt } from "./system-prompt.js";
 import { startRepl } from "./repl.js";
 import { initMcpServers, shutdownMcpServers, listMcpServers } from "./tools/index.js";
 
@@ -25,18 +22,14 @@ program
   .description("AI coding assistant with persistent memory, background agents, and tool use")
   .version("1.0.0");
 
-// --- Default: Interactive REPL or one-shot ---
+// --- Default: Interactive REPL (with optional initial prompt) ---
 program
-  .argument("[prompt]", "One-shot prompt (runs and exits)")
-  .option("-p, --print <prompt>", "Run a one-shot prompt and print result")
-  .option("-k, --keep-alive", "Keep session alive after one-shot for follow-up questions")
+  .argument("[prompt]", "Initial prompt (runs then continues into REPL)")
   .option("-c, --continue", "Continue most recent session")
   .option("-r, --resume <id>", "Resume a specific session by ID")
   .option("-n, --name <name>", "Name for the session")
   .option("-y, --yes", "Auto-approve all tool calls")
   .action(async (promptArg, options) => {
-    const oneShot = options.print || promptArg;
-
     let pipedInput = "";
     if (!process.stdin.isTTY) {
       pipedInput = await readStdin();
@@ -45,28 +38,14 @@ program
     // Initialize MCP servers before any interaction
     await initMcpServers();
 
-    if (oneShot || pipedInput) {
-      const prompt = [pipedInput, oneShot].filter(Boolean).join("\n\n");
-      // -p/--print: true one-shot (run and exit)
-      // Positional arg or piped input: run then continue into REPL
-      if (options.print && !pipedInput) {
-        await runOneShot(prompt, options.yes);
-      } else {
-        await runOneShotAndContinue(prompt, {
-          continueSession: options.continue,
-          resumeSessionId: options.resume,
-          sessionName: options.name,
-          autoApprove: options.yes,
-        });
-      }
-    } else {
-      await startRepl({
-        continueSession: options.continue,
-        resumeSessionId: options.resume,
-        sessionName: options.name,
-        autoApprove: options.yes,
-      });
-    }
+    const initialPrompt = [pipedInput, promptArg].filter(Boolean).join("\n\n") || undefined;
+
+    await startRepl({
+      continueSession: options.continue,
+      resumeSessionId: options.resume,
+      sessionName: options.name,
+      autoApprove: options.yes,
+    }, initialPrompt);
   });
 
 // --- Server (Web UI + Agent Daemon + API) ---
@@ -132,42 +111,67 @@ agent
   .command("list")
   .description("List all registered agents")
   .action(async () => {
-    const { formatAgentList, daemonStatus } = await import("./agents/manager.js");
-    console.log(daemonStatus());
-    console.log(formatAgentList());
+    try {
+      const { formatAgentList, daemonStatus } = await import("./agents/manager.js");
+      console.log(daemonStatus());
+      console.log(formatAgentList());
+    } catch (err: any) {
+      console.error(`Error: ${err.message}`);
+      process.exit(1);
+    }
   });
 
 agent
   .command("output <agent-id> [step]")
   .description("Show the output from an agent's latest run")
   .action(async (agentId, step) => {
-    const { formatAgentOutput } = await import("./agents/manager.js");
-    console.log(formatAgentOutput(agentId, step));
+    try {
+      const { formatAgentOutput } = await import("./agents/manager.js");
+      console.log(formatAgentOutput(agentId, step));
+    } catch (err: any) {
+      console.error(`Error: ${err.message}`);
+      process.exit(1);
+    }
   });
 
 agent
   .command("info <agent-id>")
   .description("Show detailed info about an agent")
   .action(async (agentId) => {
-    const { formatAgentDetail } = await import("./agents/manager.js");
-    console.log(formatAgentDetail(agentId));
+    try {
+      const { formatAgentDetail } = await import("./agents/manager.js");
+      console.log(formatAgentDetail(agentId));
+    } catch (err: any) {
+      console.error(`Error: ${err.message}`);
+      process.exit(1);
+    }
   });
 
 agent
   .command("run <agent-id>")
   .description("Run an agent immediately")
   .action(async (agentId) => {
-    const { runAgentCommand } = await import("./agents/manager.js");
-    await runAgentCommand(agentId);
+    try {
+      const { runAgentCommand } = await import("./agents/manager.js");
+      await runAgentCommand(agentId);
+    } catch (err: any) {
+      console.error(`Error: ${err.message}`);
+      process.exit(1);
+    }
   });
 
 agent
   .command("delete <agent-id>")
   .description("Delete an agent and its history")
   .action(async (agentId) => {
-    const { deleteAgent } = await import("./agents/db.js");
-    deleteAgent(agentId);
-    console.log(`✓ Agent "${agentId}" deleted`);
+    try {
+      const { deleteAgent } = await import("./agents/db.js");
+      deleteAgent(agentId);
+      console.log(`✓ Agent "${agentId}" deleted`);
+    } catch (err: any) {
+      console.error(`Error: ${err.message}`);
+      process.exit(1);
+    }
   });
 
 agent
@@ -330,93 +334,10 @@ mcp
   });
 
 // Graceful shutdown of MCP servers on exit
-process.on("exit", () => { shutdownMcpServers(); });
-process.on("SIGINT", () => { shutdownMcpServers(); process.exit(0); });
+process.on("exit", () => { shutdownMcpServers().catch(() => {}); });
+process.on("SIGINT", () => { shutdownMcpServers().catch(() => {}).finally(() => process.exit(0)); });
 
 program.parse();
-
-async function runOneShot(prompt: string, autoApprove = false): Promise<void> {
-  if (autoApprove) {
-    const { setPermissionMode } = await import("./permissions.js");
-    setPermissionMode("auto");
-  }
-
-  const client = createClient();
-
-  const messages = [
-    { role: "system" as const, content: buildSystemPrompt() },
-    { role: "user" as const, content: prompt },
-  ];
-
-  try {
-    await chat(client, messages, (token) => {
-      process.stdout.write(token);
-    });
-    process.stdout.write("\n");
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.error(`Error: ${msg}`);
-    process.exit(1);
-  }
-}
-
-interface ReplOptions {
-  continueSession?: boolean;
-  resumeSessionId?: string;
-  sessionName?: string;
-  autoApprove?: boolean;
-}
-
-async function runOneShotAndContinue(prompt: string, options: ReplOptions): Promise<void> {
-  if (options.autoApprove) {
-    const { setPermissionMode } = await import("./permissions.js");
-    setPermissionMode("auto");
-  }
-
-  const client = createClient();
-
-  const messages: ChatCompletionMessageParam[] = [
-    { role: "system" as const, content: buildSystemPrompt() },
-    { role: "user" as const, content: prompt },
-  ];
-
-  try {
-    await chat(client, messages, (token) => {
-      process.stdout.write(token);
-    });
-    process.stdout.write("\n\n");
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.error(`Error: ${msg}`);
-    process.exit(1);
-  }
-
-  // Save the conversation and continue into REPL
-  const { getCwd } = await import("./tools/bash.js");
-  const { generateSessionId, saveSession } = await import("./sessions.js");
-
-  const session = {
-    id: generateSessionId(),
-    name: options.sessionName,
-    cwd: getCwd(),
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    messages,
-  };
-
-  saveSession(session);
-
-  console.log(chalk.dim(`  Session saved: ${session.name || session.id}\n`));
-  console.log(chalk.dim("  Continuing session — type your next question or /help for commands\n\n"));
-
-  // Continue into REPL with the existing messages
-  await startRepl({
-    continueSession: false,
-    resumeSessionId: undefined,
-    sessionName: options.sessionName,
-    autoApprove: options.autoApprove,
-  }, messages);
-}
 
 function readStdin(): Promise<string> {
   return new Promise((resolve) => {

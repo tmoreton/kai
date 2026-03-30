@@ -1,0 +1,11 @@
+src/
+node_modules/
+.env
+.env.example
+tsconfig.json
+*.ts
+!dist/**
+src-tauri/
+examples/
+.github/
+.vscode/

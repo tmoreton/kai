@@ -58,7 +58,7 @@ export interface ReplOptions {
   autoApprove?: boolean;
 }
 
-export async function startRepl(options: ReplOptions = {}, initialMessages?: ChatCompletionMessageParam[]): Promise<void> {
+export async function startRepl(options: ReplOptions = {}, initialPrompt?: string): Promise<void> {
   // Prune sessions older than 30 days on startup
   const pruned = cleanupSessions(30);
   if (pruned > 0) {
@@ -67,25 +67,13 @@ export async function startRepl(options: ReplOptions = {}, initialMessages?: Cha
 
   const client = createClient();
 
-  let messages: ChatCompletionMessageParam[] = initialMessages || [
+  let messages: ChatCompletionMessageParam[] = [
     { role: "system", content: buildSystemPrompt() },
   ];
 
   let session: Session;
 
-  if (initialMessages) {
-    // Continue existing session with provided messages
-    const { getCwd } = await import("./tools/bash.js");
-    const { getMostRecentSession } = await import("./sessions.js");
-    const recent = getMostRecentSession();
-    if (recent) {
-      session = recent;
-      session.messages = messages;
-      session.updatedAt = new Date().toISOString();
-    } else {
-      session = createNewSession(options, messages);
-    }
-  } else if (options.continueSession) {
+  if (options.continueSession) {
     const recent = getMostRecentSession();
     if (recent) {
       messages = recent.messages;
@@ -382,6 +370,11 @@ export async function startRepl(options: ReplOptions = {}, initialMessages?: Cha
   });
 
   rl.prompt();
+
+  // If an initial prompt was provided (e.g. `kai "fix the bug"`), process it immediately
+  if (initialPrompt) {
+    processInput(initialPrompt);
+  }
 }
 
 function createNewSession(

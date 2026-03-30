@@ -1,5 +1,5 @@
 {
-  "name": "kai",
+  "name": "kai-ai",
   "version": "1.0.0",
   "description": "AI coding assistant with persistent memory, background agents, and tool use",
   "type": "module",
@@ -7,20 +7,38 @@
   "bin": {
     "kai": "dist/index.js"
   },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "build": "tsc && rm -rf dist/web/public && cp -r src/web/public dist/web/public && chmod +x dist/index.js",
     "dev": "tsx src/index.ts",
-    "start": "npm run build && node dist/index.js"
+    "start": "npm run build && node dist/index.js",
+    "prepublishOnly": "npm run build",
+    "tauri:dev": "cargo tauri dev",
+    "tauri:build": "cargo tauri build"
+  },
+  "engines": {
+    "node": ">=20.0.0"
   },
   "keywords": [
     "ai",
     "cli",
     "coding",
     "agents",
-    "openrouter"
+    "openrouter",
+    "llm",
+    "assistant"
   ],
   "author": "Tim Moreton",
   "license": "ISC",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tmoreton/kai"
+  },
+  "homepage": "https://github.com/tmoreton/kai#readme",
   "dependencies": {
     "@hono/node-server": "^1.19.11",
     "better-sqlite3": "^12.8.0",

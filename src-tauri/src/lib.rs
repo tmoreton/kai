@@ -1,0 +1,197 @@
+use tauri::Manager;
+use tauri_plugin_shell::ShellExt;
+use tauri_plugin_shell::process::{CommandChild, CommandEvent};
+use std::sync::Mutex;
+use std::collections::HashMap;
+use std::net::TcpListener;
+use std::time::Duration;
+use std::io::Write;
+
+struct ServerProcess(Mutex<Option<CommandChild>>);
+
+fn find_free_port() -> u16 {
+    let listener = TcpListener::bind("127.0.0.1:0").expect("failed to bind to ephemeral port");
+    let port = listener.local_addr().unwrap().port();
+    drop(listener);
+    port
+}
+
+fn wait_for_server(port: u16, timeout_secs: u64) -> bool {
+    let start = std::time::Instant::now();
+    let timeout = Duration::from_secs(timeout_secs);
+    while start.elapsed() < timeout {
+        if std::net::TcpStream::connect(("127.0.0.1", port)).is_ok() {
+            return true;
+        }
+        std::thread::sleep(Duration::from_millis(200));
+    }
+    false
+}
+
+/// Read a .env file and return key=value pairs
+fn read_dotenv(path: &std::path::Path) -> HashMap<String, String> {
+    let mut vars = HashMap::new();
+    if let Ok(content) = std::fs::read_to_string(path) {
+        for line in content.lines() {
+            let line = line.trim();
+            if line.is_empty() || line.starts_with('#') {
+                continue;
+            }
+            if let Some((key, value)) = line.split_once('=') {
+                vars.insert(key.trim().to_string(), value.trim().to_string());
+            }
+        }
+    }
+    vars
+}
+
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
+pub fn run() {
+    let log_path = dirs::home_dir().unwrap().join(".kai").join("tauri.log");
+    let log_file = std::fs::OpenOptions::new()
+        .create(true)
+        .write(true)
+        .truncate(true)
+        .open(&log_path)
+        .ok();
+
+    macro_rules! debug_log {
+        ($file:expr, $($arg:tt)*) => {
+            if let Some(ref mut f) = $file {
+                let _ = writeln!(f, "{}", format!($($arg)*));
+                let _ = f.flush();
+            }
+        };
+    }
+
+    let mut log = log_file;
+    debug_log!(log, "=== Kai Tauri starting ===");
+
+    tauri::Builder::default()
+        .plugin(tauri_plugin_shell::init())
+        .manage(ServerProcess(Mutex::new(None)))
+        .setup(move |app| {
+            if cfg!(debug_assertions) {
+                app.handle().plugin(
+                    tauri_plugin_log::Builder::default()
+                        .level(log::LevelFilter::Info)
+                        .build(),
+                )?;
+            }
+
+            let resource_dir = app.path().resource_dir()
+                .expect("failed to resolve resource dir");
+            let node_binary = resource_dir.join("node").join("node");
+            let server_script = resource_dir.join("dist").join("index.js");
+            let node_modules = resource_dir.join("node_modules");
+
+            let port = find_free_port();
+            let port_str = port.to_string();
+
+            debug_log!(log, "Resource dir: {:?}", resource_dir);
+            debug_log!(log, "Node binary exists: {}", node_binary.exists());
+            debug_log!(log, "Port: {}", port);
+
+            // Load env vars from all .env locations (same order as the Node app)
+            let home = dirs::home_dir().unwrap();
+            let mut env_vars: HashMap<String, String> = HashMap::new();
+
+            // Load in reverse priority order (later overrides earlier)
+            // 1. cwd/.env (least priority in GUI context)
+            let cwd_env = std::env::current_dir().unwrap_or_default().join(".env");
+            for (k, v) in read_dotenv(&cwd_env) { env_vars.insert(k, v); }
+
+            // 2. resource dir ../.env (the original project .env bundled location)
+            let res_env = resource_dir.join(".env");
+            for (k, v) in read_dotenv(&res_env) { env_vars.insert(k, v); }
+
+            // 3. ~/.kai/.env (highest priority)
+            let kai_env = home.join(".kai").join(".env");
+            for (k, v) in read_dotenv(&kai_env) { env_vars.insert(k, v); }
+
+            debug_log!(log, "Loaded {} env vars from .env files", env_vars.len());
+            debug_log!(log, "Has OPENROUTER_API_KEY: {}", env_vars.contains_key("OPENROUTER_API_KEY"));
+
+            // Build the command with all env vars
+            let shell = app.shell();
+            let mut cmd = shell.command(node_binary.to_str().unwrap());
+            cmd = cmd.env("NODE_PATH", node_modules.to_str().unwrap());
+            cmd = cmd.env("HOME", home.to_str().unwrap());
+            for (key, value) in &env_vars {
+                cmd = cmd.env(key, value);
+            }
+
+            let (mut rx, child) = cmd
+                .args([
+                    server_script.to_str().unwrap(),
+                    "server",
+                    "--port", &port_str,
+                    "--skip-build",
+                ])
+                .spawn()
+                .expect("failed to start Kai server");
+
+            debug_log!(log, "Node process spawned");
+
+            let state: tauri::State<ServerProcess> = app.state();
+            *state.0.lock().unwrap() = Some(child);
+
+            // Log sidecar output
+            let sidecar_log_path = home.join(".kai").join("tauri-node.log");
+            std::thread::spawn(move || {
+                let mut sidecar_log = std::fs::OpenOptions::new()
+                    .create(true).write(true).truncate(true)
+                    .open(&sidecar_log_path).ok();
+                while let Some(event) = rx.blocking_recv() {
+                    match event {
+                        CommandEvent::Stdout(line) => {
+                            debug_log!(sidecar_log, "[stdout] {}", String::from_utf8_lossy(&line));
+                        }
+                        CommandEvent::Stderr(line) => {
+                            debug_log!(sidecar_log, "[stderr] {}", String::from_utf8_lossy(&line));
+                        }
+                        CommandEvent::Terminated(payload) => {
+                            debug_log!(sidecar_log, "[terminated] code={:?}", payload.code);
+                            break;
+                        }
+                        _ => {}
+                    }
+                }
+            });
+
+            // Wait for server then show window
+            let handle = app.handle().clone();
+            std::thread::spawn(move || {
+                if wait_for_server(port, 30) {
+                    std::thread::sleep(Duration::from_millis(500));
+                    if let Some(window) = handle.get_webview_window("main") {
+                        let url = format!("http://localhost:{}", port);
+                        let _ = window.navigate(url.parse().unwrap());
+                        let _ = window.show();
+                        let _ = window.set_focus();
+                    }
+                } else {
+                    if let Some(window) = handle.get_webview_window("main") {
+                        let msg = format!(
+                            "data:text/html,<h2>Kai failed to start</h2><p>Check ~/.kai/tauri-node.log for details.</p>"
+                        );
+                        let _ = window.navigate(msg.parse().unwrap());
+                        let _ = window.show();
+                    }
+                }
+            });
+
+            Ok(())
+        })
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app_handle, event| {
+            if let tauri::RunEvent::Exit = event {
+                let state = app_handle.state::<ServerProcess>();
+                let mut guard = state.0.lock().unwrap();
+                if let Some(child) = guard.take() {
+                    let _ = child.kill();
+                }
+            }
+        });
+}

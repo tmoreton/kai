@@ -30,6 +30,7 @@ import {
  */
 
 const scheduledJobs = new Map<string, ReturnType<typeof cron.schedule>>();
+let heartbeatInterval: ReturnType<typeof setInterval> | null = null;
 
 const MAX_RESTARTS = 5;
 const RESTART_WINDOW_MS = 10 * 60 * 1000; // 10 minutes
@@ -68,7 +69,7 @@ async function startDaemonInner(): Promise<void> {
   console.log(chalk.dim("  Daemon running. Press Ctrl+C to stop.\n"));
 
   // Log status periodically
-  setInterval(() => {
+  heartbeatInterval = setInterval(() => {
     const count = scheduledJobs.size;
     addLog("__daemon__", "info", `Heartbeat: ${count} agents scheduled`);
   }, 5 * 60 * 1000); // Every 5 minutes
@@ -171,6 +172,10 @@ export async function runAgent(agentId: string): Promise<{ success: boolean; err
 }
 
 export function stopDaemon(): void {
+  if (heartbeatInterval) {
+    clearInterval(heartbeatInterval);
+    heartbeatInterval = null;
+  }
   for (const [id, task] of scheduledJobs) {
     task.stop();
   }

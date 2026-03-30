@@ -83,15 +83,17 @@ export function gitInfo(): string {
 }
 
 export function gitBaseBranch(): string {
-  // Detect main or master
+  // Detect main or master using word-boundary matching
   try {
     const branches = execSync("git branch -a", {
       cwd: getCwd(),
       encoding: "utf-8",
       stdio: "pipe",
     });
-    if (branches.includes("main")) return "main";
-    if (branches.includes("master")) return "master";
+    // Match exact branch names (not substrings like "feature/main-thing")
+    const branchList = branches.split("\n").map((b) => b.replace(/^\*?\s+/, "").replace(/^remotes\/origin\//, "").trim());
+    if (branchList.includes("main")) return "main";
+    if (branchList.includes("master")) return "master";
   } catch {}
   return "main";
 }
