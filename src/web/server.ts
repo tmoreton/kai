@@ -126,14 +126,31 @@ export async function startServer(options: ServerOptions): Promise<void> {
   app.get("/api/sessions", (c) => {
     const sessions = listSessions(30);
     return c.json(
-      sessions.map((s) => ({
-        id: s.id,
-        name: s.name,
-        cwd: s.cwd,
-        createdAt: s.createdAt,
-        updatedAt: s.updatedAt,
-        messageCount: s.messages.filter((m) => m.role === "user").length,
-      }))
+      sessions.map((s) => {
+        // Extract first real user message as preview/label
+        const firstUserMsg = s.messages.find((m) => {
+          if (m.role !== "user") return false;
+          const text = typeof m.content === "string" ? m.content
+            : Array.isArray(m.content) ? m.content.map((p: any) => p.type === "text" ? p.text : "").join("") : "";
+          // Skip compacted history summaries
+          return text.length > 0 && !text.startsWith("# Compacted conversation");
+        });
+        let preview: string | null = null;
+        if (firstUserMsg) {
+          const text = typeof firstUserMsg.content === "string" ? firstUserMsg.content
+            : Array.isArray(firstUserMsg.content) ? (firstUserMsg.content as any[]).map((p: any) => p.type === "text" ? p.text : "").join("") : "";
+          preview = text.substring(0, 80);
+        }
+        return {
+          id: s.id,
+          name: s.name,
+          preview,
+          cwd: s.cwd,
+          createdAt: s.createdAt,
+          updatedAt: s.updatedAt,
+          messageCount: s.messages.filter((m) => m.role === "user").length,
+        };
+      })
     );
   });
 
