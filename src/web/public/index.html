@@ -2,7 +2,11 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#FAF9F7">
   <title>Kai</title>
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0%25' stop-color='%230D9488'/%3E%3Cstop offset='100%25' stop-color='%23115E59'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' rx='8' fill='url(%23g)'/%3E%3Cpath d='M9 8v16M9 16l8-8M9 16l8 8' stroke='white' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E">
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
@@ -33,9 +37,13 @@
       --radius-sm: 8px;
     }
 
-    html, body { height: 100%; font-family: var(--sans); background: var(--bg); color: var(--text); font-size: 15px; line-height: 1.6; -webkit-font-smoothing: antialiased; }
+    html, body {
+      height: 100%; font-family: var(--sans); background: var(--bg); color: var(--text);
+      font-size: 15px; line-height: 1.6; -webkit-font-smoothing: antialiased;
+      overscroll-behavior: none; -webkit-tap-highlight-color: transparent;
+    }
 
-    .app { display: flex; height: 100vh; }
+    .app { display: flex; height: 100vh; height: 100dvh; }
 
     /* ---- Sidebar ---- */
     .sidebar {
@@ -473,6 +481,53 @@
     .agent-recap-body p { margin-bottom: 8px; }
     .agent-recap-body p:last-child { margin-bottom: 0; }
 
+    /* ---- Code / Projects View ---- */
+    .code-view { padding: 32px; max-width: 900px; margin: 0 auto; width: 100%; overflow-y: auto; height: 100%; }
+    .code-view h1 { font-size: 22px; font-weight: 700; margin-bottom: 4px; }
+    .code-view-subtitle { color: var(--text-muted); font-size: 14px; margin-bottom: 24px; }
+
+    .project-card {
+      background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 20px; margin-bottom: 16px; transition: all .15s;
+    }
+    .project-card:hover { border-color: var(--accent); box-shadow: 0 2px 8px rgba(0,0,0,.04); }
+    .project-card-header {
+      display: flex; align-items: center; gap: 12px; margin-bottom: 12px;
+    }
+    .project-card-icon {
+      width: 36px; height: 36px; border-radius: var(--radius-sm);
+      background: var(--accent-light); color: var(--accent);
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    }
+    .project-card-title { font-size: 16px; font-weight: 600; }
+    .project-card-path { font-size: 12px; color: var(--text-muted); font-family: var(--mono); }
+    .project-card-meta {
+      display: flex; gap: 16px; font-size: 12px; color: var(--text-muted); margin-bottom: 12px;
+    }
+
+    .project-sessions { border-top: 1px solid var(--border-light); padding-top: 12px; }
+    .project-session-item {
+      display: flex; align-items: center; gap: 10px; padding: 8px 12px;
+      border-radius: var(--radius-sm); cursor: pointer; transition: all .1s;
+      font-size: 13px; color: var(--text-secondary);
+    }
+    .project-session-item:hover { background: var(--bg-hover); color: var(--text); }
+    .project-session-item .icon { color: var(--text-muted); flex-shrink: 0; }
+    .project-session-item .label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .project-session-item .meta { font-size: 11px; color: var(--text-muted); flex-shrink: 0; }
+    .project-show-more {
+      padding: 6px 12px; font-size: 12px; color: var(--accent); cursor: pointer;
+      border: none; background: none; font-weight: 500;
+    }
+    .project-show-more:hover { text-decoration: underline; }
+    .project-new-chat {
+      display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px;
+      font-size: 12px; color: var(--accent); cursor: pointer;
+      border: 1px dashed var(--border); background: none; border-radius: var(--radius-sm);
+      margin-top: 8px; transition: all .15s;
+    }
+    .project-new-chat:hover { background: var(--accent-light); border-color: var(--accent); }
+
     /* Steps */
     .step-card {
       border: 1px solid var(--border-light); border-radius: var(--radius-sm);
@@ -559,15 +614,75 @@
       width: 36px; height: 36px; border-radius: var(--radius-sm); border: 1px solid var(--border);
       background: var(--bg-surface); color: var(--text); cursor: pointer; align-items: center; justify-content: center;
     }
+    /* Mobile overlay backdrop */
+    .sidebar-overlay {
+      display: none; position: fixed; inset: 0; background: rgba(0,0,0,.4);
+      z-index: 39; opacity: 0; transition: opacity .2s;
+    }
+    .sidebar-overlay.show { display: block; opacity: 1; }
+
     @media (max-width: 768px) {
-      .sidebar { position:fixed; left:0; top:0; bottom:0; z-index:40; transform:translateX(-100%); transition:transform .2s; }
-      .sidebar.open { transform:translateX(0); }
-      .sidebar-toggle { display: flex; }
-      .messages { padding: 20px 16px 0; }
-      .input-area { padding: 12px 16px 16px; }
+      .sidebar {
+        position: fixed; left: 0; top: 0; bottom: 0; z-index: 40;
+        transform: translateX(-100%); transition: transform .2s;
+        width: 280px;
+        padding-top: env(safe-area-inset-top);
+      }
+      .sidebar.open { transform: translateX(0); }
+      .sidebar-toggle { display: flex; top: calc(env(safe-area-inset-top, 0px) + 8px); }
+
+      /* Chat header: leave room for hamburger */
+      .chat-header {
+        padding-left: 56px;
+        padding-top: calc(env(safe-area-inset-top, 0px) + 8px);
+        justify-content: center;
+      }
+
+      .messages { padding: 16px 12px 0; }
+      .msg-user .msg-bubble { max-width: 85%; font-size: 15px; }
+      .msg-body { font-size: 15px; }
+
+      /* Input area: stick to bottom with safe area */
+      .input-area {
+        padding: 10px 12px calc(env(safe-area-inset-bottom, 0px) + 10px);
+      }
+      .input-wrap { border-radius: 20px; }
+      .input-box { min-height: 44px; padding: 10px 48px 10px 4px; font-size: 16px; }
+      .action-btn { width: 34px; height: 34px; right: 6px; bottom: 6px; }
+      .attach-btn { width: 34px; height: 34px; margin-bottom: 5px; }
+
+      .welcome { padding: 24px 16px; }
+      .welcome h2 { font-size: 24px; }
+      .welcome p { font-size: 14px; margin-bottom: 24px; }
       .welcome-cards { flex-direction: column; align-items: center; }
-      .agents-list-panel { width: 100%; }
+      .welcome-card { max-width: 100%; width: 100%; }
+
+      /* Agents view: stack panels, detail takes full screen */
       .agents-view { flex-direction: column; }
+      .agents-list-panel { width: 100%; border-right: none; border-bottom: 1px solid var(--border); }
+      .agents-list-panel.hidden-mobile { display: none; }
+      .agents-detail-panel { flex: 1; }
+      .agents-detail-panel.hidden-mobile { display: none; }
+      .agent-detail { padding: 20px 16px; }
+      .agent-detail-header { flex-direction: column; gap: 12px; }
+
+      /* Model picker */
+      .model-picker { padding: 5px 10px 5px 8px; }
+      .model-picker-name { font-size: 12px; }
+
+      /* Hide desktop expand button on mobile */
+      .sidebar-expand-btn.show { display: none; }
+
+      /* Sidebar footer safe area */
+      .sidebar-footer { padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 12px); }
+
+      /* Tool cards */
+      .tool-head { padding: 6px 10px; }
+      .tool-detail { font-size: 11px; padding: 0 10px 8px; }
+
+      /* Recap */
+      .recap-banner { margin-left: 0; padding: 10px 14px; }
+      .recap-stats { gap: 8px; }
     }
 
     /* ======================================= */
@@ -640,6 +755,7 @@
 </head>
 <body>
   <div class="app">
+    <div class="sidebar-overlay" id="sidebar-overlay" onclick="closeSidebar()"></div>
     <button class="sidebar-toggle" onclick="toggleSidebar()">
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><line x1="2" y1="4" x2="14" y2="4"/><line x1="2" y1="8" x2="14" y2="8"/><line x1="2" y1="12" x2="14" y2="12"/></svg>
     </button>
@@ -690,6 +806,20 @@
           </div>
         </div>
 
+        <!-- Code / Projects Section -->
+        <div class="sidebar-section">
+          <div class="sidebar-section-header" onclick="toggleSidebarSection('code-section')">
+            <span class="sidebar-section-title">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M5.5 4L2 8l3.5 4M10.5 4L14 8l-3.5 4"/></svg>
+              Code
+            </span>
+            <svg class="sidebar-section-chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6l4 4 4-4"/></svg>
+          </div>
+          <div class="sidebar-section-content" id="code-section">
+            <div id="nav-projects"></div>
+          </div>
+        </div>
+
         <!-- Docs Section -->
         <div class="sidebar-section">
           <div class="sidebar-section-header" onclick="switchView('docs')">
@@ -709,8 +839,8 @@
       <div class="view active" id="view-chat">
         <div class="chat-header">
           <div class="model-picker" id="model-picker" onclick="toggleModelDropdown(event)">
-            <div class="model-picker-icon" id="model-picker-icon" style="background:#1D4ED8">Q</div>
-            <span class="model-picker-name" id="model-picker-name">Qwen 3.5 397B</span>
+            <div class="model-picker-icon" id="model-picker-icon" style="background:#6366F1">K</div>
+            <span class="model-picker-name" id="model-picker-name">Kimi K2.5</span>
             <span class="model-picker-arrow">&#9662;</span>
             <div class="model-dropdown" id="model-dropdown"></div>
           </div>
@@ -763,6 +893,11 @@
             </div>
           </div>
         </div>
+      </div>
+
+      <!-- Code / Projects View -->
+      <div class="view" id="view-code">
+        <div class="code-view" id="code-view-content"></div>
       </div>
 
       <!-- Docs View -->
@@ -1061,7 +1196,7 @@ npm run dev</code></pre>
 
   <script type="module">
     const state = {
-      sessionId: null, sessions: [], agents: [], streaming: false, status: null,
+      sessionId: null, sessions: [], agents: [], projects: [], streaming: false, status: null,
       activeView: 'chat', selectedAgentId: null, selectedRunId: null,
       attachments: [], // { name, mimeType, data (base64), type: 'image'|'file', preview? }
     };
@@ -1145,9 +1280,11 @@ npm run dev</code></pre>
       state.activeView = view;
       $('view-chat').classList.toggle('active', view === 'chat');
       $('view-agents').classList.toggle('active', view === 'agents');
+      $('view-code').classList.toggle('active', view === 'code');
       $('view-docs').classList.toggle('active', view === 'docs');
 
       if (view === 'agents') renderAgentsList();
+      if (view === 'code') renderCodeView();
       closeSidebar();
     };
 
@@ -1244,6 +1381,14 @@ npm run dev</code></pre>
       }
     }
 
+    // Persist model choice to server (syncs CLI + web)
+    function saveModelPreference(modelId) {
+      fetch('/api/model', {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ model: modelId }),
+      }).catch(() => {});
+    }
+
     window.pickCustomModel = function() {
       const input = $('custom-model-input');
       const val = input?.value.trim();
@@ -1251,6 +1396,7 @@ npm run dev</code></pre>
         state.selectedModel = val;
         updateModelPicker();
         $('model-dropdown').classList.remove('show');
+        saveModelPreference(val);
       }
     };
 
@@ -1266,6 +1412,7 @@ npm run dev</code></pre>
       state.selectedModel = id;
       updateModelPicker();
       $('model-dropdown').classList.remove('show');
+      saveModelPreference(id);
     };
 
     // Close dropdown on outside click
@@ -1279,10 +1426,10 @@ npm run dev</code></pre>
       if (welcomeH2) welcomeH2.textContent = `${getGreeting()}, Tim`;
 
       try {
-        const [status, sessions, agents] = await Promise.all([
-          api.get('/api/status'), api.get('/api/sessions'), api.get('/api/agents'),
+        const [status, sessions, agents, projects] = await Promise.all([
+          api.get('/api/status'), api.get('/api/sessions'), api.get('/api/agents'), api.get('/api/projects'),
         ]);
-        state.status = status; state.sessions = sessions; state.agents = agents;
+        state.status = status; state.sessions = sessions; state.agents = agents; state.projects = projects;
 
         // Sync model picker with server's configured model
         const serverModel = (status.model || '').toLowerCase();
@@ -1346,6 +1493,26 @@ npm run dev</code></pre>
           html += `<div class="list-item" onclick="switchView('agents')">View all ${sortedAgents.length} agents</div>`;
         }
         $('nav-agents').innerHTML = html;
+      }
+
+      // Show most recent projects in sidebar
+      const projects = (state.projects || []).slice(0, 5);
+      if (projects.length === 0) {
+        $('nav-projects').innerHTML = '<div class="list-empty">No projects yet</div>';
+      } else {
+        let html = projects.map(p => {
+          const cwdEncoded = encodeURIComponent(p.cwd);
+          return `
+          <div class="list-item" onclick="selectProject(decodeURIComponent('${cwdEncoded}'))">
+            <span class="icon"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 4l4-2h4l4 2v8l-4 2H6l-4-2V4z"/></svg></span>
+            <span class="label">${esc(p.name)}</span>
+            <span class="meta">${p.sessionCount}</span>
+          </div>
+        `}).join('');
+        if (state.projects.length > 5) {
+          html += `<div class="list-item" onclick="switchView('code')">View all ${state.projects.length} projects</div>`;
+        }
+        $('nav-projects').innerHTML = html;
       }
     }
 
@@ -1800,6 +1967,89 @@ npm run dev</code></pre>
     };
 
     // ==============================
+    // CODE / PROJECTS VIEW
+    // ==============================
+
+    function renderCodeView() {
+      const panel = $('code-view-content');
+      const projects = state.projects || [];
+
+      let h = `<h1>Projects</h1>
+        <p class="code-view-subtitle">Sessions grouped by the directory where you ran <code>kai</code></p>`;
+
+      if (projects.length === 0) {
+        h += '<div style="padding:40px 0;text-align:center;color:var(--text-muted)">No projects yet. Start a chat from any directory to see it here.</div>';
+        panel.innerHTML = h;
+        return;
+      }
+
+      for (const p of projects) {
+        const sessionsToShow = p.sessions.slice(0, 3);
+        const hasMore = p.sessions.length > 3;
+
+        h += `<div class="project-card" id="proj-${btoa(p.cwd).replace(/[^a-zA-Z0-9]/g, '')}">
+          <div class="project-card-header">
+            <div class="project-card-icon">
+              <svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M5.5 4L2 8l3.5 4M10.5 4L14 8l-3.5 4"/></svg>
+            </div>
+            <div>
+              <div class="project-card-title">${esc(p.name)}</div>
+              <div class="project-card-path">${esc(p.cwd)}</div>
+            </div>
+          </div>
+          <div class="project-card-meta">
+            <span>${p.sessionCount} session${p.sessionCount !== 1 ? 's' : ''}</span>
+            <span>Last active ${timeAgo(p.lastActive)}</span>
+          </div>
+          <div class="project-sessions">`;
+
+        for (const s of sessionsToShow) {
+          h += `<div class="project-session-item" onclick="loadSession('${s.id}')">
+            <span class="icon"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 3h12v8H5l-3 3V3z"/></svg></span>
+            <span class="label">${esc(s.name || s.preview || 'Chat')}</span>
+            <span class="meta">${timeAgo(s.updatedAt)}</span>
+          </div>`;
+        }
+
+        if (hasMore) {
+          const cwdEnc = encodeURIComponent(p.cwd);
+          h += `<button class="project-show-more" onclick="expandProject('${btoa(p.cwd).replace(/[^a-zA-Z0-9]/g, '')}', decodeURIComponent('${cwdEnc}'))">Show all ${p.sessions.length} sessions</button>`;
+        }
+
+        h += `</div></div>`;
+      }
+
+      panel.innerHTML = h;
+    }
+
+    window.selectProject = function(cwd) {
+      switchView('code');
+      // Scroll to the project card
+      setTimeout(() => {
+        const id = 'proj-' + btoa(cwd).replace(/[^a-zA-Z0-9]/g, '');
+        const el = document.getElementById(id);
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 50);
+    };
+
+    window.expandProject = function(cardId, cwd) {
+      const project = (state.projects || []).find(p => p.cwd === cwd);
+      if (!project) return;
+      const card = document.getElementById('proj-' + cardId);
+      if (!card) return;
+      const sessionsDiv = card.querySelector('.project-sessions');
+      let h = '';
+      for (const s of project.sessions) {
+        h += `<div class="project-session-item" onclick="loadSession('${s.id}')">
+          <span class="icon"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 3h12v8H5l-3 3V3z"/></svg></span>
+          <span class="label">${esc(s.name || s.preview || 'Chat')}</span>
+          <span class="meta">${timeAgo(s.updatedAt)}</span>
+        </div>`;
+      }
+      sessionsDiv.innerHTML = h;
+    };
+
+    // ==============================
     // CHAT VIEW
     // ==============================
 
@@ -2085,8 +2335,16 @@ npm run dev</code></pre>
     };
 
     // ---- Mobile ----
-    window.toggleSidebar = () => $('sidebar').classList.toggle('open');
-    function closeSidebar() { $('sidebar').classList.remove('open'); }
+    window.toggleSidebar = () => {
+      const sb = $('sidebar');
+      const ov = $('sidebar-overlay');
+      sb.classList.toggle('open');
+      ov.classList.toggle('show', sb.classList.contains('open'));
+    };
+    function closeSidebar() {
+      $('sidebar').classList.remove('open');
+      $('sidebar-overlay').classList.remove('show');
+    }
 
     // ---- Sidebar collapse (desktop) ----
     window.collapseSidebar = function() {
@@ -2097,6 +2355,13 @@ npm run dev</code></pre>
       $('sidebar').classList.remove('collapsed');
       $('sidebar-expand').classList.remove('show');
     };
+
+    // ---- Mobile keyboard handling ----
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', () => {
+        document.documentElement.style.setProperty('--vh-offset', `${window.innerHeight - window.visualViewport.height}px`);
+      });
+    }
 
     // ---- Input ----
     $input.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } });

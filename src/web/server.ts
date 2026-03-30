@@ -15,7 +15,7 @@ import OpenAI from "openai";
 // Kai modules
 import { createClient, getModelId, getProviderName, summarizeArgs, rescueToolCallsFromText } from "../client.js";
 import { resolveProvider } from "../providers/index.js";
-import { ensureKaiDir } from "../config.js";
+import { ensureKaiDir, clearConfigCache } from "../config.js";
 import { buildSystemPrompt } from "../system-prompt.js";
 import { getCwd } from "../tools/bash.js";
 import { toolDefinitions, getMcpToolDefinitions, initMcpServers } from "../tools/index.js";
@@ -167,6 +167,26 @@ export async function startServer(options: ServerOptions): Promise<void> {
     }
   });
 
+  // --- Set default model (persists to ~/.kai/settings.json) ---
+  app.post("/api/model", async (c) => {
+    const { model } = (await c.req.json()) as { model: string };
+    if (!model || typeof model !== "string") {
+      return c.json({ error: "Missing model" }, 400);
+    }
+    const settingsPath = path.resolve(process.env.HOME || "~", ".kai/settings.json");
+    let settings: any = {};
+    try {
+      if (fs.existsSync(settingsPath)) {
+        settings = JSON.parse(fs.readFileSync(settingsPath, "utf-8"));
+      }
+    } catch {}
+    settings.model = model;
+    fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + "\n");
+    // Clear cached config so CLI and server both pick up the change
+    clearConfigCache();
+    return c.json({ model, saved: true });
+  });
+
   // --- Sessions ---
   app.get("/api/sessions", (c) => {
     const sessions = listSessions(30);
@@ -224,6 +244,64 @@ export async function startServer(options: ServerOptions): Promise<void> {
         tool_call_id: "tool_call_id" in m ? (m as any).tool_call_id : undefined,
       }));
     return c.json({ ...session, messages });
+  });
+
+  // --- Projects (sessions grouped by cwd) ---
+  app.get("/api/projects", (c) => {
+    const sessions = listSessions(100);
+    const projectMap = new Map<string, {
+      cwd: string;
+      name: string;
+      sessionCount: number;
+      lastActive: string;
+      sessions: Array<{ id: string; name?: string; preview: string | null; updatedAt: string; messageCount: number }>;
+    }>();
+
+    for (const s of sessions) {
+      const cwd = s.cwd || "unknown";
+      if (!projectMap.has(cwd)) {
+        // Derive project name from last path segment
+        const name = cwd.split("/").filter(Boolean).pop() || cwd;
+        projectMap.set(cwd, { cwd, name, sessionCount: 0, lastActive: s.updatedAt, sessions: [] });
+      }
+      const proj = projectMap.get(cwd)!;
+      const userMsgCount = s.messages.filter((m) => m.role === "user").length;
+      if (userMsgCount === 0) continue; // skip empty sessions
+
+      // Extract preview from first user message
+      const firstUserMsg = s.messages.find((m) => {
+        if (m.role !== "user") return false;
+        const text = typeof m.content === "string" ? m.content
+          : Array.isArray(m.content) ? m.content.map((p: any) => p.type === "text" ? p.text : "").join("") : "";
+        return text.length > 0 && !text.startsWith("# Compacted conversation");
+      });
+      let preview: string | null = null;
+      if (firstUserMsg) {
+        const text = typeof firstUserMsg.content === "string" ? firstUserMsg.content
+          : Array.isArray(firstUserMsg.content) ? (firstUserMsg.content as any[]).map((p: any) => p.type === "text" ? p.text : "").join("") : "";
+        preview = text.substring(0, 80);
+      }
+
+      proj.sessionCount++;
+      if (s.updatedAt > proj.lastActive) proj.lastActive = s.updatedAt;
+      proj.sessions.push({
+        id: s.id,
+        name: s.name,
+        preview,
+        updatedAt: s.updatedAt,
+        messageCount: userMsgCount,
+      });
+    }
+
+    // Sort projects by last activity, sessions within each by updatedAt desc
+    const projects = [...projectMap.values()]
+      .filter((p) => p.sessionCount > 0)
+      .sort((a, b) => b.lastActive.localeCompare(a.lastActive));
+    for (const p of projects) {
+      p.sessions.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+    }
+
+    return c.json(projects);
   });
 
   app.post("/api/sessions", async (c) => {
@@ -762,6 +840,22 @@ async function chatForWeb(
     }
 
     await emit("thinking", { active: false });
+
+    // If assistant text ends with a question, stop the tool loop and
+    // let the user respond — even if there are pending tool calls
+    const hasQuestion = content.trim() && /\?\s*$/.test(content.trim());
+    if (hasQuestion && toolCalls.length > 0) {
+      updatedMessages.push({ role: "assistant", content });
+      return updatedMessages;
+    }
+
+    // Nudge the model when approaching the turn limit
+    if (turns === MAX_TOOL_TURNS - 5) {
+      updatedMessages.push({
+        role: "user",
+        content: "[SYSTEM: You are approaching the tool call limit. Wrap up your current task and provide a summary to the user. Do not start new work.]",
+      });
+    }
 
     // Text-only response — done
     if (toolCalls.length === 0) {

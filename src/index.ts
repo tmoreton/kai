@@ -210,13 +210,33 @@ model
   .description("List available models")
   .action(async () => {
     const chalk = (await import("chalk")).default;
+    const { getConfig } = await import("./config.js");
     const { OPENROUTER_PROVIDER } = await import("./providers/index.js");
-    
+
+    const config = getConfig();
+    const active = config.model || process.env.MODEL_ID || OPENROUTER_PROVIDER.defaultModel;
+
+    const models = [
+      { id: "moonshotai/kimi-k2.5", label: "Kimi K2.5" },
+      { id: "qwen/qwen3.5-397b-a17b", label: "Qwen 3.5 397B" },
+      { id: "deepseek/deepseek-v3.2", label: "DeepSeek V3.2" },
+      { id: "qwen/qwen3-235b-a22b", label: "Qwen 3 235B" },
+      { id: "mistralai/mistral-large-2512", label: "Mistral Large" },
+      { id: "xiaomi/mimo-v2-pro", label: "MiMo V2 Pro" },
+      { id: "z-ai/glm-5-turbo", label: "GLM-5 Turbo" },
+      { id: "minimax/minimax-m2.7", label: "MiniMax M2.7" },
+      { id: "openai/gpt-oss-120b", label: "GPT-OSS 120B" },
+    ];
+
     console.log(chalk.bold("\n  Available Models\n"));
-    console.log(`  ${chalk.green("●")} ${OPENROUTER_PROVIDER.defaultModel} ${chalk.dim("(default)")}`);
-    console.log(`  ${chalk.dim("○")} ${OPENROUTER_PROVIDER.fallbackModel} ${chalk.dim("(fallback)")}`);
-    console.log(`  ${chalk.dim("○")} ${OPENROUTER_PROVIDER.imageModel} ${chalk.dim("(image generation)")}`);
-    console.log(chalk.dim("\n  Use 'kai model set <model-id>' to change the default\n"));
+    for (const m of models) {
+      const isCurrent = m.id === active;
+      const dot = isCurrent ? chalk.green("●") : chalk.dim("○");
+      const label = isCurrent ? chalk.bold(m.label) : m.label;
+      console.log(`  ${dot} ${label}  ${chalk.dim(m.id)}`);
+    }
+    console.log(chalk.dim(`\n  Image model: ${OPENROUTER_PROVIDER.imageModel}`));
+    console.log(chalk.dim(`  Or use any OpenRouter model: kai model set <model-id>\n`));
   });
 
 model

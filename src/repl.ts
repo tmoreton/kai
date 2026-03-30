@@ -1,7 +1,7 @@
 import * as readline from "readline";
 import type { ChatCompletionMessageParam } from "openai/resources/chat/completions";
 import chalk from "chalk";
-import { createClient, chat, getModelId, getProviderName } from "./client.js";
+import { createClient, chat, getModelId, getProviderName, refreshProvider } from "./client.js";
 import { buildSystemPrompt } from "./system-prompt.js";
 import { getCwd, cleanupBackgroundProcesses } from "./tools/bash.js";
 import { formatCost, estimateContextSize, formatContextBreakdown, compactMessages } from "./context.js";
@@ -161,6 +161,9 @@ export async function startRepl(options: ReplOptions = {}, initialMessages?: Cha
     { cmd: "/agent run", desc: "Run agent" },
     { cmd: "/agent output", desc: "View output" },
     { cmd: "/agent info", desc: "Agent details" },
+    { cmd: "/model", desc: "Show current model" },
+    { cmd: "/model set", desc: "Change model" },
+    { cmd: "/model list", desc: "List models" },
     { cmd: "/mcp", desc: "List MCP servers" },
     { cmd: "/mcp add", desc: "Add MCP server" },
     { cmd: "/mcp remove", desc: "Remove MCP server" },
@@ -666,6 +669,73 @@ ${(gitDiff(false) || "(none)").substring(0, 2000)}`;
     return "handled";
   }
 
+  // === /model [list|set <id>] ===
+  if (cmd === "/model" || cmd === "/model show") {
+    const { getConfig, clearConfigCache } = await import("./config.js");
+    const { OPENROUTER_PROVIDER } = await import("./providers/index.js");
+    const config = getConfig();
+    const current = config.model || process.env.MODEL_ID || OPENROUTER_PROVIDER.defaultModel;
+    console.log(chalk.bold(`\n  Current model: `) + chalk.cyan(current));
+    if (config.model) {
+      console.log(chalk.dim("  (from ~/.kai/settings.json)"));
+    } else if (process.env.MODEL_ID) {
+      console.log(chalk.dim("  (from MODEL_ID env)"));
+    } else {
+      console.log(chalk.dim("  (built-in default)"));
+    }
+    console.log(chalk.dim("\n  Change: /model set <model-id>"));
+    console.log(chalk.dim("  List:   /model list\n"));
+    return "handled";
+  }
+  if (cmd === "/model list") {
+    const { getConfig } = await import("./config.js");
+    const { OPENROUTER_PROVIDER } = await import("./providers/index.js");
+    const config = getConfig();
+    const active = config.model || process.env.MODEL_ID || OPENROUTER_PROVIDER.defaultModel;
+    const models = [
+      { id: "moonshotai/kimi-k2.5", label: "Kimi K2.5" },
+      { id: "qwen/qwen3.5-397b-a17b", label: "Qwen 3.5 397B" },
+      { id: "deepseek/deepseek-v3.2", label: "DeepSeek V3.2" },
+      { id: "qwen/qwen3-235b-a22b", label: "Qwen 3 235B" },
+      { id: "mistralai/mistral-large-2512", label: "Mistral Large" },
+      { id: "xiaomi/mimo-v2-pro", label: "MiMo V2 Pro" },
+      { id: "z-ai/glm-5-turbo", label: "GLM-5 Turbo" },
+      { id: "minimax/minimax-m2.7", label: "MiniMax M2.7" },
+      { id: "openai/gpt-oss-120b", label: "GPT-OSS 120B" },
+    ];
+    console.log(chalk.bold("\n  Available Models\n"));
+    for (const m of models) {
+      const isCurrent = m.id === active;
+      const dot = isCurrent ? chalk.green("●") : chalk.dim("○");
+      const label = isCurrent ? chalk.bold(m.label) : m.label;
+      console.log(`  ${dot} ${label}  ${chalk.dim(m.id)}`);
+    }
+    console.log(chalk.dim(`\n  Set: /model set <model-id>\n`));
+    return "handled";
+  }
+  if (cmd.startsWith("/model set ")) {
+    const modelId = input.substring(11).trim();
+    if (!modelId) {
+      console.log(chalk.yellow("  Usage: /model set <model-id>\n"));
+      return "handled";
+    }
+    const { ensureKaiDir, clearConfigCache } = await import("./config.js");
+    const settingsPath = path.resolve(ensureKaiDir(), "settings.json");
+    let settings: any = {};
+    try {
+      if (fs.existsSync(settingsPath)) {
+        settings = JSON.parse(fs.readFileSync(settingsPath, "utf-8"));
+      }
+    } catch {}
+    settings.model = modelId;
+    fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + "\n");
+    clearConfigCache();
+    refreshProvider();
+    console.log(chalk.green(`\n  Model set to: ${modelId}`));
+    console.log(chalk.dim("  Active now — next message will use this model.\n"));
+    return "handled";
+  }
+
   // === /help ===
   if (cmd === "/help") {
     console.log(
@@ -676,6 +746,10 @@ ${(gitDiff(false) || "(none)").substring(0, 2000)}`;
   /sessions               List recent sessions
   /sessions rename <name> Rename current session
   /soul                   View memory (persona, human, goals, scratchpad, recall)
+
+  /model                  Show current model
+  /model list             List available models
+  /model set <model-id>   Change model (persists across CLI + web)
 
   /git                    Status + changed files
   /git diff               Colorized diff (staged + unstaged)

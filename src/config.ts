@@ -72,6 +72,11 @@ export function getConfig(): KaiConfig {
   return cachedConfig;
 }
 
+/** Clear the config cache so the next getConfig() call re-reads from disk. */
+export function clearConfigCache(): void {
+  cachedConfig = null;
+}
+
 export function getKaiMdContent(charBudget = 12_000): string {
   const paths = [
     path.resolve(process.env.HOME || "~", ".kai/KAI.md"),

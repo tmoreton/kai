@@ -32,6 +32,11 @@ function getResolved(): ResolvedProvider {
   return _resolved;
 }
 
+/** Re-read config and refresh the resolved provider (e.g. after /model set). */
+export function refreshProvider(): void {
+  _resolved = resolveProvider();
+}
+
 export function createClient(): OpenAI {
   return getResolved().client;
 }
