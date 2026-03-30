@@ -751,461 +751,272 @@
       <div class="view" id="view-docs">
         <div class="docs-view">
           <div class="docs-content">
-            <h1>Kai Documentation</h1>
-            <p class="docs-subtitle">AI coding assistant with persistent memory, background agents, and tool use.</p>
+            <h1>What can Kai do?</h1>
+            <p class="docs-subtitle">Your AI assistant that can chat, write code, search the web, generate images, remember things, and run tasks on autopilot.</p>
 
             <nav class="docs-nav">
-              <a href="#docs-getting-started">Getting Started</a>
-              <a href="#docs-tools">Tools</a>
-              <a href="#docs-repl">REPL Commands</a>
-              <a href="#docs-cli">CLI Commands</a>
-              <a href="#docs-memory">Memory System</a>
-              <a href="#docs-agents">Background Agents</a>
-              <a href="#docs-config">Configuration</a>
-              <a href="#docs-api">Web API</a>
+              <a href="#docs-chat">Chat</a>
+              <a href="#docs-files">Read & Write Files</a>
+              <a href="#docs-web">Web Search</a>
+              <a href="#docs-images">Images</a>
+              <a href="#docs-memory">Memory</a>
+              <a href="#docs-agents-section">Agents</a>
+              <a href="#docs-terminal">Terminal Commands</a>
+              <a href="#docs-setup">Setup</a>
             </nav>
 
-            <!-- Getting Started -->
-            <section id="docs-getting-started">
-              <h2>Getting Started</h2>
-              <div class="docs-card">
-                <h3>Installation</h3>
-                <pre><code>npm install
-cp .env.example .env
-# Add your OpenRouter API key to .env
-
-npm run dev       # Development mode
-npm run build     # Build for production
-npm start         # Run built version</code></pre>
-              </div>
-              <div class="docs-card">
-                <h3>Quick Usage</h3>
-                <pre><code># Start interactive REPL
-kai
-
-# One-shot query
-kai "explain this codebase"
-
-# Pipe input
-echo "explain this" | kai
-cat file.ts | kai "review this code"
-
-# Start web UI + API
-kai server</code></pre>
-              </div>
-              <div class="docs-card">
-                <h3>Environment Variables</h3>
-                <table>
-                  <thead><tr><th>Variable</th><th>Required</th><th>Description</th></tr></thead>
-                  <tbody>
-                    <tr><td><code>OPENROUTER_API_KEY</code></td><td>Yes</td><td>OpenRouter API key</td></tr>
-                    <tr><td><code>MODEL_ID</code></td><td>No</td><td>Override default model</td></tr>
-                    <tr><td><code>TAVILY_API_KEY</code></td><td>No</td><td>Enable web search via Tavily</td></tr>
-                    <tr><td><code>YOUTUBE_API_KEY</code></td><td>No</td><td>Enable YouTube agent features</td></tr>
-                  </tbody>
-                </table>
-              </div>
-            </section>
-
-            <!-- Tools -->
-            <section id="docs-tools">
-              <h2>Tools</h2>
-              <p>These are the tools available to Kai's LLM during conversations. They are called automatically based on your requests.</p>
+            <!-- Chat -->
+            <section id="docs-chat">
+              <h2>Chat</h2>
+              <p>Just type what you need. Kai understands natural language and will figure out which tools to use.</p>
 
               <div class="docs-card">
-                <h3>Shell & File Operations</h3>
-                <table>
-                  <thead><tr><th>Tool</th><th>Description</th></tr></thead>
-                  <tbody>
-                    <tr><td><code>bash</code></td><td>Run shell commands. Working directory persists between calls.</td></tr>
-                    <tr><td><code>bash_background</code></td><td>Start long-running processes (dev servers, watchers). Returns PID immediately.</td></tr>
-                    <tr><td><code>read_file</code></td><td>Read files with line numbers. Supports offset/limit for large files.</td></tr>
-                    <tr><td><code>write_file</code></td><td>Create new files or overwrite existing ones.</td></tr>
-                    <tr><td><code>edit_file</code></td><td>Targeted text replacements. Matches exact strings including whitespace.</td></tr>
-                    <tr><td><code>glob</code></td><td>Find files by pattern (e.g. <code>**/*.ts</code>, <code>src/**/*.test.js</code>).</td></tr>
-                    <tr><td><code>grep</code></td><td>Search file contents with regex. Supports context lines and case-insensitive mode.</td></tr>
-                  </tbody>
-                </table>
-              </div>
-
-              <div class="docs-card">
-                <h3>Web</h3>
-                <table>
-                  <thead><tr><th>Tool</th><th>Description</th></tr></thead>
-                  <tbody>
-                    <tr><td><code>web_fetch</code></td><td>Fetch content from a URL. HTML is converted to readable text.</td></tr>
-                    <tr><td><code>web_search</code></td><td>Search the web via Tavily. Returns an answer plus top results.</td></tr>
-                  </tbody>
-                </table>
-              </div>
-
-              <div class="docs-card">
-                <h3>Memory</h3>
-                <table>
-                  <thead><tr><th>Tool</th><th>Description</th></tr></thead>
-                  <tbody>
-                    <tr><td><code>core_memory_read</code></td><td>Read identity and context memory blocks.</td></tr>
-                    <tr><td><code>core_memory_update</code></td><td>Update persona, human, goals, or scratchpad blocks.</td></tr>
-                    <tr><td><code>recall_search</code></td><td>Search past conversation history across sessions.</td></tr>
-                    <tr><td><code>archival_insert</code></td><td>Store important knowledge for permanent recall.</td></tr>
-                    <tr><td><code>archival_search</code></td><td>Search the long-term knowledge store by keyword or tags.</td></tr>
-                  </tbody>
-                </table>
-              </div>
-
-              <div class="docs-card">
-                <h3>Tasks, Agents & Images</h3>
-                <table>
-                  <thead><tr><th>Tool</th><th>Description</th></tr></thead>
-                  <tbody>
-                    <tr><td><code>task_create</code></td><td>Create tasks for multi-step work tracking.</td></tr>
-                    <tr><td><code>task_update</code></td><td>Update task status (pending, in_progress, completed).</td></tr>
-                    <tr><td><code>task_list</code></td><td>List all active tasks and their status.</td></tr>
-                    <tr><td><code>spawn_agent</code></td><td>Spawn subagents: <strong>explorer</strong> (read-only search), <strong>planner</strong> (design plans), <strong>worker</strong> (full access).</td></tr>
-                    <tr><td><code>generate_image</code></td><td>Generate images via OpenRouter. Describe the scene naturally.</td></tr>
-                  </tbody>
-                </table>
-              </div>
-
-              <div class="docs-card">
-                <h3>MCP (Model Context Protocol)</h3>
-                <p>If MCP servers are configured, their tools appear as <code>mcp__&lt;server&gt;__&lt;tool&gt;</code> and can be called like any other tool. Configure servers in <code>~/.kai/settings.json</code> or via the <code>/mcp add</code> command.</p>
-              </div>
-            </section>
-
-            <!-- REPL Commands -->
-            <section id="docs-repl">
-              <h2>REPL Commands</h2>
-              <p>Type these commands in the interactive terminal REPL. Type <code>/</code> alone to see all commands.</p>
-
-              <div class="docs-card">
-                <h3>General</h3>
-                <table>
-                  <thead><tr><th>Command</th><th>Description</th></tr></thead>
-                  <tbody>
-                    <tr><td><code>/help</code></td><td>Show all available commands</td></tr>
-                    <tr><td><code>/clear</code></td><td>Clear conversation (keep system prompt)</td></tr>
-                    <tr><td><code>/cost</code></td><td>Token usage + context breakdown</td></tr>
-                    <tr><td><code>/cost compact</code></td><td>Compress context to save tokens</td></tr>
-                    <tr><td><code>/sessions</code></td><td>List recent sessions</td></tr>
-                    <tr><td><code>/sessions rename &lt;name&gt;</code></td><td>Rename current session</td></tr>
-                    <tr><td><code>/soul</code></td><td>View core memory + recall stats</td></tr>
-                    <tr><td><code>/exit</code></td><td>Exit Kai</td></tr>
-                  </tbody>
-                </table>
-              </div>
-
-              <div class="docs-card">
-                <h3>Git</h3>
-                <table>
-                  <thead><tr><th>Command</th><th>Description</th></tr></thead>
-                  <tbody>
-                    <tr><td><code>/git</code></td><td>Git status + changed files</td></tr>
-                    <tr><td><code>/git diff</code></td><td>Colorized diff (staged + unstaged)</td></tr>
-                    <tr><td><code>/git commit [msg]</code></td><td>AI-generated commit. Add <code>--push</code> to also push.</td></tr>
-                    <tr><td><code>/git pr [title]</code></td><td>Create PR (branch + commit + push + open)</td></tr>
-                    <tr><td><code>/git branch [name]</code></td><td>List or create/switch branches</td></tr>
-                  </tbody>
-                </table>
-              </div>
-
-              <div class="docs-card">
-                <h3>Agents & MCP</h3>
-                <table>
-                  <thead><tr><th>Command</th><th>Description</th></tr></thead>
-                  <tbody>
-                    <tr><td><code>/agent</code></td><td>List background agents</td></tr>
-                    <tr><td><code>/agent run &lt;id&gt;</code></td><td>Run an agent now</td></tr>
-                    <tr><td><code>/agent output &lt;id&gt;</code></td><td>View latest agent output</td></tr>
-                    <tr><td><code>/agent info &lt;id&gt;</code></td><td>Agent details + run history</td></tr>
-                    <tr><td><code>/mcp</code></td><td>List connected MCP servers + tools</td></tr>
-                    <tr><td><code>/mcp add &lt;name&gt; &lt;cmd&gt;</code></td><td>Add an MCP server</td></tr>
-                    <tr><td><code>/mcp remove &lt;name&gt;</code></td><td>Remove an MCP server</td></tr>
-                  </tbody>
-                </table>
-              </div>
-
-              <div class="docs-card">
-                <h3>Custom Commands</h3>
-                <p>Add custom slash commands by creating markdown files in <code>.kai/commands/</code>. Each file becomes a <code>/command-name</code>. Use <code>{{args}}</code> in the file to inject arguments.</p>
-              </div>
-            </section>
-
-            <!-- CLI Commands -->
-            <section id="docs-cli">
-              <h2>CLI Commands</h2>
-
-              <div class="docs-card">
-                <h3>Interactive & One-shot</h3>
-                <pre><code>kai                         # Start interactive REPL
-kai "prompt"                # One-shot query (runs and exits)
-kai -p "prompt"             # Same as above (--print)
-kai --continue              # Resume most recent session
-kai --resume &lt;id&gt;           # Resume specific session
-kai --name "my session"     # Name the session
-kai --yes                   # Auto-approve all tool calls</code></pre>
-              </div>
-
-              <div class="docs-card">
-                <h3>Web Server</h3>
-                <pre><code>kai server                  # Start on port 3141 (API + UI + agents)
-kai server --port 3000      # Custom port
-kai server --no-ui          # API + agents only (no web UI)
-kai server --no-agents      # API + UI only (no agent daemon)</code></pre>
-              </div>
-
-              <div class="docs-card">
-                <h3>Agent Management</h3>
-                <pre><code>kai agent list               # List all agents
-kai agent create &lt;name&gt; &lt;workflow.yaml&gt; [--schedule "cron"]
-kai agent run &lt;id&gt;           # Run an agent now
-kai agent output &lt;id&gt;        # View latest run output
-kai agent info &lt;id&gt;          # Agent details + run history
-kai agent delete &lt;id&gt;        # Delete an agent
-kai agent daemon             # Start the cron scheduler
-kai agent stop               # Stop the scheduler</code></pre>
-              </div>
-
-              <div class="docs-card">
-                <h3>MCP Servers</h3>
-                <pre><code>kai mcp list                # List configured servers + tools</code></pre>
-              </div>
-            </section>
-
-            <!-- Memory System -->
-            <section id="docs-memory">
-              <h2>Memory System</h2>
-              <p>Kai has three memory layers, all scoped per-project (auto-detected via <code>.git</code>, <code>package.json</code>, etc.).</p>
-
-              <div class="docs-card">
-                <h3>Soul (Core Memory)</h3>
-                <p>Persistent identity and per-project context. Always loaded into every conversation.</p>
-                <table>
-                  <thead><tr><th>Block</th><th>Scope</th><th>Purpose</th></tr></thead>
-                  <tbody>
-                    <tr><td><code>persona</code></td><td>Global</td><td>Kai's identity and behavioral traits</td></tr>
-                    <tr><td><code>human</code></td><td>Global</td><td>What Kai knows about you (updated as it learns)</td></tr>
-                    <tr><td><code>goals</code></td><td>Per-project</td><td>Current objectives for this project</td></tr>
-                    <tr><td><code>scratchpad</code></td><td>Per-project</td><td>Working notes during multi-step tasks</td></tr>
-                  </tbody>
-                </table>
-                <p style="margin-top:12px">Storage: <code>~/.kai/soul/</code> (global) and <code>~/.kai/projects/{id}/</code> (per-project)</p>
-              </div>
-
-              <div class="docs-card">
-                <h3>Archival Memory</h3>
-                <p>Long-term knowledge store for facts, preferences, research findings. Searchable by keyword and tags. Append-only JSONL format.</p>
-                <p>Storage: <code>~/.kai/projects/{id}/archival/knowledge.jsonl</code></p>
-              </div>
-
-              <div class="docs-card">
-                <h3>Recall Memory</h3>
-                <p>Searchable archive of past conversations across sessions. Keyword-based search returns matching messages with timestamps.</p>
-                <p>Storage: <code>~/.kai/projects/{id}/recall/history.jsonl</code></p>
-              </div>
-            </section>
-
-            <!-- Background Agents -->
-            <section id="docs-agents">
-              <h2>Background Agents</h2>
-              <p>Agents run autonomous YAML workflows on a cron schedule. They can chain LLM calls, integrations, shell commands, and self-improvement review loops.</p>
-
-              <div class="docs-card">
-                <h3>Workflow YAML Format</h3>
-                <pre><code>name: nightly-commit
-description: Auto-commit config changes
-schedule: "0 2 * * *"
-config:
-  custom_param: value
-
-# Optional self-improvement loop
-review:
-  enabled: true
-  max_iterations: 3
-
-steps:
-  - name: check_changes
-    type: shell
-    command: "cd ~/.kai && git status --porcelain"
-
-  - name: generate_message
-    type: llm
-    prompt: "Generate a commit message for: ${vars.check_changes}"
-
-  - name: save_data
-    type: integration
-    integration: data
-    action: write
-    params:
-      file: "~/.kai/output.json"
-      data: "${vars.generate_message}"
-
-  - name: notify
-    type: notify
-    params:
-      title: "Kai Agent"
-      message: "Done!"</code></pre>
-              </div>
-
-              <div class="docs-card">
-                <h3>Step Types</h3>
-                <table>
-                  <thead><tr><th>Type</th><th>Description</th><th>Key Fields</th></tr></thead>
-                  <tbody>
-                    <tr><td><code>llm</code></td><td>Send a prompt to the LLM</td><td><code>prompt</code></td></tr>
-                    <tr><td><code>integration</code></td><td>Call a built-in integration</td><td><code>integration</code>, <code>action</code>, <code>params</code></td></tr>
-                    <tr><td><code>shell</code></td><td>Run a shell command</td><td><code>command</code></td></tr>
-                    <tr><td><code>notify</code></td><td>Send a desktop notification</td><td><code>params.title</code>, <code>params.message</code></td></tr>
-                    <tr><td><code>review</code></td><td>Self-improvement review loop</td><td><code>prompt</code></td></tr>
-                  </tbody>
-                </table>
-              </div>
-
-              <div class="docs-card">
-                <h3>Variable Interpolation</h3>
-                <p>Use these in prompts, commands, and params:</p>
-                <table>
-                  <thead><tr><th>Pattern</th><th>Description</th></tr></thead>
-                  <tbody>
-                    <tr><td><code>${vars.step_name}</code></td><td>Output from a previous step</td></tr>
-                    <tr><td><code>${config.param}</code></td><td>Value from workflow config</td></tr>
-                    <tr><td><code>${env.KEY}</code></td><td>Environment variable</td></tr>
-                  </tbody>
-                </table>
-              </div>
-
-              <div class="docs-card">
-                <h3>Built-in Integrations</h3>
-                <table>
-                  <thead><tr><th>Integration</th><th>Actions</th></tr></thead>
-                  <tbody>
-                    <tr><td><code>youtube</code></td><td><code>search_videos</code>, <code>get_video_stats</code>, <code>get_channel</code>, <code>get_recent_uploads</code>, <code>get_trending</code></td></tr>
-                    <tr><td><code>data</code></td><td><code>read</code>, <code>write</code>, <code>append</code>, <code>archive</code>, <code>read_text</code>, <code>list_files</code></td></tr>
-                    <tr><td><code>web</code></td><td><code>fetch</code>, <code>search</code></td></tr>
-                    <tr><td><code>image</code></td><td><code>generate</code></td></tr>
-                    <tr><td><code>mcp</code></td><td><code>call_tool</code> (any configured MCP server)</td></tr>
-                  </tbody>
-                </table>
-              </div>
-            </section>
-
-            <!-- Configuration -->
-            <section id="docs-config">
-              <h2>Configuration</h2>
-              <p>Config is loaded from (highest priority first):</p>
-              <ol>
-                <li><code>.kai/settings.json</code> (project-level)</li>
-                <li><code>kai.config.json</code> (project-level)</li>
-                <li><code>~/.kai/settings.json</code> (user-level)</li>
-              </ol>
-
-              <div class="docs-card">
-                <h3>Settings Format</h3>
-                <pre><code>{
-  "model": "moonshotai/kimi-k2.5",
-  "mcp": {
-    "servers": {
-      "filesystem": {
-        "command": "npx",
-        "args": ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"],
-        "env": {}
-      }
-    }
-  },
-  "permissions": {
-    "mode": "default",
-    "allow": [],
-    "deny": []
-  },
-  "hooks": {
-    "before": {},
-    "after": {}
-  }
-}</code></pre>
-              </div>
-
-              <div class="docs-card">
-                <h3>Models</h3>
-                <p>All models are accessed via <a href="https://openrouter.ai" target="_blank">OpenRouter</a>. Override with <code>MODEL_ID</code> in <code>.env</code> or <code>"model"</code> in settings.</p>
-                <table>
-                  <thead><tr><th>Role</th><th>Model</th><th>ID</th></tr></thead>
-                  <tbody>
-                    <tr><td>Primary</td><td>Kimi K2.5</td><td><code>moonshotai/kimi-k2.5</code></td></tr>
-                    <tr><td>Fallback</td><td>Qwen3 235B</td><td><code>qwen/qwen3-235b-a22b</code></td></tr>
-                    <tr><td>Image Gen</td><td>Gemini 2.5 Flash</td><td><code>google/gemini-2.5-flash-image</code></td></tr>
-                  </tbody>
-                </table>
-              </div>
-
-              <div class="docs-card">
-                <h3>Permissions</h3>
-                <p>Tools have permission levels. In default mode, read-only tools are always allowed. Write operations and dangerous commands require confirmation.</p>
+                <h3>Things you can ask</h3>
                 <ul>
-                  <li><strong>default</strong> &mdash; Interactive confirmation for writes/deletes</li>
-                  <li><strong>auto</strong> &mdash; Approve everything (used in web/server mode)</li>
+                  <li>"Write a blog post about our new product launch"</li>
+                  <li>"Summarize this article" (paste a URL)</li>
+                  <li>"Create a social media calendar for next week"</li>
+                  <li>"Rewrite this email to sound more professional"</li>
+                  <li>"What files are in this project?"</li>
+                  <li>"Generate a thumbnail for my YouTube video"</li>
+                  <li>"Research trending topics in AI marketing"</li>
                 </ul>
               </div>
 
               <div class="docs-card">
-                <h3>Hooks</h3>
-                <p>Run shell commands before or after any tool call. Configure in settings:</p>
-                <pre><code>{
-  "hooks": {
-    "before": { "write_file": "echo 'About to write a file'" },
-    "after": { "bash": "echo 'Command finished'" }
-  }
-}</code></pre>
+                <h3>Tips</h3>
+                <ul>
+                  <li>Be specific about what you want &mdash; the more detail, the better the result</li>
+                  <li>You can attach images by clicking the paperclip icon</li>
+                  <li>Kai remembers your conversation, so you can say "make that shorter" or "try again"</li>
+                  <li>If Kai is working on something complex, you'll see the tools it's using in real time</li>
+                </ul>
               </div>
             </section>
 
-            <!-- Web API -->
-            <section id="docs-api">
-              <h2>Web API</h2>
-              <p>When running <code>kai server</code>, these REST endpoints are available.</p>
+            <!-- Files -->
+            <section id="docs-files">
+              <h2>Read & Write Files</h2>
+              <p>Kai can read, create, and edit files on your computer. Just ask naturally.</p>
 
               <div class="docs-card">
-                <h3>Chat & Sessions</h3>
+                <h3>Examples</h3>
+                <ul>
+                  <li>"Read the file marketing-plan.md and summarize it"</li>
+                  <li>"Create a new file called ideas.txt with these bullet points..."</li>
+                  <li>"Update the pricing section in landing-page.html"</li>
+                  <li>"Find all the markdown files in this folder"</li>
+                  <li>"Search for every mention of 'launch date' in our docs"</li>
+                </ul>
+              </div>
+            </section>
+
+            <!-- Web -->
+            <section id="docs-web">
+              <h2>Web Search & Fetch</h2>
+              <p>Kai can search the web and read web pages for you.</p>
+
+              <div class="docs-card">
+                <h3>Examples</h3>
+                <ul>
+                  <li>"Search for the latest trends in content marketing"</li>
+                  <li>"Read this article and give me the key takeaways: https://..."</li>
+                  <li>"What are our competitors doing on social media?"</li>
+                  <li>"Find recent news about [topic]"</li>
+                </ul>
+                <p style="margin-top:12px"><strong>Note:</strong> Web search requires a Tavily API key in your setup. Fetching URLs works out of the box.</p>
+              </div>
+            </section>
+
+            <!-- Images -->
+            <section id="docs-images">
+              <h2>Image Generation</h2>
+              <p>Kai can generate images from text descriptions. Great for thumbnails, social posts, and concept art.</p>
+
+              <div class="docs-card">
+                <h3>Examples</h3>
+                <ul>
+                  <li>"Generate a YouTube thumbnail showing a person excited about AI"</li>
+                  <li>"Create a social media graphic with a futuristic city background"</li>
+                  <li>"Make a hero image for a blog post about productivity"</li>
+                </ul>
+                <p style="margin-top:12px">You can also attach a reference photo and ask Kai to generate an image in a similar style or featuring that person.</p>
+              </div>
+            </section>
+
+            <!-- Memory -->
+            <section id="docs-memory">
+              <h2>Memory</h2>
+              <p>Kai remembers things across conversations so you don't have to repeat yourself.</p>
+
+              <div class="docs-card">
+                <h3>What Kai remembers</h3>
                 <table>
-                  <thead><tr><th>Endpoint</th><th>Method</th><th>Description</th></tr></thead>
+                  <thead><tr><th>What</th><th>How it works</th></tr></thead>
                   <tbody>
-                    <tr><td><code>/api/chat</code></td><td>POST</td><td>Chat with SSE streaming. Body: <code>{ sessionId, message, model?, attachments? }</code></td></tr>
-                    <tr><td><code>/api/chat/stop</code></td><td>POST</td><td>Cancel a streaming response. Body: <code>{ sessionId }</code></td></tr>
-                    <tr><td><code>/api/sessions</code></td><td>GET</td><td>List all sessions</td></tr>
-                    <tr><td><code>/api/sessions/:id</code></td><td>GET</td><td>Get session messages</td></tr>
-                    <tr><td><code>/api/sessions</code></td><td>POST</td><td>Create new session</td></tr>
-                    <tr><td><code>/api/sessions/:id</code></td><td>DELETE</td><td>Delete a session</td></tr>
+                    <tr><td><strong>About you</strong></td><td>Your name, role, preferences. Updates as it learns about you.</td></tr>
+                    <tr><td><strong>Your goals</strong></td><td>Current objectives for this project. Tell Kai what you're working on.</td></tr>
+                    <tr><td><strong>Long-term knowledge</strong></td><td>Facts, research, and context stored permanently. Ask Kai to "remember this."</td></tr>
+                    <tr><td><strong>Past conversations</strong></td><td>Searchable history of what you've discussed before.</td></tr>
                   </tbody>
                 </table>
               </div>
 
               <div class="docs-card">
-                <h3>Agents</h3>
+                <h3>Examples</h3>
+                <ul>
+                  <li>"Remember that our brand voice is casual and friendly"</li>
+                  <li>"What did we decide about the launch date last time?"</li>
+                  <li>"My goal for this week is to finish the email sequence"</li>
+                  <li>"Save this research for later"</li>
+                </ul>
+              </div>
+            </section>
+
+            <!-- Agents -->
+            <section id="docs-agents-section">
+              <h2>Background Agents</h2>
+              <p>Agents are automated workflows that run on a schedule &mdash; like having a team member who works while you sleep.</p>
+
+              <div class="docs-card">
+                <h3>What agents can do</h3>
+                <ul>
+                  <li>Monitor YouTube competitors and report new uploads daily</li>
+                  <li>Research trending topics and generate content ideas weekly</li>
+                  <li>Scout for new content opportunities in your niche</li>
+                  <li>Run multi-step research workflows and save the results</li>
+                  <li>Send desktop notifications when tasks complete</li>
+                </ul>
+              </div>
+
+              <div class="docs-card">
+                <h3>How to use agents</h3>
+                <p>Switch to the <strong>Agents</strong> tab in the sidebar to see your agents, run them manually, or check their latest output.</p>
+                <p>Agents are defined as YAML workflow files. Each workflow has steps that can:</p>
+                <ul>
+                  <li><strong>Ask the AI</strong> &mdash; send a prompt and get a response</li>
+                  <li><strong>Search YouTube</strong> &mdash; find videos, check stats, track channels</li>
+                  <li><strong>Search the web</strong> &mdash; research any topic</li>
+                  <li><strong>Read/write files</strong> &mdash; save results as JSON for other agents to use</li>
+                  <li><strong>Generate images</strong> &mdash; create thumbnails or graphics</li>
+                  <li><strong>Run commands</strong> &mdash; any shell command on your machine</li>
+                  <li><strong>Self-review</strong> &mdash; the AI reviews its own output and improves it</li>
+                </ul>
+              </div>
+
+              <div class="docs-card">
+                <h3>Example: YouTube Scout Agent</h3>
+                <p>This agent runs daily, checks competitor channels, searches for trending topics, and generates 5 video ideas with titles and hooks.</p>
+                <pre><code>name: yt-daily-scout
+description: Daily YouTube research + idea generation
+schedule: "0 8 * * *"
+
+config:
+  channels:
+    - UCxxxxxx  # Competitor 1
+    - UCyyyyyy  # Competitor 2
+  keywords:
+    - "AI marketing"
+    - "content strategy"
+
+steps:
+  - name: check_competitors
+    type: integration
+    integration: youtube
+    action: get_recent_uploads
+    params:
+      channel_id: "${config.channels[0]}"
+
+  - name: search_trends
+    type: integration
+    integration: youtube
+    action: search_videos
+    params:
+      query: "${config.keywords[0]}"
+      order: date
+
+  - name: generate_ideas
+    type: llm
+    prompt: |
+      Based on these competitor uploads and trends,
+      generate 5 video ideas with titles and hooks:
+      ${vars.check_competitors}
+      ${vars.search_trends}</code></pre>
+              </div>
+            </section>
+
+            <!-- Terminal Commands -->
+            <section id="docs-terminal">
+              <h2>Terminal Commands</h2>
+              <p>If you're using Kai from the terminal (not this web UI), these commands are available.</p>
+
+              <div class="docs-card">
+                <h3>Starting Kai</h3>
                 <table>
-                  <thead><tr><th>Endpoint</th><th>Method</th><th>Description</th></tr></thead>
+                  <thead><tr><th>Command</th><th>What it does</th></tr></thead>
                   <tbody>
-                    <tr><td><code>/api/agents</code></td><td>GET</td><td>List all agents</td></tr>
-                    <tr><td><code>/api/agents/:id</code></td><td>GET</td><td>Agent details + run history</td></tr>
-                    <tr><td><code>/api/agents/:id</code></td><td>PATCH</td><td>Edit agent (toggle, rename, schedule)</td></tr>
-                    <tr><td><code>/api/agents/:id</code></td><td>DELETE</td><td>Delete an agent</td></tr>
-                    <tr><td><code>/api/agents/:id/run</code></td><td>POST</td><td>Run agent now</td></tr>
-                    <tr><td><code>/api/agents/:id/output</code></td><td>GET</td><td>Latest run output + steps</td></tr>
-                    <tr><td><code>/api/agents/:id/recap</code></td><td>GET</td><td>LLM-generated run summary</td></tr>
-                    <tr><td><code>/api/agents/:id/logs</code></td><td>GET</td><td>Agent logs (query: <code>?limit=50</code>)</td></tr>
-                    <tr><td><code>/api/agents/:id/runs/:runId</code></td><td>GET</td><td>Steps for a specific run</td></tr>
+                    <tr><td><code>kai</code></td><td>Start a chat in your terminal</td></tr>
+                    <tr><td><code>kai "your question"</code></td><td>Ask a quick question (one-shot, no back and forth)</td></tr>
+                    <tr><td><code>kai server</code></td><td>Start this web UI</td></tr>
+                    <tr><td><code>kai --continue</code></td><td>Pick up where you left off</td></tr>
                   </tbody>
                 </table>
               </div>
 
               <div class="docs-card">
-                <h3>Other</h3>
+                <h3>In-chat slash commands</h3>
                 <table>
-                  <thead><tr><th>Endpoint</th><th>Method</th><th>Description</th></tr></thead>
+                  <thead><tr><th>Command</th><th>What it does</th></tr></thead>
                   <tbody>
-                    <tr><td><code>/api/status</code></td><td>GET</td><td>Server status, model, usage info</td></tr>
-                    <tr><td><code>/api/models</code></td><td>GET</td><td>Available models from OpenRouter (5min cache)</td></tr>
-                    <tr><td><code>/api/image?path=...</code></td><td>GET</td><td>Serve a local image file</td></tr>
+                    <tr><td><code>/help</code></td><td>Show all commands</td></tr>
+                    <tr><td><code>/clear</code></td><td>Start fresh (clears conversation)</td></tr>
+                    <tr><td><code>/cost</code></td><td>See how many tokens you've used</td></tr>
+                    <tr><td><code>/soul</code></td><td>See what Kai remembers about you</td></tr>
+                    <tr><td><code>/sessions</code></td><td>See your past conversations</td></tr>
+                    <tr><td><code>/agent</code></td><td>See your background agents</td></tr>
+                    <tr><td><code>/git commit</code></td><td>Auto-generate a git commit message</td></tr>
+                    <tr><td><code>/git pr</code></td><td>Create a pull request with AI-written description</td></tr>
+                    <tr><td><code>/exit</code></td><td>Quit</td></tr>
                   </tbody>
                 </table>
+              </div>
+            </section>
+
+            <!-- Setup -->
+            <section id="docs-setup">
+              <h2>Setup</h2>
+
+              <div class="docs-card">
+                <h3>Requirements</h3>
+                <p>You need an <a href="https://openrouter.ai/settings/keys" target="_blank">OpenRouter API key</a> to use Kai. This gives you access to the AI models that power everything.</p>
+                <p>Optional: a <a href="https://tavily.com" target="_blank">Tavily API key</a> for web search, and a YouTube Data API key for YouTube agent features.</p>
+              </div>
+
+              <div class="docs-card">
+                <h3>First-time setup</h3>
+                <pre><code># 1. Install
+npm install
+
+# 2. Set up your API key
+cp .env.example .env
+# Open .env and paste your OpenRouter key
+
+# 3. Start Kai
+npm run dev</code></pre>
+              </div>
+
+              <div class="docs-card">
+                <h3>Models</h3>
+                <p>Kai uses AI models via OpenRouter. The defaults work great, but you can switch to any model available on OpenRouter.</p>
+                <table>
+                  <thead><tr><th>Used for</th><th>Default model</th></tr></thead>
+                  <tbody>
+                    <tr><td>Chat & tasks</td><td>Kimi K2.5</td></tr>
+                    <tr><td>Backup (if primary is down)</td><td>Qwen3 235B</td></tr>
+                    <tr><td>Image generation</td><td>Gemini 2.5 Flash</td></tr>
+                  </tbody>
+                </table>
+                <p style="margin-top:12px">Change the model using the picker at the top of the chat, or set <code>MODEL_ID</code> in your <code>.env</code> file.</p>
               </div>
             </section>
 
