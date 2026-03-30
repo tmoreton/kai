@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { serve } from "@hono/node-server";
 import { streamSSE } from "hono/streaming";
 import { cors } from "hono/cors";
+import net from "net";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -68,6 +69,14 @@ export interface ServerOptions {
 
 export async function startServer(options: ServerOptions): Promise<void> {
   const { port, agents = true, ui = true } = options;
+
+  // Check port availability before doing anything else
+  const portFree = await checkPort(port);
+  if (!portFree) {
+    console.error(`\n  Error: Port ${port} is already in use.`);
+    console.error(`  Try: kai server --port ${port + 1}\n`);
+    process.exit(1);
+  }
 
   // Auto-approve tools in web mode (no readline available)
   setPermissionMode("auto");
@@ -336,7 +345,7 @@ export async function startServer(options: ServerOptions): Promise<void> {
 
   console.log(`\n  Kai Server starting (${features})\n`);
 
-  const server = serve({ fetch: app.fetch, port }, (info) => {
+  serve({ fetch: app.fetch, port }, (info) => {
     if (ui) console.log(`  UI:          http://localhost:${info.port}`);
     console.log(`  API:         http://localhost:${info.port}/api`);
     console.log(`  Provider:    ${getProviderName()} / ${getModelId()}`);
@@ -344,19 +353,16 @@ export async function startServer(options: ServerOptions): Promise<void> {
     if (agents) console.log(`  Agents:      ${daemonStartedInProcess ? "daemon started in-process" : "external daemon running"}`);
     console.log(`  Permissions: auto\n`);
   });
+}
 
-  server.on("error", (err: NodeJS.ErrnoException) => {
-    if (err.code === "EADDRINUSE") {
-      console.error(`  Error: Port ${port} is already in use.`);
-      console.error(`  Try: kai server --port ${port + 1}\n`);
-    } else {
-      console.error(`  Error: ${err.message}`);
-    }
-    if (daemonStartedInProcess) {
-      stopDaemon();
-      try { fs.unlinkSync(getDaemonPidPath()); } catch {}
-    }
-    process.exit(1);
+function checkPort(port: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const server = net.createServer();
+    server.once("error", () => resolve(false));
+    server.once("listening", () => {
+      server.close(() => resolve(true));
+    });
+    server.listen(port);
   });
 }
 
