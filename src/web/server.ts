@@ -673,6 +673,29 @@ export async function startServer(options: ServerOptions): Promise<void> {
 
   // --- Static files ---
   if (ui) {
+    // Serve static assets from public dir (icons, manifest, etc.)
+    const staticMimeTypes: Record<string, string> = {
+      ".png": "image/png", ".jpg": "image/jpeg", ".ico": "image/x-icon",
+      ".svg": "image/svg+xml", ".json": "application/json", ".webmanifest": "application/manifest+json",
+      ".js": "text/javascript", ".css": "text/css",
+    };
+    app.get("*", (c, next) => {
+      const reqPath = new URL(c.req.url).pathname;
+      const ext = path.extname(reqPath);
+      if (ext && staticMimeTypes[ext]) {
+        const filePath = path.join(publicDir, reqPath);
+        const resolved = path.resolve(filePath);
+        if (resolved.startsWith(path.resolve(publicDir)) && fs.existsSync(resolved)) {
+          const data = fs.readFileSync(resolved);
+          return new Response(data, {
+            headers: { "Content-Type": staticMimeTypes[ext], "Cache-Control": "public, max-age=3600" },
+          });
+        }
+      }
+      return next();
+    });
+
+    // SPA fallback — serve index.html for all other routes
     app.get("*", (c) => {
       const htmlPath = path.join(publicDir, "index.html");
       if (fs.existsSync(htmlPath)) {

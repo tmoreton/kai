@@ -6,6 +6,7 @@ dist/
 src-tauri/resources/
 src-tauri/target/
 src-tauri/.node-cache/
+src-tauri/.icon-tmp/
 
 # Environment & secrets
 .env

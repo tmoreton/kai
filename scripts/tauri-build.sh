@@ -80,12 +80,12 @@ if [ -f "binding.gyp" ]; then
   npx --yes node-gyp rebuild \
     --target="${NODE_VERSION#v}" \
     --nodedir="$NODE_CACHE/node-headers" \
-    2>&1 | tail -5
+    2>&1 | tail -5 || { echo "ERROR: node-gyp rebuild failed"; exit 1; }
 fi
 
 # Verify the native addon loads with the bundled Node
 echo "==> Verifying native addon..."
-"$BUNDLED_NODE" -e "require('$RESOURCES/node_modules/better-sqlite3')" && echo "    better-sqlite3: OK" || echo "    better-sqlite3: FAILED"
+"$BUNDLED_NODE" -e "require('$RESOURCES/node_modules/better-sqlite3')" && echo "    better-sqlite3: OK" || { echo "ERROR: better-sqlite3 failed to load"; exit 1; }
 
 echo "==> Staging complete. Resource size:"
 du -sh "$RESOURCES"

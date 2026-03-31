@@ -28,13 +28,13 @@ rsvg-convert -w 1024 -h 1024 "$TMP/icon.svg" -o "$TMP/icon-1024.png"
 
 echo "==> Generating icon sizes..."
 # Tauri required sizes
-for SIZE in 32 128 256; do
+for SIZE in 32 128; do
   sips -z $SIZE $SIZE "$TMP/icon-1024.png" --out "$ICONS/${SIZE}x${SIZE}.png" >/dev/null 2>&1
   echo "    ${SIZE}x${SIZE}.png"
 done
 
 # 128x128@2x is actually 256x256
-cp "$ICONS/256x256.png" "$ICONS/128x128@2x.png"
+sips -z 256 256 "$TMP/icon-1024.png" --out "$ICONS/128x128@2x.png" >/dev/null 2>&1
 echo "    128x128@2x.png"
 
 # Generate .icns for macOS
