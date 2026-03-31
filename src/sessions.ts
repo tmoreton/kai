@@ -53,14 +53,14 @@ export function loadSession(sessionId: string): Session | null {
   return null;
 }
 
-export function listSessions(limit = 20): Session[] {
+export function listSessions(limit = 20, allProjects = false): Session[] {
   const dir = sessionsDir();
   const prefix = projectKey();
 
   try {
     const files = fs
       .readdirSync(dir)
-      .filter((f) => f.startsWith(prefix) && f.endsWith(".json"))
+      .filter((f) => (allProjects || f.startsWith(prefix)) && f.endsWith(".json"))
       .sort()
       .reverse()
       .slice(0, limit);

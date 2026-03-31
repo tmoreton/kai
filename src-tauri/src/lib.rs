@@ -113,8 +113,10 @@ pub fn run() {
             debug_log!(log, "Has OPENROUTER_API_KEY: {}", env_vars.contains_key("OPENROUTER_API_KEY"));
 
             // Build the command with all env vars
+            // Set cwd to home so sessions resolve the same as terminal usage
             let shell = app.shell();
             let mut cmd = shell.command(node_binary.to_str().unwrap());
+            cmd = cmd.current_dir(&home);
             cmd = cmd.env("NODE_PATH", node_modules.to_str().unwrap());
             cmd = cmd.env("HOME", home.to_str().unwrap());
             for (key, value) in &env_vars {

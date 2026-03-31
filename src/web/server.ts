@@ -210,7 +210,7 @@ export async function startServer(options: ServerOptions): Promise<void> {
 
   // --- Sessions ---
   app.get("/api/sessions", (c) => {
-    const sessions = listSessions(30);
+    const sessions = listSessions(30, true);
     return c.json(
       sessions.map((s) => {
         // Extract first real user message as preview/label
@@ -269,7 +269,7 @@ export async function startServer(options: ServerOptions): Promise<void> {
 
   // --- Projects (sessions grouped by cwd) ---
   app.get("/api/projects", (c) => {
-    const sessions = listSessions(100);
+    const sessions = listSessions(100, true);
     const projectMap = new Map<string, {
       cwd: string;
       name: string;
