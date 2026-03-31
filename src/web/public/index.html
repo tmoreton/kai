@@ -314,8 +314,17 @@
     }
     .attach-btn:hover { color: var(--text); background: var(--bg-hover); }
     .attach-btn svg { width: 18px; height: 18px; }
+    .mic-btn {
+      position: absolute; right: 48px; bottom: 8px; width: 36px; height: 36px; border: none;
+      background: none; color: var(--text-muted); cursor: pointer; display: flex;
+      align-items: center; justify-content: center; border-radius: 50%; transition: all .15s;
+    }
+    .mic-btn:hover { color: var(--text); background: var(--bg-hover); }
+    .mic-btn svg { width: 18px; height: 18px; }
+    .mic-btn.recording { color: var(--red); background: var(--red-light); animation: pulse 1.5s infinite; }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .6; } }
     .input-box {
-      width: 100%; min-height: 52px; max-height: 200px; padding: 14px 52px 14px 4px;
+      width: 100%; min-height: 52px; max-height: 200px; padding: 14px 88px 14px 4px;
       background: transparent; border: none; border-radius: 24px;
       color: var(--text); font-family: var(--sans); font-size: 15px; line-height: 1.5; resize: none; outline: none;
     }
@@ -889,6 +898,9 @@
               </button>
               <input type="file" id="file-input" multiple accept="image/*,.txt,.md,.json,.csv,.js,.ts,.py,.html,.css,.xml,.yaml,.yml,.toml,.log" style="display:none" />
               <textarea class="input-box" id="input" placeholder="How can I help you today?" rows="1" autofocus></textarea>
+              <button class="mic-btn" id="mic-btn" onclick="toggleMic()" title="Voice input">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="1" width="6" height="11" rx="3"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+              </button>
               <button class="action-btn send" id="action-btn" onclick="sendMessage()">
                 <svg viewBox="0 0 16 16" fill="currentColor"><path d="M3 13l10-5L3 3v4l6 1-6 1z"/></svg>
               </button>
@@ -1069,6 +1081,104 @@ npm run dev</code></pre>
 
     const $ = id => document.getElementById(id);
     const $msgs = $('messages'), $chat = $('chat-area'), $input = $('input');
+
+    // --- Voice input (Web Speech API) ---
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    let recognition = null;
+    let micActive = false;
+
+    if (SpeechRecognition) {
+      recognition = new SpeechRecognition();
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.lang = 'en-US';
+
+      let finalTranscript = '';
+
+      recognition.onresult = (e) => {
+        let interim = '';
+        for (let i = e.resultIndex; i < e.results.length; i++) {
+          const t = e.results[i][0].transcript;
+          if (e.results[i].isFinal) { finalTranscript += t + ' '; }
+          else { interim = t; }
+        }
+        // Show final + interim in the input box
+        const before = $input.value.substring(0, $input.selectionStart).replace(/\u200B.*$/, '');
+        $input.value = (finalTranscript + interim).trim();
+        $input.style.height = 'auto';
+        $input.style.height = $input.scrollHeight + 'px';
+      };
+
+      recognition.onend = () => {
+        if (micActive) {
+          // Auto-restart if user hasn't toggled off (browser sometimes stops on silence)
+          try { recognition.start(); } catch {}
+        } else {
+          $('mic-btn').classList.remove('recording');
+          // Commit final transcript
+          if (finalTranscript.trim()) {
+            $input.value = finalTranscript.trim();
+            $input.style.height = 'auto';
+            $input.style.height = $input.scrollHeight + 'px';
+            $input.focus();
+          }
+          finalTranscript = '';
+        }
+      };
+
+      recognition.onerror = (e) => {
+        if (e.error !== 'no-speech' && e.error !== 'aborted') {
+          console.warn('Speech recognition error:', e.error);
+        }
+        micActive = false;
+        $('mic-btn').classList.remove('recording');
+        finalTranscript = '';
+      };
+    }
+
+    window.toggleMic = function() {
+      if (!recognition) {
+        alert('Speech recognition is not supported in this browser.');
+        return;
+      }
+      const btn = $('mic-btn');
+      if (micActive) {
+        micActive = false;
+        recognition.stop();
+        btn.classList.remove('recording');
+      } else {
+        micActive = true;
+        recognition.lang = 'en-US';
+        // Reset for new recording session
+        let finalTranscript = $input.value ? $input.value + ' ' : '';
+        recognition.onresult = (e) => {
+          let interim = '';
+          for (let i = e.resultIndex; i < e.results.length; i++) {
+            const t = e.results[i][0].transcript;
+            if (e.results[i].isFinal) { finalTranscript += t + ' '; }
+            else { interim = t; }
+          }
+          $input.value = (finalTranscript + interim).trim();
+          $input.style.height = 'auto';
+          $input.style.height = $input.scrollHeight + 'px';
+        };
+        recognition.onend = () => {
+          if (micActive) {
+            try { recognition.start(); } catch {}
+          } else {
+            btn.classList.remove('recording');
+            if (finalTranscript.trim()) {
+              $input.value = finalTranscript.trim();
+              $input.style.height = 'auto';
+              $input.style.height = $input.scrollHeight + 'px';
+              $input.focus();
+            }
+          }
+        };
+        try { recognition.start(); } catch {}
+        btn.classList.add('recording');
+      }
+    };
 
     function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
 
@@ -1954,6 +2064,8 @@ npm run dev</code></pre>
     };
 
     window.sendMessage = async function() {
+      // Stop voice input if active
+      if (micActive && recognition) { micActive = false; recognition.stop(); $('mic-btn').classList.remove('recording'); }
       const text = $input.value.trim();
       if (!text || state.streaming) return;
       if (state.activeView !== 'chat') switchView('chat');
