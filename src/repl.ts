@@ -8,6 +8,8 @@ import { formatCost, estimateContextSize, formatContextBreakdown, compactMessage
 import {
   gitInfo, gitDiff, gitStatus, gitBranch, gitLog, gitBaseBranch,
   gitDiffAgainstBase, gitListBranches, gitRemote, ghAvailable, isGitRepo,
+  gitLogDetailed, gitResetSoft, gitResetHard, gitStash, gitShowCommit,
+  gitCommitAtTime, gitDiffBetween, gitFilesChangedBetween,
 } from "./git.js";
 import { getTasksForDisplay } from "./tools/tasks.js";
 import {
@@ -33,6 +35,9 @@ import {
   resolveCommand,
   formatCustomCommands,
 } from "./commands.js";
+import { isPlanMode, togglePlanMode } from "./plan-mode.js";
+import { checkBudget } from "./context.js";
+import { autoRoute, applyRoute } from "./auto-route.js";
 
 const IMAGE_EXTS = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"]);
 const MIME_MAP: Record<string, string> = {
@@ -130,6 +135,12 @@ export async function startRepl(options: ReplOptions = {}, initialPrompt?: strin
   console.log(chalk.dim("    • Run " + chalk.cyan("kai") + " from any project directory to work in that folder"));
   console.log(chalk.dim("    • Type /help for all commands\n"));
 
+  // Startup warnings
+  if (!process.env.TAVILY_API_KEY) {
+    console.log(chalk.yellow("  ! TAVILY_API_KEY not set — web_search will not work."));
+    console.log(chalk.dim("    Set it in ~/.kai/.env or your environment.\n"));
+  }
+
   // Use a simple line-by-line approach with a processing flag
   let processing = false;
   const inputQueue: string[] = [];
@@ -137,11 +148,21 @@ export async function startRepl(options: ReplOptions = {}, initialPrompt?: strin
   const SLASH_COMMANDS = [
     { cmd: "/help", desc: "Show all commands" },
     { cmd: "/clear", desc: "Clear conversation" },
+    { cmd: "/compact", desc: "Compress context to save tokens" },
     { cmd: "/cost", desc: "Token usage + context" },
+    { cmd: "/doctor", desc: "System diagnostics" },
+    { cmd: "/export", desc: "Export session to markdown" },
+    { cmd: "/plan", desc: "Toggle plan mode (read-only)" },
+    { cmd: "/review", desc: "Code review current changes" },
+    { cmd: "/security-review", desc: "Security audit" },
     { cmd: "/sessions", desc: "List sessions" },
     { cmd: "/soul", desc: "View memory" },
+    { cmd: "/diff", desc: "All changes made this session" },
     { cmd: "/git", desc: "Git commands" },
     { cmd: "/git diff", desc: "Colorized diff" },
+    { cmd: "/git log", desc: "Recent commits" },
+    { cmd: "/git undo", desc: "Undo commits + reset conversation" },
+    { cmd: "/git stash", desc: "Stash uncommitted changes" },
     { cmd: "/git commit", desc: "AI commit" },
     { cmd: "/git pr", desc: "Create PR" },
     { cmd: "/git branch", desc: "Branch management" },
@@ -171,10 +192,17 @@ export async function startRepl(options: ReplOptions = {}, initialPrompt?: strin
     return [[], line];
   }
 
+  function getPrompt(): string {
+    if (isPlanMode()) {
+      return chalk.bold.yellow("kai [plan] › ");
+    }
+    return chalk.bold.cyan("kai › ");
+  }
+
   const rl = readline.createInterface({
     input: process.stdin,
     output: process.stdout,
-    prompt: chalk.bold.cyan("kai › "),
+    prompt: getPrompt(),
     terminal: true,
     completer,
   });
@@ -190,7 +218,7 @@ export async function startRepl(options: ReplOptions = {}, initialPrompt?: strin
       }
       console.log("");
       processing = false;
-      rl.prompt();
+      rl.setPrompt(getPrompt()); rl.prompt();
       return;
     }
 
@@ -203,7 +231,7 @@ export async function startRepl(options: ReplOptions = {}, initialPrompt?: strin
       }
       if (result === "handled") {
         processing = false;
-        rl.prompt();
+        rl.setPrompt(getPrompt()); rl.prompt();
         return;
       }
     }
@@ -257,6 +285,14 @@ export async function startRepl(options: ReplOptions = {}, initialPrompt?: strin
 
     try {
       process.stdout.write("\n");
+
+      // Auto-route: classify the task and decide strategy
+      const routeDecision = await autoRoute(client, input);
+      const routeHint = applyRoute(routeDecision);
+      if (routeHint) {
+        // Inject routing hint as a system message so the model follows the strategy
+        messages.push({ role: "user", content: routeHint });
+      }
 
       let streamBuffer = "";
       let streamLineCount = 0;
@@ -331,14 +367,14 @@ export async function startRepl(options: ReplOptions = {}, initialPrompt?: strin
       const next = inputQueue.shift()!;
       await processInput(next);
     } else {
-      rl.prompt();
+      rl.setPrompt(getPrompt()); rl.prompt();
     }
   }
 
   rl.on("line", (line) => {
     const input = line.trim();
     if (!input) {
-      if (!processing) rl.prompt();
+      if (!processing) { rl.setPrompt(getPrompt()); rl.prompt(); }
       return;
     }
 
@@ -353,7 +389,7 @@ export async function startRepl(options: ReplOptions = {}, initialPrompt?: strin
     if (processing) {
       console.log(chalk.dim("\n  Interrupted.\n"));
       processing = false;
-      rl.prompt();
+      rl.setPrompt(getPrompt()); rl.prompt();
     } else {
       cleanupBackgroundProcesses();
       session.messages = messages;
@@ -391,6 +427,186 @@ function createNewSession(
   };
 }
 
+async function runDoctor(): Promise<void> {
+  const { execFileSync } = await import("child_process");
+  console.log(chalk.bold("\n  Kai Doctor — System Diagnostics\n"));
+  const checks: Array<{ name: string; status: "ok" | "warn" | "fail"; detail: string }> = [];
+
+  // Node.js version
+  const nodeVersion = process.version;
+  const major = parseInt(nodeVersion.slice(1));
+  checks.push({
+    name: "Node.js",
+    status: major >= 20 ? "ok" : "warn",
+    detail: `${nodeVersion}${major < 20 ? " (requires >= 20)" : ""}`,
+  });
+
+  // Git
+  try {
+    const gitVersion = execFileSync("git", ["--version"], { encoding: "utf-8", timeout: 5000 }).trim();
+    checks.push({ name: "Git", status: "ok", detail: gitVersion });
+  } catch {
+    checks.push({ name: "Git", status: "fail", detail: "not found" });
+  }
+
+  // GitHub CLI
+  try {
+    const ghVersion = execFileSync("gh", ["--version"], { encoding: "utf-8", timeout: 5000 }).split("\n")[0].trim();
+    checks.push({ name: "GitHub CLI", status: "ok", detail: ghVersion });
+  } catch {
+    checks.push({ name: "GitHub CLI", status: "warn", detail: "not installed (optional, for /git pr)" });
+  }
+
+  // Ripgrep
+  try {
+    const rgVersion = execFileSync("rg", ["--version"], { encoding: "utf-8", timeout: 5000 }).split("\n")[0].trim();
+    checks.push({ name: "Ripgrep", status: "ok", detail: rgVersion });
+  } catch {
+    checks.push({ name: "Ripgrep", status: "warn", detail: "not installed (falling back to grep)" });
+  }
+
+  // API Keys
+  const openrouterKey = process.env.OPENROUTER_API_KEY;
+  checks.push({
+    name: "OPENROUTER_API_KEY",
+    status: openrouterKey ? "ok" : "fail",
+    detail: openrouterKey ? `set (${openrouterKey.substring(0, 8)}...)` : "missing — required for LLM access",
+  });
+
+  const tavilyKey = process.env.TAVILY_API_KEY;
+  checks.push({
+    name: "TAVILY_API_KEY",
+    status: tavilyKey ? "ok" : "warn",
+    detail: tavilyKey ? `set (${tavilyKey.substring(0, 8)}...)` : "missing — web_search will not work",
+  });
+
+  // Config files
+  const configPaths = [
+    path.resolve(process.env.HOME || "~", ".kai/settings.json"),
+    path.resolve(process.cwd(), ".kai/settings.json"),
+    path.resolve(process.cwd(), "KAI.md"),
+  ];
+  for (const p of configPaths) {
+    const label = p.replace(process.env.HOME || "", "~");
+    if (fs.existsSync(p)) {
+      try {
+        if (p.endsWith(".json")) {
+          JSON.parse(fs.readFileSync(p, "utf-8"));
+          checks.push({ name: label, status: "ok", detail: "valid JSON" });
+        } else {
+          const size = fs.statSync(p).size;
+          checks.push({ name: label, status: "ok", detail: `${(size / 1024).toFixed(1)} KB` });
+        }
+      } catch {
+        checks.push({ name: label, status: "fail", detail: "invalid JSON — parse error" });
+      }
+    }
+  }
+
+  // MCP Servers
+  try {
+    const { listMcpServers } = await import("./tools/index.js");
+    const servers = listMcpServers();
+    if (servers.length > 0) {
+      for (const s of servers) {
+        checks.push({
+          name: `MCP: ${s.name}`,
+          status: s.ready ? "ok" : "fail",
+          detail: s.ready ? `${s.tools.length} tools` : "not connected",
+        });
+      }
+    }
+  } catch {}
+
+  // Data directory size
+  const kaiHome = path.resolve(process.env.HOME || "~", ".kai");
+  if (fs.existsSync(kaiHome)) {
+    try {
+      const du = execFileSync("du", ["-sh", kaiHome], { encoding: "utf-8", timeout: 5000 }).trim();
+      const size = du.split("\t")[0];
+      checks.push({ name: "~/.kai data", status: "ok", detail: size });
+    } catch {}
+  }
+
+  // Display results
+  for (const check of checks) {
+    const icon = check.status === "ok" ? chalk.green("✔") : check.status === "warn" ? chalk.yellow("!") : chalk.red("✗");
+    const detail = check.status === "ok" ? chalk.dim(check.detail) : check.status === "warn" ? chalk.yellow(check.detail) : chalk.red(check.detail);
+    console.log(`  ${icon} ${check.name.padEnd(22)} ${detail}`);
+  }
+
+  const fails = checks.filter((c) => c.status === "fail").length;
+  const warns = checks.filter((c) => c.status === "warn").length;
+  if (fails === 0 && warns === 0) {
+    console.log(chalk.green("\n  All checks passed.\n"));
+  } else {
+    console.log(chalk.dim(`\n  ${fails} error(s), ${warns} warning(s)\n`));
+  }
+}
+
+async function exportSession(session: Session, outputPath?: string): Promise<void> {
+  const filename = outputPath || `kai-session-${session.id}.md`;
+  const resolved = path.isAbsolute(filename) ? filename : path.resolve(getCwd(), filename);
+
+  const lines: string[] = [];
+  lines.push(`# Kai Session: ${session.name || session.id}`);
+  lines.push(`- **Date:** ${new Date(session.createdAt).toLocaleString()}`);
+  lines.push(`- **Directory:** ${session.cwd}`);
+  lines.push("");
+  lines.push("---");
+  lines.push("");
+
+  for (const msg of session.messages) {
+    if (msg.role === "system") continue;
+
+    if (msg.role === "user") {
+      const content = typeof msg.content === "string"
+        ? msg.content
+        : Array.isArray(msg.content)
+          ? msg.content.map((c) => ("text" in c ? c.text : "[image]")).join("\n")
+          : "";
+      // Skip system injections
+      if (content.startsWith("[SYSTEM:")) continue;
+      lines.push(`## User`);
+      lines.push("");
+      lines.push(content);
+      lines.push("");
+    } else if (msg.role === "assistant") {
+      const content = typeof msg.content === "string" ? msg.content : "";
+      if (content && !content.startsWith("[Reached maximum")) {
+        lines.push(`## Assistant`);
+        lines.push("");
+        lines.push(content);
+        lines.push("");
+      }
+      // Show tool calls
+      if ("tool_calls" in msg && Array.isArray(msg.tool_calls)) {
+        for (const tc of msg.tool_calls) {
+          if ("function" in tc && tc.function) {
+            let argsSummary: string;
+            try {
+              const parsed = JSON.parse(tc.function.arguments);
+              argsSummary = JSON.stringify(parsed, null, 2);
+            } catch {
+              argsSummary = tc.function.arguments;
+            }
+            lines.push(`> **Tool:** \`${tc.function.name}\``);
+            lines.push(`> \`\`\``);
+            lines.push(`> ${argsSummary.split("\n").join("\n> ")}`);
+            lines.push(`> \`\`\``);
+            lines.push("");
+          }
+        }
+      }
+    } else if (msg.role === "tool") {
+      // Skip tool results in export — they're too verbose
+    }
+  }
+
+  fs.writeFileSync(resolved, lines.join("\n"), "utf-8");
+  console.log(chalk.green(`\n  Session exported to: ${resolved}\n`));
+}
+
 async function handleCommand(
   input: string,
   messages: ChatCompletionMessageParam[],
@@ -414,10 +630,27 @@ async function handleCommand(
     return "handled";
   }
 
+  // === /compact — manual context compaction ===
+  if (cmd === "/compact") {
+    const before = estimateContextSize(messages);
+    const compacted = compactMessages(messages);
+    messages.length = 0;
+    messages.push(...compacted);
+    const after = estimateContextSize(messages);
+    console.log(chalk.dim(`  Compacted: ~${before.toLocaleString()} → ~${after.toLocaleString()} tokens\n`));
+    return "handled";
+  }
+
   // === /cost [compact] — token usage + context breakdown ===
   if (cmd === "/cost") {
     console.log("\n" + formatCost());
     console.log(formatContextBreakdown(messages));
+    const budget = checkBudget();
+    if (budget.limit > 0) {
+      const pct = ((budget.used / budget.limit) * 100).toFixed(0);
+      const color = budget.status === "exceeded" ? chalk.red : budget.status === "warning" ? chalk.yellow : chalk.dim;
+      console.log(color(`  Budget: ${budget.used.toLocaleString()} / ${budget.limit.toLocaleString()} tokens (${pct}%)\n`));
+    }
     return "handled";
   }
   if (cmd === "/cost compact") {
@@ -427,6 +660,138 @@ async function handleCommand(
     messages.push(...compacted);
     const after = estimateContextSize(messages);
     console.log(chalk.dim(`  Compacted: ~${before.toLocaleString()} → ~${after.toLocaleString()} tokens\n`));
+    return "handled";
+  }
+
+  // === /doctor — system diagnostics ===
+  if (cmd === "/doctor") {
+    await runDoctor();
+    return "handled";
+  }
+
+  // === /export [path] — export session to markdown ===
+  if (cmd === "/export" || cmd.startsWith("/export ")) {
+    const exportPath = input.substring(7).trim();
+    await exportSession(session, exportPath);
+    return "handled";
+  }
+
+  // === /plan — toggle plan mode ===
+  if (cmd === "/plan") {
+    const enabled = togglePlanMode();
+    if (enabled) {
+      console.log(chalk.yellow("\n  Plan mode ON — only read-only tools allowed."));
+      console.log(chalk.dim("  Use /plan again to exit plan mode.\n"));
+    } else {
+      console.log(chalk.green("\n  Plan mode OFF — all tools available.\n"));
+    }
+    return "handled";
+  }
+
+  // === /review — code review current changes ===
+  if (cmd === "/review" || cmd.startsWith("/review ")) {
+    if (!isGitRepo()) { console.log(chalk.dim("  Not a git repo.\n")); return "handled"; }
+    const reviewArgs = input.substring(7).trim();
+    const diff = gitDiff(false) || gitDiff(true) || "";
+    const status = gitStatus();
+    if (!diff && !status) { console.log(chalk.dim("  No changes to review.\n")); return "handled"; }
+    const prompt = `Review the following code changes. Look for:
+- Bugs, logic errors, edge cases
+- Code quality issues (naming, readability, DRY)
+- Missing error handling
+- Performance concerns
+- Potential improvements
+${reviewArgs ? `\nAdditional focus: ${reviewArgs}` : ""}
+
+Git status:
+${status}
+
+Diff:
+${diff.substring(0, 6000)}`;
+    messages.push({ role: "user", content: prompt });
+    return "passthrough";
+  }
+
+  // === /security-review — security audit ===
+  if (cmd === "/security-review" || cmd.startsWith("/security-review ")) {
+    if (!isGitRepo()) { console.log(chalk.dim("  Not a git repo.\n")); return "handled"; }
+    const secArgs = input.substring(16).trim();
+    const diff = gitDiff(false) || gitDiff(true) || "";
+    const status = gitStatus();
+    if (!diff && !status) { console.log(chalk.dim("  No changes to review.\n")); return "handled"; }
+    const prompt = `Perform a SECURITY-FOCUSED review of these code changes. Check for:
+- Injection vulnerabilities (SQL, XSS, command injection, path traversal)
+- Authentication/authorization issues
+- Sensitive data exposure (API keys, secrets, PII in logs)
+- Insecure dependencies or configurations
+- OWASP Top 10 vulnerabilities
+- Input validation gaps
+- Unsafe deserialization
+- Race conditions
+${secArgs ? `\nAdditional focus: ${secArgs}` : ""}
+
+Git status:
+${status}
+
+Diff:
+${diff.substring(0, 6000)}`;
+    messages.push({ role: "user", content: prompt });
+    return "passthrough";
+  }
+
+  // === /diff — session diff (all changes since session started) ===
+  if (cmd === "/diff") {
+    if (!isGitRepo()) { console.log(chalk.dim("  Not a git repo.\n")); return "handled"; }
+
+    // Find the commit at or before session start
+    const sessionStart = session.createdAt;
+    const startHash = gitCommitAtTime(sessionStart);
+
+    if (!startHash) {
+      // No commits before session — show all uncommitted changes instead
+      const { renderColorDiff } = await import("./diff.js");
+      const staged = gitDiff(true);
+      const unstaged = gitDiff(false);
+      if (!staged && !unstaged) {
+        console.log(chalk.dim("  No changes since session started.\n"));
+      } else {
+        console.log(chalk.bold("\n  Changes this session:\n"));
+        if (staged) console.log(renderColorDiff(staged, 120).split("\n").map((l) => `  ${l}`).join("\n"));
+        if (unstaged) console.log(renderColorDiff(unstaged, 120).split("\n").map((l) => `  ${l}`).join("\n"));
+        console.log("");
+      }
+      return "handled";
+    }
+
+    // Show committed changes since session start + any uncommitted
+    const committedDiff = gitDiffBetween(startHash, "HEAD");
+    const uncommittedDiff = gitDiff(false) || gitDiff(true) || "";
+    const filesChanged = gitFilesChangedBetween(startHash, "HEAD");
+
+    if (!committedDiff && !uncommittedDiff) {
+      console.log(chalk.dim("  No changes since session started.\n"));
+      return "handled";
+    }
+
+    console.log(chalk.bold("\n  Session diff") + chalk.dim(` (since ${new Date(sessionStart).toLocaleTimeString()}):\n`));
+
+    if (filesChanged.length > 0) {
+      console.log(chalk.dim(`  Files changed: ${filesChanged.length}`));
+      for (const f of filesChanged.slice(0, 20)) {
+        console.log(chalk.dim(`    ${f}`));
+      }
+      if (filesChanged.length > 20) {
+        console.log(chalk.dim(`    ... and ${filesChanged.length - 20} more`));
+      }
+      console.log("");
+    }
+
+    const { renderColorDiff } = await import("./diff.js");
+    const fullDiff = committedDiff + (uncommittedDiff ? "\n" + uncommittedDiff : "");
+    if (fullDiff) {
+      console.log(renderColorDiff(fullDiff, 150).split("\n").map((l) => `  ${l}`).join("\n"));
+    }
+    console.log("");
     return "handled";
   }
 
@@ -490,6 +855,151 @@ async function handleCommand(
         console.log(renderColorDiff(unstaged, 100).split("\n").map((l) => `  ${l}`).join("\n"));
       }
       console.log("");
+    }
+    return "handled";
+  }
+
+  // === /git log [count] — show recent commits ===
+  if (cmd === "/git log" || cmd.startsWith("/git log ")) {
+    if (!isGitRepo()) { console.log(chalk.dim("  Not a git repo.\n")); return "handled"; }
+    const countArg = input.substring(9).trim();
+    const count = countArg ? parseInt(countArg) || 15 : 15;
+    const commits = gitLogDetailed(count);
+    if (commits.length === 0) {
+      console.log(chalk.dim("  No commits found.\n"));
+      return "handled";
+    }
+    console.log(chalk.bold("\n  Recent commits:\n"));
+    commits.forEach((c, i) => {
+      const num = chalk.dim(`  ${String(i + 1).padStart(2)}.`);
+      const hash = chalk.yellow(c.shortHash);
+      const date = chalk.dim(c.date);
+      console.log(`${num} ${hash} ${c.message}  ${date}`);
+    });
+    console.log(chalk.dim(`\n  Undo: /git undo <number>  (e.g. /git undo 3 to undo last 3 commits)\n`));
+    return "handled";
+  }
+
+  // === /git undo [n] — undo last N commits + reset conversation ===
+  if (cmd === "/git undo" || cmd.startsWith("/git undo ")) {
+    if (!isGitRepo()) { console.log(chalk.dim("  Not a git repo.\n")); return "handled"; }
+
+    const arg = input.substring(10).trim();
+    const commits = gitLogDetailed(15);
+
+    if (commits.length === 0) {
+      console.log(chalk.dim("  No commits to undo.\n"));
+      return "handled";
+    }
+
+    // Parse argument: could be a number (undo N commits) or "soft"/"hard" modifier
+    let undoCount = 1;
+    let mode: "soft" | "hard" = "soft";
+
+    const parts = arg.split(/\s+/).filter(Boolean);
+    for (const p of parts) {
+      if (p === "hard" || p === "--hard") {
+        mode = "hard";
+      } else if (p === "soft" || p === "--soft") {
+        mode = "soft";
+      } else {
+        const n = parseInt(p);
+        if (!isNaN(n) && n > 0 && n <= commits.length) {
+          undoCount = n;
+        } else if (p) {
+          console.log(chalk.yellow(`  Invalid argument: "${p}"\n`));
+          console.log(chalk.dim("  Usage:"));
+          console.log(chalk.dim("    /git undo          Undo last commit (keep changes staged)"));
+          console.log(chalk.dim("    /git undo 3        Undo last 3 commits (keep changes)"));
+          console.log(chalk.dim("    /git undo 2 hard   Undo last 2 commits (discard changes)"));
+          console.log(chalk.dim("    /git undo hard     Undo last commit + discard changes\n"));
+          return "handled";
+        }
+      }
+    }
+
+    // Show what will be undone
+    console.log(chalk.bold(`\n  Undoing ${undoCount} commit(s) (${mode} reset):\n`));
+    for (let i = 0; i < undoCount; i++) {
+      const c = commits[i];
+      const icon = chalk.red("  ✗");
+      console.log(`${icon} ${chalk.yellow(c.shortHash)} ${c.message}  ${chalk.dim(c.date)}`);
+    }
+
+    const targetHash = commits[undoCount - 1].hash;
+    // Reset to the parent of the last commit to undo
+    const resetTo = `${targetHash}~1`;
+
+    console.log("");
+
+    // Confirm with user if undoing more than 1 commit or using hard reset
+    if (undoCount > 1 || mode === "hard") {
+      const confirmed = await new Promise<boolean>((resolve) => {
+        const confirmRl = readline.createInterface({
+          input: process.stdin,
+          output: process.stdout,
+        });
+        const prompt = mode === "hard"
+          ? chalk.red(`  This will PERMANENTLY discard changes. Continue? [y/N] `)
+          : chalk.yellow(`  Undo ${undoCount} commits? Changes will be kept as staged. [y/N] `);
+        confirmRl.question(prompt, (answer) => {
+          confirmRl.close();
+          resolve(answer.trim().toLowerCase() === "y" || answer.trim().toLowerCase() === "yes");
+        });
+      });
+
+      if (!confirmed) {
+        console.log(chalk.dim("  Cancelled.\n"));
+        return "handled";
+      }
+    }
+
+    // Perform the reset
+    let result;
+    if (mode === "hard") {
+      result = gitResetHard(resetTo);
+    } else {
+      result = gitResetSoft(resetTo);
+    }
+
+    if (!result.success) {
+      console.log(chalk.red(`  Reset failed: ${result.error}\n`));
+      return "handled";
+    }
+
+    console.log(chalk.green(`  Reset to ${commits[undoCount - 1].shortHash}~1 (${mode})`));
+
+    // Reset the conversation to clear context about undone work
+    const systemMsg = messages[0];
+    messages.length = 0;
+    messages.push(systemMsg);
+    console.log(chalk.dim("  Conversation cleared to match git state."));
+
+    // Show current state
+    const newStatus = gitStatus();
+    if (newStatus) {
+      console.log(chalk.dim(`\n  Current status:`));
+      console.log(newStatus.split("\n").map((l) => chalk.dim(`    ${l}`)).join("\n"));
+    }
+    console.log("");
+    return "handled";
+  }
+
+  // === /git stash [message] — stash uncommitted changes ===
+  if (cmd === "/git stash" || cmd.startsWith("/git stash ")) {
+    if (!isGitRepo()) { console.log(chalk.dim("  Not a git repo.\n")); return "handled"; }
+    const status = gitStatus();
+    if (!status) {
+      console.log(chalk.dim("  Nothing to stash.\n"));
+      return "handled";
+    }
+    const stashMsg = input.substring(10).trim() || undefined;
+    const result = gitStash(stashMsg);
+    if (result.success) {
+      console.log(chalk.green(`\n  Changes stashed${stashMsg ? `: ${stashMsg}` : ""}`));
+      console.log(chalk.dim("  Restore with: git stash pop\n"));
+    } else {
+      console.log(chalk.red(`  Stash failed: ${result.error}\n`));
     }
     return "handled";
   }
@@ -734,8 +1244,13 @@ ${(gitDiff(false) || "(none)").substring(0, 2000)}`;
     console.log(
       chalk.dim(`
   /clear                  Clear conversation
+  /compact                Compress context to save tokens
   /cost                   Token usage + context breakdown
-  /cost compact           Compress context to save tokens
+  /doctor                 System diagnostics (check config, APIs, tools)
+  /export [path]          Export session to markdown file
+  /plan                   Toggle plan mode (read-only tools only)
+  /review [focus]         Code review current git changes
+  /security-review [focus] Security audit current changes
   /sessions               List recent sessions
   /sessions rename <name> Rename current session
   /soul                   View memory (persona, human, goals, scratchpad, recall)
@@ -744,8 +1259,12 @@ ${(gitDiff(false) || "(none)").substring(0, 2000)}`;
   /model list             List available models
   /model set <model-id>   Change model (persists across CLI + web)
 
+  /diff                   All changes made this session
   /git                    Status + changed files
   /git diff               Colorized diff (staged + unstaged)
+  /git log [n]            Recent commits (default: 15)
+  /git undo [n] [hard]    Undo last N commits + clear conversation
+  /git stash [msg]        Stash uncommitted changes
   /git commit [msg]       AI commit (--push to also push)
   /git pr [title]         Create PR (branch + commit + push + open)
   /git branch [name]      List or create/switch branches

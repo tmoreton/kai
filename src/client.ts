@@ -5,7 +5,7 @@ import type {
 } from "openai/resources/chat/completions";
 import { toolDefinitions, getMcpToolDefinitions } from "./tools/index.js";
 import { executeTool } from "./tools/executor.js";
-import { trackUsage, shouldCompact, compactMessages } from "./context.js";
+import { trackUsage, shouldCompact, compactMessages, checkBudget } from "./context.js";
 import {
   MAX_TOKENS,
   MAX_TOOL_TURNS,
@@ -74,6 +74,7 @@ export async function chat(
 
   let consecutiveErrors = 0;
   let lastFailedCall = "";
+  let budgetWarned = false;
 
   while (turns < maxTurns) {
     turns++;
@@ -228,6 +229,21 @@ export async function chat(
       trackUsage(chunkUsage);
     }
 
+    // Budget enforcement
+    const budget = checkBudget();
+    if (budget.status === "exceeded") {
+      console.log(chalk.red(`\n  ! Token budget exceeded (${budget.used.toLocaleString()} / ${budget.limit.toLocaleString()}). Stopping.\n`));
+      updatedMessages.push({
+        role: "assistant",
+        content: content || "[Session token budget exceeded. Please start a new session or increase budgetTokens in settings.]",
+      });
+      return updatedMessages;
+    }
+    if (budget.status === "warning" && !budgetWarned) {
+      budgetWarned = true;
+      console.log(chalk.yellow(`\n  ! Approaching token budget (${budget.used.toLocaleString()} / ${budget.limit.toLocaleString()})\n`));
+    }
+
     // Rescue leaked tool calls from content OR reasoning text
     const allText = content + "\n" + reasoning;
     if (toolCalls.length === 0 && allText.includes("<|tool_call_begin|>")) {
@@ -301,8 +317,14 @@ export async function chat(
       console.log(chalk.dim("  📦 Context auto-compacted to save tokens.\n"));
     }
 
-    for (const tc of toolCalls) {
-      const toolName = tc.function.name;
+    // Classify tools as parallelizable (read-only, no side effects) vs sequential
+    const PARALLEL_SAFE_TOOLS = new Set([
+      "read_file", "glob", "grep", "web_fetch", "web_search",
+      "core_memory_read", "recall_search", "archival_search", "task_list",
+    ]);
+
+    // Parse all tool calls upfront
+    const parsed = toolCalls.map((tc) => {
       let args: Record<string, unknown>;
       let parseError = false;
       try {
@@ -311,124 +333,198 @@ export async function chat(
         parseError = true;
         args = {};
       }
+      return { tc, toolName: tc.function.name, args, parseError };
+    });
 
-      console.log(
-        chalk.dim(`\n  ⏺ `) +
-          chalk.cyan(formatToolLabel(toolName)) +
-          chalk.dim(`(`) +
-          chalk.dim(summarizeArgs(toolName, args)) +
-          chalk.dim(")")
+    // Determine if we can run tools in parallel:
+    // All tools must be parallel-safe AND there must be >1 tool
+    const allParallelSafe = parsed.length > 1 && parsed.every(
+      (p) => !p.parseError && PARALLEL_SAFE_TOOLS.has(p.toolName)
+    );
+
+    if (allParallelSafe) {
+      // === PARALLEL EXECUTION for read-only tools ===
+      console.log(chalk.dim(`\n  ⚡ Running ${parsed.length} tools in parallel...`));
+
+      for (const p of parsed) {
+        console.log(
+          chalk.dim(`  ⏺ `) +
+            chalk.cyan(formatToolLabel(p.toolName)) +
+            chalk.dim(`(`) +
+            chalk.dim(summarizeArgs(p.toolName, p.args)) +
+            chalk.dim(")")
+        );
+      }
+
+      const results = await Promise.allSettled(
+        parsed.map((p) => executeTool(p.toolName, p.args))
       );
 
-      // If JSON was truncated/malformed, don't execute — tell model to retry
-      if (parseError || (toolName === "write_file" && !args.file_path)) {
-        const truncLen = tc.function.arguments.length;
-        console.log(chalk.yellow(`    ⎿  Tool call truncated (${truncLen} chars) — arguments were cut off`));
+      for (let i = 0; i < parsed.length; i++) {
+        const p = parsed[i];
+        const result = results[i];
+        const resultStr = result.status === "fulfilled"
+          ? result.value
+          : `Tool "${p.toolName}" failed: ${(result as PromiseRejectedResult).reason?.message || "Unknown error"}`;
 
-        let recovery = "";
-        if (toolName === "bash") {
-          recovery = "For long commands: write the command to a .sh script file first with write_file, then run it with bash('bash script.sh').";
-        } else if (toolName === "write_file") {
-          recovery = "Split the content: write a shorter version first, then use edit_file to add more content in parts.";
+        // Display output
+        const lines = resultStr.split("\n");
+        if (lines.length > TOOL_OUTPUT_MAX_LINES) {
+          console.log(chalk.gray(`    ⎿  ${formatToolLabel(p.toolName)}: ${lines.slice(0, TOOL_OUTPUT_PREVIEW_LINES).join("\n       ")}...`));
+          console.log(chalk.gray(`       (${lines.length} lines total)`));
+        } else if (resultStr.length > TOOL_OUTPUT_MAX_CHARS) {
+          console.log(chalk.gray(`    ⎿  ${formatToolLabel(p.toolName)}: ${resultStr.substring(0, TOOL_OUTPUT_MAX_CHARS)}...`));
         } else {
-          recovery = "Simplify the tool call arguments — they are too long and got cut off.";
+          console.log(chalk.gray(`    ⎿  ${formatToolLabel(p.toolName)}: ${resultStr}`));
+        }
+
+        // Truncate for context
+        const contextCharLimit = TOOL_OUTPUT_CONTEXT_LIMIT * 4;
+        let contextContent = resultStr;
+        if (resultStr.length > contextCharLimit) {
+          contextContent =
+            resultStr.substring(0, contextCharLimit) +
+            `\n\n[Output truncated — ${resultStr.length} chars total, showing first ${contextCharLimit}.]`;
+        }
+
+        // Track errors
+        const isError =
+          resultStr.startsWith("Error") ||
+          resultStr.includes("exit code:") ||
+          resultStr.includes("failed:") ||
+          resultStr.includes("ENOENT") ||
+          resultStr.includes("Permission denied");
+
+        if (isError) {
+          consecutiveErrors++;
+        } else {
+          consecutiveErrors = 0;
         }
 
         updatedMessages.push({
           role: "tool",
-          tool_call_id: tc.id,
-          content: `Error: Tool call truncated at ${truncLen} chars — arguments were cut off. ${recovery}`,
+          tool_call_id: p.tc.id,
+          content: contextContent,
         });
-        consecutiveErrors++;
-        continue;
       }
+    } else {
+      // === SEQUENTIAL EXECUTION (default for write ops or single tools) ===
+      for (const p of parsed) {
+        console.log(
+          chalk.dim(`\n  ⏺ `) +
+            chalk.cyan(formatToolLabel(p.toolName)) +
+            chalk.dim(`(`) +
+            chalk.dim(summarizeArgs(p.toolName, p.args)) +
+            chalk.dim(")")
+        );
 
-      // Show spinner for slow tools (image gen, web fetch, agents)
-      const slowTools = ["generate_image", "web_search", "spawn_agent"];
-      const isSlow = slowTools.includes(toolName) || toolName.startsWith("mcp__");
-      let toolSpinner: ReturnType<typeof setInterval> | null = null;
-      const spinChars = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
-      let si = 0;
-      if (isSlow) {
-        toolSpinner = setInterval(() => {
-          process.stderr.write(`\x1b[2K\r${chalk.dim(`    ${spinChars[si++ % spinChars.length]} Working...`)}`);
-        }, 100);
-      }
+        // If JSON was truncated/malformed, don't execute — tell model to retry
+        if (p.parseError || (p.toolName === "write_file" && !p.args.file_path)) {
+          const truncLen = p.tc.function.arguments.length;
+          console.log(chalk.yellow(`    ⎿  Tool call truncated (${truncLen} chars) — arguments were cut off`));
 
-      const resultStr: string = await executeTool(toolName, args);
+          let recovery = "";
+          if (p.toolName === "bash") {
+            recovery = "For long commands: write the command to a .sh script file first with write_file, then run it with bash('bash script.sh').";
+          } else if (p.toolName === "write_file") {
+            recovery = "Split the content: write a shorter version first, then use edit_file to add more content in parts.";
+          } else {
+            recovery = "Simplify the tool call arguments — they are too long and got cut off.";
+          }
 
-      if (toolSpinner) {
-        clearInterval(toolSpinner);
-        process.stderr.write("\x1b[2K\r");
-      }
+          updatedMessages.push({
+            role: "tool",
+            tool_call_id: p.tc.id,
+            content: `Error: Tool call truncated at ${truncLen} chars — arguments were cut off. ${recovery}`,
+          });
+          consecutiveErrors++;
+          continue;
+        }
 
-      // Display tool output — show diff for file operations
-      const isFileOp = toolName === "write_file" || toolName === "edit_file";
-      const diff = isFileOp ? getLastDiff() : "";
+        // Show spinner for slow tools (image gen, web fetch, agents, swarms)
+        const slowTools = ["generate_image", "web_search", "spawn_agent", "spawn_swarm"];
+        const isSlow = slowTools.includes(p.toolName) || p.toolName.startsWith("mcp__");
+        let toolSpinner: ReturnType<typeof setInterval> | null = null;
+        const spinChars = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+        let si = 0;
+        if (isSlow) {
+          toolSpinner = setInterval(() => {
+            process.stderr.write(`\x1b[2K\r${chalk.dim(`    ${spinChars[si++ % spinChars.length]} Working...`)}`);
+          }, 100);
+        }
 
-      if (diff) {
-        // Show colorized diff
-        console.log(chalk.gray(`    ⎿  ${resultStr}`));
-        const rendered = renderColorDiff(diff);
-        console.log(rendered.split("\n").map((l) => `       ${l}`).join("\n"));
-      } else {
-        const lines = resultStr.split("\n");
-        if (lines.length > TOOL_OUTPUT_MAX_LINES) {
-          console.log(chalk.gray(`    ⎿  ${lines.slice(0, TOOL_OUTPUT_PREVIEW_LINES).join("\n       ")}...`));
-          console.log(chalk.gray(`       (${lines.length} lines total)`));
-        } else if (resultStr.length > TOOL_OUTPUT_MAX_CHARS) {
-          console.log(chalk.gray(`    ⎿  ${resultStr.substring(0, TOOL_OUTPUT_MAX_CHARS)}...`));
-        } else {
+        const resultStr: string = await executeTool(p.toolName, p.args);
+
+        if (toolSpinner) {
+          clearInterval(toolSpinner);
+          process.stderr.write("\x1b[2K\r");
+        }
+
+        // Display tool output — show diff for file operations
+        const isFileOp = p.toolName === "write_file" || p.toolName === "edit_file";
+        const diff = isFileOp ? getLastDiff() : "";
+
+        if (diff) {
           console.log(chalk.gray(`    ⎿  ${resultStr}`));
+          const rendered = renderColorDiff(diff);
+          console.log(rendered.split("\n").map((l) => `       ${l}`).join("\n"));
+        } else {
+          const lines = resultStr.split("\n");
+          if (lines.length > TOOL_OUTPUT_MAX_LINES) {
+            console.log(chalk.gray(`    ⎿  ${lines.slice(0, TOOL_OUTPUT_PREVIEW_LINES).join("\n       ")}...`));
+            console.log(chalk.gray(`       (${lines.length} lines total)`));
+          } else if (resultStr.length > TOOL_OUTPUT_MAX_CHARS) {
+            console.log(chalk.gray(`    ⎿  ${resultStr.substring(0, TOOL_OUTPUT_MAX_CHARS)}...`));
+          } else {
+            console.log(chalk.gray(`    ⎿  ${resultStr}`));
+          }
         }
-      }
 
-      // Truncate what goes into context
-      const contextCharLimit = TOOL_OUTPUT_CONTEXT_LIMIT * 4;
-      let contextContent = resultStr;
-      if (resultStr.length > contextCharLimit) {
-        contextContent =
-          resultStr.substring(0, contextCharLimit) +
-          `\n\n[Output truncated — ${resultStr.length} chars total, showing first ${contextCharLimit}. Use read_file with offset/limit for more.]`;
-      }
-
-      // Track errors for loop detection
-      const isError =
-        resultStr.startsWith("Error") ||
-        resultStr.includes("exit code:") ||
-        resultStr.includes("failed:") ||
-        resultStr.includes("ENOENT") ||
-        resultStr.includes("Permission denied");
-
-      const callSignature = `${toolName}:${JSON.stringify(args).substring(0, 100)}`;
-
-      if (isError) {
-        consecutiveErrors++;
-        if (callSignature === lastFailedCall) {
-          // Same call failed twice — inject guidance
-          contextContent += "\n\n[SYSTEM: This exact tool call has failed before with the same error. Try a DIFFERENT approach instead of retrying the same command.]";
+        // Truncate what goes into context
+        const contextCharLimit = TOOL_OUTPUT_CONTEXT_LIMIT * 4;
+        let contextContent = resultStr;
+        if (resultStr.length > contextCharLimit) {
+          contextContent =
+            resultStr.substring(0, contextCharLimit) +
+            `\n\n[Output truncated — ${resultStr.length} chars total, showing first ${contextCharLimit}. Use read_file with offset/limit for more.]`;
         }
-        lastFailedCall = callSignature;
-      } else {
-        consecutiveErrors = 0;
-        lastFailedCall = "";
-      }
 
-      updatedMessages.push({
-        role: "tool",
-        tool_call_id: tc.id,
-        content: contextContent,
-      });
+        // Track errors for loop detection
+        const isError =
+          resultStr.startsWith("Error") ||
+          resultStr.includes("exit code:") ||
+          resultStr.includes("failed:") ||
+          resultStr.includes("ENOENT") ||
+          resultStr.includes("Permission denied");
 
-      // Circuit breaker: too many consecutive errors
-      if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
-        console.log(chalk.yellow(`\n  ! ${MAX_CONSECUTIVE_ERRORS} consecutive errors. Stopping tool loop.\n`));
+        const callSignature = `${p.toolName}:${JSON.stringify(p.args).substring(0, 100)}`;
+
+        if (isError) {
+          consecutiveErrors++;
+          if (callSignature === lastFailedCall) {
+            contextContent += "\n\n[SYSTEM: This exact tool call has failed before with the same error. Try a DIFFERENT approach instead of retrying the same command.]";
+          }
+          lastFailedCall = callSignature;
+        } else {
+          consecutiveErrors = 0;
+          lastFailedCall = "";
+        }
+
         updatedMessages.push({
-          role: "user",
-          content: `[SYSTEM: Tool execution has hit ${MAX_CONSECUTIVE_ERRORS} consecutive errors. Stop retrying and tell the user what went wrong and what you were trying to do.]`,
+          role: "tool",
+          tool_call_id: p.tc.id,
+          content: contextContent,
         });
-        // Let the model respond with an explanation
-        break;
+
+        // Circuit breaker: too many consecutive errors
+        if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
+          console.log(chalk.yellow(`\n  ! ${MAX_CONSECUTIVE_ERRORS} consecutive errors. Stopping tool loop.\n`));
+          updatedMessages.push({
+            role: "user",
+            content: `[SYSTEM: Tool execution has hit ${MAX_CONSECUTIVE_ERRORS} consecutive errors. Stop retrying and tell the user what went wrong and what you were trying to do.]`,
+          });
+          break;
+        }
       }
     }
   }
@@ -452,8 +548,23 @@ function formatToolLabel(toolName: string): string {
     grep: "Grep",
     web_fetch: "WebFetch",
     spawn_agent: "Agent",
+    spawn_swarm: "Swarm",
     task_create: "Task",
     task_update: "Task",
+    generate_image: "Image",
+    git_log: "GitLog",
+    git_diff_session: "GitDiff",
+    git_undo: "GitUndo",
+    git_stash: "GitStash",
+    core_memory_read: "Memory",
+    core_memory_update: "Memory",
+    recall_search: "Recall",
+    archival_insert: "Archive",
+    archival_search: "Archive",
+    agent_create: "AgentCreate",
+    agent_list: "AgentList",
+    agent_memory_read: "AgentMemory",
+    agent_memory_update: "AgentMemory",
   };
   if (toolName.startsWith("mcp__")) {
     const parts = toolName.split("__");
@@ -485,10 +596,22 @@ export function summarizeArgs(
       return String(args.prompt || "").substring(0, 80);
     case "spawn_agent":
       return `${args.agent}: ${String(args.task || "").substring(0, 50)}`;
+    case "spawn_swarm": {
+      const tasks = args.tasks as Array<{ agent: string }> | undefined;
+      return `${tasks?.length || 0} agents`;
+    }
     case "task_create":
       return String(args.subject || "");
     case "task_update":
       return `#${args.task_id} → ${args.status || ""}`;
+    case "git_log":
+      return `last ${args.count || 15} commits`;
+    case "git_diff_session":
+      return "session changes";
+    case "git_undo":
+      return `${args.count || 1} commit(s) ${args.mode || "soft"}`;
+    case "git_stash":
+      return String(args.message || "");
     default:
       return JSON.stringify(args).substring(0, 80);
   }

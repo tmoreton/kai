@@ -6,6 +6,7 @@ import {
   COMPACT_RECENT_MIN,
   COMPACT_RECENT_RATIO,
 } from "./constants.js";
+import { getConfig } from "./config.js";
 
 // Rough token estimation: ~4 chars per token for English
 function estimateTokens(text: string): number {
@@ -62,6 +63,23 @@ export function trackUsage(apiUsage: {
   usage.completionTokens += apiUsage.completion_tokens || 0;
   usage.totalTokens += apiUsage.total_tokens || 0;
   usage.apiCalls += 1;
+}
+
+export type BudgetStatus = "ok" | "warning" | "exceeded";
+
+/**
+ * Check if the session has exceeded its token budget.
+ * Returns "ok", "warning" (>80%), or "exceeded" (>100%).
+ */
+export function checkBudget(): { status: BudgetStatus; used: number; limit: number } {
+  const config = getConfig();
+  const limit = config.budgetTokens || 0;
+  if (!limit) return { status: "ok", used: usage.totalTokens, limit: 0 };
+
+  const used = usage.totalTokens;
+  if (used >= limit) return { status: "exceeded", used, limit };
+  if (used >= limit * 0.8) return { status: "warning", used, limit };
+  return { status: "ok", used, limit };
 }
 
 export function estimateContextSize(

@@ -144,3 +144,140 @@ export function ghAvailable(): boolean {
     return false;
   }
 }
+
+/**
+ * Get recent commits with hash, date, and message.
+ * Used by /git undo to let user pick which commit to rewind to.
+ */
+export function gitLogDetailed(count = 15): Array<{
+  hash: string;
+  shortHash: string;
+  date: string;
+  message: string;
+}> {
+  try {
+    const raw = execSync(
+      `git log --format="%H|%h|%ar|%s" -${count}`,
+      { cwd: getCwd(), encoding: "utf-8", stdio: "pipe" }
+    ).trim();
+    if (!raw) return [];
+    return raw.split("\n").map((line) => {
+      const [hash, shortHash, date, ...msgParts] = line.split("|");
+      return { hash, shortHash, date, message: msgParts.join("|") };
+    });
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Get the diff of a specific commit.
+ */
+export function gitShowCommit(hash: string): string {
+  try {
+    return execSync(`git show --stat --format="%H %s" ${hash}`, {
+      cwd: getCwd(),
+      encoding: "utf-8",
+      stdio: "pipe",
+      maxBuffer: 5 * 1024 * 1024,
+    }).trim();
+  } catch {
+    return "";
+  }
+}
+
+/**
+ * Soft-reset to a specific commit (keeps changes as unstaged).
+ */
+export function gitResetSoft(hash: string): { success: boolean; error?: string } {
+  try {
+    execSync(`git reset --soft ${hash}`, {
+      cwd: getCwd(),
+      encoding: "utf-8",
+      stdio: "pipe",
+    });
+    return { success: true };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return { success: false, error: msg };
+  }
+}
+
+/**
+ * Hard-reset to a specific commit (discards all changes).
+ */
+export function gitResetHard(hash: string): { success: boolean; error?: string } {
+  try {
+    execSync(`git reset --hard ${hash}`, {
+      cwd: getCwd(),
+      encoding: "utf-8",
+      stdio: "pipe",
+    });
+    return { success: true };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return { success: false, error: msg };
+  }
+}
+
+/**
+ * Stash current uncommitted changes.
+ */
+export function gitStash(message?: string): { success: boolean; error?: string } {
+  try {
+    const cmd = message
+      ? `git stash push -m "${message.replace(/"/g, '\\"')}"`
+      : "git stash push";
+    execSync(cmd, { cwd: getCwd(), encoding: "utf-8", stdio: "pipe" });
+    return { success: true };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return { success: false, error: msg };
+  }
+}
+
+/**
+ * Get diff between a commit and the current HEAD.
+ */
+export function gitDiffBetween(fromHash: string, toHash = "HEAD"): string {
+  try {
+    return execSync(`git diff ${fromHash} ${toHash}`, {
+      cwd: getCwd(),
+      encoding: "utf-8",
+      stdio: "pipe",
+      maxBuffer: 5 * 1024 * 1024,
+    }).trim();
+  } catch {
+    return "";
+  }
+}
+
+/**
+ * Get the commit hash at the start of the current session (by timestamp).
+ */
+export function gitCommitAtTime(isoTimestamp: string): string {
+  try {
+    return execSync(
+      `git log --before="${isoTimestamp}" --format="%H" -1`,
+      { cwd: getCwd(), encoding: "utf-8", stdio: "pipe" }
+    ).trim();
+  } catch {
+    return "";
+  }
+}
+
+/**
+ * Get list of files changed between two commits.
+ */
+export function gitFilesChangedBetween(fromHash: string, toHash = "HEAD"): string[] {
+  try {
+    const raw = execSync(`git diff --name-only ${fromHash} ${toHash}`, {
+      cwd: getCwd(),
+      encoding: "utf-8",
+      stdio: "pipe",
+    }).trim();
+    return raw ? raw.split("\n") : [];
+  } catch {
+    return [];
+  }
+}

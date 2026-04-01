@@ -44,6 +44,12 @@ const DEFAULT_RULES: PermissionRule[] = [
   // General bash is allowed
   { tool: "bash", action: "allow" },
 
+  // Git tools — read is safe, write needs confirmation
+  { tool: "git_log", action: "allow" },
+  { tool: "git_diff_session", action: "allow" },
+  { tool: "git_undo", action: "ask" },
+  { tool: "git_stash", action: "ask" },
+
   // Web tools — always allow
   { tool: "web_fetch", action: "allow" },
   { tool: "web_search", action: "allow" },

@@ -3,6 +3,7 @@ import type { ChatCompletionMessageParam, ChatCompletionTool } from "openai/reso
 import { chat, createClient } from "./client.js";
 import { toolDefinitions } from "./tools/index.js";
 import { getCwd } from "./tools/bash.js";
+import { loadPersona, buildAgentSystemPrompt, updatePersonaField, listPersonas } from "./agent-persona.js";
 import chalk from "chalk";
 
 export interface SubagentConfig {
@@ -56,6 +57,59 @@ Working directory: ${getCwd()}`,
   },
 ];
 
+/**
+ * Extra tools injected into persona-based agents so they can
+ * read/update their own memory (goals, scratchpad).
+ */
+function getAgentMemoryTools(agentId: string): ChatCompletionTool[] {
+  return [
+    {
+      type: "function",
+      function: {
+        name: "agent_memory_read",
+        description: "Read your agent memory (goals, scratchpad, personality, role).",
+        parameters: {
+          type: "object",
+          properties: {
+            field: {
+              type: "string",
+              enum: ["goals", "scratchpad", "personality", "role"],
+              description: "Which field to read (omit for all)",
+            },
+          },
+        },
+      },
+    },
+    {
+      type: "function",
+      function: {
+        name: "agent_memory_update",
+        description: "Update your agent memory. Use to track progress, update goals, or save notes.",
+        parameters: {
+          type: "object",
+          properties: {
+            field: {
+              type: "string",
+              enum: ["goals", "scratchpad"],
+              description: "Which field to update",
+            },
+            operation: {
+              type: "string",
+              enum: ["replace", "append"],
+              description: 'Replace entire field or append to it',
+            },
+            content: {
+              type: "string",
+              description: "The new content",
+            },
+          },
+          required: ["field", "operation", "content"],
+        },
+      },
+    },
+  ];
+}
+
 export async function runSubagent(
   config: SubagentConfig,
   task: string,
@@ -104,26 +158,108 @@ export async function runSubagent(
   return `[SUBAGENT COMPLETE]\n\n${content}\n\n[END SUBAGENT OUTPUT - Continue with the original task using this result.]`;
 }
 
+/**
+ * Run a persona-based agent. These agents have persistent identity,
+ * goals, and scratchpad that survive across invocations.
+ */
+export async function runPersonaAgent(
+  agentId: string,
+  task: string,
+  onToken?: (token: string) => void
+): Promise<string> {
+  const persona = loadPersona(agentId);
+  if (!persona) {
+    const available = listPersonas().map((p) => p.id);
+    return `Unknown agent persona: "${agentId}". Available: ${available.join(", ")}. Use agent_create to define a new one.`;
+  }
+
+  const client = createClient();
+  const cwd = getCwd();
+  const systemPrompt = buildAgentSystemPrompt(persona, cwd);
+
+  const messages: ChatCompletionMessageParam[] = [
+    { role: "system", content: systemPrompt },
+    { role: "user", content: task },
+  ];
+
+  // Build tool set: persona's allowed tools (or all) + agent memory tools
+  const agentMemoryTools = getAgentMemoryTools(agentId);
+  let agentTools: ChatCompletionTool[];
+
+  if (persona.tools.length > 0) {
+    const allowed = new Set(persona.tools);
+    agentTools = [
+      ...(toolDefinitions as ChatCompletionTool[]).filter(
+        (t) => allowed.has((t as any).function?.name)
+      ),
+      ...agentMemoryTools,
+    ];
+  } else {
+    agentTools = [...(toolDefinitions as ChatCompletionTool[]), ...agentMemoryTools];
+  }
+
+  console.log(
+    chalk.dim(`\n  🤖 `) +
+    chalk.magenta(persona.name) +
+    chalk.dim(` started...`)
+  );
+
+  // Intercept agent_memory_* calls during execution by wrapping the chat
+  // We do this by adding the memory tools to the tool list and handling
+  // them in the executor. For now, we handle them via a pre-execution hook.
+  const result = await chat(client, messages, onToken, {
+    tools: agentTools,
+    maxTurns: persona.maxTurns,
+  });
+
+  const lastAssistant = [...result]
+    .reverse()
+    .find((m) => m.role === "assistant");
+
+  const content =
+    typeof lastAssistant?.content === "string"
+      ? lastAssistant.content
+      : `${persona.name} completed with no text output.`;
+
+  console.log(
+    chalk.dim(`  🤖 `) +
+    chalk.magenta(persona.name) +
+    chalk.dim(` finished.\n`)
+  );
+
+  return `[${persona.name.toUpperCase()} COMPLETE]\n\n${content}\n\n[END AGENT OUTPUT]`;
+}
+
 export async function spawnAgent(args: {
   agent: string;
   task: string;
 }): Promise<string> {
+  // First check built-in agents
   const builtin = BUILT_IN_AGENTS.find(
     (a) => a.name === args.agent
   );
 
-  if (!builtin) {
-    return `Unknown agent: "${args.agent}". Available: ${BUILT_IN_AGENTS.map((a) => a.name).join(", ")}`;
+  if (builtin) {
+    const config: SubagentConfig = {
+      name: builtin.name,
+      description: builtin.description,
+      systemPrompt: builtin.buildSystemPrompt(),
+      tools: builtin.tools,
+      maxTurns: builtin.maxTurns,
+    };
+    return runSubagent(config, args.task);
   }
 
-  // Build config at spawn time so cwd is current
-  const config: SubagentConfig = {
-    name: builtin.name,
-    description: builtin.description,
-    systemPrompt: builtin.buildSystemPrompt(),
-    tools: builtin.tools,
-    maxTurns: builtin.maxTurns,
-  };
+  // Then check persona-based agents
+  const persona = loadPersona(args.agent);
+  if (persona) {
+    return runPersonaAgent(args.agent, args.task);
+  }
 
-  return runSubagent(config, args.task);
+  // List available
+  const builtinNames = BUILT_IN_AGENTS.map((a) => a.name);
+  const personaNames = listPersonas().map((p) => p.id);
+  const all = [...new Set([...builtinNames, ...personaNames])];
+
+  return `Unknown agent: "${args.agent}". Available: ${all.join(", ")}`;
 }

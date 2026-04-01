@@ -2,16 +2,6 @@ import fs from "fs";
 import path from "path";
 import type { PermissionRule } from "./permissions.js";
 
-export interface ProviderConfig {
-  name: string;
-  baseURL: string;
-  apiKeyEnv: string;
-  models?: string[];
-  defaultModel: string;
-  maxTokens?: number;
-  contextWindow?: number;
-}
-
 export interface McpServerConfig {
   command: string;
   args?: string[];
@@ -24,14 +14,14 @@ export interface McpConfig {
 
 export interface KaiConfig {
   model?: string;
-  providers?: ProviderConfig[];
   permissions?: PermissionRule[];
   hooks?: Record<string, string>;
-  theme?: string;
   autoCompact?: boolean;
   maxTokens?: number;
   temperature?: number;
   mcp?: McpConfig;
+  /** Maximum token budget per session. Warns at 80%, stops at 100%. */
+  budgetTokens?: number;
 }
 
 const CONFIG_PATHS = [

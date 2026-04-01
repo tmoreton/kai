@@ -69,7 +69,9 @@
     .sidebar-collapse-btn:hover { color: var(--text); background: var(--bg-hover); }
     .sidebar-close-mobile {
       display: none; margin-left: auto; background: none; border: none; cursor: pointer;
-      color: var(--text-secondary); padding: 4px; border-radius: var(--radius-sm);
+      color: var(--text-secondary); padding: 8px; border-radius: var(--radius-sm);
+      align-items: center; justify-content: center;
+      min-width: 36px; min-height: 36px;
     }
     .sidebar-close-mobile:hover { color: var(--text); background: var(--bg-hover); }
     .sidebar-expand-btn {
@@ -105,6 +107,13 @@
       display: flex; align-items: center; gap: 10px; flex: 1;
     }
     .sidebar-section-title svg { width: 15px; height: 15px; stroke-width: 1.8; }
+    .sidebar-add-btn {
+      background: none; border: none; color: var(--text-muted); cursor: pointer;
+      width: 20px; height: 20px; padding: 2px; border-radius: 4px; display: flex;
+      align-items: center; justify-content: center; transition: all .15s; flex-shrink: 0;
+    }
+    .sidebar-add-btn:hover { color: var(--accent); background: var(--bg-hover); }
+    .sidebar-add-btn svg { width: 14px; height: 14px; }
     .sidebar-section-chevron {
       width: 12px; height: 12px; color: var(--text-muted); transition: transform .15s;
     }
@@ -649,8 +658,8 @@
       /* Hide hamburger when sidebar drawer is open */
       .sidebar-toggle.hidden { opacity: 0; pointer-events: none; }
       /* Hide desktop collapse chevron on mobile, show mobile close button instead */
-      .sidebar-collapse-btn { display: none; }
-      .sidebar-close-mobile { display: block; }
+      .sidebar-collapse-btn { display: none !important; }
+      .sidebar-close-mobile { display: flex !important; }
 
       /* Chat header: leave room for hamburger */
       .chat-header {
@@ -799,30 +808,32 @@
 
       <div class="sidebar-sections">
         <!-- Chat Section -->
-        <div class="sidebar-section">
+        <div class="sidebar-section collapsed">
           <div class="sidebar-section-header" onclick="toggleSidebarSection('chat-section')">
             <span class="sidebar-section-title">
               <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 3h12v8H5l-3 3V3z"/></svg>
               Chat
             </span>
+            <button class="sidebar-add-btn" onclick="event.stopPropagation();newChat()" title="New Chat">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3v10M3 8h10"/></svg>
+            </button>
             <svg class="sidebar-section-chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6l4 4 4-4"/></svg>
           </div>
           <div class="sidebar-section-content" id="chat-section">
-            <button class="new-chat-btn" onclick="newChat()">
-              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="8" y1="3" x2="8" y2="13"/><line x1="3" y1="8" x2="13" y2="8"/></svg>
-              New chat
-            </button>
             <div id="nav-chats"></div>
           </div>
         </div>
 
         <!-- Agents Section -->
-        <div class="sidebar-section">
+        <div class="sidebar-section collapsed">
           <div class="sidebar-section-header" onclick="toggleSidebarSection('agents-section')">
             <span class="sidebar-section-title">
               <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="3"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2"/></svg>
               Agents
             </span>
+            <button class="sidebar-add-btn" onclick="event.stopPropagation();showCreateAgent()" title="New Agent">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3v10M3 8h10"/></svg>
+            </button>
             <svg class="sidebar-section-chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6l4 4 4-4"/></svg>
           </div>
           <div class="sidebar-section-content" id="agents-section">
@@ -831,12 +842,15 @@
         </div>
 
         <!-- Code / Projects Section -->
-        <div class="sidebar-section">
+        <div class="sidebar-section collapsed">
           <div class="sidebar-section-header" onclick="toggleSidebarSection('code-section')">
             <span class="sidebar-section-title">
               <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M5.5 4L2 8l3.5 4M10.5 4L14 8l-3.5 4"/></svg>
               Code
             </span>
+            <button class="sidebar-add-btn" onclick="event.stopPropagation();showCreateProject()" title="New Project">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3v10M3 8h10"/></svg>
+            </button>
             <svg class="sidebar-section-chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6l4 4 4-4"/></svg>
           </div>
           <div class="sidebar-section-content" id="code-section">
@@ -1898,6 +1912,186 @@ npm run dev</code></pre>
         renderAgentsList();
         await selectAgent(id);
       } catch {}
+    };
+
+    // ==============================
+    // CREATE AGENT
+    // ==============================
+
+    const SCHEDULE_PRESETS = [
+      { label: 'Manual only', value: '' },
+      { label: 'Every hour', value: '0 * * * *' },
+      { label: 'Every 2 hours', value: '0 */2 * * *' },
+      { label: 'Every 6 hours', value: '0 */6 * * *' },
+      { label: 'Every 12 hours', value: '0 */12 * * *' },
+      { label: 'Daily at 9am', value: '0 9 * * *' },
+      { label: 'Daily at midnight', value: '0 0 * * *' },
+      { label: 'Weekdays at 9am', value: '0 9 * * 1-5' },
+      { label: 'Weekly on Monday', value: '0 9 * * 1' },
+      { label: 'Custom...', value: '__custom__' },
+    ];
+
+    window.showCreateAgent = function() {
+      switchView('agents');
+      const panel = $('agents-detail-panel');
+      const options = SCHEDULE_PRESETS.map(p =>
+        `<option value="${esc(p.value)}">${esc(p.label)}</option>`
+      ).join('');
+
+      panel.innerHTML = `
+        <div class="agent-detail">
+          <h2 style="font-size:20px;font-weight:600;margin-bottom:4px">New Agent</h2>
+          <p style="font-size:13px;color:var(--text-muted);margin-bottom:20px">Create a simple agent that runs an LLM prompt on a schedule.</p>
+          <div class="edit-form">
+            <div class="edit-field">
+              <label class="edit-label">Name</label>
+              <input class="edit-input" id="create-agent-name" placeholder="e.g. Daily Reporter" />
+            </div>
+            <div class="edit-field">
+              <label class="edit-label">Description</label>
+              <textarea class="edit-textarea" id="create-agent-desc" placeholder="What does this agent do?" rows="2"></textarea>
+            </div>
+            <div class="edit-field">
+              <label class="edit-label">Schedule</label>
+              <select class="edit-input" id="create-agent-schedule-preset" onchange="onSchedulePresetChange()">
+                ${options}
+              </select>
+              <div id="create-agent-custom-wrap" style="display:none;margin-top:8px">
+                <input class="edit-input" id="create-agent-schedule-custom" placeholder="e.g. 0 */4 * * *" oninput="updateSchedulePreview()" />
+              </div>
+              <div id="create-agent-schedule-preview" style="font-size:11px;color:var(--text-muted);margin-top:4px"></div>
+            </div>
+            <div class="edit-field">
+              <label class="edit-label">Prompt</label>
+              <p style="font-size:11px;color:var(--text-muted);margin-bottom:6px">Tell the agent what to do in plain English. This runs as a single LLM step.</p>
+              <textarea class="edit-textarea" id="create-agent-prompt" placeholder="e.g. Search for the latest news about AI coding tools and summarize the top 5 stories." rows="6" style="font-family:var(--mono);font-size:13px"></textarea>
+            </div>
+            <div class="edit-actions">
+              <button class="btn btn-primary" onclick="submitCreateAgent()">Create Agent</button>
+              <button class="btn btn-ghost" onclick="switchView('agents');renderAgentsList()">Cancel</button>
+            </div>
+            <div id="create-agent-error" style="color:var(--red);font-size:13px;margin-top:8px;display:none"></div>
+          </div>
+        </div>
+      `;
+      $('create-agent-name').focus();
+      updateSchedulePreview();
+    };
+
+    window.onSchedulePresetChange = function() {
+      const val = $('create-agent-schedule-preset').value;
+      $('create-agent-custom-wrap').style.display = val === '__custom__' ? 'block' : 'none';
+      if (val === '__custom__') {
+        $('create-agent-schedule-custom').focus();
+      }
+      updateSchedulePreview();
+    };
+
+    function getSelectedSchedule() {
+      const preset = $('create-agent-schedule-preset').value;
+      if (preset === '__custom__') return ($('create-agent-schedule-custom')?.value || '').trim();
+      return preset;
+    }
+
+    function updateSchedulePreview() {
+      const sched = getSelectedSchedule();
+      const el = $('create-agent-schedule-preview');
+      if (!sched) {
+        el.textContent = 'Runs manually only (use "Run Now" button)';
+      } else {
+        el.textContent = cronToWords(sched);
+      }
+    }
+
+    window.submitCreateAgent = async function() {
+      const name = $('create-agent-name').value.trim();
+      const description = $('create-agent-desc').value.trim();
+      const prompt = $('create-agent-prompt').value.trim();
+      const schedule = getSelectedSchedule();
+      const errEl = $('create-agent-error');
+      errEl.style.display = 'none';
+
+      if (!name) { errEl.textContent = 'Name is required'; errEl.style.display = 'block'; return; }
+      if (!prompt) { errEl.textContent = 'Prompt is required'; errEl.style.display = 'block'; return; }
+
+      try {
+        const result = await api.post('/api/agents', { name, description, prompt, schedule });
+        if (result.error) { errEl.textContent = result.error; errEl.style.display = 'block'; return; }
+        state.agents = await api.get('/api/agents');
+        renderNav();
+        await selectAgent(result.id);
+      } catch (e) {
+        errEl.textContent = 'Failed to create agent'; errEl.style.display = 'block';
+      }
+    };
+
+    // ==============================
+    // CREATE PROJECT
+    // ==============================
+
+    window.showCreateProject = function() {
+      switchView('code');
+      const panel = $('code-view-content');
+      const existingContent = panel.innerHTML;
+      // Prepend the create form at the top
+      const formHtml = `
+        <div id="create-project-form" style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;margin-bottom:24px">
+          <h3 style="font-size:16px;font-weight:600;margin-bottom:4px">Add Project</h3>
+          <p style="font-size:13px;color:var(--text-muted);margin-bottom:16px">Point to an existing folder or create a new one. Optionally start with a prompt.</p>
+          <div class="edit-field" style="margin-bottom:12px">
+            <label class="edit-label">Directory Path</label>
+            <input class="edit-input" id="create-project-path" placeholder="/Users/you/Code/my-app" style="font-family:var(--mono);font-size:13px" />
+            <div style="font-size:11px;color:var(--text-muted);margin-top:4px">If the directory doesn't exist, it will be created.</div>
+          </div>
+          <div class="edit-field" style="margin-bottom:12px">
+            <label class="edit-label">Starter Prompt <span style="color:var(--text-muted);font-weight:400">(optional)</span></label>
+            <textarea class="edit-textarea" id="create-project-prompt" placeholder="e.g. Set up a new Next.js app with TypeScript and Tailwind" rows="3"></textarea>
+          </div>
+          <div class="edit-actions">
+            <button class="btn btn-primary" onclick="submitCreateProject()">Add Project</button>
+            <button class="btn btn-ghost" onclick="document.getElementById('create-project-form').remove()">Cancel</button>
+          </div>
+          <div id="create-project-error" style="color:var(--red);font-size:13px;margin-top:8px;display:none"></div>
+        </div>
+      `;
+      // Remove existing form if present
+      const existingForm = document.getElementById('create-project-form');
+      if (existingForm) existingForm.remove();
+      panel.insertAdjacentHTML('afterbegin', formHtml);
+      $('create-project-path').focus();
+    };
+
+    window.submitCreateProject = async function() {
+      const pathVal = $('create-project-path').value.trim();
+      const prompt = $('create-project-prompt').value.trim();
+      const errEl = $('create-project-error');
+      errEl.style.display = 'none';
+
+      if (!pathVal) { errEl.textContent = 'Path is required'; errEl.style.display = 'block'; return; }
+
+      try {
+        const result = await api.post('/api/projects', { path: pathVal });
+        if (result.error) { errEl.textContent = result.error; errEl.style.display = 'block'; return; }
+        // Refresh projects and sessions
+        state.projects = await api.get('/api/projects');
+        state.sessions = await api.get('/api/sessions');
+        renderNav();
+
+        // If there's a starter prompt, open the new session and send it
+        if (prompt && result.id) {
+          state.sessionId = result.id;
+          switchView('chat');
+          $input.value = prompt;
+          sendMessage();
+        } else {
+          // Just show the code view
+          const form = document.getElementById('create-project-form');
+          if (form) form.remove();
+          renderCodeView();
+        }
+      } catch (e) {
+        errEl.textContent = 'Failed to add project'; errEl.style.display = 'block';
+      }
     };
 
     // ==============================

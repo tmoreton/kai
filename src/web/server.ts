@@ -325,6 +325,52 @@ export async function startServer(options: ServerOptions): Promise<void> {
     return c.json(projects);
   });
 
+  // --- Create project (register a new codebase by path) ---
+  app.post("/api/projects", async (c) => {
+    const body = await c.req.json().catch(() => ({}));
+    const { path: projectPath } = body as { path?: string };
+
+    if (!projectPath || !projectPath.trim()) {
+      return c.json({ error: "Path is required" }, 400);
+    }
+
+    const resolvedPath = path.resolve(projectPath.trim());
+
+    if (!fs.existsSync(resolvedPath)) {
+      // Create the directory if it doesn't exist
+      try {
+        fs.mkdirSync(resolvedPath, { recursive: true });
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        return c.json({ error: `Could not create directory: ${msg}` }, 400);
+      }
+    } else {
+      try {
+        const stat = fs.statSync(resolvedPath);
+        if (!stat.isDirectory()) {
+          return c.json({ error: "Path exists but is not a directory" }, 400);
+        }
+      } catch {
+        return c.json({ error: "Cannot access path" }, 400);
+      }
+    }
+
+    const projectName = resolvedPath.split("/").filter(Boolean).pop() || resolvedPath;
+
+    // Create a session scoped to this cwd to register the project
+    const session: Session = {
+      id: generateSessionId(),
+      name: `New chat in ${projectName}`,
+      cwd: resolvedPath,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      messages: [{ role: "system", content: buildSystemPrompt() }],
+    };
+    saveSession(session);
+
+    return c.json({ id: session.id, name: projectName, cwd: resolvedPath });
+  });
+
   app.post("/api/sessions", async (c) => {
     const body = await c.req.json().catch(() => ({}));
     const session: Session = {
@@ -419,6 +465,68 @@ export async function startServer(options: ServerOptions): Promise<void> {
     if (typeof body.schedule === "string") agent.schedule = body.schedule.trim();
     saveAgent(agent);
     return c.json({ id: agent.id, name: agent.name, description: agent.description, schedule: agent.schedule, enabled: !!agent.enabled });
+  });
+
+  // --- Create agent (from web UI) ---
+  app.post("/api/agents", async (c) => {
+    const body = await c.req.json().catch(() => ({}));
+    const { name, description, schedule, prompt } = body as {
+      name?: string;
+      description?: string;
+      schedule?: string;
+      prompt?: string;
+    };
+
+    if (!name || !name.trim()) {
+      return c.json({ error: "Name is required" }, 400);
+    }
+    if (!prompt || !prompt.trim()) {
+      return c.json({ error: "Prompt is required" }, 400);
+    }
+
+    const id = `agent-${name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/-+$/, "")}`;
+
+    // Check if agent already exists
+    const existing = getAgent(id);
+    if (existing) {
+      return c.json({ error: `Agent "${id}" already exists` }, 409);
+    }
+
+    // Generate workflow YAML
+    const cleanName = name.trim().replace(/"/g, '\\"');
+    const cleanDesc = (description || "").trim().replace(/"/g, '\\"');
+    const cleanSchedule = (schedule || "").trim();
+    const indentedPrompt = prompt.trim().split("\n").map(line => `      ${line}`).join("\n");
+
+    const yaml = [
+      `name: "${cleanName}"`,
+      `description: "${cleanDesc}"`,
+      cleanSchedule ? `schedule: "${cleanSchedule}"` : "",
+      `steps:`,
+      `  - name: main`,
+      `    type: llm`,
+      `    prompt: |`,
+      indentedPrompt,
+    ].filter(Boolean).join("\n") + "\n";
+
+    // Write workflow file
+    const workflowsDir = path.join(ensureKaiDir(), "workflows");
+    if (!fs.existsSync(workflowsDir)) fs.mkdirSync(workflowsDir, { recursive: true });
+    const workflowPath = path.join(workflowsDir, `${id}.yaml`);
+    fs.writeFileSync(workflowPath, yaml);
+
+    // Save to DB
+    saveAgent({
+      id,
+      name: name.trim(),
+      description: (description || "").trim(),
+      workflow_path: workflowPath,
+      schedule: cleanSchedule,
+      enabled: 1,
+      config: "{}",
+    });
+
+    return c.json({ id, name: name.trim(), description: (description || "").trim(), schedule: cleanSchedule, enabled: true });
   });
 
   // --- Delete agent ---
