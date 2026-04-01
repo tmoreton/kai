@@ -67,10 +67,25 @@ export function getDb(): Database.Database {
       created_at TEXT DEFAULT (datetime('now'))
     );
 
+    CREATE TABLE IF NOT EXISTS notifications (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      type TEXT DEFAULT 'agent_run',
+      title TEXT NOT NULL,
+      body TEXT,
+      agent_id TEXT,
+      run_id TEXT,
+      read INTEGER DEFAULT 0,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+
     CREATE INDEX IF NOT EXISTS idx_runs_agent ON runs(agent_id);
     CREATE INDEX IF NOT EXISTS idx_steps_run ON steps(run_id);
     CREATE INDEX IF NOT EXISTS idx_logs_agent ON logs(agent_id);
+    CREATE INDEX IF NOT EXISTS idx_notifications_read ON notifications(read);
   `);
+
+  // Migrations for existing databases
+  try { db.exec("ALTER TABLE runs ADD COLUMN recap TEXT"); } catch {}
 
   return db;
 }
@@ -134,6 +149,7 @@ export interface RunRecord {
   completed_at: string | null;
   error: string | null;
   trigger: string;
+  recap: string | null;
 }
 
 export function createRun(runId: string, agentId: string, trigger = "manual"): void {

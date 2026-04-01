@@ -97,20 +97,15 @@ pub fn run() {
             let mut env_vars: HashMap<String, String> = HashMap::new();
 
             // Load in reverse priority order (later overrides earlier)
-            // 1. cwd/.env (least priority in GUI context)
-            let cwd_env = std::env::current_dir().unwrap_or_default().join(".env");
-            for (k, v) in read_dotenv(&cwd_env) { env_vars.insert(k, v); }
-
-            // 2. resource dir ../.env (the original project .env bundled location)
+            // 1. resource dir .env (the original project .env bundled location)
             let res_env = resource_dir.join(".env");
             for (k, v) in read_dotenv(&res_env) { env_vars.insert(k, v); }
 
-            // 3. ~/.kai/.env (highest priority)
+            // 2. ~/.kai/.env (highest priority)
             let kai_env = home.join(".kai").join(".env");
             for (k, v) in read_dotenv(&kai_env) { env_vars.insert(k, v); }
 
             debug_log!(log, "Loaded {} env vars from .env files", env_vars.len());
-            debug_log!(log, "Has OPENROUTER_API_KEY: {}", env_vars.contains_key("OPENROUTER_API_KEY"));
 
             // Build the command with all env vars
             // Set cwd to home so sessions resolve the same as terminal usage
@@ -174,9 +169,13 @@ pub fn run() {
                     }
                 } else {
                     if let Some(window) = handle.get_webview_window("main") {
-                        let msg = format!(
-                            "data:text/html,<h2>Kai failed to start</h2><p>Check ~/.kai/tauri-node.log for details.</p>"
-                        );
+                        let msg = "data:text/html,\
+                            <html><body style='font-family:-apple-system,system-ui,sans-serif;\
+                            display:flex;align-items:center;justify-content:center;height:100vh;\
+                            margin:0;background:%23111;color:%23eee;text-align:center'>\
+                            <div><h2 style='margin-bottom:8px'>Kai failed to start</h2>\
+                            <p style='color:%23999'>Check ~/.kai/tauri-node.log for details</p>\
+                            </div></body></html>";
                         let _ = window.navigate(msg.parse().unwrap());
                         let _ = window.show();
                     }
