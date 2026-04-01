@@ -584,14 +584,14 @@ export async function chat(
           lastFailedCall = "";
         }
 
-        // Check if tool result contains an image (from screenshot/vision tools)
+        // Check if tool result contains an image (from screenshot/read_file)
         const imageToolResult = tryParseImageResult(contextContent);
         if (imageToolResult) {
           updatedMessages.push({
             role: "tool",
             tool_call_id: p.tc.id,
             content: [
-              { type: "text", text: `Screenshot saved to: ${imageToolResult.path} (${imageToolResult.size_kb} KB)` },
+              { type: "text", text: `Image: ${imageToolResult.path} (${imageToolResult.size_kb} KB)` },
               { type: "image_url", image_url: { url: imageToolResult.data_url } },
             ] as any,
           });
@@ -817,13 +817,25 @@ export function rescueToolCallsFromText(
 function tryParseImageResult(
   result: string
 ): { path: string; size_kb: number; data_url: string } | null {
+  // Case 1: Screenshot tool returns JSON with type: "image_result"
   try {
     const parsed = JSON.parse(result);
     if (parsed?.type === "image_result" && parsed.data_url && parsed.path) {
       return parsed;
     }
   } catch {
-    // Not JSON or not an image result
+    // Not JSON — check other formats
   }
+
+  // Case 2: read_file returns "[IMAGE: path (size KB)]\ndata:..." format
+  const imageMatch = result.match(/^\[IMAGE: (.+?) \((\d+) KB\)\]\n(data:image\/[^;]+;base64,.+)$/s);
+  if (imageMatch) {
+    return {
+      path: imageMatch[1],
+      size_kb: parseInt(imageMatch[2], 10),
+      data_url: imageMatch[3],
+    };
+  }
+
   return null;
 }

@@ -160,6 +160,11 @@ export async function startRepl(options: ReplOptions = {}, initialPrompt?: strin
   let chatAbort: AbortController | null = null;
   const inputQueue: string[] = [];
 
+  // Multiline paste detection: buffer rapid lines and join them
+  let pasteBuffer: string[] = [];
+  let pasteTimer: ReturnType<typeof setTimeout> | null = null;
+  const PASTE_DEBOUNCE_MS = 30; // lines arriving within 30ms are treated as a paste
+
   const SLASH_COMMANDS = [
     { cmd: "/help", desc: "Show all commands" },
     { cmd: "/clear", desc: "Clear conversation" },
@@ -394,8 +399,10 @@ export async function startRepl(options: ReplOptions = {}, initialPrompt?: strin
     }
   }
 
-  rl.on("line", (line) => {
-    const input = line.trim();
+  function flushPasteBuffer() {
+    pasteTimer = null;
+    const input = pasteBuffer.join("\n").trim();
+    pasteBuffer = [];
     if (!input) {
       if (!processing) { rl.setPrompt(getPrompt()); rl.prompt(); }
       return;
@@ -420,6 +427,12 @@ export async function startRepl(options: ReplOptions = {}, initialPrompt?: strin
     } else {
       processInput(input);
     }
+  }
+
+  rl.on("line", (line) => {
+    pasteBuffer.push(line);
+    if (pasteTimer) clearTimeout(pasteTimer);
+    pasteTimer = setTimeout(flushPasteBuffer, PASTE_DEBOUNCE_MS);
   });
 
   let sigintCount = 0;
