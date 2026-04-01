@@ -18,7 +18,11 @@ import {
   listAgents,
   getAgent,
   getLatestRuns,
+  getFailedOrStuckRuns,
+  getConsecutiveFailCount,
+  completeRun,
   addLog,
+  createNotification,
   type AgentRecord,
 } from "./db.js";
 import { evaluateConditions, type HeartbeatConfig } from "./conditions.js";
@@ -111,10 +115,12 @@ export async function startDaemon(): Promise<void> {
 
 const HEARTBEAT_CHECK_INTERVAL = 30_000; // 30 seconds
 const DEFAULT_COOLDOWN_MS = 300_000; // 5 minutes
+const MAX_AUTO_RETRIES = 3; // stop retrying after 3 consecutive failures
+const STALE_RUN_MINUTES = 30; // mark runs as stuck after 30 minutes
 
 /**
  * Proactive heartbeat: actively evaluates conditions for agents with heartbeat config.
- * Also logs daemon status periodically.
+ * Also checks for failed/stuck runs and auto-retries them.
  */
 function startProactiveHeartbeat(): void {
   let checkCount = 0;
@@ -126,6 +132,12 @@ function startProactiveHeartbeat(): void {
     if (checkCount % 10 === 0) {
       const count = scheduledJobs.size;
       addLog("__daemon__", "info", `Heartbeat: ${count} agents scheduled`);
+    }
+
+    // --- Self-healing: check for failed/stuck runs and auto-retry ---
+    // Run every 6 checks (~3 minutes) to avoid hammering
+    if (checkCount % 6 === 3) {
+      await checkAndRetryFailedRuns();
     }
 
     // Check heartbeat conditions for eligible agents
@@ -170,6 +182,74 @@ function startProactiveHeartbeat(): void {
   }, HEARTBEAT_CHECK_INTERVAL);
 }
 
+/**
+ * Self-healing: find failed or stuck runs and auto-retry them.
+ * - Failed runs: retry if the agent hasn't exceeded MAX_AUTO_RETRIES consecutive failures
+ * - Stuck runs: mark as failed first, then retry
+ */
+async function checkAndRetryFailedRuns(): Promise<void> {
+  const problemRuns = getFailedOrStuckRuns(1, STALE_RUN_MINUTES);
+  if (problemRuns.length === 0) return;
+
+  const seen = new Set<string>(); // only retry each agent once per check
+
+  for (const run of problemRuns) {
+    if (seen.has(run.agent_id)) continue;
+    seen.add(run.agent_id);
+
+    const agent = getAgent(run.agent_id);
+    if (!agent || !agent.enabled) continue;
+
+    // Handle stuck runs — mark them failed so they can be retried
+    if (run.status === "running") {
+      const startedAt = new Date(run.started_at).getTime();
+      const stuckMinutes = Math.round((Date.now() - startedAt) / 60_000);
+      completeRun(run.id, "failed", `Marked stuck after ${stuckMinutes} minutes by heartbeat`);
+      addLog(run.agent_id, "warn", `Run ${run.id} marked stuck after ${stuckMinutes}m — will retry`, run.id);
+      console.log(chalk.yellow(`  ⚠ Stuck run detected: ${agent.name} (${stuckMinutes}m) — marking failed`));
+    }
+
+    // Check consecutive failure count to avoid retry loops
+    const failCount = getConsecutiveFailCount(run.agent_id);
+    if (failCount >= MAX_AUTO_RETRIES) {
+      // Only notify once (on the exact threshold, not every check)
+      if (failCount === MAX_AUTO_RETRIES) {
+        addLog(run.agent_id, "error", `Auto-retry disabled: ${failCount} consecutive failures. Manual intervention required.`);
+        createNotification({
+          type: "agent_error",
+          title: `${agent.name}: ${failCount} consecutive failures`,
+          body: `Last error: ${run.error || "unknown"}. Auto-retry stopped. Run manually with: kai agent run ${agent.id}`,
+          agentId: run.agent_id,
+          runId: run.id,
+        });
+        console.log(chalk.red(`  ✗ ${agent.name}: ${failCount} consecutive failures — auto-retry stopped`));
+      }
+      continue;
+    }
+
+    // Retry the agent
+    addLog(run.agent_id, "info", `Auto-retrying after failure (attempt ${failCount + 1}/${MAX_AUTO_RETRIES}). Previous error: ${run.error || "unknown"}`, run.id);
+    console.log(chalk.cyan(`  🔄 Auto-retrying: ${agent.name} (attempt ${failCount + 1}/${MAX_AUTO_RETRIES})`));
+
+    try {
+      const result = await runAgent(run.agent_id);
+      if (result.success) {
+        addLog(run.agent_id, "info", `Auto-retry succeeded after ${failCount + 1} attempt(s)`);
+        console.log(chalk.green(`  ✓ Auto-retry succeeded: ${agent.name}`));
+        createNotification({
+          type: "agent_recovery",
+          title: `${agent.name}: recovered after ${failCount + 1} attempt(s)`,
+          body: `Previous error was: ${run.error || "unknown"}`,
+          agentId: run.agent_id,
+        });
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      addLog(run.agent_id, "error", `Auto-retry failed: ${msg}`);
+    }
+  }
+}
+
 function scheduleAgent(agent: AgentRecord): void {
   if (!agent.schedule || !cron.validate(agent.schedule)) {
     console.log(chalk.yellow(`  ⚠ Agent "${agent.name}": invalid schedule "${agent.schedule}"`));
@@ -199,7 +279,7 @@ export async function runAgent(agentId: string): Promise<{ success: boolean; err
 
   // Validate workflow path exists
   if (!agent.workflow_path) {
-    const msg = `Agent "${agent.name}" has no workflow path configured. Re-register it with: kai agent add <workflow.yaml>`;
+    const msg = `Agent "${agent.name}" has no workflow path configured. Re-create it with: kai agent create <name> <workflow.yaml>`;
     addLog(agentId, "error", `Failed to run: ${msg}`);
     return { success: false, error: msg };
   }

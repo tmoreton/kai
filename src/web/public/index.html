@@ -132,6 +132,8 @@
     }
     .list-item:hover { background: var(--bg-hover); color: var(--text); }
     .list-item.active { background: var(--bg-active); color: var(--text); font-weight: 500; }
+    .streaming-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); animation: pulse-dot 1.2s ease-in-out infinite; }
+    @keyframes pulse-dot { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
     .list-item .icon { width: 18px; text-align: center; flex-shrink: 0; font-size: 14px; }
     .list-item .label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
     .list-item .meta { font-size: 11px; color: var(--text-muted); flex-shrink: 0; }
@@ -1937,11 +1939,22 @@ npm run dev</code></pre>
 
   <script type="module">
     const state = {
-      sessionId: null, sessions: [], agents: [], personas: [], projects: [], streaming: false, status: null,
+      sessionId: null, sessions: [], agents: [], personas: [], projects: [], status: null,
       activeView: 'chat', selectedAgentId: null, selectedRunId: null, selectedPersonaId: null,
       attachments: [], // { name, mimeType, data (base64), type: 'image'|'file', preview? }
-      notifications: [], unreadCount: 0, creatingAgentForPersona: null
+      notifications: [], unreadCount: 0, creatingAgentForPersona: null,
+      streamingSessions: new Set(), // track which sessions are currently streaming
     };
+    // Helper: check if current session is streaming
+    function isCurrentSessionStreaming() { return state.streamingSessions.has(state.sessionId); }
+    // Back-compat getter/setter so existing code that reads state.streaming still works
+    Object.defineProperty(state, 'streaming', {
+      get() { return isCurrentSessionStreaming(); },
+      set(v) {
+        if (v) state.streamingSessions.add(state.sessionId);
+        else state.streamingSessions.delete(state.sessionId);
+      }
+    });
 
     marked.setOptions({ breaks: true, gfm: true });
 
@@ -2276,8 +2289,8 @@ npm run dev</code></pre>
         $('nav-chats').innerHTML = '<div class="list-empty">No chats yet</div>';
       } else {
         let html = chats.map(s => `
-          <div class="list-item ${s.id === state.sessionId ? 'active' : ''}" onclick="loadSession('${s.id}')">
-            <span class="icon"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 3h12v8H5l-3 3V3z"/></svg></span>
+          <div class="list-item ${s.id === state.sessionId ? 'active' : ''} ${state.streamingSessions.has(s.id) ? 'streaming' : ''}" onclick="loadSession('${s.id}')">
+            <span class="icon">${state.streamingSessions.has(s.id) ? '<span class="streaming-dot"></span>' : '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 3h12v8H5l-3 3V3z"/></svg>'}</span>
             <span class="label">${esc(sessionLabel(s))}</span>
             <span class="meta">${timeAgo(s.updatedAt)}</span>
             <button class="delete-btn" onclick="event.stopPropagation();confirmDeleteSession('${s.id}')" title="Delete chat">&#10005;</button>
@@ -2683,12 +2696,34 @@ npm run dev</code></pre>
             if (sessionData && sessionData.messages && sessionData.messages.length > 0) {
               const av = personaAvatar(personaId);
               let html = '';
+              const toolNames = { bash:'Running command', read_file:'Reading file', write_file:'Writing file', edit_file:'Editing file',
+                glob:'Finding files', grep:'Searching code', web_fetch:'Fetching page', web_search:'Searching web' };
               for (const m of sessionData.messages) {
-                if (!m.content) continue;
-                if (m.role === 'user') {
-                  html += `<div class="msg msg-user"><div class="msg-bubble">${esc(m.content)}</div></div>`;
+                if (m.role === 'system') continue;
+                const txt = typeof m.content === 'string' ? m.content
+                  : Array.isArray(m.content) ? m.content.filter(p => p.type === 'text').map(p => p.text).join('') : '';
+                if (m.role === 'user' && txt) {
+                  html += `<div class="msg msg-user"><div class="msg-bubble">${esc(txt)}</div></div>`;
                 } else if (m.role === 'assistant') {
-                  html += `<div class="msg msg-ai"><div class="msg-avatar">${av}</div><div class="msg-body">${renderMd(m.content)}</div></div>`;
+                  if (txt) html += `<div class="msg msg-ai"><div class="msg-avatar">${av}</div><div class="msg-body">${renderMd(txt)}</div></div>`;
+                  if (m.tool_calls) {
+                    for (const tc of m.tool_calls) {
+                      const tcName = tc.function?.name || tc.name || 'Tool';
+                      const friendly = toolNames[tcName] || tcName;
+                      const tcArgs = tc.function?.arguments || tc.arguments || '';
+                      const args = tcArgs ? String(tcArgs).slice(0, 80) : '';
+                      html += `<div class="tool" data-tid="${tc.id}" style="margin-left:40px">
+                        <div class="tool-head" onclick="this.parentElement.classList.toggle('open')">
+                          <span class="tool-dot done"></span>
+                          <span class="tool-label">${esc(friendly)}</span>
+                          <span class="tool-summary">${esc(args)}</span>
+                          <span class="tool-chevron">&#9654;</span>
+                        </div><div class="tool-detail"></div></div>`;
+                    }
+                  }
+                } else if (m.role === 'tool') {
+                  const card = `[data-tid="${m.tool_call_id}"]`;
+                  // Tool results are rendered via data attributes on existing cards (handled after innerHTML set)
                 }
               }
               if (html) personaChatHtmlCache.set(personaId, html);
@@ -3269,10 +3304,11 @@ npm run dev</code></pre>
     // ==============================
     // AGENT CHAT FUNCTIONS
     // ==============================
+    const agentChatStreaming = new Set(); // track which agent chats are streaming
     window.sendAgentChatMessage = async function(agentId) {
       const input = $('agent-chat-input');
       const message = input.value.trim();
-      if (!message || state.streaming) return;
+      if (!message || agentChatStreaming.has(agentId)) return;
 
       const container = $('agent-chat-messages');
       
@@ -3292,23 +3328,23 @@ npm run dev</code></pre>
       input.style.height = 'auto';
 
       try {
-        state.streaming = true;
+        agentChatStreaming.add(agentId);
         const res = await fetch('/api/agent-chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ agentId, message })
         });
-        
+
         // Remove typing indicator
         const typing = $(typingId);
         if (typing) typing.remove();
 
         const data = await res.json();
-        
+
         if (data.error) {
           throw new Error(data.error);
         }
-        
+
         // Add agent response
         const responseText = data.response || data.text || 'No response';
         container.innerHTML += `<div class="agent-chat-msg"><div class="agent-chat-bubble">${renderMdInline(responseText)}</div></div>`;
@@ -3317,12 +3353,12 @@ npm run dev</code></pre>
         // Remove typing indicator
         const typing = $(typingId);
         if (typing) typing.remove();
-        
+
         // Show error in chat
         container.innerHTML += `<div class="agent-chat-msg"><div class="agent-chat-bubble" style="color:var(--red)">Sorry, I couldn't process that. ${esc(err.message || 'Please try again.')}</div></div>`;
         container.scrollTop = container.scrollHeight;
       } finally {
-        state.streaming = false;
+        agentChatStreaming.delete(agentId);
       }
     };
 
@@ -3359,8 +3395,7 @@ npm run dev</code></pre>
 
     window.fixError = async function() {
       if (!currentError) return;
-      closeErrorModal();
-      
+
       // Construct a fix request message
       const fixPrompt = `I encountered this error. Please analyze it and fix the underlying issue:
 
@@ -3371,10 +3406,24 @@ ${currentError.operation ? `\n**Operation:** ${currentError.operation}` : ''}
 
 Please fix this error and then confirm what changes you made.`;
 
-      // Set the input and send
-      $input.value = fixPrompt;
-      autoResize();
-      await sendMessage();
+      closeErrorModal();
+
+      // If currently streaming, queue the fix for after it finishes
+      if (state.streaming) {
+        $input.value = fixPrompt;
+        autoResize();
+        // Wait for streaming to end, then send
+        const waitForIdle = setInterval(async () => {
+          if (!state.streaming) {
+            clearInterval(waitForIdle);
+            await sendMessage();
+          }
+        }, 300);
+      } else {
+        $input.value = fixPrompt;
+        autoResize();
+        await sendMessage();
+      }
     };
 
     window.copyError = function() {
@@ -3826,6 +3875,7 @@ Please fix this error and then confirm what changes you made.`;
         }
         scroll();
         renderNav();
+        updateBtn(); // reflect streaming state for the newly loaded session
         closeSidebar();
       } catch (e) { console.error(e); }
     };
@@ -3859,7 +3909,8 @@ Please fix this error and then confirm what changes you made.`;
       renderAttachments();
 
       $input.value = ''; autoResize();
-      state.streaming = true;
+      let streamSessionId = state.sessionId; // capture which session this stream belongs to
+      state.streamingSessions.add(streamSessionId);
       updateBtn();
       showThinking();
 
@@ -3870,7 +3921,7 @@ Please fix this error and then confirm what changes you made.`;
         });
         if (!res.ok) {
           const errText = await res.text().catch(() => res.statusText);
-          addNote(`Server error (${res.status}): ${errText}`);
+          if (state.sessionId === streamSessionId) addNote(`Server error (${res.status}): ${errText}`);
           return;
         }
         const reader = res.body.getReader();
@@ -3885,16 +3936,28 @@ Please fix this error and then confirm what changes you made.`;
           for (const line of lines) {
             if (line.startsWith('event: ')) evtType = line.substring(7).trim();
             else if (line.startsWith('data: ') && evtType) {
-              try { onSSE(evtType, JSON.parse(line.substring(6))); } catch (e) { console.warn('SSE parse error:', e); }
+              try {
+                const parsed = JSON.parse(line.substring(6));
+                // Handle session ID assignment (new chats start with null sessionId)
+                if (evtType === 'session' && parsed.id) {
+                  state.streamingSessions.delete(streamSessionId);
+                  streamSessionId = parsed.id;
+                  state.streamingSessions.add(streamSessionId);
+                }
+                // Only render SSE events if we're still viewing the session that owns this stream
+                if (state.sessionId === streamSessionId) {
+                  onSSE(evtType, parsed);
+                }
+              } catch (e) { console.warn('SSE parse error:', e); }
               evtType = null;
             }
           }
         }
-        finalize();
+        if (state.sessionId === streamSessionId) finalize();
         state.sessions = await api.get('/api/sessions');
         renderNav();
-      } catch { addNote('Connection lost. Please try again.'); }
-      finally { state.streaming = false; updateBtn(); }
+      } catch { if (state.sessionId === streamSessionId) addNote('Connection lost. Please try again.'); }
+      finally { state.streamingSessions.delete(streamSessionId); updateBtn(); renderNav(); }
     };
 
     let streamEl = null, streamText = '';

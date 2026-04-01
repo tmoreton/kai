@@ -188,6 +188,53 @@ export function getLatestRuns(agentId: string, limit = 10): RunRecord[] {
   ).all(agentId, limit) as RunRecord[];
 }
 
+/**
+ * Find recent failed or stuck runs across all agents.
+ * "Stuck" = status 'running' for longer than staleMinutes.
+ */
+export function getFailedOrStuckRuns(limitPerAgent = 1, staleMinutes = 30): RunRecord[] {
+  const db = getDb();
+  const staleThreshold = new Date(Date.now() - staleMinutes * 60 * 1000).toISOString();
+
+  // Recent failed runs (one per agent, within last 24h)
+  const cutoff24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const failed = db.prepare(`
+    SELECT r.* FROM runs r
+    INNER JOIN (
+      SELECT agent_id, MAX(started_at) as latest
+      FROM runs WHERE status = 'failed' AND started_at > ?
+      GROUP BY agent_id
+    ) latest ON r.agent_id = latest.agent_id AND r.started_at = latest.latest
+    WHERE r.status = 'failed'
+    LIMIT 50
+  `).all(cutoff24h) as RunRecord[];
+
+  // Stuck runs (still 'running' past the stale threshold)
+  const stuck = db.prepare(`
+    SELECT * FROM runs
+    WHERE status = 'running' AND started_at < ?
+    LIMIT 50
+  `).all(staleThreshold) as RunRecord[];
+
+  return [...failed, ...stuck];
+}
+
+/**
+ * Get the number of consecutive failed runs for an agent (most recent first).
+ */
+export function getConsecutiveFailCount(agentId: string): number {
+  const runs = getDb().prepare(
+    "SELECT status FROM runs WHERE agent_id = ? ORDER BY started_at DESC LIMIT 10"
+  ).all(agentId) as { status: string }[];
+
+  let count = 0;
+  for (const r of runs) {
+    if (r.status === "failed") count++;
+    else break;
+  }
+  return count;
+}
+
 // --- Step CRUD ---
 
 export interface StepRecord {

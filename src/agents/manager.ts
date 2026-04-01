@@ -3,6 +3,7 @@ import path from "path";
 import crypto from "crypto";
 import chalk from "chalk";
 import { ensureKaiDir } from "../config.js";
+import { expandHome } from "../utils.js";
 import {
   saveAgent,
   getAgent,
@@ -44,8 +45,8 @@ export function createAgent(args: {
 }): string {
   const id = `agent-${args.name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
 
-  // Resolve workflow path
-  let workflowPath = args.workflowFile;
+  // Resolve workflow path (expand ~ before checking absolute)
+  let workflowPath = expandHome(args.workflowFile);
   if (!path.isAbsolute(workflowPath)) {
     workflowPath = path.resolve(process.cwd(), workflowPath);
   }

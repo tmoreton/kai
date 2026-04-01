@@ -18,7 +18,12 @@ export interface Session {
 
 export function findSessionByPersona(personaId: string): Session | null {
   const sessions = listSessions(100, true);
-  return sessions.find(s => s.personaId === personaId && s.type === "agent") || null;
+  // Find all sessions for this persona, prefer the one with the most messages (actual history)
+  const matches = sessions.filter(s => s.personaId === personaId);
+  if (matches.length === 0) return null;
+  // Sort by message count descending, then by updatedAt descending
+  matches.sort((a, b) => b.messages.length - a.messages.length || b.updatedAt.localeCompare(a.updatedAt));
+  return matches[0];
 }
 
 function sessionsDir(): string {
