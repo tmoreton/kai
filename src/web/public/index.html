@@ -4438,6 +4438,43 @@ Please fix this error and then confirm what changes you made.`;
         const data = await api.get('/api/settings');
         let html = '';
 
+        // === Soul (Identity) Card ===
+        html += `<div class="settings-card">
+          <div class="settings-card-header"><h2>Soul Identity</h2></div>
+          <p class="settings-card-desc">Edit Kai's core memory and identity. This controls how Kai behaves and what it knows about itself and you. Stored in <code style="font-size:12px;background:var(--bg-sidebar);padding:2px 6px;border-radius:3px">~/.kai/soul/identity.json</code>.</p>`;
+        html += `<div class="settings-form">
+          <div class="settings-field">
+            <textarea id="soul-editor" class="skill-editor-textarea" style="min-height: 300px; font-family: var(--mono); font-size: 12px;" placeholder="{ persona: { ... }, human: { ... } }"></textarea>
+          </div>
+          <div class="settings-form-row" style="justify-content: flex-end;">
+            <button class="settings-add-btn" onclick="saveSoul()" id="save-soul-btn">Save Changes</button>
+          </div>
+        </div>`;
+        html += '</div>';
+
+        // === Context (Goals + Scratchpad) Card ===
+        html += `<div class="settings-card">
+          <div class="settings-card-header">
+            <h2>Context Memory</h2>
+            <div style="display:flex;gap:8px;align-items:center;">
+              <label class="settings-toggle">
+                <input type="checkbox" id="ctx-scope-toggle" onchange="loadContext()">
+                <span>Use Project Context</span>
+              </label>
+            </div>
+          </div>
+          <p class="settings-card-desc">Edit current goals and scratchpad. Toggle to switch between project-specific and global context files.</p>
+          <p class="settings-card-desc" id="ctx-location" style="font-size:12px;color:var(--text-muted);margin-top:-8px;"></p>`;
+        html += `<div class="settings-form">
+          <div class="settings-field">
+            <textarea id="context-editor" class="skill-editor-textarea" style="min-height: 280px; font-family: var(--mono); font-size: 12px;" placeholder="{ goals: { ... }, scratchpad: { ... } }"></textarea>
+          </div>
+          <div class="settings-form-row" style="justify-content: flex-end;">
+            <button class="settings-add-btn" onclick="saveContext()" id="save-context-btn">Save Changes</button>
+          </div>
+        </div>`;
+        html += '</div>';
+
         // === MCP Servers Card ===
         html += `<div class="settings-card">
           <div class="settings-card-header"><h2>MCP Servers</h2></div>
@@ -4553,44 +4590,6 @@ Please fix this error and then confirm what changes you made.`;
           </div>
           <div class="settings-form-row">
             <button class="settings-add-btn" onclick="addEnvVar()">Add Variable</button>
-          </div>
-        </div>`;
-        html += '</div>';
-
-        // === Soul (Identity) Card ===
-        html += `<div class="settings-card">
-          <div class="settings-card-header"><h2>Soul Identity</h2></div>
-          <p class="settings-card-desc">Edit Kai's core memory and identity. This controls how Kai behaves and what it knows about itself and you. Stored in <code style="font-size:12px;background:var(--bg-sidebar);padding:2px 6px;border-radius:3px">~/.kai/soul/identity.json</code>.</p>`;
-        html += `<div class="settings-form">
-          <div class="settings-field">
-            <label>Identity JSON</label>
-            <textarea id="soul-editor" class="skill-editor-textarea" style="min-height: 300px; font-family: var(--mono); font-size: 12px;" placeholder="{  ${esc('"')}persona${esc('"')}: { ... },  ${esc('"')}human${esc('"')}: { ... } }"></textarea>
-          </div>
-          <div class="settings-form-row" style="justify-content: flex-end;">
-            <button class="settings-add-btn" onclick="saveSoul()" id="save-soul-btn">Save Changes</button>
-          </div>
-        </div>`;
-        html += '</div>';
-
-        // === Context (Goals + Scratchpad) Card ===
-        html += `<div class="settings-card">
-          <div class="settings-card-header">
-            <h2>Context Memory</h2>
-            <div style="display:flex;gap:8px;align-items:center;">
-              <label class="settings-toggle">
-                <input type="checkbox" id="ctx-scope-toggle" onchange="loadContext()">
-                <span>Use Project Context</span>
-              </label>
-            </div>
-          </div>
-          <p class="settings-card-desc">Edit current goals and scratchpad. Toggle to switch between project-specific and global context files.</p>
-          <p class="settings-card-desc" id="ctx-location" style="font-size:12px;color:var(--text-muted);margin-top:-8px;"></p>`;
-        html += `<div class="settings-form">
-          <div class="settings-field">
-            <textarea id="context-editor" class="skill-editor-textarea" style="min-height: 280px; font-family: var(--mono); font-size: 12px;" placeholder="{  ${esc('"')}goals${esc('"')}: { ... },  ${esc('"')}scratchpad${esc('"')}: { ... } }"></textarea>
-          </div>
-          <div class="settings-form-row" style="justify-content: flex-end;">
-            <button class="settings-add-btn" onclick="saveContext()" id="save-context-btn">Save Changes</button>
           </div>
         </div>`;
         html += '</div>';

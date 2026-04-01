@@ -8,16 +8,6 @@
   "permissions": [
     "core:default",
     "shell:allow-spawn",
-    "shell:allow-execute",
-    "dialog:default",
-    "fs:default",
-    "fs:allow-read-file",
-    "fs:allow-write-file",
-    "fs:allow-read-dir",
-    "fs:allow-create-dir",
-    {
-      "identifier": "fs:scope",
-      "allow": [{ "path": "$HOME/.kai" }, { "path": "$HOME/.kai/**" }]
-    }
+    "shell:allow-execute"
   ]
 }
