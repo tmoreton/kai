@@ -777,6 +777,119 @@
       .docs-nav { flex-direction: column; }
     }
 
+    /* ======================================= */
+    /* ---- Persona cards (agents view) ---- */
+    /* ======================================= */
+    .agents-home { max-width: 800px; margin: 0 auto; padding: 28px 32px; }
+    .agents-home-title { font-size: 22px; font-weight: 600; color: var(--text); letter-spacing: -0.3px; margin-bottom: 4px; }
+    .agents-home-subtitle { font-size: 13px; color: var(--text-muted); margin-bottom: 24px; }
+
+    .persona-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; margin-bottom: 32px; }
+    .persona-card {
+      background: var(--bg-surface); border: 1px solid var(--border-light); border-radius: var(--radius);
+      padding: 20px; cursor: pointer; transition: all .15s;
+    }
+    .persona-card:hover { border-color: var(--accent); box-shadow: 0 2px 12px rgba(0,0,0,.04); }
+    .persona-card-header { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+    .persona-avatar {
+      width: 40px; height: 40px; border-radius: 50%; background: var(--accent-light);
+      display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0;
+      color: var(--accent); font-weight: 700;
+    }
+    .persona-card-name { font-size: 16px; font-weight: 600; color: var(--text); }
+    .persona-card-role { font-size: 12px; color: var(--text-muted); margin-top: 1px; }
+    .persona-card-body { font-size: 13px; color: var(--text-secondary); line-height: 1.5; margin-bottom: 12px; }
+    .persona-card-jobs { display: flex; flex-wrap: wrap; gap: 6px; }
+    .persona-job-tag {
+      font-size: 11px; padding: 3px 10px; border-radius: 12px; font-weight: 500;
+      background: var(--bg-hover); color: var(--text-secondary);
+      display: flex; align-items: center; gap: 4px;
+    }
+    .persona-job-tag .job-dot { width: 6px; height: 6px; border-radius: 50%; }
+    .persona-job-tag .job-dot.completed { background: var(--green); }
+    .persona-job-tag .job-dot.failed { background: var(--red); }
+    .persona-job-tag .job-dot.never { background: var(--text-muted); }
+
+    .standalone-section-title {
+      font-size: 14px; font-weight: 600; color: var(--text-muted); text-transform: uppercase;
+      letter-spacing: .8px; margin-bottom: 12px;
+    }
+    .standalone-agent-list { display: flex; flex-direction: column; gap: 8px; }
+    .standalone-agent-item {
+      display: flex; align-items: center; gap: 12px; padding: 12px 16px;
+      background: var(--bg-surface); border: 1px solid var(--border-light); border-radius: var(--radius);
+      cursor: pointer; transition: all .15s;
+    }
+    .standalone-agent-item:hover { border-color: var(--accent); }
+    .standalone-agent-name { font-size: 14px; font-weight: 500; color: var(--text); flex: 1; }
+    .standalone-agent-meta { font-size: 12px; color: var(--text-muted); }
+
+    /* ======================================= */
+    /* ---- Notification bell + dropdown ---- */
+    /* ======================================= */
+    .notif-bell {
+      position: relative; background: none; border: none; cursor: pointer; padding: 6px;
+      color: var(--text-muted); transition: color .15s;
+    }
+    .notif-bell:hover { color: var(--text); }
+    .notif-badge {
+      position: absolute; top: 2px; right: 2px;
+      min-width: 16px; height: 16px; border-radius: 8px;
+      background: var(--red); color: #fff; font-size: 10px; font-weight: 700;
+      display: flex; align-items: center; justify-content: center; padding: 0 4px;
+      line-height: 1;
+    }
+    .notif-badge.hidden { display: none; }
+
+    .notif-dropdown {
+      position: absolute; top: 100%; right: 0; width: 380px; max-height: 480px;
+      background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius);
+      box-shadow: 0 8px 32px rgba(0,0,0,.12); z-index: 200; display: none; flex-direction: column;
+    }
+    .notif-dropdown.show { display: flex; }
+    .notif-dropdown-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 16px; border-bottom: 1px solid var(--border-light);
+    }
+    .notif-dropdown-title { font-size: 15px; font-weight: 600; color: var(--text); }
+    .notif-mark-all { font-size: 12px; color: var(--accent); cursor: pointer; background: none; border: none; font-weight: 500; }
+    .notif-mark-all:hover { text-decoration: underline; }
+    .notif-list { overflow-y: auto; flex: 1; }
+    .notif-item {
+      padding: 12px 16px; border-bottom: 1px solid var(--border-light);
+      cursor: pointer; transition: background .1s;
+    }
+    .notif-item:hover { background: var(--bg-hover); }
+    .notif-item.unread { background: var(--accent-light); }
+    .notif-item-title { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 2px; display: flex; align-items: center; gap: 6px; }
+    .notif-item-body { font-size: 12px; color: var(--text-secondary); line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    .notif-item-time { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+    .notif-item-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .notif-item-dot.success { background: var(--green); }
+    .notif-item-dot.error { background: var(--red); }
+    .notif-empty { padding: 32px; text-align: center; color: var(--text-muted); font-size: 13px; }
+
+    /* Toast notification */
+    .notif-toast {
+      position: fixed; bottom: 24px; right: 24px; z-index: 300;
+      background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius);
+      box-shadow: 0 8px 32px rgba(0,0,0,.15); padding: 14px 18px; max-width: 360px;
+      transform: translateY(100px); opacity: 0; transition: all .3s ease;
+    }
+    .notif-toast.show { transform: translateY(0); opacity: 1; }
+    .notif-toast-title { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 2px; }
+    .notif-toast-body { font-size: 12px; color: var(--text-secondary); line-height: 1.4; }
+    .notif-toast-close {
+      position: absolute; top: 8px; right: 8px; background: none; border: none;
+      color: var(--text-muted); cursor: pointer; font-size: 14px; padding: 2px;
+    }
+
+    @media (max-width: 768px) {
+      .agents-home { padding: 20px 16px; }
+      .persona-grid { grid-template-columns: 1fr; }
+      .notif-dropdown { width: calc(100vw - 24px); right: -60px; }
+    }
+
     ::-webkit-scrollbar { width: 6px; }
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
@@ -798,6 +911,18 @@
       <div class="sidebar-brand">
         <svg width="24" height="24" viewBox="0 0 32 32" style="flex-shrink:0"><defs><linearGradient id="brand-g" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#0D9488"/><stop offset="100%" stop-color="#115E59"/></linearGradient></defs><rect width="32" height="32" rx="8" fill="url(#brand-g)"/><path d="M9 8v16M9 16l8-8M9 16l8 8" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
         Kai
+        <span style="flex:1"></span>
+        <button class="notif-bell" id="notif-bell" onclick="toggleNotifications(event)" title="Notifications" style="position:relative">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+          <span class="notif-badge hidden" id="notif-badge">0</span>
+          <div class="notif-dropdown" id="notif-dropdown">
+            <div class="notif-dropdown-header">
+              <span class="notif-dropdown-title">Notifications</span>
+              <button class="notif-mark-all" onclick="event.stopPropagation();markAllRead()">Mark all read</button>
+            </div>
+            <div class="notif-list" id="notif-list"></div>
+          </div>
+        </button>
         <button class="sidebar-collapse-btn" onclick="collapseSidebar()" title="Collapse sidebar">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 2L5 8l6 6"/></svg>
         </button>
@@ -1071,9 +1196,10 @@ npm run dev</code></pre>
 
   <script type="module">
     const state = {
-      sessionId: null, sessions: [], agents: [], projects: [], streaming: false, status: null,
+      sessionId: null, sessions: [], agents: [], personas: [], projects: [], streaming: false, status: null,
       activeView: 'chat', selectedAgentId: null, selectedRunId: null,
       attachments: [], // { name, mimeType, data (base64), type: 'image'|'file', preview? }
+      notifications: [], unreadCount: 0,
     };
 
     marked.setOptions({ breaks: true, gfm: true });
@@ -1256,7 +1382,10 @@ npm run dev</code></pre>
       $('view-code').classList.toggle('active', view === 'code');
       $('view-docs').classList.toggle('active', view === 'docs');
 
-      if (view === 'agents') renderAgentsList();
+      if (view === 'agents') {
+        state.selectedAgentId = null;
+        renderAgentsList();
+      }
       if (view === 'code') renderCodeView();
       closeSidebar();
     };
@@ -1309,16 +1438,29 @@ npm run dev</code></pre>
       if (welcomeH2) welcomeH2.textContent = `${getGreeting()}, Tim`;
 
       try {
-        const [status, sessions, agents, projects] = await Promise.all([
-          api.get('/api/status'), api.get('/api/sessions'), api.get('/api/agents'), api.get('/api/projects'),
+        const [status, sessions, agentsData, projects, notifData] = await Promise.all([
+          api.get('/api/status'), api.get('/api/sessions'), api.get('/api/agents'), api.get('/api/projects'), api.get('/api/notifications'),
         ]);
-        state.status = status; state.sessions = sessions; state.agents = agents; state.projects = projects;
+        state.status = status; state.sessions = sessions;
+        state.agents = agentsData.agents || agentsData; state.personas = agentsData.personas || [];
+        state.projects = projects;
+        state.notifications = notifData.notifications || []; state.unreadCount = notifData.unread || 0;
 
         renderNav();
         renderFooter();
+        renderNotifBadge();
+
+        // Poll for new notifications every 30s
+        setInterval(pollNotifications, 30000);
       } catch {
         $('footer').innerHTML = '<span class="status-dot off"></span> Connection error';
       }
+    }
+
+    async function refreshAgents() {
+      const data = await api.get('/api/agents');
+      state.agents = data.agents || data;
+      state.personas = data.personas || [];
     }
 
     function renderNav() {
@@ -1407,7 +1549,96 @@ npm run dev</code></pre>
     // ==============================
 
     function renderAgentsList() {
-      // Agents list is rendered in the sidebar only
+      // If no agent selected, show persona-based home view
+      if (!state.selectedAgentId) {
+        renderAgentsHome();
+      }
+    }
+
+    function renderAgentsHome() {
+      const panel = $('agents-detail-panel');
+
+      // Group agents by persona
+      const personaAgents = new Map(); // persona.id -> { persona, agents[] }
+      const standalone = []; // agents without personas
+
+      for (const a of state.agents) {
+        if (a.persona) {
+          if (!personaAgents.has(a.id)) {
+            // Use agent id to find matching persona
+            const p = state.personas.find(p => p.id === a.id);
+            personaAgents.set(a.persona.name, { persona: a.persona, agents: [] });
+          }
+          const key = a.persona.name;
+          if (!personaAgents.has(key)) {
+            personaAgents.set(key, { persona: a.persona, agents: [] });
+          }
+          personaAgents.get(key).agents.push(a);
+        } else {
+          standalone.push(a);
+        }
+      }
+
+      let html = '<div class="agents-home">';
+      html += '<div class="agents-home-title">Agents</div>';
+      html += `<div class="agents-home-subtitle">${state.agents.length} agent${state.agents.length !== 1 ? 's' : ''} configured</div>`;
+
+      // Persona cards
+      if (personaAgents.size > 0) {
+        html += '<div class="persona-grid">';
+        for (const [name, { persona, agents }] of personaAgents) {
+          const initial = persona.name.charAt(0).toUpperCase();
+          const jobTags = agents.map(a => {
+            const status = !a.lastRun ? 'never' : a.lastRun.status;
+            return `<span class="persona-job-tag"><span class="job-dot ${status}"></span>${esc(friendlyName(a.name))}</span>`;
+          }).join('');
+          html += `
+            <div class="persona-card" onclick="selectAgent('${agents[0].id}')">
+              <div class="persona-card-header">
+                <div class="persona-avatar">${initial}</div>
+                <div>
+                  <div class="persona-card-name">${esc(persona.name)}</div>
+                  <div class="persona-card-role">${esc(persona.role)}</div>
+                </div>
+              </div>
+              ${persona.personality ? `<div class="persona-card-body">${esc(persona.personality.substring(0, 120))}${persona.personality.length > 120 ? '...' : ''}</div>` : ''}
+              <div class="persona-card-jobs">${jobTags}</div>
+            </div>
+          `;
+        }
+        html += '</div>';
+      }
+
+      // Standalone agents (no persona)
+      if (standalone.length > 0) {
+        html += `<div class="standalone-section-title">${personaAgents.size > 0 ? 'Workflows' : 'All Agents'}</div>`;
+        html += '<div class="standalone-agent-list">';
+        for (const a of standalone) {
+          const status = !a.lastRun ? 'never' : a.lastRun.status;
+          const statusColor = status === 'completed' ? 'var(--green)' : status === 'failed' ? 'var(--red)' : 'var(--text-muted)';
+          html += `
+            <div class="standalone-agent-item" onclick="selectAgent('${a.id}')">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="${statusColor}" stroke-width="1.5"><circle cx="8" cy="8" r="3"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2"/></svg>
+              <span class="standalone-agent-name">${esc(friendlyName(a.name))}</span>
+              <span class="standalone-agent-meta">${a.schedule ? cronToWords(a.schedule) : 'Manual'}</span>
+              <span class="standalone-agent-meta">${!a.lastRun ? '' : a.lastRun.status === 'completed' ? timeAgo(a.lastRun.completedAt) : 'Failed'}</span>
+            </div>
+          `;
+        }
+        html += '</div>';
+      }
+
+      if (state.agents.length === 0) {
+        html += `
+          <div class="agents-empty" style="height:auto;padding:40px 0">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="4"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+            <span>No agents yet. Click + in the sidebar to create one.</span>
+          </div>
+        `;
+      }
+
+      html += '</div>';
+      panel.innerHTML = html;
     }
 
     window.selectAgent = async function(id) {
@@ -1438,6 +1669,10 @@ npm run dev</code></pre>
 
       panel.innerHTML = `
         <div class="agent-detail">
+          <button class="run-detail-back" onclick="switchView('agents')" style="margin-bottom:12px">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 2L4 8l6 6"/></svg>
+            All Agents
+          </button>
           <div class="agent-detail-header">
             <div>
               <div class="agent-detail-title">${esc(fn)}</div>
@@ -1505,21 +1740,14 @@ npm run dev</code></pre>
         $('agent-steps-container').innerHTML = '<div style="color:var(--text-muted);font-size:13px">Could not load steps.</div>';
       }
 
-      // Load recap
+      // Load cached recap (generated at run completion, no LLM call)
       if (run.status === 'completed') {
+        const recapText = run.recap;
         $('agent-recap-container').innerHTML = `
           <div class="agent-recap">
             <div class="agent-recap-title success">&#10003; Run Completed &middot; ${formatDate(run.completedAt || run.completed_at)}</div>
-            <div class="agent-recap-body" id="recap-body"><div class="spinner"></div> Generating summary...</div>
+            <div class="agent-recap-body" id="recap-body">${recapText ? renderMd(recapText) : 'All steps completed successfully.'}</div>
           </div>`;
-        api.get(`/api/agents/${agentId}/recap`).then(d => {
-          const body = $('recap-body');
-          if (body && d.recap) body.innerHTML = renderMd(d.recap);
-          else if (body) body.textContent = 'All steps completed successfully.';
-        }).catch(() => {
-          const body = $('recap-body');
-          if (body) body.textContent = 'All steps completed successfully.';
-        });
       } else if (run.status === 'failed') {
         $('agent-recap-container').innerHTML = `
           <div class="agent-recap failed">
@@ -1666,7 +1894,7 @@ npm run dev</code></pre>
     window.toggleAgent = async function(id, enabled) {
       try {
         await api.patch(`/api/agents/${id}`, { enabled });
-        state.agents = await api.get('/api/agents');
+        await refreshAgents();
         renderNav();
         renderAgentsList();
         await loadAgentDetail(id);
@@ -1678,7 +1906,7 @@ npm run dev</code></pre>
       if (btn) { btn.disabled = true; btn.innerHTML = '<div class="spinner"></div> Running...'; }
       try {
         const r = await api.post(`/api/agents/${id}/run`);
-        state.agents = await api.get('/api/agents');
+        await refreshAgents();
         renderNav();
         renderAgentsList();
         await loadAgentDetail(id);
@@ -1750,15 +1978,10 @@ npm run dev</code></pre>
       showConfirm('Delete agent', `"${name}" and all its run history will be permanently deleted.`, 'Delete', async () => {
         try {
           await fetch(`/api/agents/${id}`, { method: 'DELETE' });
-          state.agents = await api.get('/api/agents');
+          await refreshAgents();
           state.selectedAgentId = null;
           renderNav();
           renderAgentsList();
-          $('agents-detail-panel').innerHTML = `
-            <div class="agents-empty">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="4"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg>
-              <span>Select an agent to view details</span>
-            </div>`;
         } catch {}
       });
     };
@@ -1804,7 +2027,7 @@ npm run dev</code></pre>
       if (!name) return;
       try {
         await api.patch(`/api/agents/${id}`, { name, description, schedule });
-        state.agents = await api.get('/api/agents');
+        await refreshAgents();
         renderNav();
         renderAgentsList();
         await selectAgent(id);
@@ -1914,7 +2137,7 @@ npm run dev</code></pre>
       try {
         const result = await api.post('/api/agents', { name, description, prompt, schedule });
         if (result.error) { errEl.textContent = result.error; errEl.style.display = 'block'; return; }
-        state.agents = await api.get('/api/agents');
+        await refreshAgents();
         renderNav();
         await selectAgent(result.id);
       } catch (e) {
@@ -2430,8 +2653,116 @@ npm run dev</code></pre>
     });
     function autoResize() { $input.style.height = 'auto'; $input.style.height = Math.min($input.scrollHeight, 200) + 'px'; }
 
+    // ==============================
+    // NOTIFICATIONS
+    // ==============================
+
+    function renderNotifBadge() {
+      const badge = $('notif-badge');
+      if (state.unreadCount > 0) {
+        badge.textContent = state.unreadCount > 99 ? '99+' : state.unreadCount;
+        badge.classList.remove('hidden');
+      } else {
+        badge.classList.add('hidden');
+      }
+    }
+
+    function renderNotifList() {
+      const list = $('notif-list');
+      if (state.notifications.length === 0) {
+        list.innerHTML = '<div class="notif-empty">No notifications yet</div>';
+        return;
+      }
+      list.innerHTML = state.notifications.map(n => {
+        const isSuccess = n.type === 'agent_completed';
+        const dotClass = isSuccess ? 'success' : 'error';
+        return `
+          <div class="notif-item ${n.read ? '' : 'unread'}" onclick="onNotifClick(${n.id}, '${n.agent_id || ''}')">
+            <div class="notif-item-title">
+              <span class="notif-item-dot ${dotClass}"></span>
+              ${esc(n.title)}
+            </div>
+            ${n.body ? `<div class="notif-item-body">${esc(n.body.substring(0, 200))}</div>` : ''}
+            <div class="notif-item-time">${timeAgo(n.created_at)}</div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    window.toggleNotifications = function(e) {
+      e.stopPropagation();
+      const dd = $('notif-dropdown');
+      const isShowing = dd.classList.contains('show');
+      if (isShowing) {
+        dd.classList.remove('show');
+      } else {
+        renderNotifList();
+        dd.classList.add('show');
+      }
+    };
+
+    // Close dropdown on outside click
+    document.addEventListener('click', (e) => {
+      const dd = $('notif-dropdown');
+      if (dd.classList.contains('show') && !e.target.closest('.notif-bell')) {
+        dd.classList.remove('show');
+      }
+    });
+
+    window.onNotifClick = async function(id, agentId) {
+      await api.patch(`/api/notifications/${id}/read`);
+      state.unreadCount = Math.max(0, state.unreadCount - 1);
+      const n = state.notifications.find(n => n.id === id);
+      if (n) n.read = 1;
+      renderNotifBadge();
+      renderNotifList();
+      $('notif-dropdown').classList.remove('show');
+      if (agentId) selectAgent(agentId);
+    };
+
+    window.markAllRead = async function() {
+      await api.post('/api/notifications/read-all');
+      state.unreadCount = 0;
+      state.notifications.forEach(n => n.read = 1);
+      renderNotifBadge();
+      renderNotifList();
+    };
+
+    async function pollNotifications() {
+      try {
+        const data = await api.get('/api/notifications');
+        const oldCount = state.unreadCount;
+        state.notifications = data.notifications || [];
+        state.unreadCount = data.unread || 0;
+        renderNotifBadge();
+
+        // Show toast for new notifications
+        if (state.unreadCount > oldCount && state.notifications.length > 0) {
+          const newest = state.notifications[0];
+          if (!newest.read) showToast(newest.title, newest.body || '');
+        }
+      } catch {}
+    }
+
+    window.showToast = function(title, body) {
+      const toast = $('notif-toast');
+      $('notif-toast-title').textContent = title;
+      $('notif-toast-body').textContent = body.substring(0, 150);
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), 6000);
+    };
+
+    window.hideToast = function() {
+      $('notif-toast').classList.remove('show');
+    };
+
     // ---- Boot ----
     init();
   </script>
+  <div class="notif-toast" id="notif-toast">
+    <button class="notif-toast-close" onclick="hideToast()">&times;</button>
+    <div class="notif-toast-title" id="notif-toast-title"></div>
+    <div class="notif-toast-body" id="notif-toast-body"></div>
+  </div>
 </body>
 </html>

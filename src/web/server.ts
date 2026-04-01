@@ -48,6 +48,10 @@ import {
   getAgentLogs,
   saveAgent,
   deleteAgent,
+  listNotifications,
+  unreadNotificationCount,
+  markNotificationRead,
+  markAllNotificationsRead,
 } from "../agents/db.js";
 import {
   runAgent,
@@ -58,6 +62,7 @@ import {
   getDaemonPidPath,
 } from "../agents/daemon.js";
 import { closeDb } from "../agents/db.js";
+import { listPersonas, loadPersona } from "../agent-persona.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const publicDir = path.resolve(__dirname, "public");
@@ -338,16 +343,21 @@ export async function startServer(options: ServerOptions): Promise<void> {
   // --- Agents ---
   app.get("/api/agents", (c) => {
     const agents = listAgents();
-    return c.json(
-      agents.map((a) => {
+    const personas = listPersonas();
+    const personaMap = new Map(personas.map((p) => [p.id, p]));
+
+    return c.json({
+      agents: agents.map((a) => {
         const runs = getLatestRuns(a.id, 1);
         const lastRun = runs[0];
+        const persona = personaMap.get(a.id);
         return {
           id: a.id,
           name: a.name,
           description: a.description,
           schedule: a.schedule,
           enabled: !!a.enabled,
+          persona: persona ? { name: persona.name, role: persona.role, personality: persona.personality } : null,
           lastRun: lastRun
             ? {
                 id: lastRun.id,
@@ -358,8 +368,15 @@ export async function startServer(options: ServerOptions): Promise<void> {
               }
             : null,
         };
-      })
-    );
+      }),
+      personas: personas.map((p) => ({
+        id: p.id,
+        name: p.name,
+        role: p.role,
+        personality: p.personality,
+        goals: p.goals,
+      })),
+    });
   });
 
   app.get("/api/agents/:id", (c) => {
@@ -376,6 +393,7 @@ export async function startServer(options: ServerOptions): Promise<void> {
         completedAt: r.completed_at,
         error: r.error,
         trigger: r.trigger,
+        recap: r.recap,
       })),
     });
   });
@@ -522,43 +540,32 @@ export async function startServer(options: ServerOptions): Promise<void> {
     return c.json(logs);
   });
 
-  // --- Agent recap (LLM-generated summary) ---
+  // --- Agent recap (cached from run completion) ---
   app.get("/api/agents/:id/recap", async (c) => {
     const agent = getAgent(c.req.param("id"));
     if (!agent) return c.json({ error: "Agent not found" }, 404);
     const runs = getLatestRuns(agent.id, 1);
     if (runs.length === 0) return c.json({ error: "No runs" }, 404);
-    const steps = getSteps(runs[0].id);
-    const completedSteps = steps.filter((s) => s.status === "completed" && s.output);
-    if (completedSteps.length === 0) return c.json({ recap: null });
+    return c.json({ recap: runs[0].recap || null, run: runs[0] });
+  });
 
-    const keyOutputs = completedSteps.map((s) =>
-      `## ${s.step_name}\n${(s.output || "").substring(0, 3000)}`
-    );
+  // --- Notifications ---
+  app.get("/api/notifications", (c) => {
+    const limit = parseInt(c.req.query("limit") || "30");
+    const notifications = listNotifications(limit);
+    const unread = unreadNotificationCount();
+    return c.json({ notifications, unread });
+  });
 
-    try {
-      const recapClient = createClient();
-      const response = await recapClient.chat.completions.create({
-        model: getModelId(),
-        messages: [
-          {
-            role: "system",
-            content: "You are summarizing the results of an AI agent workflow run. Be concise, highlight the most actionable insights, and format with clear headers. Keep it under 300 words. Use markdown formatting.",
-          },
-          {
-            role: "user",
-            content: `Summarize the key results from this "${agent.name}" agent run:\n\n${keyOutputs.join("\n\n---\n\n")}`,
-          },
-        ],
-        max_tokens: 2048,
-      });
+  app.patch("/api/notifications/:id/read", (c) => {
+    const id = parseInt(c.req.param("id"));
+    markNotificationRead(id);
+    return c.json({ ok: true });
+  });
 
-      const content = response.choices[0]?.message?.content
-        || (response.choices[0]?.message as any)?.reasoning || "";
-      return c.json({ recap: content, run: runs[0] });
-    } catch {
-      return c.json({ recap: null, run: runs[0] });
-    }
+  app.post("/api/notifications/read-all", (c) => {
+    markAllNotificationsRead();
+    return c.json({ ok: true });
   });
 
   // --- Chat (SSE streaming) ---

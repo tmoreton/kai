@@ -15,12 +15,14 @@ function estimateTokens(text: string): number {
 
 function messageTokens(msg: ChatCompletionMessageParam): number {
   let text = "";
+  let imageCount = 0;
   if (typeof msg.content === "string") {
     text = msg.content;
   } else if (Array.isArray(msg.content)) {
-    text = msg.content
-      .map((c) => ("text" in c ? c.text : ""))
-      .join("");
+    for (const c of msg.content) {
+      if ("text" in c) text += c.text;
+      else if ("image_url" in c) imageCount++;
+    }
   }
 
   if ("tool_calls" in msg && Array.isArray(msg.tool_calls)) {
@@ -31,7 +33,8 @@ function messageTokens(msg: ChatCompletionMessageParam): number {
     }
   }
 
-  return estimateTokens(text) + 4; // message overhead
+  // Images typically use ~1000 tokens each (varies by resolution)
+  return estimateTokens(text) + (imageCount * 1000) + 4; // message overhead
 }
 
 export interface TokenUsage {

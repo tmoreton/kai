@@ -228,3 +228,49 @@ export function getAgentLogs(agentId: string, limit = 50): { level: string; mess
     "SELECT level, message, created_at FROM logs WHERE agent_id = ? ORDER BY created_at DESC LIMIT ?"
   ).all(agentId, limit) as any[];
 }
+
+// --- Run recap ---
+
+export function saveRunRecap(runId: string, recap: string): void {
+  getDb().prepare("UPDATE runs SET recap = ? WHERE id = ?").run(recap, runId);
+}
+
+// --- Notifications ---
+
+export interface NotificationRecord {
+  id: number;
+  type: string;
+  title: string;
+  body: string | null;
+  agent_id: string | null;
+  run_id: string | null;
+  read: number;
+  created_at: string;
+}
+
+export function createNotification(n: { type?: string; title: string; body?: string; agentId?: string; runId?: string }): number {
+  const result = getDb().prepare(`
+    INSERT INTO notifications (type, title, body, agent_id, run_id)
+    VALUES (?, ?, ?, ?, ?)
+  `).run(n.type || "agent_run", n.title, n.body || null, n.agentId || null, n.runId || null);
+  return Number(result.lastInsertRowid);
+}
+
+export function listNotifications(limit = 30): NotificationRecord[] {
+  return getDb().prepare(
+    "SELECT * FROM notifications ORDER BY created_at DESC LIMIT ?"
+  ).all(limit) as NotificationRecord[];
+}
+
+export function unreadNotificationCount(): number {
+  const row = getDb().prepare("SELECT COUNT(*) as count FROM notifications WHERE read = 0").get() as any;
+  return row?.count || 0;
+}
+
+export function markNotificationRead(id: number): void {
+  getDb().prepare("UPDATE notifications SET read = 1 WHERE id = ?").run(id);
+}
+
+export function markAllNotificationsRead(): void {
+  getDb().prepare("UPDATE notifications SET read = 1 WHERE read = 0").run();
+}

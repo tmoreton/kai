@@ -503,6 +503,47 @@ export const toolDefinitions = [
       },
     },
   },
+  // === VISION / SCREENSHOT ===
+  {
+    type: "function" as const,
+    function: {
+      name: "take_screenshot",
+      description:
+        "Capture a screenshot of the screen. Returns the image for visual analysis. Use this to see what's on screen, verify UI changes, or analyze visual content. macOS only.",
+      parameters: {
+        type: "object",
+        properties: {
+          region: {
+            type: "string",
+            enum: ["full", "window", "selection"],
+            description: 'What to capture: "full" (entire screen, default), "window" (frontmost window), "selection" (interactive selection)',
+          },
+        },
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "analyze_image",
+      description:
+        "Analyze an image file using the vision model. Describe, extract text, identify UI elements, or answer questions about the image content.",
+      parameters: {
+        type: "object",
+        properties: {
+          image_path: {
+            type: "string",
+            description: "Path to the image file to analyze",
+          },
+          question: {
+            type: "string",
+            description: 'What to analyze or ask about the image (default: "Describe this image in detail.")',
+          },
+        },
+        required: ["image_path"],
+      },
+    },
+  },
   // === CORE MEMORY (Soul) ===
   {
     type: "function" as const,

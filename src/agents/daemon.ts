@@ -16,9 +16,11 @@ import {
 import {
   listAgents,
   getAgent,
+  getLatestRuns,
   addLog,
   type AgentRecord,
 } from "./db.js";
+import { evaluateConditions, type HeartbeatConfig } from "./conditions.js";
 
 /**
  * Daemon: Persistent background agent runner.
@@ -68,11 +70,8 @@ async function startDaemonInner(): Promise<void> {
   // Keep the process alive
   console.log(chalk.dim("  Daemon running. Press Ctrl+C to stop.\n"));
 
-  // Log status periodically
-  heartbeatInterval = setInterval(() => {
-    const count = scheduledJobs.size;
-    addLog("__daemon__", "info", `Heartbeat: ${count} agents scheduled`);
-  }, 5 * 60 * 1000); // Every 5 minutes
+  // Start proactive heartbeat loop (checks conditions + logs status)
+  startProactiveHeartbeat();
 }
 
 /**
@@ -104,6 +103,67 @@ export async function startDaemon(): Promise<void> {
     await new Promise((r) => setTimeout(r, RESTART_DELAY_MS));
     return startDaemon(); // Recursive restart
   }
+}
+
+const HEARTBEAT_CHECK_INTERVAL = 30_000; // 30 seconds
+const DEFAULT_COOLDOWN_MS = 300_000; // 5 minutes
+
+/**
+ * Proactive heartbeat: actively evaluates conditions for agents with heartbeat config.
+ * Also logs daemon status periodically.
+ */
+function startProactiveHeartbeat(): void {
+  let checkCount = 0;
+
+  heartbeatInterval = setInterval(async () => {
+    checkCount++;
+
+    // Log daemon status every 10 checks (~5 minutes)
+    if (checkCount % 10 === 0) {
+      const count = scheduledJobs.size;
+      addLog("__daemon__", "info", `Heartbeat: ${count} agents scheduled`);
+    }
+
+    // Check heartbeat conditions for eligible agents
+    const agents = listAgents();
+    for (const agent of agents) {
+      if (!agent.enabled) continue;
+
+      let config: Record<string, any>;
+      try {
+        config = JSON.parse(agent.config || "{}");
+      } catch {
+        continue;
+      }
+
+      const heartbeat = config.heartbeat as HeartbeatConfig | undefined;
+      if (!heartbeat?.enabled || !heartbeat.conditions?.length) continue;
+
+      // Respect cooldown — check last run time
+      const cooldown = heartbeat.cooldown_ms ?? DEFAULT_COOLDOWN_MS;
+      const recentRuns = getLatestRuns(agent.id, 1);
+      if (recentRuns.length > 0) {
+        const lastRunTime = new Date(recentRuns[0].started_at).getTime();
+        if (Date.now() - lastRunTime < cooldown) continue;
+      }
+
+      try {
+        const results = await evaluateConditions(heartbeat.conditions);
+        const anyMet = results.some((r) => r.met);
+
+        if (anyMet) {
+          const metConditions = results.filter((r) => r.met);
+          const summary = metConditions.map((r) => `${r.condition.type}:${r.condition.check.substring(0, 50)}`).join(", ");
+          addLog(agent.id, "info", `Heartbeat condition met (${summary}), triggering workflow`);
+          console.log(chalk.cyan(`  💓 Heartbeat triggered: ${agent.name} — ${summary}`));
+          await runAgent(agent.id);
+        }
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        addLog(agent.id, "error", `Heartbeat check failed: ${msg}`);
+      }
+    }
+  }, HEARTBEAT_CHECK_INTERVAL);
 }
 
 function scheduleAgent(agent: AgentRecord): void {

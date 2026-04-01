@@ -108,8 +108,19 @@ export function formatAgentDetail(agentId: string): string {
   }
 
   const config = JSON.parse(agent.config || "{}");
-  if (Object.keys(config).length > 0) {
-    lines.push(chalk.dim(`  Config: ${JSON.stringify(config, null, 2).split("\n").join("\n    ")}`));
+  if (config.heartbeat?.enabled) {
+    const hb = config.heartbeat;
+    lines.push(chalk.cyan(`  Heartbeat: enabled`));
+    lines.push(chalk.dim(`    Cooldown: ${(hb.cooldown_ms || 300000) / 1000}s`));
+    if (hb.conditions?.length) {
+      for (const c of hb.conditions) {
+        lines.push(chalk.dim(`    Condition: [${c.type}] ${c.check}`));
+      }
+    }
+  }
+  const { heartbeat: _, ...restConfig } = config;
+  if (Object.keys(restConfig).length > 0) {
+    lines.push(chalk.dim(`  Config: ${JSON.stringify(restConfig, null, 2).split("\n").join("\n    ")}`));
   }
 
   // Recent runs

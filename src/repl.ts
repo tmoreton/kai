@@ -175,6 +175,8 @@ export async function startRepl(options: ReplOptions = {}, initialPrompt?: strin
     { cmd: "/agent run", desc: "Run agent" },
     { cmd: "/agent output", desc: "View output" },
     { cmd: "/agent info", desc: "Agent details" },
+    { cmd: "/skill", desc: "List installed skills" },
+    { cmd: "/skill reload", desc: "Hot-reload all skills" },
     { cmd: "/mcp", desc: "List MCP servers" },
     { cmd: "/mcp add", desc: "Add MCP server" },
     { cmd: "/mcp remove", desc: "Remove MCP server" },
@@ -1095,6 +1097,39 @@ ${(gitDiff(false) || "(none)").substring(0, 2000)}`;
     const agentId = input.substring(12).trim();
     const { formatAgentDetail } = await import("./agents/manager.js");
     console.log(formatAgentDetail(agentId));
+    return "handled";
+  }
+
+  // === /skill [list|reload] ===
+  if (cmd === "/skill" || cmd === "/skill list") {
+    const { getLoadedSkills, skillsDir } = await import("./skills/index.js");
+    const skills = getLoadedSkills();
+    if (skills.length === 0) {
+      console.log(chalk.dim("\n  No skills installed."));
+      console.log(chalk.dim(`  Install to: ${skillsDir()}/`));
+      console.log(chalk.dim("  CLI: kai skill install <github-url>\n"));
+    } else {
+      console.log(chalk.bold("\n  Installed Skills:\n"));
+      for (const s of skills) {
+        console.log(`  ${chalk.green("●")} ${chalk.bold(s.manifest.name)} ${chalk.dim(`v${s.manifest.version}`)} ${chalk.dim(`[${s.manifest.id}]`)}`);
+        for (const t of s.manifest.tools) {
+          console.log(chalk.dim(`    - ${t.name}: ${t.description || ""}`));
+        }
+      }
+      console.log("");
+    }
+    return "handled";
+  }
+  if (cmd === "/skill reload") {
+    const { reloadAllSkills } = await import("./skills/index.js");
+    const result = await reloadAllSkills();
+    console.log(chalk.green(`\n  ✓ Reloaded ${result.loaded} skills`));
+    if (result.errors.length > 0) {
+      for (const err of result.errors) {
+        console.log(chalk.yellow(`  ⚠ ${err}`));
+      }
+    }
+    console.log("");
     return "handled";
   }
 

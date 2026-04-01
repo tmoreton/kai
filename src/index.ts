@@ -7,6 +7,7 @@ import { Command } from "commander";
 import chalk from "chalk";
 import { startRepl } from "./repl.js";
 import { initMcpServers, shutdownMcpServers, listMcpServers } from "./tools/index.js";
+import { loadAllSkills } from "./skills/index.js";
 
 // Load .env from all possible locations — override existing env vars
 // so ~/.kai/.env always takes precedence over stale shell exports
@@ -35,8 +36,9 @@ program
       pipedInput = await readStdin();
     }
 
-    // Initialize MCP servers before any interaction
+    // Initialize MCP servers and skills before any interaction
     await initMcpServers();
+    await loadAllSkills();
 
     const initialPrompt = [pipedInput, promptArg].filter(Boolean).join("\n\n") || undefined;
 
@@ -86,10 +88,27 @@ agent
   .description("Create a new agent from a workflow YAML file")
   .option("-s, --schedule <cron>", "Cron schedule (e.g. '0 */6 * * *')")
   .option("--config <json>", "JSON config overrides")
+  .option("--heartbeat-condition <cmd>", "Shell command condition for proactive heartbeat")
+  .option("--heartbeat-interval <ms>", "Heartbeat check interval in ms (default: 60000)")
+  .option("--heartbeat-cooldown <ms>", "Cooldown between triggers in ms (default: 300000)")
   .action(async (name, workflowFile, options) => {
     const { createAgent } = await import("./agents/manager.js");
     try {
-      const config = options.config ? JSON.parse(options.config) : undefined;
+      let config = options.config ? JSON.parse(options.config) : undefined;
+
+      // Build heartbeat config from CLI flags
+      if (options.heartbeatCondition) {
+        config = config || {};
+        config.heartbeat = {
+          enabled: true,
+          interval_ms: options.heartbeatInterval ? parseInt(options.heartbeatInterval) : 60000,
+          cooldown_ms: options.heartbeatCooldown ? parseInt(options.heartbeatCooldown) : 300000,
+          conditions: [
+            { type: "shell", check: options.heartbeatCondition },
+          ],
+        };
+      }
+
       const id = createAgent({
         name,
         workflowFile,
@@ -208,6 +227,86 @@ agent
     } else {
       console.log("Daemon is not running");
     }
+  });
+
+// --- Skill commands ---
+const skill = program.command("skill").description("Manage modular skills");
+
+skill
+  .command("list")
+  .description("List installed skills and their tools")
+  .action(async () => {
+    const chalk = (await import("chalk")).default;
+    const { loadAllSkills, getLoadedSkills, skillsDir } = await import("./skills/index.js");
+    await loadAllSkills();
+    const skills = getLoadedSkills();
+
+    if (skills.length === 0) {
+      console.log(chalk.dim("\n  No skills installed."));
+      console.log(chalk.dim(`  Install skills to ${skillsDir()}/`));
+      console.log(chalk.dim("  Or use: kai skill install <github-url>\n"));
+      return;
+    }
+
+    console.log(chalk.bold("\n  Installed Skills\n"));
+    for (const s of skills) {
+      console.log(`  ${chalk.green("●")} ${chalk.bold(s.manifest.name)} ${chalk.dim(`v${s.manifest.version}`)} ${chalk.dim(`[${s.manifest.id}]`)}`);
+      if (s.manifest.description) {
+        console.log(chalk.dim(`    ${s.manifest.description}`));
+      }
+      if (s.manifest.tools.length > 0) {
+        for (const tool of s.manifest.tools) {
+          console.log(chalk.dim(`    - ${tool.name}: ${tool.description || ""}`));
+        }
+      }
+      console.log("");
+    }
+  });
+
+skill
+  .command("install <source>")
+  .description("Install a skill from a GitHub URL or local path")
+  .action(async (source) => {
+    const chalk = (await import("chalk")).default;
+    const { installSkill } = await import("./skills/installer.js");
+    try {
+      const id = await installSkill(source);
+      console.log(chalk.green(`\n  ✓ Skill "${id}" installed successfully\n`));
+    } catch (err: any) {
+      console.error(chalk.red(`  Error: ${err.message}`));
+      process.exit(1);
+    }
+  });
+
+skill
+  .command("uninstall <skill-id>")
+  .description("Uninstall a skill")
+  .action(async (skillId) => {
+    const chalk = (await import("chalk")).default;
+    const { uninstallSkill } = await import("./skills/installer.js");
+    try {
+      await uninstallSkill(skillId);
+      console.log(chalk.green(`\n  ✓ Skill "${skillId}" uninstalled\n`));
+    } catch (err: any) {
+      console.error(chalk.red(`  Error: ${err.message}`));
+      process.exit(1);
+    }
+  });
+
+skill
+  .command("reload")
+  .description("Hot-reload all installed skills")
+  .action(async () => {
+    const chalk = (await import("chalk")).default;
+    const { reloadAllSkills } = await import("./skills/index.js");
+    const result = await reloadAllSkills();
+    console.log(chalk.green(`\n  ✓ Reloaded ${result.loaded} skills`));
+    if (result.errors.length > 0) {
+      for (const err of result.errors) {
+        console.log(chalk.yellow(`  ⚠ ${err}`));
+      }
+    }
+    console.log("");
   });
 
 // --- MCP commands ---

@@ -13,9 +13,12 @@ import { updateCoreMemory, readCoreMemory } from "../soul.js";
 import { searchRecall } from "../recall.js";
 import { archivalInsert, archivalSearch } from "../archival.js";
 import { tryExecuteMcpTool } from "./mcp.js";
+import { tryExecuteSkillTool } from "../skills/executor.js";
 import { validateToolArgs } from "./validation.js";
 import { isToolAllowedInPlanMode, isPlanMode } from "../plan-mode.js";
 import { gitLogTool, gitDiffSessionTool, gitUndoTool, gitStashTool } from "./git-tools.js";
+import { takeScreenshot } from "./screenshot.js";
+import { analyzeImage } from "./vision.js";
 
 export type ToolResult = string;
 
@@ -152,6 +155,10 @@ export async function executeTool(
       }
       case "generate_image":
         result = await generateImageTool(args as { prompt: string; reference_image?: string; width?: number; height?: number; output_dir?: string }); break;
+      case "take_screenshot":
+        result = await takeScreenshot(args as { region?: "full" | "window" | "selection" }); break;
+      case "analyze_image":
+        result = await analyzeImage(args as { image_path: string; question?: string }); break;
       case "git_log":
         result = await gitLogTool(args as { count?: number }); break;
       case "git_diff_session":
@@ -166,7 +173,13 @@ export async function executeTool(
         if (mcpResult !== null) {
           result = mcpResult;
         } else {
-          result = `Unknown tool: ${name}`;
+          // Check if it's a skill tool (skill__id__tool)
+          const skillResult = await tryExecuteSkillTool(name, args);
+          if (skillResult !== null) {
+            result = skillResult;
+          } else {
+            result = `Unknown tool: ${name}`;
+          }
         }
       }
     }

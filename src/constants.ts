@@ -56,6 +56,9 @@ export const EXCLUDED_DIRS = ["node_modules", ".git", "dist", ".next", ".cache"]
 export const FIREWORKS_MODEL = "accounts/fireworks/routers/kimi-k2p5-turbo";
 export const FIREWORKS_MODEL_LABEL = "Kimi K2.5 Turbo";
 
+// Vision model (via OpenRouter — used for image analysis and screenshot understanding)
+export const VISION_MODEL = "anthropic/claude-sonnet-4";
+
 // Built-in agent types shared between subagent.ts and swarm.ts
 export const BUILT_IN_AGENT_CONFIGS = {
   explorer: {

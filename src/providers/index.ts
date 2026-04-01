@@ -1,6 +1,6 @@
 import OpenAI from "openai";
 import chalk from "chalk";
-import { FIREWORKS_MODEL } from "../constants.js";
+import { FIREWORKS_MODEL, VISION_MODEL } from "../constants.js";
 
 /**
  * Two providers:
@@ -54,4 +54,19 @@ export function createImageClient(): OpenAI {
     throw new Error("OPENROUTER_API_KEY is not set — needed for image generation.");
   }
   return new OpenAI({ apiKey, baseURL: "https://openrouter.ai/api/v1" });
+}
+
+/**
+ * Resolve a vision-capable provider for image analysis.
+ * Uses OpenRouter with a vision model since Fireworks may not support image inputs.
+ */
+export function resolveVisionProvider(): { client: OpenAI; model: string } {
+  const apiKey = process.env.OPENROUTER_API_KEY || "";
+  if (!apiKey) {
+    throw new Error("OPENROUTER_API_KEY is not set — needed for vision/image analysis.");
+  }
+  return {
+    client: new OpenAI({ apiKey, baseURL: "https://openrouter.ai/api/v1" }),
+    model: VISION_MODEL,
+  };
 }

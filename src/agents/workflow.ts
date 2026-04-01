@@ -10,6 +10,8 @@ import {
   completeStep,
   addLog,
   getSteps,
+  saveRunRecap,
+  createNotification,
   type StepRecord,
 } from "./db.js";
 import { resolveProvider, type ResolvedProvider } from "../providers/index.js";
@@ -77,6 +79,7 @@ export interface WorkflowContext {
   env: Record<string, string>;
   agent_id: string;
   run_id: string;
+  trigger_reason?: string; // "manual", "cron", "heartbeat"
 }
 
 // Registry of integration handlers
@@ -322,11 +325,80 @@ export async function executeWorkflow(
     completeRun(runId, "completed");
     addLog(agentId, "info", `Workflow "${workflow.name}" completed successfully`, runId);
     onProgress?.("complete", "All steps done");
+
+    // Generate and cache recap + create notification (non-blocking)
+    generateAndCacheRecap(runId, agentId, workflow.name).catch(() => {});
+
     return { success: true, results: ctx.vars };
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     completeRun(runId, "failed", msg);
+
+    // Create failure notification
+    createNotification({
+      type: "agent_failed",
+      title: `${workflow.name} failed`,
+      body: msg.substring(0, 500),
+      agentId,
+      runId,
+    });
+
     return { success: false, results: ctx.vars, error: msg };
+  }
+}
+
+/**
+ * Generate an LLM recap of a completed run, cache it in the DB, and create a notification.
+ */
+async function generateAndCacheRecap(runId: string, agentId: string, workflowName: string): Promise<void> {
+  const steps = getSteps(runId);
+  const completedSteps = steps.filter((s) => s.status === "completed" && s.output);
+  if (completedSteps.length === 0) return;
+
+  const keyOutputs = completedSteps.map((s) =>
+    `## ${s.step_name}\n${(s.output || "").substring(0, 3000)}`
+  );
+
+  try {
+    const client = getSharedClient();
+    const model = getSharedModel();
+    const response = await client.chat.completions.create({
+      model,
+      messages: [
+        {
+          role: "system",
+          content: "You are summarizing the results of an AI agent workflow run. Be concise, highlight the most actionable insights, and format with clear headers. Keep it under 300 words. Use markdown formatting.",
+        },
+        {
+          role: "user",
+          content: `Summarize the key results from this "${workflowName}" agent run:\n\n${keyOutputs.join("\n\n---\n\n")}`,
+        },
+      ],
+      max_tokens: 2048,
+    });
+
+    const recap = response.choices[0]?.message?.content
+      || (response.choices[0]?.message as any)?.reasoning || "";
+
+    if (recap) {
+      saveRunRecap(runId, recap);
+      createNotification({
+        type: "agent_completed",
+        title: `${workflowName} completed`,
+        body: recap.substring(0, 500),
+        agentId,
+        runId,
+      });
+    }
+  } catch {
+    // Recap generation is best-effort; don't fail the run
+    createNotification({
+      type: "agent_completed",
+      title: `${workflowName} completed`,
+      body: "Run completed successfully.",
+      agentId,
+      runId,
+    });
   }
 }
 

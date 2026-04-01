@@ -4,6 +4,7 @@ import type {
   ChatCompletionTool,
 } from "openai/resources/chat/completions";
 import { toolDefinitions, getMcpToolDefinitions } from "./tools/index.js";
+import { getSkillToolDefinitions } from "./skills/index.js";
 import { executeTool } from "./tools/executor.js";
 import { trackUsage, shouldCompact, compactMessages, checkBudget } from "./context.js";
 import {
@@ -50,9 +51,10 @@ export async function chat(
   onToken?: (token: string) => void,
   options?: { tools?: ChatCompletionTool[]; maxTurns?: number }
 ): Promise<ChatCompletionMessageParam[]> {
-  // Merge built-in tools with any MCP server tools
+  // Merge built-in tools with MCP server tools and skill tools
   const mcpTools = getMcpToolDefinitions();
-  const allTools = [...toolDefinitions, ...mcpTools] as ChatCompletionTool[];
+  const skillTools = getSkillToolDefinitions();
+  const allTools = [...toolDefinitions, ...mcpTools, ...skillTools] as ChatCompletionTool[];
   const activeTools = options?.tools ?? allTools;
   const maxTurns = options?.maxTurns ?? MAX_TOOL_TURNS;
   const updatedMessages = [...messages];
@@ -444,7 +446,7 @@ export async function chat(
         }
 
         // Show spinner for slow tools (image gen, web fetch, agents, swarms)
-        const slowTools = ["generate_image", "web_search", "spawn_agent", "spawn_swarm"];
+        const slowTools = ["generate_image", "web_search", "spawn_agent", "spawn_swarm", "take_screenshot", "analyze_image"];
         const isSlow = slowTools.includes(p.toolName) || p.toolName.startsWith("mcp__");
         let toolSpinner: ReturnType<typeof setInterval> | null = null;
         const spinChars = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
@@ -512,11 +514,24 @@ export async function chat(
           lastFailedCall = "";
         }
 
-        updatedMessages.push({
-          role: "tool",
-          tool_call_id: p.tc.id,
-          content: contextContent,
-        });
+        // Check if tool result contains an image (from screenshot/vision tools)
+        const imageToolResult = tryParseImageResult(contextContent);
+        if (imageToolResult) {
+          updatedMessages.push({
+            role: "tool",
+            tool_call_id: p.tc.id,
+            content: [
+              { type: "text", text: `Screenshot saved to: ${imageToolResult.path} (${imageToolResult.size_kb} KB)` },
+              { type: "image_url", image_url: { url: imageToolResult.data_url } },
+            ] as any,
+          });
+        } else {
+          updatedMessages.push({
+            role: "tool",
+            tool_call_id: p.tc.id,
+            content: contextContent,
+          });
+        }
 
         // Circuit breaker: too many consecutive errors
         if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
@@ -567,10 +582,16 @@ function formatToolLabel(toolName: string): string {
     agent_list: "AgentList",
     agent_memory_read: "AgentMemory",
     agent_memory_update: "AgentMemory",
+    take_screenshot: "Screenshot",
+    analyze_image: "Vision",
   };
   if (toolName.startsWith("mcp__")) {
     const parts = toolName.split("__");
     return `MCP:${parts[1]}/${parts.slice(2).join("__")}`;
+  }
+  if (toolName.startsWith("skill__")) {
+    const parts = toolName.substring(7).split("__");
+    return `Skill:${parts.slice(0, -1).join("/")}/${parts[parts.length - 1]}`;
   }
   return labels[toolName] || toolName;
 }
@@ -596,6 +617,10 @@ export function summarizeArgs(
       return String(args.query || "");
     case "generate_image":
       return String(args.prompt || "").substring(0, 80);
+    case "take_screenshot":
+      return String(args.region || "full");
+    case "analyze_image":
+      return `${args.image_path} — ${String(args.question || "describe").substring(0, 50)}`;
     case "spawn_agent":
       return `${args.agent}: ${String(args.task || "").substring(0, 50)}`;
     case "spawn_swarm": {
@@ -688,4 +713,22 @@ export function rescueToolCallsFromText(
   }
 
   return rescued;
+}
+
+/**
+ * Try to parse a tool result as an image result (from screenshot tool).
+ * Returns parsed data if it's an image result, null otherwise.
+ */
+function tryParseImageResult(
+  result: string
+): { path: string; size_kb: number; data_url: string } | null {
+  try {
+    const parsed = JSON.parse(result);
+    if (parsed?.type === "image_result" && parsed.data_url && parsed.path) {
+      return parsed;
+    }
+  } catch {
+    // Not JSON or not an image result
+  }
+  return null;
 }
