@@ -7,7 +7,6 @@ import { Command } from "commander";
 import chalk from "chalk";
 import { startRepl } from "./repl.js";
 import { initMcpServers, shutdownMcpServers, listMcpServers } from "./tools/index.js";
-import { FIREWORKS_MODEL, FIREWORKS_MODEL_LABEL } from "./constants.js";
 
 // Load .env from all possible locations — override existing env vars
 // so ~/.kai/.env always takes precedence over stale shell exports
@@ -209,16 +208,6 @@ agent
     } else {
       console.log("Daemon is not running");
     }
-  });
-
-// --- Model command ---
-program
-  .command("model")
-  .description("Show current model")
-  .action(async () => {
-    const chalk = (await import("chalk")).default;
-    console.log(chalk.bold(`\n  Model: `) + chalk.cyan(FIREWORKS_MODEL_LABEL));
-    console.log(chalk.dim(`  ${FIREWORKS_MODEL} (via Fireworks)\n`));
   });
 
 // --- MCP commands ---

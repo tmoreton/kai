@@ -31,6 +31,13 @@ const BUILTIN_AGENTS: BuiltinAgent[] = [
     schedule: "0 23 * * *",
     yamlFile: "kai-backup.yaml",
   },
+  {
+    id: "agent-kai-memory-cleanup",
+    name: "Kai Memory Cleanup",
+    description: "Weekly maintenance — prunes old recall, deduplicates archival, reports memory usage",
+    schedule: "0 4 * * 0",
+    yamlFile: "kai-memory-cleanup.yaml",
+  },
 ];
 
 /**

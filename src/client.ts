@@ -126,14 +126,12 @@ export async function chat(
 
     let content = "";       // Visible output (streamed to user)
     let reasoning = "";     // Internal thinking (NOT shown to user)
-    let toolCalls: Array<{
+    // Index-based tracking: Fireworks sends tc.id on every delta chunk,
+    // so we must use tc.index to accumulate fragments into complete tool calls.
+    const toolCallMap = new Map<number, {
       id: string;
       function: { name: string; arguments: string };
-    }> = [];
-    let currentToolCall: {
-      id: string;
-      function: { name: string; arguments: string };
-    } | null = null;
+    }>();
     let chunkUsage: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number } | null = null;
 
     try {
@@ -179,31 +177,28 @@ export async function chat(
             process.stderr.write("\x1b[2K\r");
           }
           for (const tc of delta.tool_calls) {
-            if (tc.id) {
-              if (currentToolCall) {
-                toolCalls.push(currentToolCall);
-              }
-              currentToolCall = {
-                id: tc.id,
+            const idx = tc.index ?? 0;
+            const existing = toolCallMap.get(idx);
+            if (existing) {
+              // Append to existing tool call at this index
+              if (tc.function?.name) existing.function.name += tc.function.name;
+              if (tc.function?.arguments) existing.function.arguments += tc.function.arguments;
+            } else {
+              // First chunk for this index
+              toolCallMap.set(idx, {
+                id: tc.id || `call-${idx}-${Date.now()}`,
                 function: {
                   name: tc.function?.name || "",
                   arguments: tc.function?.arguments || "",
                 },
-              };
-            } else if (currentToolCall) {
-              if (tc.function?.name) {
-                currentToolCall.function.name += tc.function.name;
-              }
-              if (tc.function?.arguments) {
-                currentToolCall.function.arguments += tc.function.arguments;
-              }
+              });
             }
           }
         }
       }
     } catch (streamErr: unknown) {
       // Handle stream errors gracefully instead of crashing
-      if (!content && !toolCalls.length) {
+      if (!content && !toolCallMap.size) {
         const msg = streamErr instanceof Error ? streamErr.message : String(streamErr);
         throw new Error(`Stream failed: ${msg}`);
       }
@@ -216,9 +211,8 @@ export async function chat(
       }
     }
 
-    if (currentToolCall) {
-      toolCalls.push(currentToolCall);
-    }
+    // Collect accumulated tool calls from the index map
+    const toolCalls = Array.from(toolCallMap.values());
 
     if (chunkUsage) {
       trackUsage(chunkUsage);
@@ -291,10 +285,23 @@ export async function chat(
     }
 
     // Tool calls — execute and loop
+    // Sanitize arguments: Fireworks requires valid JSON object strings
+    const sanitizedToolCalls = toolCalls.map((tc) => {
+      let args = tc.function.arguments;
+      try {
+        const parsed = JSON.parse(args);
+        // Ensure it serializes back as a proper JSON object
+        if (typeof parsed !== "object" || parsed === null) args = "{}";
+      } catch {
+        args = "{}";
+      }
+      return { ...tc, function: { ...tc.function, arguments: args } };
+    });
+
     const assistantMsg: ChatCompletionMessageParam = {
       role: "assistant",
       content: content || null,
-      tool_calls: toolCalls.map((tc) => ({
+      tool_calls: sanitizedToolCalls.map((tc) => ({
         id: tc.id,
         type: "function" as const,
         function: tc.function,

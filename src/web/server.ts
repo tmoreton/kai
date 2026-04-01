@@ -888,14 +888,12 @@ async function chatForWeb(
     }
 
     let content = "";
-    let toolCalls: Array<{
+    // Index-based tracking: Fireworks sends tc.id on every delta chunk,
+    // so we must use tc.index to accumulate fragments into complete tool calls.
+    const toolCallMap = new Map<number, {
       id: string;
       function: { name: string; arguments: string };
-    }> = [];
-    let currentToolCall: {
-      id: string;
-      function: { name: string; arguments: string };
-    } | null = null;
+    }>();
     let chunkUsage: any = null;
 
     try {
@@ -923,18 +921,19 @@ async function chatForWeb(
 
         if (delta.tool_calls) {
           for (const tc of delta.tool_calls) {
-            if (tc.id) {
-              if (currentToolCall) toolCalls.push(currentToolCall);
-              currentToolCall = {
-                id: tc.id,
+            const idx = tc.index ?? 0;
+            const existing = toolCallMap.get(idx);
+            if (existing) {
+              if (tc.function?.name) existing.function.name += tc.function.name;
+              if (tc.function?.arguments) existing.function.arguments += tc.function.arguments;
+            } else {
+              toolCallMap.set(idx, {
+                id: tc.id || `call-${idx}-${Date.now()}`,
                 function: {
                   name: tc.function?.name || "",
                   arguments: tc.function?.arguments || "",
                 },
-              };
-            } else if (currentToolCall) {
-              if (tc.function?.name) currentToolCall.function.name += tc.function.name;
-              if (tc.function?.arguments) currentToolCall.function.arguments += tc.function.arguments;
+              });
             }
           }
         }
@@ -943,7 +942,7 @@ async function chatForWeb(
       clearTimeout(timeout);
     }
 
-    if (currentToolCall) toolCalls.push(currentToolCall);
+    const toolCalls = Array.from(toolCallMap.values());
     if (chunkUsage) trackUsage(chunkUsage);
 
     // Rescue tool calls leaked as text (handles Kimi, Qwen, and <function=> formats)
@@ -983,10 +982,22 @@ async function chatForWeb(
     }
 
     // Tool calls — execute and loop
+    // Sanitize arguments: Fireworks requires valid JSON object strings
+    const sanitizedToolCalls = toolCalls.map((tc) => {
+      let args = tc.function.arguments;
+      try {
+        const parsed = JSON.parse(args);
+        if (typeof parsed !== "object" || parsed === null) args = "{}";
+      } catch {
+        args = "{}";
+      }
+      return { ...tc, function: { ...tc.function, arguments: args } };
+    });
+
     const assistantMsg: ChatCompletionMessageParam = {
       role: "assistant",
       content: content || null,
-      tool_calls: toolCalls.map((tc) => ({
+      tool_calls: sanitizedToolCalls.map((tc) => ({
         id: tc.id,
         type: "function" as const,
         function: tc.function,

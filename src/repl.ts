@@ -4,7 +4,7 @@ import chalk from "chalk";
 import { createClient, chat, getModelId, getProviderName } from "./client.js";
 import { buildSystemPrompt } from "./system-prompt.js";
 import { getCwd, cleanupBackgroundProcesses } from "./tools/bash.js";
-import { formatCost, estimateContextSize, formatContextBreakdown, compactMessages } from "./context.js";
+import { estimateContextSize, compactMessages } from "./context.js";
 import {
   gitInfo, gitDiff, gitStatus, gitBranch, gitLog, gitBaseBranch,
   gitDiffAgainstBase, gitListBranches, gitRemote, ghAvailable, isGitRepo,
@@ -36,7 +36,6 @@ import {
   formatCustomCommands,
 } from "./commands.js";
 import { isPlanMode, togglePlanMode } from "./plan-mode.js";
-import { checkBudget } from "./context.js";
 import { autoRoute, applyRoute } from "./auto-route.js";
 import { bootstrapBuiltinAgents } from "./agents/bootstrap.js";
 
@@ -156,7 +155,6 @@ export async function startRepl(options: ReplOptions = {}, initialPrompt?: strin
     { cmd: "/help", desc: "Show all commands" },
     { cmd: "/clear", desc: "Clear conversation" },
     { cmd: "/compact", desc: "Compress context to save tokens" },
-    { cmd: "/cost", desc: "Token usage + context" },
     { cmd: "/doctor", desc: "System diagnostics" },
     { cmd: "/export", desc: "Export session to markdown" },
     { cmd: "/plan", desc: "Toggle plan mode (read-only)" },
@@ -177,9 +175,6 @@ export async function startRepl(options: ReplOptions = {}, initialPrompt?: strin
     { cmd: "/agent run", desc: "Run agent" },
     { cmd: "/agent output", desc: "View output" },
     { cmd: "/agent info", desc: "Agent details" },
-    { cmd: "/model", desc: "Show current model" },
-    { cmd: "/model set", desc: "Change model" },
-    { cmd: "/model list", desc: "List models" },
     { cmd: "/mcp", desc: "List MCP servers" },
     { cmd: "/mcp add", desc: "Add MCP server" },
     { cmd: "/mcp remove", desc: "Remove MCP server" },
@@ -655,18 +650,6 @@ async function handleCommand(
     return "handled";
   }
 
-  // === /cost [compact] — token usage + context breakdown ===
-  if (cmd === "/cost") {
-    console.log("\n" + formatCost());
-    console.log(formatContextBreakdown(messages));
-    const budget = checkBudget();
-    if (budget.limit > 0) {
-      const pct = ((budget.used / budget.limit) * 100).toFixed(0);
-      const color = budget.status === "exceeded" ? chalk.red : budget.status === "warning" ? chalk.yellow : chalk.dim;
-      console.log(color(`  Budget: ${budget.used.toLocaleString()} / ${budget.limit.toLocaleString()} tokens (${pct}%)\n`));
-    }
-    return "handled";
-  }
   // === /doctor — system diagnostics ===
   if (cmd === "/doctor") {
     await runDoctor();
@@ -1176,13 +1159,6 @@ ${(gitDiff(false) || "(none)").substring(0, 2000)}`;
     return "handled";
   }
 
-  // === /model ===
-  if (cmd === "/model" || cmd.startsWith("/model")) {
-    const { FIREWORKS_MODEL_LABEL, FIREWORKS_MODEL } = await import("./constants.js");
-    console.log(chalk.bold(`\n  Model: `) + chalk.cyan(FIREWORKS_MODEL_LABEL));
-    console.log(chalk.dim(`  ${FIREWORKS_MODEL} (via Fireworks)\n`));
-    return "handled";
-  }
 
   // === /help ===
   if (cmd === "/help") {
@@ -1190,7 +1166,6 @@ ${(gitDiff(false) || "(none)").substring(0, 2000)}`;
       chalk.dim(`
   /clear                  Clear conversation
   /compact                Compress context to save tokens
-  /cost                   Token usage + context breakdown
   /doctor                 System diagnostics (check config, APIs, tools)
   /export [path]          Export session to markdown file
   /plan                   Toggle plan mode (read-only tools only)
@@ -1199,8 +1174,6 @@ ${(gitDiff(false) || "(none)").substring(0, 2000)}`;
   /sessions               List recent sessions
   /sessions rename <name> Rename current session
   /soul                   View memory (persona, human, goals, scratchpad, recall)
-
-  /model                  Show current model
 
   /diff                   All changes made this session
   /git                    Status + changed files

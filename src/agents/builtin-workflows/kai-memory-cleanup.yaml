@@ -1,0 +1,187 @@
+name: Kai Memory Cleanup
+description: Weekly maintenance — prunes old recall entries, deduplicates archival knowledge, and reports memory usage
+schedule: "0 4 * * 0"
+
+config:
+  kai_dir: "~/.kai"
+  recall_max_age_days: 90
+  recall_max_entries_per_project: 5000
+
+steps:
+  # === MEASURE CURRENT SIZES ===
+  - name: measure_before
+    type: shell
+    command: |
+      echo "=== Memory Usage ==="
+
+      # Recall files
+      echo ""
+      echo "RECALL:"
+      find ~/.kai/recall -name "*.jsonl" 2>/dev/null | while read f; do
+        lines=$(wc -l < "$f" 2>/dev/null || echo 0)
+        size=$(du -sh "$f" 2>/dev/null | cut -f1)
+        echo "  $f: $lines entries ($size)"
+      done
+
+      # Archival files
+      echo ""
+      echo "ARCHIVAL:"
+      find ~/.kai/archival -name "*.jsonl" 2>/dev/null | while read f; do
+        lines=$(wc -l < "$f" 2>/dev/null || echo 0)
+        size=$(du -sh "$f" 2>/dev/null | cut -f1)
+        echo "  $f: $lines entries ($size)"
+      done
+
+      # Sessions
+      echo ""
+      echo "SESSIONS:"
+      session_count=$(ls ~/.kai/sessions/*.json 2>/dev/null | wc -l || echo 0)
+      session_size=$(du -sh ~/.kai/sessions 2>/dev/null | cut -f1 || echo "0")
+      echo "  $session_count sessions ($session_size)"
+
+      # Total
+      echo ""
+      echo "TOTAL ~/.kai:"
+      du -sh ~/.kai 2>/dev/null | cut -f1
+
+    output_var: size_before
+
+  # === PRUNE OLD RECALL ENTRIES ===
+  - name: prune_recall
+    type: shell
+    command: |
+      CUTOFF_DATE=$(date -v-${config.recall_max_age_days}d +%Y-%m-%d 2>/dev/null || date -d "${config.recall_max_age_days} days ago" +%Y-%m-%d 2>/dev/null)
+      MAX_ENTRIES=${config.recall_max_entries_per_project}
+      pruned_total=0
+
+      find ~/.kai/recall -name "*.jsonl" 2>/dev/null | while read f; do
+        if [ ! -f "$f" ]; then continue; fi
+        original_lines=$(wc -l < "$f")
+
+        # Keep only entries newer than cutoff, and cap at max entries
+        tmpfile=$(mktemp)
+        # Filter by date (entries have "timestamp" field with ISO date)
+        if [ -n "$CUTOFF_DATE" ]; then
+          grep "\"timestamp\":\"${CUTOFF_DATE}" "$f" > "$tmpfile" 2>/dev/null || true
+          # Also keep entries from after the cutoff
+          awk -v cutoff="$CUTOFF_DATE" '
+            {
+              if (match($0, /"timestamp":"([^"]+)"/, arr)) {
+                if (arr[1] >= cutoff) print
+              }
+            }
+          ' "$f" > "$tmpfile" 2>/dev/null
+        else
+          cp "$f" "$tmpfile"
+        fi
+
+        # Cap at max entries (keep newest)
+        new_lines=$(wc -l < "$tmpfile")
+        if [ "$new_lines" -gt "$MAX_ENTRIES" ]; then
+          tail -n "$MAX_ENTRIES" "$tmpfile" > "${tmpfile}.capped"
+          mv "${tmpfile}.capped" "$tmpfile"
+          new_lines=$MAX_ENTRIES
+        fi
+
+        pruned=$((original_lines - new_lines))
+        if [ "$pruned" -gt 0 ]; then
+          mv "$tmpfile" "$f"
+          pruned_total=$((pruned_total + pruned))
+          echo "Pruned $pruned entries from $f ($original_lines → $new_lines)"
+        else
+          rm -f "$tmpfile"
+          echo "No pruning needed for $f ($original_lines entries)"
+        fi
+      done
+
+      echo ""
+      echo "Total pruned: $pruned_total entries"
+    output_var: prune_result
+
+  # === DEDUPLICATE ARCHIVAL ===
+  - name: read_archival
+    type: shell
+    command: |
+      # Collect all archival entries for LLM deduplication analysis
+      for f in $(find ~/.kai/archival -name "*.jsonl" 2>/dev/null); do
+        echo "=== $f ==="
+        cat "$f" 2>/dev/null
+      done
+    output_var: archival_content
+
+  - name: deduplicate_archival
+    type: llm
+    condition: "${vars.archival_content}"
+    prompt: |
+      Review these archival memory entries for duplicates, contradictions, or outdated information.
+
+      ## Archival Entries:
+      ${vars.archival_content}
+
+      For each file, output a cleaned JSONL — one JSON object per line — with:
+      1. Duplicate entries merged (keep the most recent/complete version)
+      2. Contradictory entries resolved (keep the newest)
+      3. Entries that are clearly outdated flagged with a note
+
+      IMPORTANT: Output the cleaned entries in the EXACT same JSONL format.
+      Group output by file path. Format:
+
+      === FILE: path/to/file.jsonl ===
+      {"id":"...","content":"...","tags":[...],"createdAt":"..."}
+      {"id":"...","content":"...","tags":[...],"createdAt":"..."}
+
+      If nothing needs deduplication, output "NO_CHANGES_NEEDED".
+
+      Be conservative — only remove entries that are clearly redundant or contradictory.
+
+  # === MEASURE AFTER ===
+  - name: measure_after
+    type: shell
+    command: |
+      echo "=== Memory Usage After Cleanup ==="
+      echo ""
+      echo "TOTAL ~/.kai:"
+      du -sh ~/.kai 2>/dev/null | cut -f1
+
+      echo ""
+      echo "RECALL:"
+      find ~/.kai/recall -name "*.jsonl" 2>/dev/null | while read f; do
+        lines=$(wc -l < "$f" 2>/dev/null || echo 0)
+        size=$(du -sh "$f" 2>/dev/null | cut -f1)
+        echo "  $f: $lines entries ($size)"
+      done
+
+      echo ""
+      echo "ARCHIVAL:"
+      find ~/.kai/archival -name "*.jsonl" 2>/dev/null | while read f; do
+        lines=$(wc -l < "$f" 2>/dev/null || echo 0)
+        size=$(du -sh "$f" 2>/dev/null | cut -f1)
+        echo "  $f: $lines entries ($size)"
+      done
+    output_var: size_after
+
+  # === REPORT ===
+  - name: report
+    type: llm
+    prompt: |
+      Generate a brief memory maintenance report.
+
+      ## Before:
+      ${vars.size_before}
+
+      ## Recall Pruning:
+      ${vars.prune_result}
+
+      ## Archival Deduplication:
+      ${vars.deduplicate_archival}
+
+      ## After:
+      ${vars.size_after}
+
+      Summarize: what was cleaned up, how much space was freed, any concerns (e.g. archival growing too fast, recall too large). Keep it under 200 words.
+
+  - name: notify
+    type: notify
+    params:
+      title: "Kai Memory Cleanup"
+      message: "Weekly maintenance complete — recall pruned, archival deduplicated"

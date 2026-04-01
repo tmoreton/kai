@@ -4,7 +4,7 @@ export const MAX_TOOL_TURNS = 40;
 export const STREAM_TIMEOUT_MS = 120_000; // 2 minutes
 
 // Context window
-export const MAX_CONTEXT_TOKENS = 128_000;
+export const MAX_CONTEXT_TOKENS = 256_000;
 export const COMPACT_THRESHOLD = 0.80; // Compact at 80% to leave room
 export const COMPACT_RECENT_RATIO = 1 / 3;
 export const COMPACT_RECENT_MIN = 10;
