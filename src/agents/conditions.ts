@@ -1,6 +1,7 @@
 import { exec } from "child_process";
 import fs from "fs";
 import { expandHome } from "../utils.js";
+import { archivalSearch } from "../archival.js";
 
 /**
  * Heartbeat Condition Evaluator
@@ -10,9 +11,11 @@ import { expandHome } from "../utils.js";
  */
 
 export interface HeartbeatCondition {
-  type: "shell" | "file_changed" | "webhook";
-  check: string; // shell command, file path, or URL
+  type: "shell" | "file_changed" | "webhook" | "memory" | "threshold" | "trend";
+  check: string; // shell command, file path, URL, query, key, etc.
   expected?: string; // expected output (truthy if omitted)
+  threshold?: number; // numeric threshold for comparison
+  operator?: ">" | "<" | ">=" | "<=" | "==="; // comparison operator
 }
 
 export interface HeartbeatConfig {
@@ -31,6 +34,9 @@ export interface ConditionResult {
 // Track file modification times for file_changed conditions
 const fileMtimes = new Map<string, number>();
 
+// Track previous values for trend detection
+const trendValues = new Map<string, number>();
+
 /**
  * Evaluate a single heartbeat condition.
  */
@@ -42,6 +48,12 @@ export async function evaluateCondition(condition: HeartbeatCondition): Promise<
       return evaluateFileChangedCondition(condition);
     case "webhook":
       return evaluateWebhookCondition(condition);
+    case "memory":
+      return evaluateMemoryCondition(condition);
+    case "threshold":
+      return evaluateThresholdCondition(condition);
+    case "trend":
+      return evaluateTrendCondition(condition);
     default:
       return { met: false, value: null, condition };
   }
@@ -120,6 +132,128 @@ async function evaluateWebhookCondition(condition: HeartbeatCondition): Promise<
     }
 
     return { met, value: body.trim().substring(0, 500), condition };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return { met: false, value: `error: ${msg}`, condition };
+  }
+}
+
+/**
+ * Memory condition: check if archival contains knowledge matching a query.
+ * Useful for triggering agents when certain topics/concepts are in memory.
+ */
+async function evaluateMemoryCondition(condition: HeartbeatCondition): Promise<ConditionResult> {
+  try {
+    const result = archivalSearch({ query: condition.check, limit: 1 });
+    const hasMatch = result !== "No archival memories found." && result !== "No matching archival memories found.";
+    return { met: hasMatch, value: hasMatch ? result : "no match", condition };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return { met: false, value: `error: ${msg}`, condition };
+  }
+}
+
+/**
+ * Threshold condition: parse output from command/URL as number and compare.
+ */
+async function evaluateThresholdCondition(condition: HeartbeatCondition): Promise<ConditionResult> {
+  if (condition.threshold === undefined) {
+    return { met: false, value: "threshold required", condition };
+  }
+
+  // Try to get a numeric value - either from a shell command or the check string itself
+  let value: number;
+  try {
+    if (condition.check.match(/^https?:\/\//)) {
+      // It's a URL - poll it and parse response as number
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 10_000);
+      const response = await fetch(condition.check, { signal: controller.signal });
+      clearTimeout(timeout);
+      const body = await response.text();
+      value = parseFloat(body.trim());
+    } else {
+      // Treat as a shell command that outputs a number
+      const output = await new Promise<string>((resolve, reject) => {
+        exec(condition.check, { timeout: 10_000 }, (err, stdout) => {
+          if (err) reject(err);
+          else resolve(stdout.trim());
+        });
+      });
+      value = parseFloat(output);
+    }
+
+    if (isNaN(value)) {
+      return { met: false, value: "not a number", condition };
+    }
+
+    const operator = condition.operator || ">";
+    let met = false;
+    switch (operator) {
+      case ">": met = value > condition.threshold; break;
+      case "<": met = value < condition.threshold; break;
+      case ">=": met = value >= condition.threshold; break;
+      case "<=": met = value <= condition.threshold; break;
+      case "===": met = value === condition.threshold; break;
+    }
+
+    return { met, value: `${value} ${operator} ${condition.threshold}`, condition };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return { met: false, value: `error: ${msg}`, condition };
+  }
+}
+
+/**
+ * Trend condition: detect if a numeric value is increasing over time.
+ * The check should output a number (via shell command or URL).
+ */
+async function evaluateTrendCondition(condition: HeartbeatCondition): Promise<ConditionResult> {
+  const key = `trend-${condition.check}`;
+
+  try {
+    let value: number;
+    if (condition.check.match(/^https?:\/\//)) {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 10_000);
+      const response = await fetch(condition.check, { signal: controller.signal });
+      clearTimeout(timeout);
+      const body = await response.text();
+      value = parseFloat(body.trim());
+    } else {
+      const output = await new Promise<string>((resolve, reject) => {
+        exec(condition.check, { timeout: 10_000 }, (err, stdout) => {
+          if (err) reject(err);
+          else resolve(stdout.trim());
+        });
+      });
+      value = parseFloat(output);
+    }
+
+    if (isNaN(value)) {
+      return { met: false, value: "not a number", condition };
+    }
+
+    const lastValue = trendValues.get(key);
+    trendValues.set(key, value);
+
+    // First check establishes baseline
+    if (lastValue === undefined) {
+      return { met: false, value: `baseline: ${value}`, condition };
+    }
+
+    // Trigger if value increased (trending up)
+    const trendExpected = condition.expected || "up";
+    let met = false;
+    if (trendExpected === "up") {
+      met = value > lastValue;
+    } else if (trendExpected === "down") {
+      met = value < lastValue;
+    } else if (trendExpected === "changed") {
+      met = value !== lastValue;
+    }
+
+    return { met, value: `${lastValue} → ${value}`, condition };
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     return { met: false, value: `error: ${msg}`, condition };

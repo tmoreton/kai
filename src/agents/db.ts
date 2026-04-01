@@ -82,6 +82,23 @@ export function getDb(): Database.Database {
     CREATE INDEX IF NOT EXISTS idx_steps_run ON steps(run_id);
     CREATE INDEX IF NOT EXISTS idx_logs_agent ON logs(agent_id);
     CREATE INDEX IF NOT EXISTS idx_notifications_read ON notifications(read);
+
+    -- Pending approvals table for human-in-the-loop
+    CREATE TABLE IF NOT EXISTS approvals (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      run_id TEXT NOT NULL,
+      step_index INTEGER NOT NULL,
+      step_name TEXT NOT NULL,
+      prompt TEXT,        -- what the agent is asking
+      context TEXT,       -- JSON with current workflow state
+      approved INTEGER,   -- NULL = pending, 0 = rejected, 1 = approved
+      response TEXT,      -- user feedback if any
+      created_at TEXT DEFAULT (datetime('now')),
+      resolved_at TEXT,
+      FOREIGN KEY (run_id) REFERENCES runs(id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_approvals_run ON approvals(run_id);
+    CREATE INDEX IF NOT EXISTS idx_approvals_pending ON approvals(approved);
   `);
 
   // Migrations for existing databases
@@ -159,7 +176,7 @@ export function createRun(runId: string, agentId: string, trigger = "manual"): v
   `).run(runId, agentId, trigger);
 }
 
-export function completeRun(runId: string, status: "completed" | "failed", error?: string): void {
+export function completeRun(runId: string, status: "completed" | "failed" | "paused", error?: string): void {
   getDb().prepare(`
     UPDATE runs SET status = ?, completed_at = datetime('now'), error = ? WHERE id = ?
   `).run(status, error || null, runId);
@@ -197,7 +214,7 @@ export function createStep(runId: string, stepName: string, stepIndex: number): 
 
 export function completeStep(
   stepId: number,
-  status: "completed" | "failed",
+  status: "completed" | "failed" | "pending",
   output?: string,
   error?: string,
   tokensUsed = 0
@@ -235,6 +252,150 @@ export function saveRunRecap(runId: string, recap: string): void {
   getDb().prepare("UPDATE runs SET recap = ? WHERE id = ?").run(recap, runId);
 }
 
+// --- Run history for trend analysis ---
+
+export function getPreviousRuns(agentId: string, currentRunId: string, limit = 5): RunRecord[] {
+  return getDb().prepare(
+    "SELECT * FROM runs WHERE agent_id = ? AND id != ? AND status = 'completed' ORDER BY started_at DESC LIMIT ?"
+  ).all(agentId, currentRunId, limit) as RunRecord[];
+}
+
+export function getRunOutputsForComparison(agentId: string, stepName: string, limit = 5): Array<{ output: string; created_at: string }> {
+  const db = getDb();
+  return db.prepare(`
+    SELECT s.output, r.started_at as created_at
+    FROM steps s
+    JOIN runs r ON s.run_id = r.id
+    WHERE r.agent_id = ? AND s.step_name = ? AND s.status = 'completed' AND s.output IS NOT NULL
+    ORDER BY r.started_at DESC
+    LIMIT ?
+  `).all(agentId, stepName, limit) as any[];
+}
+
+export interface TrendPoint {
+  value: number;
+  timestamp: string;
+  runId: string;
+}
+
+/**
+ * Extract numeric values from step outputs over multiple runs.
+ * Useful for tracking metrics like "views", "subscribers", "errors".
+ */
+export function getNumericTrend(
+  agentId: string,
+  stepName: string,
+  extractor: (output: string) => number | null
+): TrendPoint[] {
+  const outputs = getRunOutputsForComparison(agentId, stepName, 20);
+  const points: TrendPoint[] = [];
+
+  for (const { output, created_at } of outputs) {
+    const value = extractor(output);
+    if (value !== null) {
+      points.push({ value, timestamp: created_at, runId: "" });
+    }
+  }
+
+  return points.reverse(); // Chronological order
+}
+
+/**
+ * Calculate simple trend direction and change percentage.
+ */
+export function calculateTrend(points: TrendPoint[]): {
+  direction: "up" | "down" | "flat";
+  changePercent: number;
+  current: number;
+  previous: number;
+} {
+  if (points.length < 2) {
+    return { direction: "flat", changePercent: 0, current: 0, previous: 0 };
+  }
+
+  const current = points[points.length - 1].value;
+  const previous = points[points.length - 2].value;
+
+  if (previous === 0) {
+    return { direction: current > 0 ? "up" : "flat", changePercent: 0, current, previous };
+  }
+
+  const changePercent = ((current - previous) / previous) * 100;
+  const direction = changePercent > 1 ? "up" : changePercent < -1 ? "down" : "flat";
+
+  return { direction, changePercent, current, previous };
+}
+
+/**
+ * Compare today's output to yesterday's for the same agent/step.
+ */
+export function compareToYesterday(
+  agentId: string,
+  stepName: string
+): { yesterday?: string; today?: string; changed: boolean } {
+  const outputs = getRunOutputsForComparison(agentId, stepName, 2);
+  if (outputs.length < 2) return { changed: false };
+
+  const [mostRecent, second] = outputs;
+  const changed = mostRecent.output !== second.output;
+
+  return {
+    yesterday: second.output,
+    today: mostRecent.output,
+    changed,
+  };
+}
+
+// --- Approvals (human-in-the-loop) ---
+
+export interface ApprovalRecord {
+  id: number;
+  run_id: string;
+  step_index: number;
+  step_name: string;
+  prompt: string | null;
+  context: string | null;
+  approved: number | null;
+  response: string | null;
+  created_at: string;
+  resolved_at: string | null;
+}
+
+export function createApproval(args: {
+  runId: string;
+  stepIndex: number;
+  stepName: string;
+  prompt?: string;
+  context?: Record<string, any>;
+}): number {
+  const result = getDb().prepare(`
+    INSERT INTO approvals (run_id, step_index, step_name, prompt, context, approved, created_at)
+    VALUES (?, ?, ?, ?, ?, NULL, datetime('now'))
+  `).run(args.runId, args.stepIndex, args.stepName, args.prompt || null, JSON.stringify(args.context || {}));
+  return Number(result.lastInsertRowid);
+}
+
+export function getPendingApprovals(runId: string): ApprovalRecord[] {
+  return getDb().prepare(
+    "SELECT * FROM approvals WHERE run_id = ? AND approved IS NULL ORDER BY step_index"
+  ).all(runId) as ApprovalRecord[];
+}
+
+export function resolveApproval(id: number, approved: boolean, response?: string): void {
+  getDb().prepare(`
+    UPDATE approvals SET approved = ?, response = ?, resolved_at = datetime('now') WHERE id = ?
+  `).run(approved ? 1 : 0, response || null, id);
+}
+
+export function getApprovalById(id: number): ApprovalRecord | undefined {
+  return getDb().prepare("SELECT * FROM approvals WHERE id = ?").get(id) as ApprovalRecord | undefined;
+}
+
+export function hasPendingApprovals(runId: string): boolean {
+  const row = getDb().prepare("SELECT COUNT(*) as count FROM approvals WHERE run_id = ? AND approved IS NULL").get(runId) as any;
+  return (row?.count || 0) > 0;
+}
+
 // --- Notifications ---
 
 export interface NotificationRecord {
@@ -259,6 +420,20 @@ export function createNotification(n: { type?: string; title: string; body?: str
 export function listNotifications(limit = 30): NotificationRecord[] {
   return getDb().prepare(
     "SELECT * FROM notifications ORDER BY created_at DESC LIMIT ?"
+  ).all(limit) as NotificationRecord[];
+}
+
+export function listNotificationsSince(hours = 24): NotificationRecord[] {
+  const db = getDb();
+  const cutoff = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
+  return db.prepare(
+    "SELECT * FROM notifications WHERE created_at > ? ORDER BY created_at DESC"
+  ).all(cutoff) as NotificationRecord[];
+}
+
+export function listUnreadNotifications(limit = 30): NotificationRecord[] {
+  return getDb().prepare(
+    "SELECT * FROM notifications WHERE read = 0 ORDER BY created_at DESC LIMIT ?"
   ).all(limit) as NotificationRecord[];
 }
 

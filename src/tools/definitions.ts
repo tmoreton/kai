@@ -370,81 +370,8 @@ export const toolDefinitions = [
       },
     },
   },
-  // === GIT OPERATIONS ===
-  {
-    type: "function" as const,
-    function: {
-      name: "git_log",
-      description:
-        "Show recent git commits with hashes, messages, and relative dates. Use this to understand what changes have been made recently before deciding to undo or revert.",
-      parameters: {
-        type: "object",
-        properties: {
-          count: {
-            type: "number",
-            description: "Number of commits to show (default: 15)",
-          },
-        },
-      },
-    },
-  },
-  {
-    type: "function" as const,
-    function: {
-      name: "git_diff_session",
-      description:
-        "Show all changes (committed + uncommitted) made since the current session started. Useful for reviewing what work has been done in this conversation.",
-      parameters: {
-        type: "object",
-        properties: {
-          session_start: {
-            type: "string",
-            description: "ISO timestamp of session start (provided by system context)",
-          },
-        },
-        required: ["session_start"],
-      },
-    },
-  },
-  {
-    type: "function" as const,
-    function: {
-      name: "git_undo",
-      description:
-        'Undo the last N git commits. By default uses "soft" mode which keeps changes as staged files. Use "hard" mode to permanently discard changes. This also clears conversation context to match the new git state. Always show the user what will be undone BEFORE executing.',
-      parameters: {
-        type: "object",
-        properties: {
-          count: {
-            type: "number",
-            description: "Number of commits to undo (default: 1)",
-          },
-          mode: {
-            type: "string",
-            enum: ["soft", "hard"],
-            description: 'Reset mode: "soft" keeps changes staged (default), "hard" discards all changes permanently',
-          },
-        },
-      },
-    },
-  },
-  {
-    type: "function" as const,
-    function: {
-      name: "git_stash",
-      description:
-        "Stash all uncommitted changes (both staged and unstaged) to save them for later. Use when you need a clean working directory temporarily. Restore with `git stash pop`.",
-      parameters: {
-        type: "object",
-        properties: {
-          message: {
-            type: "string",
-            description: "Optional description of what's being stashed",
-          },
-        },
-      },
-    },
-  },
+  // Note: Git operations are now provided by the core git-tools skill
+  // (skill__git-tools__log, skill__git-tools__diff_session, skill__git-tools__undo, skill__git-tools__stash)
   // === WEB SEARCH ===
   {
     type: "function" as const,

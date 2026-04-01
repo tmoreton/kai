@@ -135,6 +135,14 @@ export async function startRepl(options: ReplOptions = {}, initialPrompt?: strin
   console.log(chalk.dim(`  session:     ${session.name || session.id}`));
   console.log(chalk.dim(`  permissions: ${getPermissionMode()}`));
   console.log("");
+
+  // Show notification digest in REPL startup
+  const { formatNotificationDigest } = await import("./agents/manager.js");
+  const digest = formatNotificationDigest(24);
+  if (digest) {
+    console.log(digest);
+  }
+
   console.log(chalk.dim("  Tips:"));
   console.log(chalk.dim("    • Ask me to build, debug, or refactor code"));
   console.log(chalk.dim("    • I can read/write files, run commands, and search the web"));
@@ -175,6 +183,9 @@ export async function startRepl(options: ReplOptions = {}, initialPrompt?: strin
     { cmd: "/agent", desc: "List agents" },
     { cmd: "/agent run", desc: "Run agent" },
     { cmd: "/agent output", desc: "View output" },
+    { cmd: "/notify", desc: "Agent notifications digest" },
+    { cmd: "/notify --all", desc: "All notifications" },
+    { cmd: "/trends <id>", desc: "Show agent output trends" },
     { cmd: "/agent info", desc: "Agent details" },
     { cmd: "/skill", desc: "List installed skills" },
     { cmd: "/skill reload", desc: "Hot-reload all skills" },
@@ -1145,6 +1156,28 @@ ${(gitDiff(false) || "(none)").substring(0, 2000)}`;
     return "handled";
   }
 
+  // === /notify [options] ===
+  if (cmd === "/notify" || cmd === "/notify --all") {
+    const { formatNotificationsList, formatNotificationDigest, markAllNotificationsAsRead } = await import("./agents/manager.js");
+    if (cmd === "/notify --all") {
+      console.log(formatNotificationsList());
+    } else {
+      const digest = formatNotificationDigest(24);
+      if (digest) {
+        console.log(digest);
+      } else {
+        console.log(chalk.dim("\n  No agent activity in the last 24 hours.\n"));
+      }
+    }
+    return "handled";
+  }
+  if (cmd === "/notify --read") {
+    const { markAllNotificationsAsRead } = await import("./agents/manager.js");
+    console.log(chalk.green("\n  ✓ All notifications marked as read\n"));
+    console.log(markAllNotificationsAsRead());
+    return "handled";
+  }
+
   // === /skill [list|reload] ===
   if (cmd === "/skill" || cmd === "/skill list") {
     const { getLoadedSkills, skillsDir } = await import("./skills/index.js");
@@ -1269,6 +1302,10 @@ ${(gitDiff(false) || "(none)").substring(0, 2000)}`;
   /agent run <id>         Run an agent now
   /agent output <id>      View agent output
   /agent info <id>        Agent details + run history
+
+  /notify                 Agent notifications digest (last 24h)
+  /notify --all           Show all notifications
+  /notify --read          Mark all notifications as read
 
   /mcp                    List connected MCP servers + tools
   /mcp add <name> <cmd>   Add an MCP server

@@ -16,7 +16,7 @@ import { tryExecuteMcpTool } from "./mcp.js";
 import { tryExecuteSkillTool } from "../skills/executor.js";
 import { validateToolArgs } from "./validation.js";
 import { isToolAllowedInPlanMode, isPlanMode } from "../plan-mode.js";
-import { gitLogTool, gitDiffSessionTool, gitUndoTool, gitStashTool } from "./git-tools.js";
+import { tryExecuteCoreSkillTool } from "../skills/index.js";
 import { takeScreenshot } from "./screenshot.js";
 import { analyzeImage } from "./vision.js";
 
@@ -159,26 +159,24 @@ export async function executeTool(
         result = await takeScreenshot(args as { region?: "full" | "window" | "selection" }); break;
       case "analyze_image":
         result = await analyzeImage(args as { image_path: string; question?: string }); break;
-      case "git_log":
-        result = await gitLogTool(args as { count?: number }); break;
-      case "git_diff_session":
-        result = await gitDiffSessionTool(args as { session_start: string }); break;
-      case "git_undo":
-        result = await gitUndoTool(args as { count?: number; mode?: "soft" | "hard" }); break;
-      case "git_stash":
-        result = await gitStashTool(args as { message?: string }); break;
       default: {
-        // Check if it's an MCP tool (mcp__server__tool)
-        const mcpResult = await tryExecuteMcpTool(name, args);
-        if (mcpResult !== null) {
-          result = mcpResult;
+        // Check if it's a core skill tool (skill__id__tool)
+        const coreResult = await tryExecuteCoreSkillTool(name, args);
+        if (coreResult !== null) {
+          result = coreResult;
         } else {
-          // Check if it's a skill tool (skill__id__tool)
-          const skillResult = await tryExecuteSkillTool(name, args);
-          if (skillResult !== null) {
-            result = skillResult;
+          // Check if it's an MCP tool (mcp__server__tool)
+          const mcpResult = await tryExecuteMcpTool(name, args);
+          if (mcpResult !== null) {
+            result = mcpResult;
           } else {
-            result = `Unknown tool: ${name}`;
+            // Check if it's a user skill tool (skill__id__tool from ~/.kai/skills/)
+            const skillResult = await tryExecuteSkillTool(name, args);
+            if (skillResult !== null) {
+              result = skillResult;
+            } else {
+              result = `Unknown tool: ${name}`;
+            }
           }
         }
       }

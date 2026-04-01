@@ -19,7 +19,7 @@ import { getConfig, ensureKaiDir, readUserConfig, saveUserConfig, clearConfigCac
 import { buildSystemPrompt } from "../system-prompt.js";
 import { getCwd } from "../tools/bash.js";
 import { toolDefinitions, getMcpToolDefinitions, initMcpServers, listMcpServers } from "../tools/index.js";
-import { getLoadedSkills, getSkillToolDefinitions, reloadAllSkills } from "../skills/index.js";
+import { getLoadedSkills, getSkillToolDefinitions, reloadAllSkills, getSkill, loadSkill, unloadSkill, skillsDir } from "../skills/index.js";
 import { installSkill, uninstallSkill } from "../skills/installer.js";
 import { executeTool } from "../tools/executor.js";
 import { setPermissionMode } from "../permissions.js";
@@ -171,7 +171,7 @@ export async function startServer(options: ServerOptions): Promise<void> {
 
   // --- Sessions ---
   app.get("/api/sessions", (c) => {
-    const type = c.req.query("type") as "chat" | "code" | undefined;
+    const type = c.req.query("type") as "chat" | "code" | "agent" | undefined;
     let sessions = listSessions(100, true);
     
     // Filter by type if specified
@@ -705,20 +705,20 @@ export async function startServer(options: ServerOptions): Promise<void> {
     // Create new session with persona context
     session = createNewSession();
     session.name = `Chat with ${persona.name}`;
-    session.type = "chat";
+    session.type = "agent";
     session.personaId = personaId;
-    
+
     const personaContext = buildPersonaContext(persona);
     const baseSystemPrompt = buildSystemPrompt();
-    session.messages[0] = { 
-      role: "system", 
-      content: `${baseSystemPrompt}\n\n---\n\n${personaContext}` 
+    session.messages[0] = {
+      role: "system",
+      content: `${baseSystemPrompt}\n\n---\n\n${personaContext}`
     };
 
     // Add initial greeting
-    session.messages.push({ 
-      role: "assistant", 
-      content: `Hi, I'm ${persona.name}. ${persona.role ? `I ${persona.role.toLowerCase().replace(/^i /, "").replace(/\.$/, "")}.` : "How can I help you today?"}` 
+    session.messages.push({
+      role: "assistant",
+      content: `Hi, I'm ${persona.name}. ${persona.role ? `I ${persona.role.toLowerCase().replace(/^i /, "").replace(/\.$/, "")}.` : "How can I help you today?"}`
     });
 
     saveSession(session);
@@ -734,7 +734,7 @@ export async function startServer(options: ServerOptions): Promise<void> {
     // Create fresh session (don't reuse existing)
     const session = createNewSession();
     session.name = `Chat with ${persona.name}`;
-    session.type = "chat";
+    session.type = "agent";
     session.personaId = personaId;
     
     const personaContext = buildPersonaContext(persona);
@@ -1103,6 +1103,140 @@ export async function startServer(options: ServerOptions): Promise<void> {
       return c.json({ ok: true });
     } catch (err: any) {
       return c.json({ error: err.message }, 400);
+    }
+  });
+
+  // Get skill details (full manifest + handler source)
+  app.get("/api/settings/skills/:id", async (c) => {
+    try {
+      const skillId = c.req.param("id");
+      const skill = getSkill(skillId);
+      if (!skill) return c.json({ error: "Skill not found" }, 404);
+
+      const manifestPath = path.join(skill.path, "skill.yaml");
+      const handlerPath = path.join(skill.path, "handler.js");
+
+      const manifest = fs.readFileSync(manifestPath, "utf-8");
+      const handler = fs.existsSync(handlerPath) ? fs.readFileSync(handlerPath, "utf-8") : "";
+
+      return c.json({
+        id: skill.manifest.id,
+        name: skill.manifest.name,
+        manifest,
+        handler,
+        path: skill.path,
+      });
+    } catch (err: any) {
+      return c.json({ error: err.message }, 500);
+    }
+  });
+
+  // Update skill manifest (skill.yaml)
+  app.put("/api/settings/skills/:id/manifest", async (c) => {
+    try {
+      const skillId = c.req.param("id");
+      const { manifest } = await c.req.json();
+      if (!manifest) return c.json({ error: "manifest is required" }, 400);
+
+      const skill = getSkill(skillId);
+      if (!skill) return c.json({ error: "Skill not found" }, 404);
+
+      const manifestPath = path.join(skill.path, "skill.yaml");
+      fs.writeFileSync(manifestPath, manifest, "utf-8");
+
+      // Reload the skill to pick up changes
+      await unloadSkill(skillId);
+      await loadSkill(skill.path);
+
+      return c.json({ ok: true });
+    } catch (err: any) {
+      return c.json({ error: err.message }, 500);
+    }
+  });
+
+  // Update skill handler (handler.js)
+  app.put("/api/settings/skills/:id/handler", async (c) => {
+    try {
+      const skillId = c.req.param("id");
+      const { handler } = await c.req.json();
+      if (handler === undefined) return c.json({ error: "handler is required" }, 400);
+
+      const skill = getSkill(skillId);
+      if (!skill) return c.json({ error: "Skill not found" }, 404);
+
+      const handlerPath = path.join(skill.path, "handler.js");
+      fs.writeFileSync(handlerPath, handler, "utf-8");
+
+      // Reload the skill to pick up changes
+      await unloadSkill(skillId);
+      await loadSkill(skill.path);
+
+      return c.json({ ok: true });
+    } catch (err: any) {
+      return c.json({ error: err.message }, 500);
+    }
+  });
+
+  // Create a new skill
+  app.post("/api/settings/skills", async (c) => {
+    try {
+      const body = await c.req.json();
+      const { id, name, version = "1.0.0", description = "", author = "" } = body;
+
+      if (!id || !name) return c.json({ error: "id and name are required" }, 400);
+      if (!/^[a-z0-9-_]+$/i.test(id)) return c.json({ error: "id must contain only letters, numbers, hyphens, and underscores" }, 400);
+
+      const dir = skillsDir();
+      const skillPath = path.join(dir, id);
+
+      if (fs.existsSync(skillPath)) {
+        return c.json({ error: `Skill "${id}" already exists` }, 409);
+      }
+
+      fs.mkdirSync(skillPath, { recursive: true });
+
+      const manifest = `id: ${id}
+name: ${name}
+version: ${version}
+description: ${description}
+${author ? `author: ${author}\n` : ""}config_schema: {}
+tools: []
+`;
+
+      const handler = `/**
+ * ${name} Skill Handler
+ */
+
+export default {
+  // Optional: Run when skill is installed/loaded
+  // async install(config) {
+  //   console.log("Installing ${name}...");
+  // },
+
+  // Optional: Run when skill is uninstalled
+  // async uninstall() {
+  //   console.log("Uninstalling ${name}...");
+  // },
+
+  // Action implementations for tools defined in skill.yaml
+  actions: {
+    // Example action:
+    // async hello({ name }) {
+    //   return \`Hello, \${name}!\`;
+    // },
+  },
+};
+`;
+
+      fs.writeFileSync(path.join(skillPath, "skill.yaml"), manifest, "utf-8");
+      fs.writeFileSync(path.join(skillPath, "handler.js"), handler, "utf-8");
+
+      // Load the new skill
+      await loadSkill(skillPath);
+
+      return c.json({ ok: true, id });
+    } catch (err: any) {
+      return c.json({ error: err.message }, 500);
     }
   });
 

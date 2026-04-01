@@ -12,6 +12,12 @@ import {
   getSteps,
   saveRunRecap,
   createNotification,
+  getPreviousRuns,
+  getRunOutputsForComparison,
+  createApproval,
+  getPendingApprovals,
+  resolveApproval,
+  hasPendingApprovals,
   type StepRecord,
 } from "./db.js";
 import { resolveProvider, type ResolvedProvider } from "../providers/index.js";
@@ -47,7 +53,7 @@ function getSharedModel(): string {
 
 export interface WorkflowStep {
   name: string;
-  type: "llm" | "integration" | "shell" | "notify" | "review";
+  type: "llm" | "integration" | "shell" | "notify" | "review" | "approval";
   integration?: string;
   action?: string;
   prompt?: string;
@@ -57,6 +63,7 @@ export interface WorkflowStep {
   condition?: string;
   stream?: boolean;
   max_tokens?: number;
+  auto_approve?: boolean; // for approval steps
 }
 
 export interface ReviewConfig {
@@ -82,6 +89,10 @@ export interface WorkflowContext {
   agent_id: string;
   run_id: string;
   trigger_reason?: string; // "manual", "cron", "heartbeat"
+  history?: {
+    previous_runs: Array<{ status: string; started_at: string; id: string }>;
+    compare_outputs: (stepName: string, limit?: number) => Array<{ output: string; created_at: string }>;
+  };
 }
 
 // Registry of integration handlers
@@ -144,6 +155,25 @@ function interpolate(template: string, ctx: WorkflowContext): string {
       return typeof val === "string" ? val : JSON.stringify(val);
     }
     if (parts[0] === "env") return ctx.env[parts[1]] || process.env[parts[1]] || "";
+    if (parts[0] === "history") {
+      if (parts[1] === "previous_runs" && parts[2]) {
+        const idx = parseInt(parts[2]);
+        const run = ctx.history?.previous_runs[idx];
+        if (!run) return "";
+        if (parts[3] === "output" && run.id) {
+          const outputs = ctx.history?.compare_outputs("", 5) || [];
+          const match = outputs.find(o => o.created_at === run.started_at);
+          return match?.output || "";
+        }
+        return JSON.stringify(run);
+      }
+      if (parts[1] === "yesterday" && ctx.history) {
+        // Special accessor for yesterday comparison
+        const yesterday = ctx.history.compare_outputs("", 2)[1];
+        return yesterday?.output || "";
+      }
+      return "";
+    }
     return `\${${expr}}`;
   });
 }
@@ -195,6 +225,10 @@ export async function executeWorkflow(
     env: { ...process.env } as Record<string, string>,
     agent_id: agentId,
     run_id: runId,
+    history: {
+      previous_runs: getPreviousRuns(agentId, runId, 5),
+      compare_outputs: (stepName: string, limit = 5) => getRunOutputsForComparison(agentId, stepName, limit),
+    },
   };
 
   addLog(agentId, "info", `Workflow "${workflow.name}" started (run: ${runId})`, runId);
@@ -238,6 +272,14 @@ export async function executeWorkflow(
             // Review steps are handled by the post-workflow review loop.
             // If used inline, treat as an LLM step with review-focused prompt.
             result = await executeLlmStep(step, ctx);
+            break;
+          case "approval":
+            result = await executeApprovalStep(step, ctx, stepId);
+            // If still pending, halt workflow gracefully
+            if (result === "__PENDING_APPROVAL__") {
+              completeRun(runId, "paused", `Awaiting approval for step: ${step.name}`);
+              return { success: true, results: ctx.vars, error: `Paused for approval: ${step.name}` };
+            }
             break;
           default:
             throw new Error(`Unknown step type: ${step.type}`);
@@ -605,6 +647,44 @@ async function executeShellStep(step: WorkflowStep, ctx: WorkflowContext): Promi
       else resolve(stdout.trim());
     });
   });
+}
+
+async function executeApprovalStep(step: WorkflowStep, ctx: WorkflowContext, stepId: number): Promise<string> {
+  const prompt_text = step.prompt ? interpolate(step.prompt, ctx) : `Approve step: ${step.name}`;
+
+  // Skip if auto_approve is set
+  if (step.auto_approve) {
+    completeStep(stepId, "completed", "Auto-approved");
+    return "Approved (auto)";
+  }
+
+  // Check if we already have a pending approval for this step (resuming)
+  const pending = getPendingApprovals(ctx.run_id);
+  const existing = pending.find(a => a.step_index === stepId);
+
+  if (existing && existing.approved !== null) {
+    // We were resumed and have a decision
+    const result = existing.approved === 1 ? "Approved" : `Rejected: ${existing.response || ""}`;
+    completeStep(stepId, "completed", result);
+    return result;
+  }
+
+  // Create new approval request
+  createApproval({
+    runId: ctx.run_id,
+    stepIndex: stepId,
+    stepName: step.name,
+    prompt: prompt_text,
+    context: {
+      vars: ctx.vars,
+      config: ctx.config,
+    },
+  });
+
+  // Pause the run
+  completeStep(stepId, "pending", "Awaiting approval");
+
+  return "__PENDING_APPROVAL__";
 }
 
 async function executeNotifyStep(step: WorkflowStep, ctx: WorkflowContext): Promise<string> {

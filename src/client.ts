@@ -4,7 +4,7 @@ import type {
   ChatCompletionTool,
 } from "openai/resources/chat/completions";
 import { toolDefinitions, getMcpToolDefinitions } from "./tools/index.js";
-import { getSkillToolDefinitions } from "./skills/index.js";
+import { getSkillToolDefinitions, getCoreSkillToolDefinitions } from "./skills/index.js";
 import { executeTool } from "./tools/executor.js";
 import { trackUsage, shouldCompact, compactMessages, checkBudget } from "./context.js";
 import {
@@ -50,10 +50,11 @@ export async function chat(
   onToken?: (token: string) => void,
   options?: { tools?: ChatCompletionTool[]; maxTurns?: number; signal?: AbortSignal }
 ): Promise<ChatCompletionMessageParam[]> {
-  // Merge built-in tools with MCP server tools and skill tools
+  // Merge: core skills (bundled) + built-in tools + MCP servers + user skills
+  const coreSkillTools = getCoreSkillToolDefinitions();
   const mcpTools = getMcpToolDefinitions();
-  const skillTools = getSkillToolDefinitions();
-  const allTools = [...toolDefinitions, ...mcpTools, ...skillTools] as ChatCompletionTool[];
+  const userSkillTools = getSkillToolDefinitions();
+  const allTools = [...coreSkillTools, ...toolDefinitions, ...mcpTools, ...userSkillTools] as ChatCompletionTool[];
   const activeTools = options?.tools ?? allTools;
   const maxTurns = options?.maxTurns ?? MAX_TOOL_TURNS;
   const updatedMessages = [...messages];

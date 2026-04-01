@@ -969,9 +969,110 @@
     .settings-toggle { display: flex; align-items: center; gap: 10px; cursor: pointer; }
     .settings-toggle input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--accent); }
     .settings-toggle span { font-size: 13px; color: var(--text); }
+    .settings-edit-btn {
+      background: none; border: 1px solid var(--border); border-radius: 6px; color: var(--text-muted);
+      padding: 4px 10px; font-size: 12px; cursor: pointer; transition: all .15s; margin-right: 4px;
+    }
+    .settings-edit-btn:hover { color: var(--accent); border-color: var(--accent); background: var(--accent-light); }
     @media (max-width: 768px) {
       .settings-view { padding: 24px 16px 60px; }
       .settings-form-row { flex-direction: column; }
+    }
+
+    /* ======================================= */
+    /* ---- Skill Editor Modal ---- */
+    /* ======================================= */
+    .skill-editor-modal {
+      display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.5); z-index: 100; align-items: center; justify-content: center;
+    }
+    .skill-editor-modal.show { display: flex; }
+    .skill-editor-container {
+      background: var(--bg-surface); border-radius: var(--radius); width: 90%; max-width: 900px;
+      max-height: 90vh; display: flex; flex-direction: column; box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+    }
+    .skill-editor-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 16px 20px; border-bottom: 1px solid var(--border-light);
+    }
+    .skill-editor-header h3 { font-size: 16px; font-weight: 600; color: var(--text); }
+    .skill-editor-close {
+      background: none; border: none; font-size: 24px; color: var(--text-muted);
+      cursor: pointer; padding: 4px; line-height: 1;
+    }
+    .skill-editor-close:hover { color: var(--text); }
+    .skill-editor-tabs {
+      display: flex; gap: 8px; padding: 12px 20px 0; border-bottom: 1px solid var(--border-light);
+    }
+    .skill-editor-tab {
+      background: none; border: none; border-bottom: 2px solid transparent;
+      padding: 8px 16px; font-size: 14px; color: var(--text-muted); cursor: pointer; transition: all .15s;
+    }
+    .skill-editor-tab:hover { color: var(--text); }
+    .skill-editor-tab.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 500; }
+    .skill-editor-content {
+      flex: 1; overflow: hidden; padding: 16px 20px; display: flex; flex-direction: column;
+    }
+    .skill-editor-tab-pane { display: none; flex: 1; flex-direction: column; }
+    .skill-editor-tab-pane.active { display: flex; }
+    .skill-editor-textarea {
+      flex: 1; width: 100%; min-height: 300px; padding: 12px;
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: var(--radius-sm); font-size: 13px; line-height: 1.6;
+      color: var(--text); font-family: var(--mono); resize: none;
+    }
+    .skill-editor-textarea:focus { outline: none; border-color: var(--accent); }
+    .skill-editor-footer {
+      padding: 16px 20px; border-top: 1px solid var(--border-light);
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .skill-editor-info { font-size: 12px; color: var(--text-muted); }
+    .skill-editor-actions { display: flex; gap: 8px; }
+    .skill-editor-btn {
+      padding: 8px 16px; border-radius: var(--radius-sm); font-size: 13px;
+      font-weight: 500; cursor: pointer; transition: all .15s;
+    }
+    .skill-editor-btn-secondary {
+      background: var(--bg); border: 1px solid var(--border); color: var(--text);
+    }
+    .skill-editor-btn-secondary:hover { background: var(--bg-hover); }
+    .skill-editor-btn-primary {
+      background: var(--accent); border: none; color: white;
+    }
+    .skill-editor-btn-primary:hover { opacity: .85; }
+    .skill-editor-btn-primary:disabled { opacity: .5; cursor: not-allowed; }
+
+    /* ======================================= */
+    /* ---- Create Skill Modal ---- */
+    /* ======================================= */
+    .create-skill-modal {
+      display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.5); z-index: 100; align-items: center; justify-content: center;
+    }
+    .create-skill-modal.show { display: flex; }
+    .create-skill-container {
+      background: var(--bg-surface); border-radius: var(--radius); width: 90%; max-width: 500px;
+      max-height: 90vh; display: flex; flex-direction: column; box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+    }
+    .create-skill-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 16px 20px; border-bottom: 1px solid var(--border-light);
+    }
+    .create-skill-header h3 { font-size: 16px; font-weight: 600; color: var(--text); }
+    .create-skill-content { padding: 20px; }
+    .create-skill-field { margin-bottom: 16px; }
+    .create-skill-field label {
+      display: block; font-size: 13px; font-weight: 500; color: var(--text); margin-bottom: 4px;
+    }
+    .create-skill-field .field-desc { font-size: 12px; color: var(--text-muted); margin-bottom: 6px; }
+    .create-skill-field input {
+      width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm);
+      font-size: 13px; background: var(--bg); color: var(--text);
+    }
+    .create-skill-field input:focus { outline: none; border-color: var(--accent); }
+    .create-skill-footer {
+      padding: 16px 20px; border-top: 1px solid var(--border-light);
+      display: flex; justify-content: flex-end; gap: 8px;
     }
 
     /* ======================================= */
@@ -2160,8 +2261,8 @@ npm run dev</code></pre>
     }
 
     function renderNav() {
-      // Show only most recent 5 chat sessions
-      const allChats = (state.chatSessions || []).filter(s => s.messageCount > 0).sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
+      // Show only most recent 5 general chat sessions (exclude agent and code sessions)
+      const allChats = (state.chatSessions || []).filter(s => s.messageCount > 0 && s.type === 'chat').sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
       const chats = allChats.slice(0, 5);
       const hasMoreChats = allChats.length > 5;
       
@@ -2610,6 +2711,7 @@ npm run dev</code></pre>
       const container = $('persona-chat-msgs');
       const scrollArea = $('persona-chat-messages');
       const av = personaAvatar(personaId);
+      const pScroll = () => requestAnimationFrame(() => { scrollArea.scrollTop = scrollArea.scrollHeight; });
 
       // Clear placeholder
       const placeholder = container.querySelector('div[style*="text-align:center"]');
@@ -2617,15 +2719,29 @@ npm run dev</code></pre>
 
       // Add user message
       container.innerHTML += `<div class="msg msg-user"><div class="msg-bubble">${esc(msg)}</div></div>`;
-      scrollArea.scrollTop = scrollArea.scrollHeight;
+      pScroll();
       input.value = '';
 
-      // Add typing indicator
-      const typingEl = document.createElement('div');
-      typingEl.className = 'msg msg-ai';
-      typingEl.innerHTML = `<div class="msg-avatar">${av}</div><div class="msg-body" style="color:var(--text-muted)">Thinking...</div>`;
-      container.appendChild(typingEl);
-      scrollArea.scrollTop = scrollArea.scrollHeight;
+      // Thinking indicator helpers
+      let thinkingEl = null;
+      function showPThinking() {
+        if (thinkingEl) return;
+        thinkingEl = document.createElement('div');
+        thinkingEl.className = 'thinking';
+        thinkingEl.innerHTML = '<div class="thinking-dots"><span></span><span></span><span></span></div>';
+        container.appendChild(thinkingEl);
+        pScroll();
+      }
+      function hidePThinking() {
+        if (thinkingEl) { thinkingEl.remove(); thinkingEl = null; }
+      }
+
+      // Tool call friendly names
+      const toolNames = { bash:'Running command', read_file:'Reading file', write_file:'Writing file', edit_file:'Editing file',
+        glob:'Finding files', grep:'Searching code', web_fetch:'Fetching page', web_search:'Searching web',
+        generate_image:'Generating image', spawn_agent:'Running sub-agent' };
+
+      showPThinking();
 
       try {
         // Ensure session is initialized
@@ -2637,8 +2753,6 @@ npm run dev</code></pre>
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ sessionId, message: msg })
         });
-
-        typingEl.remove();
 
         // Read SSE stream for response
         const reader = res.body.getReader();
@@ -2657,18 +2771,74 @@ npm run dev</code></pre>
             if (line.startsWith('data: ') && evtType) {
               try {
                 const payload = JSON.parse(line.substring(6));
-                if (evtType === 'token') {
-                  if (!responseEl) {
-                    responseEl = document.createElement('div');
-                    responseEl.className = 'msg msg-ai';
-                    responseEl.innerHTML = `<div class="msg-avatar">${av}</div><div class="msg-body"></div>`;
-                    container.appendChild(responseEl);
+                switch (evtType) {
+                  case 'thinking':
+                    payload.active ? showPThinking() : hidePThinking();
+                    break;
+                  case 'token':
+                    hidePThinking();
+                    if (!responseEl) {
+                      responseEl = document.createElement('div');
+                      responseEl.className = 'msg msg-ai';
+                      responseEl.innerHTML = `<div class="msg-avatar">${av}</div><div class="msg-body"></div>`;
+                      container.appendChild(responseEl);
+                    }
+                    responseText += payload.text;
+                    responseEl.querySelector('.msg-body').innerHTML = renderMd(responseText);
+                    pScroll();
+                    break;
+                  case 'tool_call': {
+                    hidePThinking();
+                    // Finalize any in-progress text before tool card
+                    if (responseEl && responseText) {
+                      responseEl.querySelector('.msg-body').innerHTML = renderMd(responseText);
+                    }
+                    responseEl = null; responseText = '';
+                    // Add tool card
+                    const friendly = toolNames[payload.name] || payload.name;
+                    const summary = payload.args ? (typeof payload.args === 'string' ? payload.args : JSON.stringify(payload.args)).slice(0, 80) : '';
+                    const toolEl = document.createElement('div');
+                    toolEl.className = 'tool';
+                    toolEl.setAttribute('data-tid', payload.id);
+                    toolEl.style.marginLeft = '40px';
+                    toolEl.innerHTML = `
+                      <div class="tool-head" onclick="this.parentElement.classList.toggle('open')">
+                        <span class="tool-dot running"></span>
+                        <span class="tool-label">${esc(friendly)}</span>
+                        <span class="tool-summary">${esc(summary)}</span>
+                        <span class="tool-chevron">&#9654;</span>
+                      </div>
+                      <div class="tool-detail"></div>`;
+                    container.appendChild(toolEl);
+                    pScroll();
+                    break;
                   }
-                  responseText += payload.text;
-                  responseEl.querySelector('.msg-body').innerHTML = renderMd(responseText);
-                  scrollArea.scrollTop = scrollArea.scrollHeight;
-                } else if (evtType === 'error') {
-                  container.innerHTML += `<div class="msg"><div style="color:var(--red);font-size:13px">Error: ${esc(payload.message || 'Unknown error')}</div></div>`;
+                  case 'tool_result': {
+                    const card = container.querySelector(`[data-tid="${payload.id}"]`);
+                    if (card) {
+                      const dot = card.querySelector('.tool-dot');
+                      dot.classList.remove('running');
+                      dot.classList.add(payload.error ? 'err' : 'done');
+                      const detail = card.querySelector('.tool-detail');
+                      detail.textContent = payload.result || '(no output)';
+                    }
+                    showPThinking();
+                    pScroll();
+                    break;
+                  }
+                  case 'status': {
+                    const noteEl = document.createElement('div');
+                    noteEl.style.cssText = 'padding:4px 0 4px 40px;font-size:12px;color:var(--text-muted)';
+                    noteEl.textContent = payload.message;
+                    container.appendChild(noteEl);
+                    pScroll();
+                    break;
+                  }
+                  case 'error':
+                    hidePThinking();
+                    container.innerHTML += `<div class="msg"><div style="color:var(--red);font-size:13px;padding-left:40px">Error: ${esc(payload.message || 'Unknown error')}</div></div>`;
+                    pScroll();
+                    break;
                 }
               } catch {}
               evtType = null;
@@ -2676,14 +2846,15 @@ npm run dev</code></pre>
           }
         }
 
+        hidePThinking();
         if (!responseEl && !responseText) {
-          container.innerHTML += '<div class="msg"><div style="color:var(--text-muted);font-size:13px">No response received.</div></div>';
+          container.innerHTML += '<div class="msg"><div style="color:var(--text-muted);font-size:13px;padding-left:40px">No response received.</div></div>';
         }
       } catch (e) {
-        typingEl.remove();
-        container.innerHTML += `<div class="msg"><div style="color:var(--red);font-size:13px">Error: ${esc(e.message || 'Failed to send')}</div></div>`;
+        hidePThinking();
+        container.innerHTML += `<div class="msg"><div style="color:var(--red);font-size:13px;padding-left:40px">Error: ${esc(e.message || 'Failed to send')}</div></div>`;
       }
-      scrollArea.scrollTop = scrollArea.scrollHeight;
+      pScroll();
       // Cache the chat HTML so it persists across navigations
       personaChatHtmlCache.set(personaId, container.innerHTML);
     };
@@ -4191,7 +4362,8 @@ Please fix this error and then confirm what changes you made.`;
                 ${s.tools.length ? `<div class="settings-item-tools">${toolTags}</div>` : ''}
               </div>
               <div class="settings-item-actions">
-                <button class="settings-remove-btn" onclick="uninstallSkill('${s.id}')">Uninstall</button>
+                <button class="settings-edit-btn" onclick="openSkillEditor('${s.id}')">Edit</button>
+                <button class="settings-remove-btn" onclick="deleteSkill('${s.id}')">Delete</button>
               </div>
             </div>`;
           }
@@ -4202,6 +4374,11 @@ Please fix this error and then confirm what changes you made.`;
           <div class="settings-form-row">
             <input id="skill-source" placeholder="GitHub URL or local path (e.g. https://github.com/user/kai-skill-slack)" />
             <button class="settings-add-btn" onclick="installSkill()">Install</button>
+          </div>
+          <div style="margin-top: 12px;">
+            <button class="settings-add-btn" onclick="openCreateSkillModal()" style="background: var(--bg-sidebar); color: var(--text); border: 1px solid var(--border);">
+              + Create New Skill
+            </button>
           </div>
         </div>`;
         html += '</div>';
@@ -4312,6 +4489,17 @@ Please fix this error and then confirm what changes you made.`;
       }
     };
 
+    window.deleteSkill = async function(id) {
+      if (!confirm(`Delete the skill "${id}"? This cannot be undone.`)) return;
+      try {
+        await fetch(`/api/settings/skills/${encodeURIComponent(id)}`, { method: 'DELETE' });
+        showToast('Skill Deleted', `"${id}" has been removed.`);
+        renderSettingsView();
+      } catch (err) {
+        showToast('Error', err.message);
+      }
+    };
+
     window.addEnvVar = async function() {
       const key = $('env-key').value.trim();
       const value = $('env-value').value;
@@ -4338,6 +4526,233 @@ Please fix this error and then confirm what changes you made.`;
         renderSettingsView();
       } catch (err) {
         showToast('Error', err.message);
+      }
+    };
+
+    // ---- Skill Editor ----
+    let currentEditingSkill = null;
+
+    window.openSkillEditor = async function(skillId) {
+      try {
+        const response = await fetch(`/api/settings/skills/${encodeURIComponent(skillId)}`);
+        const skill = await response.json();
+        if (skill.error) throw new Error(skill.error);
+
+        currentEditingSkill = skillId;
+
+        let modal = $('skill-editor-modal');
+        if (!modal) {
+          modal = document.createElement('div');
+          modal.id = 'skill-editor-modal';
+          modal.className = 'skill-editor-modal';
+          modal.innerHTML = `
+            <div class="skill-editor-container">
+              <div class="skill-editor-header">
+                <h3 id="skill-editor-title">Edit Skill</h3>
+                <button class="skill-editor-close" onclick="closeSkillEditor()">&times;</button>
+              </div>
+              <div class="skill-editor-tabs">
+                <button class="skill-editor-tab active" onclick="switchSkillTab('manifest')" data-tab="manifest">skill.yaml</button>
+                <button class="skill-editor-tab" onclick="switchSkillTab('handler')" data-tab="handler">handler.js</button>
+              </div>
+              <div class="skill-editor-content">
+                <div class="skill-editor-tab-pane active" id="tab-manifest">
+                  <textarea class="skill-editor-textarea" id="skill-manifest-editor" placeholder="Skill manifest YAML..."></textarea>
+                </div>
+                <div class="skill-editor-tab-pane" id="tab-handler">
+                  <textarea class="skill-editor-textarea" id="skill-handler-editor" placeholder="Handler JavaScript..."></textarea>
+                </div>
+              </div>
+              <div class="skill-editor-footer">
+                <button class="skill-editor-btn skill-editor-btn-secondary" id="skill-delete-btn" onclick="deleteSkillFromEditor()" style="color:var(--red);">Delete Skill</button>
+                <div class="skill-editor-actions">
+                  <button class="skill-editor-btn skill-editor-btn-secondary" onclick="closeSkillEditor()">Cancel</button>
+                  <button class="skill-editor-btn skill-editor-btn-primary" id="skill-save-btn" onclick="saveSkill()">Save Changes</button>
+                </div>
+              </div>
+            </div>
+          `;
+          document.body.appendChild(modal);
+        }
+
+        $('skill-editor-title').textContent = `Edit: ${skill.name}`;
+        $('skill-manifest-editor').value = skill.manifest;
+        $('skill-handler-editor').value = skill.handler;
+        $('skill-editor-info').textContent = skill.path;
+
+        modal.classList.add('show');
+        switchSkillTab('manifest');
+      } catch (err) {
+        showToast('Error', err.message);
+      }
+    };
+
+    window.closeSkillEditor = function() {
+      const modal = $('skill-editor-modal');
+      if (modal) modal.classList.remove('show');
+      currentEditingSkill = null;
+    };
+
+    window.switchSkillTab = function(tab) {
+      document.querySelectorAll('.skill-editor-tab').forEach(el => {
+        el.classList.toggle('active', el.dataset.tab === tab);
+      });
+      document.querySelectorAll('.skill-editor-tab-pane').forEach(el => {
+        el.classList.toggle('active', el.id === `tab-${tab}`);
+      });
+    };
+
+    window.saveSkill = async function() {
+      if (!currentEditingSkill) return;
+
+      const saveBtn = $('skill-save-btn');
+      saveBtn.disabled = true;
+      saveBtn.textContent = 'Saving...';
+
+      try {
+        const manifest = $('skill-manifest-editor').value;
+        const handler = $('skill-handler-editor').value;
+
+        // Save manifest
+        const manifestRes = await fetch(`/api/settings/skills/${encodeURIComponent(currentEditingSkill)}/manifest`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ manifest })
+        });
+        if (!manifestRes.ok) throw new Error('Failed to save manifest');
+
+        // Save handler
+        const handlerRes = await fetch(`/api/settings/skills/${encodeURIComponent(currentEditingSkill)}/handler`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ handler })
+        });
+        if (!handlerRes.ok) throw new Error('Failed to save handler');
+
+        showToast('Skill Saved', 'Changes have been saved and skill reloaded.');
+        closeSkillEditor();
+        renderSettingsView();
+      } catch (err) {
+        showToast('Error', err.message);
+      } finally {
+        saveBtn.disabled = false;
+        saveBtn.textContent = 'Save Changes';
+      }
+    };
+
+    window.deleteSkillFromEditor = async function() {
+      if (!currentEditingSkill) return;
+      if (!confirm(`Are you sure you want to delete the skill "${currentEditingSkill}"? This cannot be undone.`)) return;
+
+      try {
+        await fetch(`/api/settings/skills/${encodeURIComponent(currentEditingSkill)}`, { method: 'DELETE' });
+        showToast('Skill Deleted', `"${currentEditingSkill}" has been removed.`);
+        closeSkillEditor();
+        renderSettingsView();
+      } catch (err) {
+        showToast('Error', err.message);
+      }
+    };
+
+    // ---- Create Skill Modal ----
+    window.openCreateSkillModal = function() {
+      let modal = $('create-skill-modal');
+      if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'create-skill-modal';
+        modal.className = 'create-skill-modal';
+        modal.innerHTML = `
+          <div class="create-skill-container">
+            <div class="create-skill-header">
+              <h3>Create New Skill</h3>
+              <button class="skill-editor-close" onclick="closeCreateSkillModal()">&times;</button>
+            </div>
+            <div class="create-skill-content">
+              <div class="create-skill-field">
+                <label>Skill ID</label>
+                <div class="field-desc">Unique identifier (letters, numbers, hyphens, underscores)</div>
+                <input id="create-skill-id" placeholder="e.g., my-custom-skill" />
+              </div>
+              <div class="create-skill-field">
+                <label>Name</label>
+                <div class="field-desc">Display name for the skill</div>
+                <input id="create-skill-name" placeholder="e.g., My Custom Skill" />
+              </div>
+              <div class="create-skill-field">
+                <label>Version</label>
+                <input id="create-skill-version" placeholder="1.0.0" value="1.0.0" />
+              </div>
+              <div class="create-skill-field">
+                <label>Description</label>
+                <input id="create-skill-description" placeholder="What does this skill do?" />
+              </div>
+              <div class="create-skill-field">
+                <label>Author</label>
+                <input id="create-skill-author" placeholder="Your name or organization" />
+              </div>
+            </div>
+            <div class="create-skill-footer">
+              <button class="skill-editor-btn skill-editor-btn-secondary" onclick="closeCreateSkillModal()">Cancel</button>
+              <button class="skill-editor-btn skill-editor-btn-primary" id="create-skill-btn" onclick="createSkill()">Create Skill</button>
+            </div>
+          </div>
+        `;
+        document.body.appendChild(modal);
+      }
+
+      // Reset fields
+      $('create-skill-id').value = '';
+      $('create-skill-name').value = '';
+      $('create-skill-version').value = '1.0.0';
+      $('create-skill-description').value = '';
+      $('create-skill-author').value = '';
+
+      modal.classList.add('show');
+    };
+
+    window.closeCreateSkillModal = function() {
+      const modal = $('create-skill-modal');
+      if (modal) modal.classList.remove('show');
+    };
+
+    window.createSkill = async function() {
+      const id = $('create-skill-id').value.trim();
+      const name = $('create-skill-name').value.trim();
+      const version = $('create-skill-version').value.trim() || '1.0.0';
+      const description = $('create-skill-description').value.trim();
+      const author = $('create-skill-author').value.trim();
+
+      if (!id || !name) {
+        showToast('Error', 'Skill ID and Name are required');
+        return;
+      }
+
+      if (!/^[a-z0-9-_]+$/i.test(id)) {
+        showToast('Error', 'Skill ID must contain only letters, numbers, hyphens, and underscores');
+        return;
+      }
+
+      const btn = $('create-skill-btn');
+      btn.disabled = true;
+      btn.textContent = 'Creating...';
+
+      try {
+        const response = await fetch('/api/settings/skills', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id, name, version, description, author })
+        });
+        const result = await response.json();
+        if (result.error) throw new Error(result.error);
+
+        showToast('Skill Created', `"${name}" has been created and loaded.`);
+        closeCreateSkillModal();
+        renderSettingsView();
+      } catch (err) {
+        showToast('Error', err.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Create Skill';
       }
     };
 

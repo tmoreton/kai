@@ -231,6 +231,48 @@ agent
     }
   });
 
+agent
+  .command("notify")
+  .description("Show agent notifications digest")
+  .option("-a, --all", "Show all notifications")
+  .option("-r, --read", "Mark notifications as read after viewing")
+  .action(async (options) => {
+    const chalk = (await import("chalk")).default;
+    try {
+      const { formatNotificationsList, formatNotificationDigest, markAllNotificationsAsRead } = await import("./agents/manager.js");
+      if (options.all) {
+        console.log(formatNotificationsList());
+      } else {
+        const digest = formatNotificationDigest(24);
+        if (digest) {
+          console.log(digest);
+        } else {
+          console.log(chalk.dim("\n  No agent activity in the last 24 hours.\n"));
+        }
+      }
+      if (options.read) {
+        console.log(chalk.dim(markAllNotificationsAsRead()));
+      }
+    } catch (err: any) {
+      console.error(chalk.red(`  Error: ${err.message}`));
+      process.exit(1);
+    }
+  });
+
+agent
+  .command("trends <agent-id>")
+  .description("Show trends from agent run history")
+  .argument("[step-name]", "Step name to analyze (defaults to first completed step)")
+  .action(async (agentId, stepName) => {
+    try {
+      const { formatAgentTrends } = await import("./agents/manager.js");
+      console.log(formatAgentTrends(agentId, stepName));
+    } catch (err: any) {
+      console.error(chalk.red(`  Error: ${err.message}`));
+      process.exit(1);
+    }
+  });
+
 // --- Skill commands ---
 const skill = program.command("skill").description("Manage modular skills");
 

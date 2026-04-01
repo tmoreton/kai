@@ -1,0 +1,43 @@
+id: git-tools
+name: Git Tools
+version: 1.0.0
+description: Git operations with safety checks and structured output. Includes commit logs, diff since session start, undo with preview, and stash with status.
+author: kai
+config_schema: {}
+tools:
+  - name: log
+    description: Show recent git commits with hashes, messages, and relative dates
+    parameters:
+      count:
+        type: number
+        description: Number of commits to show (default 15)
+        required: false
+
+  - name: diff_session
+    description: Show all changes (committed + uncommitted) since the current session started
+    parameters:
+      session_start:
+        type: string
+        required: true
+        description: ISO timestamp of session start
+
+  - name: undo
+    description: Undo last N git commits. Soft reset preserves changes as staged files, hard discards permanently
+    parameters:
+      count:
+        type: number
+        description: Number of commits to undo (default 1, max 10)
+        required: false
+      mode:
+        type: string
+        description: Reset mode - soft keeps changes staged, hard discards all changes
+        enum: [soft, hard]
+        required: false
+
+  - name: stash
+    description: Stash uncommitted changes to save for later
+    parameters:
+      message:
+        type: string
+        description: Optional stash message
+        required: false

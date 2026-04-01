@@ -11,6 +11,17 @@ import {
   getLatestRuns,
   getSteps,
   getAgentLogs,
+  listNotificationsSince,
+  listNotifications,
+  markNotificationRead,
+  markAllNotificationsRead,
+  getRunOutputsForComparison,
+  calculateTrend,
+  getPendingApprovals,
+  resolveApproval,
+  getApprovalById,
+  hasPendingApprovals,
+  type NotificationRecord,
 } from "./db.js";
 import { parseWorkflow } from "./workflow.js";
 import { runAgent, isDaemonRunning, stopDaemonProcess } from "./daemon.js";
@@ -282,4 +293,135 @@ export function daemonStatus(): string {
   }
   return chalk.dim("  ◻ Daemon is not running\n") +
     chalk.dim("  Start with: kai agent daemon\n");
+}
+
+export function formatNotificationDigest(hours = 24): string {
+  const notifications = listNotificationsSince(hours);
+  if (notifications.length === 0) {
+    return "";
+  }
+
+  const lines: string[] = [
+    chalk.bold.cyan("\n  📬 Agent Digest"),
+    chalk.dim(`     (last ${hours}h)\n`),
+  ];
+
+  for (const n of notifications.slice(0, 10)) {
+    const icon = n.type === "agent_failed" ? chalk.red("✗")
+      : n.type === "agent_completed" ? chalk.green("✓")
+      : chalk.blue("•");
+    const title = n.read ? chalk.dim(n.title) : chalk.bold(n.title);
+    const time = chalk.dim(new Date(n.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
+    lines.push(`  ${icon} ${title} ${time}`);
+    if (n.body) {
+      const body = n.body.length > 80 ? n.body.substring(0, 77) + "..." : n.body;
+      lines.push(chalk.dim(`    ${body.split("\n")[0]}`));
+    }
+  }
+
+  if (notifications.length > 10) {
+    lines.push(chalk.dim(`\n  ... and ${notifications.length - 10} more`));
+  }
+
+  lines.push("");
+  return lines.join("\n");
+}
+
+export function formatNotificationsList(limit = 20): string {
+  const notifications = listNotifications(limit);
+  if (notifications.length === 0) {
+    return "  No notifications yet.\n";
+  }
+
+  const lines: string[] = [chalk.bold("\n  Notifications\n")];
+
+  for (const n of notifications) {
+    const icon = n.type === "agent_failed" ? chalk.red("✗")
+      : n.type === "agent_completed" ? chalk.green("✓")
+      : chalk.blue("•");
+    const readMark = n.read ? chalk.dim("◻") : chalk.cyan("◼");
+    const title = n.read ? chalk.dim(n.title) : chalk.bold(n.title);
+    const time = chalk.dim(new Date(n.created_at).toLocaleString());
+
+    lines.push(`  ${readMark} [${n.id}] ${icon} ${title}`);
+    lines.push(chalk.dim(`     ${time}`));
+    if (n.body) {
+      const body = n.body.length > 200 ? n.body.substring(0, 197) + "..." : n.body;
+      lines.push(body.split("\n").map((l) => `     ${l}`).join("\n"));
+    }
+    lines.push("");
+  }
+
+  return lines.join("\n");
+}
+
+export function markNotificationAsRead(id: number): string {
+  markNotificationRead(id);
+  return `Marked notification ${id} as read.`;
+}
+
+export function markAllNotificationsAsRead(): string {
+  markAllNotificationsRead();
+  return "All notifications marked as read.";
+}
+
+export function formatAgentTrends(agentId: string, stepName?: string): string {
+  const agent = getAgent(agentId);
+  if (!agent) return chalk.red(`Agent "${agentId}" not found.\n`);
+
+  // If no step name provided, ask for one or show available
+  if (!stepName) {
+    // Try to infer from common step names
+    const steps = getLatestRuns(agentId, 1);
+    if (steps.length === 0) return chalk.dim("No runs yet.\n");
+
+    const stepRecords = getSteps(steps[0].id);
+    const commonSteps = stepRecords
+      .filter(s => s.status === "completed" && s.output)
+      .map(s => s.step_name);
+
+    if (commonSteps.length === 0) return chalk.dim("No completed steps with output.\n");
+
+    stepName = commonSteps[0];
+  }
+
+  const outputs = getRunOutputsForComparison(agentId, stepName, 5);
+  if (outputs.length === 0) {
+    return chalk.dim(`No outputs for step "${stepName}".\n`);
+  }
+
+  const lines: string[] = [
+    chalk.bold(`\n  Trend: ${agent.name} — ${stepName}\n`),
+    chalk.dim(`  Comparing ${outputs.length} recent runs:\n`),
+  ];
+
+  for (let i = 0; i < outputs.length; i++) {
+    const { output, created_at } = outputs[i];
+    const date = new Date(created_at).toLocaleDateString();
+    const preview = output.length > 60 ? output.substring(0, 57) + "..." : output;
+    const marker = i === 0 ? chalk.green("✓ current") : chalk.dim("← older");
+    lines.push(`  ${marker} ${date}: ${preview.split('\n')[0]}`);
+  }
+
+  // Try to extract numeric trend if looks like numbers
+  const numericLines = outputs[0]?.output.match(/(\d+[,\d]*\.?\d*)/g);
+  if (numericLines && numericLines.length > 0) {
+    const current = parseFloat(numericLines[0].replace(/,/g, ""));
+    const prevOutput = outputs[1]?.output;
+    if (prevOutput) {
+      const prevMatches = prevOutput.match(/(\d+[,\d]*\.?\d*)/g);
+      if (prevMatches && prevMatches.length > 0) {
+        const previous = parseFloat(prevMatches[0].replace(/,/g, ""));
+        if (!isNaN(current) && !isNaN(previous) && previous !== 0) {
+          const change = ((current - previous) / previous) * 100;
+          const arrow = change > 0 ? "↑" : change < 0 ? "↓" : "→";
+          const color = change > 0 ? chalk.green : change < 0 ? chalk.red : chalk.dim;
+          lines.push(`\n  ${color(`${arrow} ${Math.abs(change).toFixed(1)}% change`)} (${previous.toLocaleString()} → ${current.toLocaleString()})`);
+        }
+      }
+    }
+  }
+
+  lines.push("");
+  return lines.join("\n");
 }

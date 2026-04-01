@@ -12,13 +12,13 @@ export interface Session {
   createdAt: string;
   updatedAt: string;
   messages: ChatCompletionMessageParam[];
-  type?: "chat" | "code";
+  type?: "chat" | "code" | "agent";
   personaId?: string; // Links session to a persona for persistent agent chats
 }
 
 export function findSessionByPersona(personaId: string): Session | null {
   const sessions = listSessions(100, true);
-  return sessions.find(s => s.personaId === personaId && s.type === "chat") || null;
+  return sessions.find(s => s.personaId === personaId && s.type === "agent") || null;
 }
 
 function sessionsDir(): string {
