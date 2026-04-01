@@ -62,7 +62,7 @@
     }
     .sidebar-brand svg { color: var(--accent); }
     .sidebar-collapse-btn {
-      margin-left: auto; background: none; border: none; color: var(--text-muted); cursor: pointer;
+      background: none; border: none; color: var(--text-muted); cursor: pointer;
       padding: 4px; border-radius: 4px; display: flex; align-items: center; justify-content: center;
       transition: all .15s;
     }
@@ -246,10 +246,7 @@
     @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:.4; } }
 
     /* Model selector bar */
-    .chat-header {
-      display: flex; align-items: center; justify-content: center; padding: 12px 24px;
-      border-bottom: 1px solid var(--border-light); background: var(--bg); flex-shrink: 0;
-    }
+    .chat-header { display: none; }
     .model-picker {
       display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px 6px 10px;
       background: var(--bg-surface); border: 1px solid var(--border); border-radius: 20px;
@@ -777,6 +774,79 @@
       .docs-nav { flex-direction: column; }
     }
 
+    /* ---- Settings view ---- */
+    .settings-view { height: 100%; overflow-y: scroll; scrollbar-width: none; -ms-overflow-style: none; background: var(--bg); max-width: 800px; margin: 0 auto; padding: 32px 40px 60px; }
+    .settings-view::-webkit-scrollbar { display: none; }
+    .settings-view h1 { font-size: 24px; font-weight: 700; letter-spacing: -0.5px; margin-bottom: 4px; }
+    .settings-subtitle { font-size: 14px; color: var(--text-muted); margin-bottom: 28px; }
+    .settings-card {
+      background: var(--bg-surface); border: 1px solid var(--border-light); border-radius: var(--radius);
+      padding: 20px 24px; margin-bottom: 20px;
+    }
+    .settings-card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+    .settings-card-header h2 { font-size: 16px; font-weight: 600; color: var(--text); }
+    .settings-card-desc { font-size: 13px; color: var(--text-muted); margin-bottom: 16px; line-height: 1.5; }
+    .settings-item {
+      display: flex; align-items: flex-start; gap: 12px; padding: 10px 12px;
+      border: 1px solid var(--border-light); border-radius: var(--radius-sm); margin-bottom: 8px;
+      transition: background .15s;
+    }
+    .settings-item:hover { background: var(--bg-hover); }
+    .settings-item-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; margin-top: 6px; }
+    .settings-item-dot.online { background: var(--green); }
+    .settings-item-dot.offline { background: var(--red); }
+    .settings-item-info { flex: 1; min-width: 0; }
+    .settings-item-name { font-size: 14px; font-weight: 600; color: var(--text); }
+    .settings-item-meta { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+    .settings-item-tools { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+    .settings-tag {
+      font-size: 11px; background: var(--bg-sidebar); border: 1px solid var(--border-light);
+      border-radius: 4px; padding: 2px 8px; color: var(--text-secondary);
+    }
+    .settings-item-actions { flex-shrink: 0; margin-top: 4px; }
+    .settings-remove-btn {
+      background: none; border: 1px solid var(--border); border-radius: 6px; color: var(--text-muted);
+      padding: 4px 10px; font-size: 12px; cursor: pointer; transition: all .15s;
+    }
+    .settings-remove-btn:hover { color: var(--red); border-color: var(--red); background: var(--red-light); }
+    .settings-empty { font-size: 13px; color: var(--text-muted); padding: 12px 0; }
+    .settings-form { margin-top: 16px; border-top: 1px solid var(--border-light); padding-top: 16px; }
+    .settings-form-title { font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 12px; }
+    .settings-form-row { display: flex; gap: 8px; margin-bottom: 8px; }
+    .settings-form-row input {
+      flex: 1; padding: 8px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm);
+      font-size: 13px; font-family: var(--mono); background: var(--bg); color: var(--text);
+    }
+    .settings-form-row input:focus { outline: none; border-color: var(--accent); }
+    .settings-form-row input::placeholder { color: var(--text-muted); }
+    .settings-add-btn {
+      background: var(--accent); color: white; border: none; border-radius: var(--radius-sm);
+      padding: 8px 16px; font-size: 13px; font-weight: 500; cursor: pointer; transition: opacity .15s;
+      white-space: nowrap;
+    }
+    .settings-add-btn:hover { opacity: .85; }
+    .settings-add-btn:disabled { opacity: .5; cursor: not-allowed; }
+    .settings-reload-btn {
+      background: none; border: 1px solid var(--accent); color: var(--accent); border-radius: 6px;
+      padding: 4px 12px; font-size: 12px; font-weight: 500; cursor: pointer; transition: all .15s;
+    }
+    .settings-reload-btn:hover { background: var(--accent-light); }
+    .settings-field { margin-bottom: 16px; }
+    .settings-field label { display: block; font-size: 13px; font-weight: 500; color: var(--text); margin-bottom: 4px; }
+    .settings-field .field-desc { font-size: 12px; color: var(--text-muted); margin-bottom: 6px; }
+    .settings-field input[type="number"] {
+      padding: 8px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm);
+      font-size: 13px; width: 200px; background: var(--bg); color: var(--text);
+    }
+    .settings-field input:focus { outline: none; border-color: var(--accent); }
+    .settings-toggle { display: flex; align-items: center; gap: 10px; cursor: pointer; }
+    .settings-toggle input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--accent); }
+    .settings-toggle span { font-size: 13px; color: var(--text); }
+    @media (max-width: 768px) {
+      .settings-view { padding: 24px 16px 60px; }
+      .settings-form-row { flex-direction: column; }
+    }
+
     /* ======================================= */
     /* ---- Persona cards (agents view) ---- */
     /* ======================================= */
@@ -828,8 +898,9 @@
     /* ---- Notification bell + dropdown ---- */
     /* ======================================= */
     .notif-bell {
-      position: relative; background: none; border: none; cursor: pointer; padding: 6px;
-      color: var(--text-muted); transition: color .15s;
+      position: relative; background: none; border: none; cursor: pointer; padding: 4px;
+      color: var(--text-muted); transition: color .15s; margin-left: auto;
+      display: flex; align-items: center; justify-content: center;
     }
     .notif-bell:hover { color: var(--text); }
     .notif-badge {
@@ -842,7 +913,7 @@
     .notif-badge.hidden { display: none; }
 
     .notif-dropdown {
-      position: absolute; top: 100%; right: 0; width: 380px; max-height: 480px;
+      position: fixed; top: 56px; left: 16px; width: 380px; max-height: 480px;
       background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius);
       box-shadow: 0 8px 32px rgba(0,0,0,.12); z-index: 200; display: none; flex-direction: column;
     }
@@ -911,17 +982,9 @@
       <div class="sidebar-brand">
         <svg width="24" height="24" viewBox="0 0 32 32" style="flex-shrink:0"><defs><linearGradient id="brand-g" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#0D9488"/><stop offset="100%" stop-color="#115E59"/></linearGradient></defs><rect width="32" height="32" rx="8" fill="url(#brand-g)"/><path d="M9 8v16M9 16l8-8M9 16l8 8" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
         Kai
-        <span style="flex:1"></span>
-        <button class="notif-bell" id="notif-bell" onclick="toggleNotifications(event)" title="Notifications" style="position:relative">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+        <button class="notif-bell" id="notif-bell" onclick="toggleNotifications(event)" title="Notifications">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
           <span class="notif-badge hidden" id="notif-badge">0</span>
-          <div class="notif-dropdown" id="notif-dropdown">
-            <div class="notif-dropdown-header">
-              <span class="notif-dropdown-title">Notifications</span>
-              <button class="notif-mark-all" onclick="event.stopPropagation();markAllRead()">Mark all read</button>
-            </div>
-            <div class="notif-list" id="notif-list"></div>
-          </div>
         </button>
         <button class="sidebar-collapse-btn" onclick="collapseSidebar()" title="Collapse sidebar">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 2L5 8l6 6"/></svg>
@@ -992,10 +1055,28 @@
             </span>
           </div>
         </div>
+
+        <!-- Settings Section -->
+        <div class="sidebar-section">
+          <div class="sidebar-section-header" onclick="switchView('settings')">
+            <span class="sidebar-section-title">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6.5 1.5h3L10 3.3a5.5 5.5 0 011.2.7l1.7-.5 1.5 2.6-1.3 1.2a5.5 5.5 0 010 1.4l1.3 1.2-1.5 2.6-1.7-.5a5.5 5.5 0 01-1.2.7l-.5 1.8h-3l-.5-1.8a5.5 5.5 0 01-1.2-.7l-1.7.5-1.5-2.6 1.3-1.2a5.5 5.5 0 010-1.4L1.6 6.1l1.5-2.6 1.7.5A5.5 5.5 0 016 3.3z"/><circle cx="8" cy="8" r="2"/></svg>
+              Settings
+            </span>
+          </div>
+        </div>
       </div>
 
       <div class="sidebar-footer" id="footer"></div>
     </aside>
+
+    <div class="notif-dropdown" id="notif-dropdown">
+      <div class="notif-dropdown-header">
+        <span class="notif-dropdown-title">Notifications</span>
+        <button class="notif-mark-all" onclick="event.stopPropagation();markAllRead()">Mark all read</button>
+      </div>
+      <div class="notif-list" id="notif-list"></div>
+    </div>
 
     <main class="main">
       <!-- Chat View -->
@@ -1159,21 +1240,18 @@ cp .env.example .env   # add your OpenRouter key
 npm run dev</code></pre>
               </div>
 
-              <div class="docs-card">
-                <h3>Models</h3>
-                <table>
-                  <thead><tr><th>Used for</th><th>Default model</th></tr></thead>
-                  <tbody>
-                    <tr><td>Chat & tasks</td><td>Qwen 3.5 397B</td></tr>
-                    <tr><td>Backup</td><td>Kimi K2.5</td></tr>
-                    <tr><td>Image generation</td><td>Gemini 2.5 Flash</td></tr>
-                  </tbody>
-                </table>
-                <p style="margin-top:12px">Change models via the picker at the top of the chat or <code>MODEL_ID</code> in <code>.env</code>.</p>
-              </div>
             </section>
 
           </div>
+        </div>
+      </div>
+
+      <!-- Settings View -->
+      <div class="view" id="view-settings">
+        <div class="settings-view">
+          <h1>Settings</h1>
+          <p class="settings-subtitle">Manage MCP servers, skills, and general configuration.</p>
+          <div id="settings-content"></div>
         </div>
       </div>
     </main>
@@ -1381,12 +1459,14 @@ npm run dev</code></pre>
       $('view-agents').classList.toggle('active', view === 'agents');
       $('view-code').classList.toggle('active', view === 'code');
       $('view-docs').classList.toggle('active', view === 'docs');
+      $('view-settings').classList.toggle('active', view === 'settings');
 
       if (view === 'agents') {
         state.selectedAgentId = null;
         renderAgentsList();
       }
       if (view === 'code') renderCodeView();
+      if (view === 'settings') renderSettingsView();
       closeSidebar();
     };
 
@@ -2704,7 +2784,7 @@ npm run dev</code></pre>
     // Close dropdown on outside click
     document.addEventListener('click', (e) => {
       const dd = $('notif-dropdown');
-      if (dd.classList.contains('show') && !e.target.closest('.notif-bell')) {
+      if (dd.classList.contains('show') && !e.target.closest('.notif-bell') && !e.target.closest('.notif-dropdown')) {
         dd.classList.remove('show');
       }
     });
@@ -2754,6 +2834,211 @@ npm run dev</code></pre>
 
     window.hideToast = function() {
       $('notif-toast').classList.remove('show');
+    };
+
+    // ---- Settings View ----
+    async function renderSettingsView() {
+      const container = $('settings-content');
+      container.innerHTML = '<p style="color:var(--text-muted)">Loading settings...</p>';
+
+      try {
+        const data = await api.get('/api/settings');
+        let html = '';
+
+        // === MCP Servers Card ===
+        html += `<div class="settings-card">
+          <div class="settings-card-header"><h2>MCP Servers</h2></div>
+          <p class="settings-card-desc">Connect external tool servers via the <a href="https://modelcontextprotocol.io" target="_blank" style="color:var(--accent)">Model Context Protocol</a>. MCP servers expose tools that Kai can call during conversations &mdash; like filesystem access, database queries, or custom APIs.</p>`;
+
+        if (data.mcp.servers.length === 0) {
+          html += '<p class="settings-empty">No MCP servers configured. Add one below to get started.</p>';
+        } else {
+          for (const s of data.mcp.servers) {
+            const dotClass = s.ready ? 'online' : 'offline';
+            const toolTags = s.tools.map(t => `<span class="settings-tag">${t}</span>`).join('');
+            const cmd = s.config.command || '';
+            const args = (s.config.args || []).join(' ');
+            html += `<div class="settings-item">
+              <div class="settings-item-dot ${dotClass}"></div>
+              <div class="settings-item-info">
+                <div class="settings-item-name">${s.name}</div>
+                <div class="settings-item-meta"><code>${cmd} ${args}</code></div>
+                ${s.tools.length ? `<div class="settings-item-tools">${toolTags}</div>` : ''}
+              </div>
+              <div class="settings-item-actions">
+                <button class="settings-remove-btn" onclick="removeMcpServer('${s.name}')">Remove</button>
+              </div>
+            </div>`;
+          }
+        }
+
+        html += `<div class="settings-form">
+          <div class="settings-form-title">Add MCP Server</div>
+          <div class="settings-form-row">
+            <input id="mcp-name" placeholder="Server name (e.g. filesystem)" />
+            <input id="mcp-command" placeholder="Command (e.g. npx)" />
+          </div>
+          <div class="settings-form-row">
+            <input id="mcp-args" placeholder="Arguments (e.g. -y @modelcontextprotocol/server-filesystem /tmp)" />
+            <button class="settings-add-btn" onclick="addMcpServer()">Add Server</button>
+          </div>
+        </div>`;
+        html += '</div>';
+
+        // === Skills Card ===
+        html += `<div class="settings-card">
+          <div class="settings-card-header">
+            <h2>Skills</h2>
+            <button class="settings-reload-btn" onclick="reloadSkills()">Reload All</button>
+          </div>
+          <p class="settings-card-desc">Modular tool packages that extend Kai with new capabilities. Each skill is a folder in <code style="font-size:12px;background:var(--bg-sidebar);padding:2px 6px;border-radius:3px">~/.kai/skills/</code> containing a <code style="font-size:12px;background:var(--bg-sidebar);padding:2px 6px;border-radius:3px">skill.yaml</code> manifest and a <code style="font-size:12px;background:var(--bg-sidebar);padding:2px 6px;border-radius:3px">handler.js</code> with action implementations.</p>`;
+
+        if (data.skills.length === 0) {
+          html += `<p class="settings-empty">No skills installed. Install one from GitHub below or add a skill folder manually.</p>`;
+        } else {
+          for (const s of data.skills) {
+            const toolTags = s.tools.map(t => `<span class="settings-tag" title="${t.description || ''}">${t.name}</span>`).join('');
+            html += `<div class="settings-item">
+              <div class="settings-item-dot online"></div>
+              <div class="settings-item-info">
+                <div class="settings-item-name">${s.name} <span style="font-size:12px;font-weight:400;color:var(--text-muted)">v${s.version}</span></div>
+                <div class="settings-item-meta">${s.description}${s.author ? ` &middot; by ${s.author}` : ''}</div>
+                ${s.tools.length ? `<div class="settings-item-tools">${toolTags}</div>` : ''}
+              </div>
+              <div class="settings-item-actions">
+                <button class="settings-remove-btn" onclick="uninstallSkill('${s.id}')">Uninstall</button>
+              </div>
+            </div>`;
+          }
+        }
+
+        html += `<div class="settings-form">
+          <div class="settings-form-title">Install Skill</div>
+          <div class="settings-form-row">
+            <input id="skill-source" placeholder="GitHub URL or local path (e.g. https://github.com/user/kai-skill-slack)" />
+            <button class="settings-add-btn" onclick="installSkill()">Install</button>
+          </div>
+        </div>`;
+        html += '</div>';
+
+        // === How It Works Card (Documentation) ===
+        html += `<div class="settings-card">
+          <div class="settings-card-header"><h2>How It Works</h2></div>
+          <p class="settings-card-desc">Kai extends its capabilities through two systems: MCP servers and Skills. Both add tools that the AI can call during conversations and background agent workflows.</p>
+
+          <div style="margin-bottom:20px">
+            <h3 style="font-size:14px;font-weight:600;margin-bottom:6px">MCP Servers</h3>
+            <p style="font-size:13px;color:var(--text-secondary);line-height:1.6;margin-bottom:8px">
+              MCP (Model Context Protocol) is an open standard for connecting AI assistants to external tools. An MCP server is a separate process that Kai spawns and communicates with via JSON-RPC. Thousands of community MCP servers exist for databases, APIs, cloud services, and more.
+            </p>
+            <p style="font-size:13px;color:var(--text-secondary);line-height:1.6;margin-bottom:8px">
+              <strong>How to add one:</strong> Enter the server name, the command to run it (usually <code style="font-size:12px;background:var(--bg-sidebar);padding:1px 4px;border-radius:3px">npx</code>), and any arguments. Kai will start the server, discover its tools, and make them available as <code style="font-size:12px;background:var(--bg-sidebar);padding:1px 4px;border-radius:3px">mcp__servername__toolname</code>.
+            </p>
+            <p style="font-size:13px;color:var(--text-secondary);line-height:1.6">
+              <strong>Example:</strong> Add a filesystem server with command <code style="font-size:12px;background:var(--bg-sidebar);padding:1px 4px;border-radius:3px">npx</code> and args <code style="font-size:12px;background:var(--bg-sidebar);padding:1px 4px;border-radius:3px">-y @modelcontextprotocol/server-filesystem /tmp</code>
+            </p>
+          </div>
+
+          <div style="margin-bottom:20px">
+            <h3 style="font-size:14px;font-weight:600;margin-bottom:6px">Skills</h3>
+            <p style="font-size:13px;color:var(--text-secondary);line-height:1.6;margin-bottom:8px">
+              Skills are simpler than MCP &mdash; they're just a folder with a YAML manifest and a JavaScript handler file. Skills run in-process (no separate server needed), can be hot-reloaded without restart, and are great for custom integrations.
+            </p>
+            <p style="font-size:13px;color:var(--text-secondary);line-height:1.6;margin-bottom:8px">
+              <strong>To create a skill:</strong> Make a folder in <code style="font-size:12px;background:var(--bg-sidebar);padding:1px 4px;border-radius:3px">~/.kai/skills/my-skill/</code> with two files:
+            </p>
+            <pre style="background:#1E1E1E;border-radius:8px;padding:14px 16px;margin:8px 0;overflow-x:auto"><code style="font-family:var(--mono);font-size:12px;color:#D4D4D4;line-height:1.6"># skill.yaml
+id: my-skill
+name: My Custom Skill
+version: 1.0.0
+tools:
+  - name: hello
+    description: Say hello
+    parameters:
+      name: { type: string, required: true }</code></pre>
+            <pre style="background:#1E1E1E;border-radius:8px;padding:14px 16px;margin:8px 0 0;overflow-x:auto"><code style="font-family:var(--mono);font-size:12px;color:#D4D4D4;line-height:1.6">// handler.js
+export default {
+  actions: {
+    hello: async (params) =&gt; \`Hello, \${params.name}!\`,
+  },
+};</code></pre>
+          </div>
+
+          <div>
+            <h3 style="font-size:14px;font-weight:600;margin-bottom:6px">Built-in Skills</h3>
+            <p style="font-size:13px;color:var(--text-secondary);line-height:1.6">
+              Kai ships with <strong>YouTube Data</strong> (search videos, get stats, channel info) and <strong>Web Tools</strong> (fetch URLs, Tavily search) as built-in skills. These are automatically installed to <code style="font-size:12px;background:var(--bg-sidebar);padding:1px 4px;border-radius:3px">~/.kai/skills/</code> on first run. Background agent workflows that reference <code style="font-size:12px;background:var(--bg-sidebar);padding:1px 4px;border-radius:3px">integration: youtube</code> or <code style="font-size:12px;background:var(--bg-sidebar);padding:1px 4px;border-radius:3px">integration: web</code> are automatically routed through these skills.
+            </p>
+          </div>
+        </div>`;
+
+        container.innerHTML = html;
+      } catch (err) {
+        container.innerHTML = `<p style="color:var(--red)">Failed to load settings: ${err.message}</p>`;
+      }
+    }
+
+    window.addMcpServer = async function() {
+      const name = $('mcp-name').value.trim();
+      const command = $('mcp-command').value.trim();
+      const argsStr = $('mcp-args').value.trim();
+      if (!name || !command) return;
+      const args = argsStr ? argsStr.split(/\s+/) : [];
+      try {
+        await api.post('/api/settings/mcp', { name, command, args });
+        showToast('MCP Server Added', `"${name}" has been configured and initialized.`);
+        renderSettingsView();
+      } catch (err) {
+        showToast('Error', err.message);
+      }
+    };
+
+    window.removeMcpServer = async function(name) {
+      try {
+        await fetch(`/api/settings/mcp/${encodeURIComponent(name)}`, { method: 'DELETE' });
+        showToast('Server Removed', `"${name}" has been removed.`);
+        renderSettingsView();
+      } catch (err) {
+        showToast('Error', err.message);
+      }
+    };
+
+    window.installSkill = async function() {
+      const source = $('skill-source').value.trim();
+      if (!source) return;
+      const btn = event.target;
+      btn.disabled = true;
+      btn.textContent = 'Installing...';
+      try {
+        const result = await api.post('/api/settings/skills/install', { source });
+        if (result.error) throw new Error(result.error);
+        showToast('Skill Installed', `"${result.id || source}" installed successfully.`);
+        renderSettingsView();
+      } catch (err) {
+        showToast('Error', err.message || 'Installation failed');
+        btn.disabled = false;
+        btn.textContent = 'Install';
+      }
+    };
+
+    window.reloadSkills = async function() {
+      try {
+        const result = await api.post('/api/settings/skills/reload', {});
+        showToast('Skills Reloaded', `${result.loaded} skill(s) loaded.`);
+        renderSettingsView();
+      } catch (err) {
+        showToast('Error', err.message);
+      }
+    };
+
+    window.uninstallSkill = async function(id) {
+      try {
+        await fetch(`/api/settings/skills/${encodeURIComponent(id)}`, { method: 'DELETE' });
+        showToast('Skill Uninstalled', `"${id}" has been removed.`);
+        renderSettingsView();
+      } catch (err) {
+        showToast('Error', err.message);
+      }
     };
 
     // ---- Boot ----

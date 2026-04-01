@@ -55,6 +55,8 @@ export interface WorkflowStep {
   params?: Record<string, any>;
   output_var?: string;
   condition?: string;
+  stream?: boolean;
+  max_tokens?: number;
 }
 
 export interface ReviewConfig {
@@ -538,12 +540,22 @@ async function executeLlmStep(step: WorkflowStep, ctx: WorkflowContext): Promise
         const response = await client.chat.completions.create({
           model: currentModel,
           messages,
-          max_tokens: 16384,
+          max_tokens: step.max_tokens ?? 4000,
+          stream: step.stream ?? false,
         });
 
-        const content = response.choices[0]?.message?.content || "";
-        const reasoning = (response.choices[0]?.message as any)?.reasoning || "";
-        return content || reasoning;
+        // Handle streaming vs non-streaming responses
+        if (step.stream) {
+          let content = "";
+          for await (const chunk of response as any) {
+            content += chunk.choices[0]?.delta?.content || "";
+          }
+          return content;
+        } else {
+          const content = (response as any).choices[0]?.message?.content || "";
+          const reasoning = (response as any).choices[0]?.message?.reasoning || "";
+          return content || reasoning;
+        }
       } catch (err: any) {
         const status = err?.status || err?.response?.status;
         // For non-transient errors on primary model, throw immediately

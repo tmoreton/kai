@@ -1,0 +1,30 @@
+id: web-tools
+name: Web Tools
+version: 1.0.0
+description: Fetch web pages and search the web via Tavily
+author: kai
+config_schema:
+  tavily_api_key:
+    type: string
+    env: TAVILY_API_KEY
+tools:
+  - name: fetch
+    description: Fetch content from a URL and return the response
+    parameters:
+      url:
+        type: string
+        required: true
+        description: URL to fetch
+      method:
+        type: string
+        description: HTTP method (default GET)
+  - name: search
+    description: Search the web using Tavily
+    parameters:
+      query:
+        type: string
+        required: true
+        description: Search query
+      max_results:
+        type: number
+        description: Maximum results (default 5)

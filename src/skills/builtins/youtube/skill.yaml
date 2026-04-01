@@ -1,0 +1,67 @@
+id: youtube
+name: YouTube Data
+version: 1.0.0
+description: Search videos, get stats, channel info, and trending via YouTube Data API v3
+author: kai
+config_schema:
+  api_key:
+    type: string
+    required: true
+    env: YOUTUBE_API_KEY
+tools:
+  - name: search_videos
+    description: Search YouTube for videos by query
+    parameters:
+      query:
+        type: string
+        required: true
+        description: Search query
+      max_results:
+        type: number
+        description: Maximum results (default 10)
+      order:
+        type: string
+        description: Sort order
+        enum: [relevance, date, viewCount]
+      channel_id:
+        type: string
+        description: Filter by channel ID
+      published_after:
+        type: string
+        description: ISO date to filter videos published after
+  - name: get_video_stats
+    description: Get statistics (views, likes, comments) for YouTube videos
+    parameters:
+      video_ids:
+        type: string
+        required: true
+        description: Comma-separated video IDs
+  - name: get_channel
+    description: Get YouTube channel info (subscribers, views, video count)
+    parameters:
+      channel_id:
+        type: string
+        required: true
+        description: YouTube channel ID
+  - name: get_recent_uploads
+    description: Get a channel's latest uploaded videos with stats
+    parameters:
+      channel_id:
+        type: string
+        required: true
+        description: YouTube channel ID
+      max_results:
+        type: number
+        description: Maximum results (default 10)
+  - name: get_trending
+    description: Get trending YouTube videos by region
+    parameters:
+      region:
+        type: string
+        description: Region code (default US)
+      category_id:
+        type: string
+        description: Video category ID
+      max_results:
+        type: number
+        description: Maximum results (default 10)

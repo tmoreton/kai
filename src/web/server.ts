@@ -15,10 +15,12 @@ import OpenAI from "openai";
 // Kai modules
 import { createClient, getModelId, getProviderName, summarizeArgs, rescueToolCallsFromText } from "../client.js";
 import { FIREWORKS_MODEL, FIREWORKS_MODEL_LABEL } from "../constants.js";
-import { ensureKaiDir } from "../config.js";
+import { ensureKaiDir, readUserConfig, saveUserConfig, clearConfigCache } from "../config.js";
 import { buildSystemPrompt } from "../system-prompt.js";
 import { getCwd } from "../tools/bash.js";
-import { toolDefinitions, getMcpToolDefinitions, initMcpServers } from "../tools/index.js";
+import { toolDefinitions, getMcpToolDefinitions, initMcpServers, listMcpServers } from "../tools/index.js";
+import { getLoadedSkills, getSkillToolDefinitions, reloadAllSkills } from "../skills/index.js";
+import { installSkill, uninstallSkill } from "../skills/installer.js";
 import { executeTool } from "../tools/executor.js";
 import { setPermissionMode } from "../permissions.js";
 import { trackUsage, shouldCompact, compactMessages, getUsage } from "../context.js";
@@ -709,6 +711,135 @@ export async function startServer(options: ServerOptions): Promise<void> {
     return c.json({ stopped: false });
   });
 
+  // --- Settings API ---
+
+  // Get all settings + MCP server status + installed skills
+  app.get("/api/settings", (c) => {
+    const config = readUserConfig();
+    const mcpServers = listMcpServers();
+    const skills = getLoadedSkills();
+
+    return c.json({
+      config,
+      mcp: {
+        servers: mcpServers.map((s) => ({
+          name: s.name,
+          ready: s.ready,
+          tools: s.tools,
+          config: config.mcp?.servers?.[s.name] || {},
+        })),
+      },
+      skills: skills.map((s) => ({
+        id: s.manifest.id,
+        name: s.manifest.name,
+        version: s.manifest.version,
+        description: s.manifest.description || "",
+        author: s.manifest.author || "",
+        tools: s.manifest.tools.map((t) => ({ name: t.name, description: t.description })),
+        path: s.path,
+      })),
+    });
+  });
+
+  // Update general settings
+  app.patch("/api/settings", async (c) => {
+    try {
+      const updates = await c.req.json();
+      // Only allow safe fields to be updated
+      const allowed: Record<string, any> = {};
+      if ("budgetTokens" in updates) allowed.budgetTokens = updates.budgetTokens;
+      if ("autoCompact" in updates) allowed.autoCompact = updates.autoCompact;
+      if ("maxTokens" in updates) allowed.maxTokens = updates.maxTokens;
+
+      saveUserConfig(allowed);
+      return c.json({ ok: true });
+    } catch (err: any) {
+      return c.json({ error: err.message }, 400);
+    }
+  });
+
+  // Add MCP server
+  app.post("/api/settings/mcp", async (c) => {
+    try {
+      const { name, command, args, env } = await c.req.json();
+      if (!name || !command) return c.json({ error: "name and command are required" }, 400);
+
+      const config = readUserConfig();
+      if (!config.mcp) config.mcp = { servers: {} };
+      if (!config.mcp.servers) config.mcp.servers = {};
+
+      config.mcp.servers[name] = {
+        command,
+        args: args || [],
+        env: env || {},
+      };
+
+      saveUserConfig({ mcp: config.mcp });
+
+      // Re-initialize MCP servers to pick up the new one
+      await initMcpServers();
+
+      return c.json({ ok: true });
+    } catch (err: any) {
+      return c.json({ error: err.message }, 400);
+    }
+  });
+
+  // Remove MCP server
+  app.delete("/api/settings/mcp/:name", async (c) => {
+    try {
+      const serverName = c.req.param("name");
+      const config = readUserConfig();
+
+      if (!config.mcp?.servers?.[serverName]) {
+        return c.json({ error: `Server "${serverName}" not found` }, 404);
+      }
+
+      delete config.mcp.servers[serverName];
+      saveUserConfig({ mcp: config.mcp });
+
+      // Re-initialize MCP servers
+      await initMcpServers();
+
+      return c.json({ ok: true });
+    } catch (err: any) {
+      return c.json({ error: err.message }, 400);
+    }
+  });
+
+  // Reload all skills
+  app.post("/api/settings/skills/reload", async (c) => {
+    try {
+      const result = await reloadAllSkills();
+      return c.json({ loaded: result.loaded, errors: result.errors });
+    } catch (err: any) {
+      return c.json({ error: err.message }, 500);
+    }
+  });
+
+  // Install a skill from GitHub URL or local path
+  app.post("/api/settings/skills/install", async (c) => {
+    try {
+      const { source } = await c.req.json();
+      if (!source) return c.json({ error: "source is required" }, 400);
+      const id = await installSkill(source);
+      return c.json({ ok: true, id });
+    } catch (err: any) {
+      return c.json({ error: err.message }, 400);
+    }
+  });
+
+  // Uninstall a skill
+  app.delete("/api/settings/skills/:id", async (c) => {
+    try {
+      const skillId = c.req.param("id");
+      await uninstallSkill(skillId);
+      return c.json({ ok: true });
+    } catch (err: any) {
+      return c.json({ error: err.message }, 400);
+    }
+  });
+
   // --- Serve local images (for generated images, thumbnails, etc.) ---
   app.get("/api/image", (c) => {
     const filePath = c.req.query("path");
@@ -780,7 +911,6 @@ export async function startServer(options: ServerOptions): Promise<void> {
   serve({ fetch: app.fetch, port }, async (info) => {
     if (ui) console.log(`  UI:          http://localhost:${info.port}`);
     console.log(`  API:         http://localhost:${info.port}/api`);
-    console.log(`  Provider:    ${getProviderName()} / ${getModelId()}`);
     console.log(`  Working dir: ${getCwd()}`);
     if (agents) console.log(`  Agents:      ${daemonStartedInProcess ? "daemon started in-process" : "external daemon running"}`);
     console.log(`  Permissions: auto`);
@@ -835,7 +965,8 @@ async function chatForWeb(
   signal?: AbortSignal
 ): Promise<ChatCompletionMessageParam[]> {
   const mcpTools = getMcpToolDefinitions();
-  const activeTools = [...toolDefinitions, ...mcpTools] as ChatCompletionTool[];
+  const skillTools = getSkillToolDefinitions();
+  const activeTools = [...toolDefinitions, ...mcpTools, ...skillTools] as ChatCompletionTool[];
   const updatedMessages = [...messages];
 
   // Auto-compact if context is getting large

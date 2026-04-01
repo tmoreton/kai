@@ -67,6 +67,34 @@ export function clearConfigCache(): void {
   cachedConfig = null;
 }
 
+/** User-level config path: ~/.kai/settings.json */
+const USER_CONFIG_PATH = path.resolve(process.env.HOME || "~", ".kai/settings.json");
+
+/**
+ * Read the user-level config file (~/.kai/settings.json).
+ * Returns the raw parsed JSON (not merged with project configs).
+ */
+export function readUserConfig(): KaiConfig {
+  try {
+    if (fs.existsSync(USER_CONFIG_PATH)) {
+      return JSON.parse(fs.readFileSync(USER_CONFIG_PATH, "utf-8"));
+    }
+  } catch {}
+  return {};
+}
+
+/**
+ * Save settings to the user-level config file (~/.kai/settings.json).
+ * Merges the provided partial config with the existing file contents.
+ */
+export function saveUserConfig(partial: Partial<KaiConfig>): void {
+  ensureKaiDir();
+  const existing = readUserConfig();
+  const merged = { ...existing, ...partial };
+  fs.writeFileSync(USER_CONFIG_PATH, JSON.stringify(merged, null, 2), "utf-8");
+  clearConfigCache();
+}
+
 /** Root data directory: ~/.kai */
 export const KAI_HOME = path.resolve(process.env.HOME || "~", ".kai");
 

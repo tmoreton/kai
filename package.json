@@ -13,7 +13,7 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "tsc && rm -rf dist/web/public && cp -r src/web/public dist/web/public && rm -rf dist/agents/builtin-workflows && mkdir -p dist/agents/builtin-workflows && cp src/agents/builtin-workflows/*.yaml dist/agents/builtin-workflows/ && chmod +x dist/index.js",
+    "build": "tsc && rm -rf dist/web/public && cp -r src/web/public dist/web/public && rm -rf dist/agents/builtin-workflows && mkdir -p dist/agents/builtin-workflows && cp src/agents/builtin-workflows/*.yaml dist/agents/builtin-workflows/ && rm -rf dist/skills/builtins && mkdir -p dist/skills/builtins && cp -r src/skills/builtins/* dist/skills/builtins/ && chmod +x dist/index.js",
     "dev": "tsx src/index.ts",
     "start": "npm run build && node dist/index.js",
     "prepublishOnly": "npm run build",
