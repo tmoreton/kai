@@ -112,13 +112,34 @@ export default {
 
     click: async (params) => {
       const p = await ensureBrowser();
+      const CLICK_TIMEOUT = 5000;
 
-      if (params.selector) {
-        await p.click(params.selector);
-      } else if (params.text) {
-        await p.getByText(params.text, { exact: false }).first().click();
-      } else {
-        throw new Error("Provide either 'selector' or 'text' to identify the element to click");
+      try {
+        if (params.selector) {
+          await p.click(params.selector, { timeout: CLICK_TIMEOUT });
+        } else if (params.text) {
+          await p.getByText(params.text, { exact: false }).first().click({ timeout: CLICK_TIMEOUT });
+        } else {
+          throw new Error("Provide either 'selector' or 'text' to identify the element to click");
+        }
+      } catch (err) {
+        // On timeout, return visible clickable elements to help the model pick the right one
+        const clickables = await p.evaluate(() => {
+          const els = document.querySelectorAll("a, button, input, select, textarea, [role='button'], [onclick]");
+          return [...els].slice(0, 30).map(el => ({
+            tag: el.tagName.toLowerCase(),
+            type: el.getAttribute("type"),
+            text: (el.textContent || "").trim().substring(0, 80),
+            placeholder: el.getAttribute("placeholder"),
+            name: el.getAttribute("name"),
+            id: el.id || undefined,
+            class: el.className ? el.className.substring(0, 60) : undefined,
+          }));
+        });
+        throw new Error(
+          `Could not find element to click (${params.selector || params.text}). ` +
+          `Available clickable elements:\n${JSON.stringify(clickables, null, 2)}`
+        );
       }
 
       await p.waitForTimeout(1000);
@@ -162,7 +183,14 @@ export default {
 
     evaluate: async (params) => {
       const p = await ensureBrowser();
-      const result = await p.evaluate(params.script);
+      // Wrap in an async IIFE so `return` statements work,
+      // and fall back to bare expression evaluation
+      let result;
+      try {
+        result = await p.evaluate(`(async () => { ${params.script} })()`);
+      } catch {
+        result = await p.evaluate(params.script);
+      }
       return JSON.stringify({ result });
     },
 

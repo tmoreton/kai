@@ -2441,8 +2441,10 @@ npm run dev</code></pre>
 
           <div class="persona-tab-content" id="ptab-chat">
             <div id="persona-chat-container" style="display:flex;flex-direction:column;height:calc(100vh - 280px);min-height:400px">
-              <div id="persona-chat-messages" style="flex:1;overflow-y:auto;padding:16px 0;display:flex;flex-direction:column;gap:12px">
-                <div style="text-align:center;color:var(--text-muted);font-size:13px;padding:40px 0">Send a message to start chatting with ${esc(persona.name)}</div>
+              <div id="persona-chat-messages" class="chat-area" style="flex:1">
+                <div class="messages" id="persona-chat-msgs">
+                  <div style="text-align:center;color:var(--text-muted);font-size:13px;padding:40px 0">Send a message to start chatting with ${esc(persona.name)}</div>
+                </div>
               </div>
               <div style="border-top:1px solid var(--border);padding:12px 0 0">
                 <div style="display:flex;gap:8px;align-items:flex-end">
@@ -2552,16 +2554,51 @@ npm run dev</code></pre>
 
     // Persona chat session ID cache (per persona, for the inline tab chat)
     const personaChatSessions = new Map();
+    // Cache chat message HTML per persona so it survives re-renders
+    const personaChatHtmlCache = new Map();
+
+    function personaAvatar(personaId) {
+      const p = state.personas.find(p => p.id === personaId);
+      return p ? p.name.charAt(0).toUpperCase() : 'A';
+    }
 
     window.startPersonaChat = async function(personaId) {
-      // If already initialized for this persona in the tab, do nothing
-      if (personaChatSessions.has(personaId)) return;
-      try {
-        const response = await api.post(`/api/personas/${personaId}/chat`, {});
-        if (response.error) { console.error('Failed to start persona chat:', response.error); return; }
-        personaChatSessions.set(personaId, response.id);
-      } catch (e) {
-        console.error('Failed to start persona chat:', e);
+      // Initialize session if needed
+      if (!personaChatSessions.has(personaId)) {
+        try {
+          const response = await api.post(`/api/personas/${personaId}/chat`, {});
+          if (response.error) { console.error('Failed to start persona chat:', response.error); return; }
+          personaChatSessions.set(personaId, response.id);
+
+          // Load existing messages from the session if it had prior history
+          if (response.existing) {
+            const sessionData = await api.get(`/api/sessions/${response.id}`);
+            if (sessionData && sessionData.messages && sessionData.messages.length > 0) {
+              const av = personaAvatar(personaId);
+              let html = '';
+              for (const m of sessionData.messages) {
+                if (!m.content) continue;
+                if (m.role === 'user') {
+                  html += `<div class="msg msg-user"><div class="msg-bubble">${esc(m.content)}</div></div>`;
+                } else if (m.role === 'assistant') {
+                  html += `<div class="msg msg-ai"><div class="msg-avatar">${av}</div><div class="msg-body">${renderMd(m.content)}</div></div>`;
+                }
+              }
+              if (html) personaChatHtmlCache.set(personaId, html);
+            }
+          }
+        } catch (e) {
+          console.error('Failed to start persona chat:', e);
+          return;
+        }
+      }
+
+      // Restore cached chat HTML into the container
+      const container = $('persona-chat-msgs');
+      if (container && personaChatHtmlCache.has(personaId)) {
+        container.innerHTML = personaChatHtmlCache.get(personaId);
+        const scrollArea = $('persona-chat-messages');
+        if (scrollArea) scrollArea.scrollTop = scrollArea.scrollHeight;
       }
     };
 
@@ -2570,21 +2607,25 @@ npm run dev</code></pre>
       const msg = input.value.trim();
       if (!msg) return;
 
-      const container = $('persona-chat-messages');
+      const container = $('persona-chat-msgs');
+      const scrollArea = $('persona-chat-messages');
+      const av = personaAvatar(personaId);
+
       // Clear placeholder
       const placeholder = container.querySelector('div[style*="text-align:center"]');
       if (placeholder) placeholder.remove();
 
       // Add user message
-      container.innerHTML += `<div style="display:flex;justify-content:flex-end"><div style="background:var(--accent);color:white;padding:8px 14px;border-radius:14px 14px 4px 14px;max-width:75%;font-size:14px;line-height:1.5">${esc(msg)}</div></div>`;
-      container.scrollTop = container.scrollHeight;
+      container.innerHTML += `<div class="msg msg-user"><div class="msg-bubble">${esc(msg)}</div></div>`;
+      scrollArea.scrollTop = scrollArea.scrollHeight;
       input.value = '';
 
       // Add typing indicator
       const typingEl = document.createElement('div');
-      typingEl.innerHTML = '<div style="color:var(--text-muted);font-size:13px;padding:4px 0">Thinking...</div>';
+      typingEl.className = 'msg msg-ai';
+      typingEl.innerHTML = `<div class="msg-avatar">${av}</div><div class="msg-body" style="color:var(--text-muted)">Thinking...</div>`;
       container.appendChild(typingEl);
-      container.scrollTop = container.scrollHeight;
+      scrollArea.scrollTop = scrollArea.scrollHeight;
 
       try {
         // Ensure session is initialized
@@ -2604,37 +2645,47 @@ npm run dev</code></pre>
         const decoder = new TextDecoder();
         let responseText = '';
         let responseEl = null;
+        let buf = '', evtType = null;
 
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
-          const chunk = decoder.decode(value, { stream: true });
-          for (const line of chunk.split('\n')) {
-            if (!line.startsWith('data: ')) continue;
-            try {
-              const payload = JSON.parse(line.slice(6));
-              if (payload.event === 'token') {
-                if (!responseEl) {
-                  responseEl = document.createElement('div');
-                  responseEl.innerHTML = '<div style="background:var(--bg-hover);padding:8px 14px;border-radius:14px 14px 14px 4px;max-width:75%;font-size:14px;line-height:1.5"></div>';
-                  container.appendChild(responseEl);
+          buf += decoder.decode(value, { stream: true });
+          const lines = buf.split('\n'); buf = lines.pop() || '';
+          for (const line of lines) {
+            if (line.startsWith('event: ')) { evtType = line.substring(7).trim(); continue; }
+            if (line.startsWith('data: ') && evtType) {
+              try {
+                const payload = JSON.parse(line.substring(6));
+                if (evtType === 'token') {
+                  if (!responseEl) {
+                    responseEl = document.createElement('div');
+                    responseEl.className = 'msg msg-ai';
+                    responseEl.innerHTML = `<div class="msg-avatar">${av}</div><div class="msg-body"></div>`;
+                    container.appendChild(responseEl);
+                  }
+                  responseText += payload.text;
+                  responseEl.querySelector('.msg-body').innerHTML = renderMd(responseText);
+                  scrollArea.scrollTop = scrollArea.scrollHeight;
+                } else if (evtType === 'error') {
+                  container.innerHTML += `<div class="msg"><div style="color:var(--red);font-size:13px">Error: ${esc(payload.message || 'Unknown error')}</div></div>`;
                 }
-                responseText += payload.data.text;
-                responseEl.firstChild.innerHTML = renderMd(responseText);
-                container.scrollTop = container.scrollHeight;
-              }
-            } catch {}
+              } catch {}
+              evtType = null;
+            }
           }
         }
 
         if (!responseEl && !responseText) {
-          container.innerHTML += '<div style="color:var(--text-muted);font-size:13px">No response received.</div>';
+          container.innerHTML += '<div class="msg"><div style="color:var(--text-muted);font-size:13px">No response received.</div></div>';
         }
       } catch (e) {
         typingEl.remove();
-        container.innerHTML += `<div style="color:var(--red);font-size:13px">Error: ${esc(e.message || 'Failed to send')}</div>`;
+        container.innerHTML += `<div class="msg"><div style="color:var(--red);font-size:13px">Error: ${esc(e.message || 'Failed to send')}</div></div>`;
       }
-      container.scrollTop = container.scrollHeight;
+      scrollArea.scrollTop = scrollArea.scrollHeight;
+      // Cache the chat HTML so it persists across navigations
+      personaChatHtmlCache.set(personaId, container.innerHTML);
     };
 
     window.confirmDeletePersona = function(id, name) {
@@ -2774,7 +2825,6 @@ npm run dev</code></pre>
 
           <div class="agent-tabs">
             <button class="agent-tab active" data-atab="overview" onclick="switchAgentTab('overview')">Overview</button>
-            <button class="agent-tab" data-atab="chat" onclick="switchAgentTab('chat')">Chat</button>
             <button class="agent-tab" data-atab="runs" onclick="switchAgentTab('runs')">Runs (${agent.runs?.length || 0})</button>
             <button class="agent-tab" data-atab="logs" onclick="switchAgentTab('logs')">Logs</button>
           </div>
@@ -2782,24 +2832,6 @@ npm run dev</code></pre>
           <div class="agent-tab-content active" id="atab-overview">
             <div id="agent-recap-container"></div>
             <div id="agent-steps-container"></div>
-          </div>
-
-          <div class="agent-tab-content" id="atab-chat">
-            <div id="agent-chat-container">
-              <div class="agent-chat-area" id="agent-chat-messages">
-                <div class="agent-chat-welcome">
-                  <div class="agent-chat-avatar">${agent.name.charAt(0).toUpperCase()}</div>
-                  <h3>${esc(agent.name)}</h3>
-                  <p>${esc(agent.role || 'I\'m here to help. Ask me anything!')}</p>
-                </div>
-              </div>
-              <div class="agent-chat-input-wrap">
-                <textarea id="agent-chat-input" class="agent-chat-input" placeholder="Ask this agent..." rows="1"></textarea>
-                <button class="agent-chat-send" onclick="sendAgentChatMessage('${agent.id}')">
-                  <svg viewBox="0 0 16 16" fill="currentColor"><path d="M3 13l10-5L3 3v4l6 1-6 1z"/></svg>
-                </button>
-              </div>
-            </div>
           </div>
 
           <div class="agent-tab-content" id="atab-runs">
