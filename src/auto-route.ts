@@ -55,7 +55,7 @@ Respond with ONLY valid JSON, no markdown fences:
 
 Rules:
 - Default to "direct" if unsure. Most requests ARE direct.
-- Use "delegate" when the task clearly belongs to one persona agent. This is common — use it freely for domain-specific requests.
+- ONLY use "delegate" when the user is explicitly asking the persona agent to do its job (e.g. "give me video ideas", "what's trending", "analyze my channel"). Do NOT delegate when the user is asking to modify code, fix bugs, change the UI, or work on the codebase — even if the message mentions a persona's domain (e.g. "fix the YouTube agent notification UI" is a CODE task, not a YouTube agent task).
 - Use "swarm" when there are 2+ independent subtasks across different agents/domains.
 - Only use "plan_first" for complex multi-file coding tasks.
 - Keep swarm_tasks to 2-5 entries max.

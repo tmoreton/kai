@@ -71,7 +71,6 @@ export function listPersonas(): AgentPersona[] {
   const dir = personasDir();
   const results: AgentPersona[] = [];
 
-  // Load saved personas
   try {
     const files = fs.readdirSync(dir).filter((f) => f.endsWith(".json"));
     for (const file of files) {

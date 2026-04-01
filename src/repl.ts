@@ -149,6 +149,7 @@ export async function startRepl(options: ReplOptions = {}, initialPrompt?: strin
 
   // Use a simple line-by-line approach with a processing flag
   let processing = false;
+  let chatAbort: AbortController | null = null;
   const inputQueue: string[] = [];
 
   const SLASH_COMMANDS = [
@@ -261,7 +262,7 @@ export async function startRepl(options: ReplOptions = {}, initialPrompt?: strin
       }
     }
 
-    // Image attachment detection
+    // Image attachment detection — send directly to the main model
     if (!messageAdded) {
       const imagePathMatch = input.match(/(?:^|\s)([^\s]+\.(?:png|jpg|jpeg|gif|webp|bmp))(?:\s|$)/i);
       if (imagePathMatch) {
@@ -302,6 +303,7 @@ export async function startRepl(options: ReplOptions = {}, initialPrompt?: strin
       let streamLineCount = 0;
       let firstResponseToken = true;
 
+      chatAbort = new AbortController();
       const updatedMessages = await chat(client, messages, (token) => {
         if (firstResponseToken && token.trim()) {
           process.stdout.write(chalk.cyan("⏺ "));
@@ -313,7 +315,7 @@ export async function startRepl(options: ReplOptions = {}, initialPrompt?: strin
         for (const ch of token) {
           if (ch === "\n") streamLineCount++;
         }
-      });
+      }, { signal: chatAbort.signal });
 
       // Re-render the final assistant content with markdown formatting
       const lastMsg = updatedMessages[updatedMessages.length - 1];
@@ -357,14 +359,20 @@ export async function startRepl(options: ReplOptions = {}, initialPrompt?: strin
       session.messages = messages;
       saveSession(session);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      console.error(chalk.red(`\n  Error: ${msg}\n`));
-      if (msg.includes("401")) {
-        console.error(chalk.yellow("  Check your FIREWORKS_API_KEY in .env\n"));
+      // Ignore abort errors — user pressed Ctrl+C to stop
+      if (err instanceof Error && (err.name === "AbortError" || err.message.includes("aborted"))) {
+        // Chat was stopped by user — just re-prompt
+      } else {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error(chalk.red(`\n  Error: ${msg}\n`));
+        if (msg.includes("401")) {
+          console.error(chalk.yellow("  Check your FIREWORKS_API_KEY in .env\n"));
+        }
       }
     }
 
     processing = false;
+    sigintCount = 0;
 
     // Process queued input
     if (inputQueue.length > 0) {
@@ -382,6 +390,20 @@ export async function startRepl(options: ReplOptions = {}, initialPrompt?: strin
       return;
     }
 
+    // /exit and exit should always work, even during processing
+    if (input === "/exit" || input === "exit") {
+      if (chatAbort) {
+        chatAbort.abort();
+        chatAbort = null;
+      }
+      cleanupBackgroundProcesses();
+      session.messages = messages;
+      saveSession(session);
+      console.log(chalk.dim("\n  Session saved. Goodbye!\n"));
+      rl.close();
+      process.exit(0);
+    }
+
     if (processing) {
       inputQueue.push(input);
     } else {
@@ -389,10 +411,26 @@ export async function startRepl(options: ReplOptions = {}, initialPrompt?: strin
     }
   });
 
+  let sigintCount = 0;
   rl.on("SIGINT", () => {
     if (processing) {
-      console.log(chalk.dim("\n  Interrupted.\n"));
+      sigintCount++;
+      console.log(chalk.dim("\n  Stopped.\n"));
+      if (chatAbort) {
+        chatAbort.abort();
+        chatAbort = null;
+      }
+      // Force exit on double Ctrl+C during processing
+      if (sigintCount >= 2) {
+        cleanupBackgroundProcesses();
+        session.messages = messages;
+        saveSession(session);
+        console.log(chalk.dim("  Session saved. Goodbye!\n"));
+        process.exit(0);
+      }
+      // Force processing flag reset so prompt reappears
       processing = false;
+      inputQueue.length = 0;
       rl.setPrompt(getPrompt()); rl.prompt();
     } else {
       cleanupBackgroundProcesses();
@@ -415,6 +453,12 @@ export async function startRepl(options: ReplOptions = {}, initialPrompt?: strin
   if (initialPrompt) {
     processInput(initialPrompt);
   }
+
+  // Keep the function alive until the readline interface closes,
+  // otherwise the caller's `await startRepl()` resolves and the process may exit.
+  await new Promise<void>((resolve) => {
+    rl.once("close", resolve);
+  });
 }
 
 function createNewSession(
@@ -425,6 +469,7 @@ function createNewSession(
     id: generateSessionId(),
     name: options.sessionName,
     cwd: getCwd(),
+    type: "code", // CLI sessions are code-type by default
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     messages,

@@ -13,7 +13,16 @@ export interface McpConfig {
 }
 
 export interface KaiConfig {
+  /**
+   * Primary chat model. Format: "provider:model-id" or just "model-id".
+   * Examples:
+   *   "fireworks:accounts/fireworks/routers/kimi-k2p5-turbo"
+   *   "openrouter:moonshotai/kimi-k2.5"
+   *   "accounts/fireworks/routers/kimi-k2p5-turbo"  (defaults to fireworks)
+   */
   model?: string;
+  visionModel?: string;
+  imageModel?: string;
   permissions?: PermissionRule[];
   hooks?: Record<string, string>;
   autoCompact?: boolean;
@@ -22,6 +31,12 @@ export interface KaiConfig {
   mcp?: McpConfig;
   /** Maximum token budget per session. Warns at 80%, stops at 100%. */
   budgetTokens?: number;
+
+  // Provider endpoints (defaults used if omitted)
+  fireworksBaseUrl?: string;
+  openrouterBaseUrl?: string;
+  tavilyBaseUrl?: string;
+  youtubeBaseUrl?: string;
 }
 
 const CONFIG_PATHS = [

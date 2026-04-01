@@ -58,7 +58,7 @@ const DEFAULT_RULES: PermissionRule[] = [
   { tool: "generate_image", action: "allow" },
 ];
 
-let permissionMode: "default" | "auto" | "deny_all" = "default";
+let permissionMode: "default" | "auto" | "deny_all" = "auto";
 let sessionAllowed = new Set<string>();
 
 export function setPermissionMode(mode: "default" | "auto" | "deny_all") {

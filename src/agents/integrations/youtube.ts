@@ -1,7 +1,8 @@
 import fs from "fs";
 import path from "path";
 import { registerIntegration, type WorkflowContext } from "../workflow.js";
-import { FETCH_TIMEOUT_MS } from "../../constants.js";
+import { FETCH_TIMEOUT_MS, DEFAULT_YOUTUBE_BASE_URL } from "../../constants.js";
+import { getConfig } from "../../config.js";
 
 /**
  * YouTube Data API v3 Integration (built-in)
@@ -9,7 +10,9 @@ import { FETCH_TIMEOUT_MS } from "../../constants.js";
  * Requires YOUTUBE_API_KEY in environment or ~/.kai/.env
  */
 
-const YOUTUBE_API_BASE = "https://www.googleapis.com/youtube/v3";
+function getYouTubeBaseUrl(): string {
+  return getConfig().youtubeBaseUrl || DEFAULT_YOUTUBE_BASE_URL;
+}
 
 function getApiKey(ctx: WorkflowContext): string {
   let key =
@@ -40,7 +43,7 @@ async function youtubeApi(
   params: Record<string, string>,
   apiKey: string
 ): Promise<any> {
-  const url = new URL(`${YOUTUBE_API_BASE}/${endpoint}`);
+  const url = new URL(`${getYouTubeBaseUrl()}/${endpoint}`);
   url.searchParams.set("key", apiKey);
   for (const [k, v] of Object.entries(params)) {
     if (v !== undefined && v !== null && v !== "") {

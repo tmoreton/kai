@@ -21,7 +21,6 @@ import {
 } from "./constants.js";
 import { backoffDelay, sleep } from "./utils.js";
 import { resolveProvider, type ResolvedProvider } from "./providers/index.js";
-import { FIREWORKS_MODEL } from "./constants.js";
 import { getLastDiff } from "./tools/files.js";
 import { renderColorDiff } from "./diff.js";
 import chalk from "chalk";
@@ -38,7 +37,7 @@ export function createClient(): OpenAI {
 }
 
 export function getModelId(): string {
-  return FIREWORKS_MODEL;
+  return getResolved().model;
 }
 
 export function getProviderName(): string {
@@ -49,7 +48,7 @@ export async function chat(
   client: OpenAI,
   messages: ChatCompletionMessageParam[],
   onToken?: (token: string) => void,
-  options?: { tools?: ChatCompletionTool[]; maxTurns?: number }
+  options?: { tools?: ChatCompletionTool[]; maxTurns?: number; signal?: AbortSignal }
 ): Promise<ChatCompletionMessageParam[]> {
   // Merge built-in tools with MCP server tools and skill tools
   const mcpTools = getMcpToolDefinitions();
@@ -73,7 +72,15 @@ export async function chat(
   let lastFailedCall = "";
   let budgetWarned = false;
 
+  // Repetition loop detection: track recent tool call signatures
+  const recentToolSignatures: string[] = [];
+  const MAX_REPETITION_WINDOW = 8; // Look at last N tool calls
+  const REPETITION_THRESHOLD = 3;  // Break if same signature appears this many times
+
   while (turns < maxTurns) {
+    if (options?.signal?.aborted) {
+      return updatedMessages;
+    }
     turns++;
 
     // Show thinking indicator
@@ -138,6 +145,7 @@ export async function chat(
 
     try {
       for await (const chunk of stream) {
+        if (options?.signal?.aborted) break;
         const delta = chunk.choices?.[0]?.delta;
 
         if (chunk.usage) {
@@ -199,6 +207,16 @@ export async function chat(
         }
       }
     } catch (streamErr: unknown) {
+      // If aborted by user, return what we have so far
+      if (options?.signal?.aborted) {
+        clearInterval(spinner);
+        clearTimeout(timeout!);
+        process.stderr.write("\x1b[2K\r");
+        if (content.trim()) {
+          updatedMessages.push({ role: "assistant", content });
+        }
+        return updatedMessages;
+      }
       // Handle stream errors gracefully instead of crashing
       if (!content && !toolCallMap.size) {
         const msg = streamErr instanceof Error ? streamErr.message : String(streamErr);
@@ -247,13 +265,32 @@ export async function chat(
       }
     }
 
-    // If assistant text ends with a question for the user, stop the tool loop
-    // even if there are pending tool calls — let the user respond first
-    const hasQuestion = content.trim() && /\?\s*$/.test(content.trim());
+    // If assistant text contains a question directed at the user, stop the tool loop
+    // and let the user respond first — even if there are pending tool calls.
+    // Detect: ends with "?", or common question phrases like "Would you like", "Should I", etc.
+    const trimmed = content.trim();
+    const hasQuestion = trimmed && (
+      /\?\s*$/.test(trimmed) ||
+      /\?\s*```\s*$/.test(trimmed) ||
+      /(?:would you like|should i|do you want|shall i|can you|could you|what do you think|which (?:one|option)|let me know|please (?:confirm|choose|specify|clarify))/i.test(trimmed)
+    );
     if (hasQuestion && toolCalls.length > 0) {
       updatedMessages.push({ role: "assistant", content });
       onToken?.("\n");
       return updatedMessages;
+    }
+    // Also stop if text-only response contains a question (no tool calls)
+    // This is already handled by the text-only return below, but adding explicit
+    // check for question in content even with tool calls where question is mid-text
+    if (trimmed && toolCalls.length > 0 && /\?/.test(trimmed)) {
+      // Check if the question seems directed at the user (not rhetorical)
+      const lines = trimmed.split("\n");
+      const lastFewLines = lines.slice(-5).join("\n");
+      if (/\?\s*$/.test(lastFewLines)) {
+        updatedMessages.push({ role: "assistant", content });
+        onToken?.("\n");
+        return updatedMessages;
+      }
     }
 
     // Nudge the model when approaching the turn limit
@@ -543,6 +580,31 @@ export async function chat(
           break;
         }
       }
+    }
+
+    // Repetition loop detection: track tool call signatures for this turn
+    const turnSignature = toolCalls
+      .map((tc) => `${tc.function.name}:${tc.function.arguments.substring(0, 80)}`)
+      .sort()
+      .join("|");
+    recentToolSignatures.push(turnSignature);
+    if (recentToolSignatures.length > MAX_REPETITION_WINDOW) {
+      recentToolSignatures.shift();
+    }
+
+    // Check if the same signature has appeared too many times recently
+    const signatureCounts = new Map<string, number>();
+    for (const sig of recentToolSignatures) {
+      signatureCounts.set(sig, (signatureCounts.get(sig) || 0) + 1);
+    }
+    const maxCount = Math.max(...signatureCounts.values());
+    if (maxCount >= REPETITION_THRESHOLD) {
+      console.log(chalk.yellow(`\n  ! Detected repetitive tool loop (same actions repeated ${maxCount} times). Stopping.\n`));
+      updatedMessages.push({
+        role: "user",
+        content: `[SYSTEM: You are stuck in a repetitive loop — you have called the same tools ${maxCount} times. STOP and summarize what you accomplished and what issues remain. Do NOT continue retrying. Ask the user if they want you to proceed differently.]`,
+      });
+      // Let the model respond one more time to summarize, then the text-only path will return
     }
   }
 

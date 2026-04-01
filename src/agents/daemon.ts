@@ -9,6 +9,7 @@ import { ensureKaiDir } from "../config.js";
 dotenvConfig({ path: path.resolve(ensureKaiDir(), ".env"), quiet: true } as any);
 dotenvConfig({ path: path.resolve(process.cwd(), ".env"), quiet: true } as any);
 import { registerAllIntegrations } from "./integrations/index.js";
+import { loadAllSkills } from "../skills/index.js";
 import {
   parseWorkflow,
   executeWorkflow,
@@ -54,7 +55,10 @@ async function startDaemonInner(): Promise<void> {
     addLog("__daemon__", "error", `Unhandled rejection: ${msg}`);
   });
 
-  // Register all integrations
+  // Load all skills first (needed for integration bridges)
+  await loadAllSkills();
+  
+  // Register all integrations (bridges to skills)
   await registerAllIntegrations();
 
   // Load all agents and schedule them
@@ -190,6 +194,7 @@ export async function runAgent(agentId: string): Promise<{ success: boolean; err
   if (!agent) return { success: false, error: `Agent "${agentId}" not found` };
 
   // Register integrations if not already done
+  await loadAllSkills();
   await registerAllIntegrations();
 
   // Validate workflow path exists

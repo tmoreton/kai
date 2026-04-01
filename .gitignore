@@ -41,7 +41,8 @@ tasks.json
 *.swo
 *~
 
-# Personal workflows & examples (local only)
+# Personal agent configs & workflows (live in ~/.kai/)
+agents/
 examples/
 
 # Temp

@@ -1,5 +1,6 @@
 import { registerIntegration } from "../workflow.js";
-import { WEB_CONTENT_LIMIT, FETCH_TIMEOUT_MS } from "../../constants.js";
+import { WEB_CONTENT_LIMIT, FETCH_TIMEOUT_MS, DEFAULT_TAVILY_BASE_URL } from "../../constants.js";
+import { getConfig } from "../../config.js";
 
 /**
  * Web Integration (built-in)
@@ -38,7 +39,10 @@ export function registerWebIntegration(): void {
           ctx.env.TAVILY_API_KEY || process.env.TAVILY_API_KEY;
         if (!apiKey) throw new Error("TAVILY_API_KEY not set");
 
-        const response = await fetch("https://api.tavily.com/search", {
+        const config = getConfig();
+        const tavilyUrl = config.tavilyBaseUrl || DEFAULT_TAVILY_BASE_URL;
+
+        const response = await fetch(tavilyUrl, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({

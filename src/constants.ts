@@ -52,12 +52,16 @@ export const FETCH_TIMEOUT_MS = 15_000;
 // Excluded directories for search
 export const EXCLUDED_DIRS = ["node_modules", ".git", "dist", ".next", ".cache"];
 
-// Model (single model via Fireworks)
-export const FIREWORKS_MODEL = "accounts/fireworks/routers/kimi-k2p5-turbo";
-export const FIREWORKS_MODEL_LABEL = "Kimi K2.5 Turbo";
+// Model defaults (overridable via ~/.kai/settings.json)
+export const DEFAULT_FIREWORKS_MODEL = "accounts/fireworks/routers/kimi-k2p5-turbo";
+export const DEFAULT_VISION_MODEL = "anthropic/claude-sonnet-4";
+export const DEFAULT_IMAGE_MODEL = "google/gemini-2.5-flash-image";
 
-// Vision model (via OpenRouter — used for image analysis and screenshot understanding)
-export const VISION_MODEL = "anthropic/claude-sonnet-4";
+// Provider endpoint defaults
+export const DEFAULT_FIREWORKS_BASE_URL = "https://api.fireworks.ai/inference/v1";
+export const DEFAULT_OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
+export const DEFAULT_TAVILY_BASE_URL = "https://api.tavily.com/search";
+export const DEFAULT_YOUTUBE_BASE_URL = "https://www.googleapis.com/youtube/v3";
 
 // Built-in agent types shared between subagent.ts and swarm.ts
 export const BUILT_IN_AGENT_CONFIGS = {

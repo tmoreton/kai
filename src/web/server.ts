@@ -14,8 +14,8 @@ import OpenAI from "openai";
 
 // Kai modules
 import { createClient, getModelId, getProviderName, summarizeArgs, rescueToolCallsFromText } from "../client.js";
-import { FIREWORKS_MODEL, FIREWORKS_MODEL_LABEL } from "../constants.js";
-import { ensureKaiDir, readUserConfig, saveUserConfig, clearConfigCache } from "../config.js";
+import { DEFAULT_FIREWORKS_MODEL } from "../constants.js";
+import { getConfig, ensureKaiDir, readUserConfig, saveUserConfig, clearConfigCache } from "../config.js";
 import { buildSystemPrompt } from "../system-prompt.js";
 import { getCwd } from "../tools/bash.js";
 import { toolDefinitions, getMcpToolDefinitions, initMcpServers, listMcpServers } from "../tools/index.js";
@@ -64,7 +64,8 @@ import {
   getDaemonPidPath,
 } from "../agents/daemon.js";
 import { closeDb } from "../agents/db.js";
-import { listPersonas, loadPersona } from "../agent-persona.js";
+import { listPersonas, loadPersona, createPersona, updatePersonaField } from "../agent-persona.js";
+import { ensureGlobalDir } from "../project.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const publicDir = path.resolve(__dirname, "public");
@@ -162,12 +163,25 @@ export async function startServer(options: ServerOptions): Promise<void> {
 
   // --- Model info (single model, no selector) ---
   app.get("/api/model", (c) => {
-    return c.json({ model: FIREWORKS_MODEL, label: FIREWORKS_MODEL_LABEL, provider: "fireworks" });
+    const cfg = getConfig();
+    const model = cfg.model || DEFAULT_FIREWORKS_MODEL;
+    return c.json({ model, provider: "fireworks" });
   });
 
   // --- Sessions ---
   app.get("/api/sessions", (c) => {
-    const sessions = listSessions(30, true);
+    const type = c.req.query("type") as "chat" | "code" | undefined;
+    let sessions = listSessions(100, true);
+    
+    // Filter by type if specified
+    if (type) {
+      sessions = sessions.filter((s) => {
+        // For backwards compatibility: undefined type defaults to "chat"
+        const sessionType = s.type || "chat";
+        return sessionType === type;
+      });
+    }
+    
     return c.json(
       sessions.map((s) => {
         // Extract first real user message as preview/label
@@ -187,6 +201,7 @@ export async function startServer(options: ServerOptions): Promise<void> {
         return {
           id: s.id,
           name: s.name,
+          type: s.type || "chat", // default to chat for backwards compatibility
           preview,
           cwd: s.cwd,
           createdAt: s.createdAt,
@@ -224,7 +239,8 @@ export async function startServer(options: ServerOptions): Promise<void> {
     return c.json({ ...session, messages });
   });
 
-  // --- Projects (sessions grouped by cwd) ---
+  // --- Projects (code sessions grouped by cwd) ---
+  // For backwards compatibility, sessions without a type are treated as code sessions
   app.get("/api/projects", (c) => {
     const sessions = listSessions(100, true);
     const projectMap = new Map<string, {
@@ -236,6 +252,10 @@ export async function startServer(options: ServerOptions): Promise<void> {
     }>();
 
     for (const s of sessions) {
+      // Include code-type sessions AND sessions without a type (backwards compat)
+      const sessionType = s.type || "code";
+      if (sessionType !== "code") continue;
+      
       const cwd = s.cwd || "unknown";
       if (!projectMap.has(cwd)) {
         // Derive project name from last path segment
@@ -321,6 +341,7 @@ export async function startServer(options: ServerOptions): Promise<void> {
       cwd: resolvedPath,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
+      type: "code",
       messages: [{ role: "system", content: buildSystemPrompt() }],
     };
     saveSession(session);
@@ -333,13 +354,14 @@ export async function startServer(options: ServerOptions): Promise<void> {
     const session: Session = {
       id: generateSessionId(),
       name: body.name,
+      type: body.type || "chat", // default to chat if not specified
       cwd: getCwd(),
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       messages: [{ role: "system", content: buildSystemPrompt() }],
     };
     saveSession(session);
-    return c.json({ id: session.id, name: session.name });
+    return c.json({ id: session.id, name: session.name, type: session.type });
   });
 
   // --- Agents ---
@@ -352,14 +374,17 @@ export async function startServer(options: ServerOptions): Promise<void> {
       agents: agents.map((a) => {
         const runs = getLatestRuns(a.id, 1);
         const lastRun = runs[0];
-        const persona = personaMap.get(a.id);
+        const config = JSON.parse(a.config || "{}");
+        const personaId = config.personaId;
+        const persona = personaId ? personaMap.get(personaId) : null;
         return {
           id: a.id,
           name: a.name,
           description: a.description,
           schedule: a.schedule,
           enabled: !!a.enabled,
-          persona: persona ? { name: persona.name, role: persona.role, personality: persona.personality } : null,
+          personaId: persona?.id || null,
+          personaName: persona?.name || null,
           lastRun: lastRun
             ? {
                 id: lastRun.id,
@@ -377,8 +402,51 @@ export async function startServer(options: ServerOptions): Promise<void> {
         role: p.role,
         personality: p.personality,
         goals: p.goals,
+        scratchpad: p.scratchpad,
+        tools: p.tools,
+        maxTurns: p.maxTurns,
       })),
     });
+  });
+
+  // Persona CRUD endpoints
+  app.post("/api/personas", async (c) => {
+    const body = await c.req.json();
+    const { id, name, role, personality, goals, scratchpad, tools, maxTurns } = body;
+    if (!id || !name || !role || !personality || !goals) {
+      return c.json({ error: "Missing required fields" }, 400);
+    }
+    const persona = createPersona(id, name, role, personality, goals, tools, maxTurns);
+    if (scratchpad) {
+      updatePersonaField(id, "scratchpad", "replace", scratchpad);
+    }
+    return c.json({ id: persona.id, name: persona.name });
+  });
+
+  app.patch("/api/personas/:id", async (c) => {
+    const id = c.req.param("id");
+    const body = await c.req.json();
+    const { field, content, operation = "replace" } = body;
+    if (!field || !content) {
+      return c.json({ error: "Missing field or content" }, 400);
+    }
+    const result = updatePersonaField(id, field, operation, content);
+    return c.json({ result });
+  });
+
+  app.delete("/api/personas/:id", (c) => {
+    const id = c.req.param("id");
+    const dir = ensureGlobalDir("agents/personas");
+    const p = path.join(dir, `${id}.json`);
+    try {
+      if (fs.existsSync(p)) {
+        fs.unlinkSync(p);
+        return c.json({ deleted: true });
+      }
+      return c.json({ error: "Persona not found" }, 404);
+    } catch (e) {
+      return c.json({ error: String(e) }, 500);
+    }
   });
 
   app.get("/api/agents/:id", (c) => {
@@ -440,11 +508,12 @@ export async function startServer(options: ServerOptions): Promise<void> {
   // --- Create agent (from web UI) ---
   app.post("/api/agents", async (c) => {
     const body = await c.req.json().catch(() => ({}));
-    const { name, description, schedule, prompt } = body as {
+    const { name, description, schedule, prompt, personaId } = body as {
       name?: string;
       description?: string;
       schedule?: string;
       prompt?: string;
+      personaId?: string;
     };
 
     if (!name || !name.trim()) {
@@ -485,7 +554,7 @@ export async function startServer(options: ServerOptions): Promise<void> {
     const workflowPath = path.join(workflowsDir, `${id}.yaml`);
     fs.writeFileSync(workflowPath, yaml);
 
-    // Save to DB
+    // Save to DB with persona link
     saveAgent({
       id,
       name: name.trim(),
@@ -493,7 +562,7 @@ export async function startServer(options: ServerOptions): Promise<void> {
       workflow_path: workflowPath,
       schedule: cleanSchedule,
       enabled: 1,
-      config: "{}",
+      config: JSON.stringify({ personaId: personaId || null }),
     });
 
     return c.json({ id, name: name.trim(), description: (description || "").trim(), schedule: cleanSchedule, enabled: true });
@@ -656,33 +725,10 @@ export async function startServer(options: ServerOptions): Promise<void> {
         session.messages = updatedMessages;
         saveSession(session);
 
-        // Count tools used for recap
-        const toolCallMsgs = updatedMessages.filter(
-          (m) => m.role === "assistant" && "tool_calls" in m && (m as any).tool_calls?.length > 0
-        );
-        const totalToolCalls = toolCallMsgs.reduce(
-          (sum, m) => sum + ((m as any).tool_calls?.length || 0), 0
-        );
-        const toolNames = new Set<string>();
-        for (const m of toolCallMsgs) {
-          for (const tc of (m as any).tool_calls || []) {
-            toolNames.add(tc.function?.name || tc.name || "unknown");
-          }
-        }
-
         // Find the last assistant text message as the final answer
         const lastAssistant = [...updatedMessages]
           .reverse()
           .find((m) => m.role === "assistant" && typeof m.content === "string" && m.content && m.content.length > 0);
-
-        await stream.writeSSE({
-          event: "recap",
-          data: JSON.stringify({
-            toolsUsed: totalToolCalls,
-            toolNames: [...toolNames],
-            turns: updatedMessages.filter((m) => m.role === "assistant").length,
-          }),
-        });
 
         await stream.writeSSE({
           event: "done",
@@ -690,9 +736,14 @@ export async function startServer(options: ServerOptions): Promise<void> {
         });
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
+        const stack = err instanceof Error ? err.stack : '';
         await stream.writeSSE({
           event: "error",
-          data: JSON.stringify({ message: msg }),
+          data: JSON.stringify({ 
+            message: msg,
+            details: stack,
+            type: 'chat_error'
+          }),
         });
       } finally {
         activeStreams.delete(session.id);
@@ -713,14 +764,34 @@ export async function startServer(options: ServerOptions): Promise<void> {
 
   // --- Settings API ---
 
-  // Get all settings + MCP server status + installed skills
+  // Get all settings + MCP server status + installed skills + env vars
   app.get("/api/settings", (c) => {
     const config = readUserConfig();
     const mcpServers = listMcpServers();
     const skills = getLoadedSkills();
 
+    // Read env vars from ~/.kai/.env
+    const envPath = path.resolve(process.env.HOME || "~", ".kai/.env");
+    const envVars: Record<string, string> = {};
+    try {
+      if (fs.existsSync(envPath)) {
+        const content = fs.readFileSync(envPath, "utf-8");
+        for (const line of content.split("\n")) {
+          const trimmed = line.trim();
+          if (!trimmed || trimmed.startsWith("#")) continue;
+          const eq = trimmed.indexOf("=");
+          if (eq > 0) {
+            const key = trimmed.slice(0, eq).trim();
+            const value = trimmed.slice(eq + 1).trim();
+            envVars[key] = value;
+          }
+        }
+      }
+    } catch {}
+
     return c.json({
       config,
+      env: envVars,
       mcp: {
         servers: mcpServers.map((s) => ({
           name: s.name,
@@ -840,6 +911,68 @@ export async function startServer(options: ServerOptions): Promise<void> {
     }
   });
 
+  // --- Env vars API (read/write ~/.kai/.env) ---
+  const ENV_PATH = path.resolve(process.env.HOME || "~", ".kai/.env");
+
+  function readEnvFile(): Record<string, string> {
+    const vars: Record<string, string> = {};
+    try {
+      if (fs.existsSync(ENV_PATH)) {
+        const content = fs.readFileSync(ENV_PATH, "utf-8");
+        for (const line of content.split("\n")) {
+          const trimmed = line.trim();
+          if (!trimmed || trimmed.startsWith("#")) continue;
+          const eq = trimmed.indexOf("=");
+          if (eq > 0) {
+            const key = trimmed.slice(0, eq).trim();
+            const value = trimmed.slice(eq + 1).trim();
+            vars[key] = value;
+          }
+        }
+      }
+    } catch {}
+    return vars;
+  }
+
+  function writeEnvFile(vars: Record<string, string>): void {
+    const lines = Object.entries(vars).map(([k, v]) => `${k}=${v}`);
+    fs.writeFileSync(ENV_PATH, lines.join("\n") + "\n", "utf-8");
+  }
+
+  // Get env vars
+  app.get("/api/settings/env", (c) => {
+    return c.json({ env: readEnvFile() });
+  });
+
+  // Add/update env var
+  app.post("/api/settings/env", async (c) => {
+    try {
+      const { key, value } = await c.req.json();
+      if (!key || typeof value !== "string") {
+        return c.json({ error: "key and value are required" }, 400);
+      }
+      const vars = readEnvFile();
+      vars[key] = value;
+      writeEnvFile(vars);
+      return c.json({ ok: true });
+    } catch (err: any) {
+      return c.json({ error: err.message }, 400);
+    }
+  });
+
+  // Delete env var
+  app.delete("/api/settings/env/:key", async (c) => {
+    try {
+      const key = c.req.param("key");
+      const vars = readEnvFile();
+      delete vars[key];
+      writeEnvFile(vars);
+      return c.json({ ok: true });
+    } catch (err: any) {
+      return c.json({ error: err.message }, 400);
+    }
+  });
+
   // --- Serve local images (for generated images, thumbnails, etc.) ---
   app.get("/api/image", (c) => {
     const filePath = c.req.query("path");
@@ -948,6 +1081,7 @@ function createNewSession(): Session {
   return {
     id: generateSessionId(),
     cwd: getCwd(),
+    type: "chat", // web chat creates chat-type sessions by default
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     messages: [{ role: "system", content: buildSystemPrompt() }],

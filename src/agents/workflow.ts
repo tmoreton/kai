@@ -340,7 +340,7 @@ export async function executeWorkflow(
     createNotification({
       type: "agent_failed",
       title: `${workflow.name} failed`,
-      body: msg.substring(0, 500),
+      body: msg,
       agentId,
       runId,
     });
@@ -369,11 +369,11 @@ async function generateAndCacheRecap(runId: string, agentId: string, workflowNam
       messages: [
         {
           role: "system",
-          content: "You are summarizing the results of an AI agent workflow run. Be concise, highlight the most actionable insights, and format with clear headers. Keep it under 300 words. Use markdown formatting.",
+          content: "You are presenting the final output of an AI agent workflow run to the user. Focus on the ACTUAL CONTENT and END RESULTS produced — not on describing what the agent is or what it can do. For example, if the agent fetched news articles, show the articles with titles, links, and summaries. If it generated a report, show the report. Present the real data and findings, not meta-commentary about the agent's capabilities or architecture. Be concise, use markdown formatting, and keep it under 300 words.",
         },
         {
           role: "user",
-          content: `Summarize the key results from this "${workflowName}" agent run:\n\n${keyOutputs.join("\n\n---\n\n")}`,
+          content: `Present the end results from this "${workflowName}" agent run. Show the actual content produced, not a description of the agent:\n\n${keyOutputs.join("\n\n---\n\n")}`,
         },
       ],
       max_tokens: 2048,
@@ -387,7 +387,7 @@ async function generateAndCacheRecap(runId: string, agentId: string, workflowNam
       createNotification({
         type: "agent_completed",
         title: `${workflowName} completed`,
-        body: recap.substring(0, 500),
+        body: recap,
         agentId,
         runId,
       });
@@ -453,10 +453,7 @@ ${iteration > 0 ? `\nThis is iteration ${iteration + 1}. Be stricter — earlier
 
   const client = getSharedClient();
   const model = getSharedModel();
-  const models = [
-    model,
-    "qwen/qwen3.5-397b-a17b",
-  ];
+  const models = [model];
 
   for (const currentModel of models) {
     for (let attempt = 0; attempt < 2; attempt++) {
@@ -513,7 +510,7 @@ async function executeLlmStep(step: WorkflowStep, ctx: WorkflowContext): Promise
   const messages = [
     {
       role: "system" as const,
-      content: "You are an AI agent executing a workflow step. Be concise and structured in your output. Return actionable results.",
+      content: "You are an AI agent executing a workflow step. Return the ACTUAL CONTENT and RESULTS — not implementation code, technical specifications, or instructions on how to build something. If the task is to fetch articles, return the articles. If the task is to analyze data, return the analysis. Never output source code, API documentation, or deployment guides unless explicitly asked. Be concise and structured.",
     },
     { role: "user" as const, content: prompt },
   ];

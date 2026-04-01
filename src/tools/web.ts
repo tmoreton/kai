@@ -1,4 +1,5 @@
-import { WEB_CONTENT_LIMIT, FETCH_TIMEOUT_MS } from "../constants.js";
+import { WEB_CONTENT_LIMIT, FETCH_TIMEOUT_MS, DEFAULT_TAVILY_BASE_URL } from "../constants.js";
+import { getConfig } from "../config.js";
 
 /**
  * Web Search Tool
@@ -13,8 +14,11 @@ export async function webSearch(args: {
   const apiKey = process.env.TAVILY_API_KEY;
   if (!apiKey) return "Error: TAVILY_API_KEY not set. Add it to ~/.kai/.env";
 
+  const config = getConfig();
+  const tavilyUrl = config.tavilyBaseUrl || DEFAULT_TAVILY_BASE_URL;
+
   try {
-    const response = await fetch("https://api.tavily.com/search", {
+    const response = await fetch(tavilyUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

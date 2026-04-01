@@ -212,11 +212,11 @@ async function generateRunSummary(agentId: string): Promise<void> {
       messages: [
         {
           role: "system",
-          content: "You are summarizing the results of an AI agent workflow. Be concise, highlight the most actionable insights, and format with clear headers. Keep it under 400 words.",
+          content: "You are presenting the final output of an AI agent workflow run. Focus on the ACTUAL CONTENT and END RESULTS produced — not on describing what the agent is or what it can do. For example, if the agent fetched news articles, show the articles. If it generated a report, show the report findings. If it did a backup, show what was backed up. Present the real data and findings, not meta-commentary about capabilities or architecture. Be concise, use markdown formatting, and keep it under 400 words.",
         },
         {
           role: "user",
-          content: `Summarize the key results from this "${agent.name}" agent run:\n\n${keyOutputs.join("\n\n---\n\n")}`,
+          content: `Present the end results from this "${agent.name}" agent run. Show the actual content produced, not a description of the agent:\n\n${keyOutputs.join("\n\n---\n\n")}`,
         },
       ],
       max_tokens: 2048,

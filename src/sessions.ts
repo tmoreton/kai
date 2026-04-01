@@ -12,6 +12,7 @@ export interface Session {
   createdAt: string;
   updatedAt: string;
   messages: ChatCompletionMessageParam[];
+  type?: "chat" | "code";
 }
 
 function sessionsDir(): string {
