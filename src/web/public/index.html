@@ -1288,12 +1288,15 @@
     /* ======================================= */
     .notif-view-content {
       flex: 1;
-      overflow-y: auto;
+      overflow-y: scroll;
+      scrollbar-width: none;
+      -ms-overflow-style: none;
       padding: 24px 32px;
       max-width: 900px;
       margin: 0 auto;
       width: 100%;
     }
+    .notif-view-content::-webkit-scrollbar { display: none; }
     .notif-view-header {
       display: flex;
       align-items: center;
@@ -1302,6 +1305,8 @@
       max-width: 900px;
       margin: 0 auto;
       width: 100%;
+      position: relative;
+      z-index: 60;
     }
     .notif-view-title {
       font-size: 22px;
@@ -1356,11 +1361,12 @@
       box-shadow: 0 2px 12px rgba(0,0,0,.06);
     }
     .notif-list-full .notif-item.unread {
-      background: var(--accent-light);
+      background: var(--bg-surface);
       border-color: var(--accent);
+      box-shadow: 0 0 0 1px var(--accent);
     }
     .notif-list-full .notif-item.unread:hover {
-      background: #b8f5eb;
+      background: var(--bg-hover);
     }
     .notif-list-full .notif-item.expanded {
       cursor: default;
@@ -1523,6 +1529,7 @@
       .agents-home { padding: 24px 16px 60px; }
       .persona-grid { grid-template-columns: 1fr; }
       .notif-dropdown { width: calc(100vw - 24px); right: -60px; }
+      .notif-view-header { padding-left: 48px; }
     }
 
     ::-webkit-scrollbar { width: 6px; }
@@ -1878,7 +1885,6 @@ npm run dev</code></pre>
       <div class="view" id="view-notifications">
         <div class="notif-view-header">
           <div class="notif-view-title">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
             Notifications
             <span id="notif-count-badge" style="background:var(--accent);color:white;font-size:12px;padding:2px 8px;border-radius:12px;display:none"></span>
           </div>
