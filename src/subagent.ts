@@ -4,6 +4,7 @@ import { chat, createClient } from "./client.js";
 import { toolDefinitions } from "./tools/index.js";
 import { getCwd } from "./tools/bash.js";
 import { loadPersona, buildAgentSystemPrompt, updatePersonaField, listPersonas } from "./agent-persona.js";
+import { BUILT_IN_AGENT_CONFIGS } from "./constants.js";
 import chalk from "chalk";
 
 export interface SubagentConfig {
@@ -14,48 +15,19 @@ export interface SubagentConfig {
   maxTurns?: number;
 }
 
-interface BuiltInAgent {
-  name: string;
-  description: string;
-  buildSystemPrompt: () => string;
-  tools?: string[];
-  maxTurns: number;
-}
+const BUILT_IN_AGENT_NAMES = Object.keys(BUILT_IN_AGENT_CONFIGS) as (keyof typeof BUILT_IN_AGENT_CONFIGS)[];
 
-const BUILT_IN_AGENTS: BuiltInAgent[] = [
-  {
-    name: "explorer",
-    description:
-      "Fast read-only agent for exploring codebases. Use for finding files, searching code, answering questions about structure.",
-    buildSystemPrompt: () => `You are an exploration agent. Your job is to quickly find information in the codebase.
-You have read-only access — use glob, grep, and read_file to find what's needed.
-Be concise. Return only the relevant findings.
-Working directory: ${getCwd()}`,
-    tools: ["read_file", "glob", "grep"],
-    maxTurns: 10,
-  },
-  {
-    name: "planner",
-    description:
-      "Planning agent that researches and designs implementation strategies before writing code.",
-    buildSystemPrompt: () => `You are a planning agent. Research the codebase and create a step-by-step implementation plan.
-Use read-only tools to understand the code. Do NOT make changes.
-Return a clear, actionable plan with file paths and specific changes needed.
-Working directory: ${getCwd()}`,
-    tools: ["read_file", "glob", "grep", "bash"],
-    maxTurns: 15,
-  },
-  {
-    name: "worker",
-    description:
-      "General-purpose agent that can read, write, and execute code for complex multi-step tasks.",
-    buildSystemPrompt: () => `You are a worker agent. Complete the assigned task autonomously.
-You have full access to the filesystem and shell.
-Work step by step: understand → implement → verify.
-Working directory: ${getCwd()}`,
-    maxTurns: 25,
-  },
-];
+function getBuiltInAgent(name: string): SubagentConfig | null {
+  const config = BUILT_IN_AGENT_CONFIGS[name as keyof typeof BUILT_IN_AGENT_CONFIGS];
+  if (!config) return null;
+  return {
+    name,
+    description: config.description,
+    systemPrompt: `${config.systemPromptTemplate}\nWorking directory: ${getCwd()}`,
+    tools: config.tools ? [...config.tools] : undefined,
+    maxTurns: config.maxTurns,
+  };
+}
 
 /**
  * Extra tools injected into persona-based agents so they can
@@ -235,19 +207,9 @@ export async function spawnAgent(args: {
   task: string;
 }): Promise<string> {
   // First check built-in agents
-  const builtin = BUILT_IN_AGENTS.find(
-    (a) => a.name === args.agent
-  );
-
+  const builtin = getBuiltInAgent(args.agent);
   if (builtin) {
-    const config: SubagentConfig = {
-      name: builtin.name,
-      description: builtin.description,
-      systemPrompt: builtin.buildSystemPrompt(),
-      tools: builtin.tools,
-      maxTurns: builtin.maxTurns,
-    };
-    return runSubagent(config, args.task);
+    return runSubagent(builtin, args.task);
   }
 
   // Then check persona-based agents
@@ -257,9 +219,8 @@ export async function spawnAgent(args: {
   }
 
   // List available
-  const builtinNames = BUILT_IN_AGENTS.map((a) => a.name);
   const personaNames = listPersonas().map((p) => p.id);
-  const all = [...new Set([...builtinNames, ...personaNames])];
+  const all = [...new Set([...BUILT_IN_AGENT_NAMES, ...personaNames])];
 
   return `Unknown agent: "${args.agent}". Available: ${all.join(", ")}`;
 }

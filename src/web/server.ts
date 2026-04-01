@@ -14,8 +14,8 @@ import OpenAI from "openai";
 
 // Kai modules
 import { createClient, getModelId, getProviderName, summarizeArgs, rescueToolCallsFromText } from "../client.js";
-import { resolveProvider } from "../providers/index.js";
-import { ensureKaiDir, clearConfigCache } from "../config.js";
+import { FIREWORKS_MODEL, FIREWORKS_MODEL_LABEL } from "../constants.js";
+import { ensureKaiDir } from "../config.js";
 import { buildSystemPrompt } from "../system-prompt.js";
 import { getCwd } from "../tools/bash.js";
 import { toolDefinitions, getMcpToolDefinitions, initMcpServers } from "../tools/index.js";
@@ -153,59 +153,9 @@ export async function startServer(options: ServerOptions): Promise<void> {
     }
   });
 
-  // --- Models (fetch from OpenRouter) ---
-  let cachedModels: any[] | null = null;
-  let modelsCacheTime = 0;
-  const MODELS_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
-
-  app.get("/api/models", async (c) => {
-    const now = Date.now();
-    if (cachedModels && now - modelsCacheTime < MODELS_CACHE_TTL) {
-      return c.json(cachedModels);
-    }
-    try {
-      const apiKey = process.env.OPENROUTER_API_KEY || "";
-      const res = await fetch("https://openrouter.ai/api/v1/models", {
-        headers: { Authorization: `Bearer ${apiKey}` },
-      });
-      const data = await res.json() as { data?: any[] };
-      const models = (data.data || [])
-        .filter((m: any) => m.id && m.name)
-        .map((m: any) => ({
-          id: m.id,
-          name: m.name,
-          contextLength: m.context_length,
-          pricing: m.pricing,
-        }))
-        .sort((a: any, b: any) => a.name.localeCompare(b.name));
-      cachedModels = models;
-      modelsCacheTime = now;
-      return c.json(models);
-    } catch (err) {
-      // Fallback to configured models
-      const provider = resolveProvider().provider;
-      return c.json(provider.models.map((id: string) => ({ id, name: id })));
-    }
-  });
-
-  // --- Set default model (persists to ~/.kai/settings.json) ---
-  app.post("/api/model", async (c) => {
-    const { model } = (await c.req.json()) as { model: string };
-    if (!model || typeof model !== "string") {
-      return c.json({ error: "Missing model" }, 400);
-    }
-    const settingsPath = path.resolve(process.env.HOME || "~", ".kai/settings.json");
-    let settings: any = {};
-    try {
-      if (fs.existsSync(settingsPath)) {
-        settings = JSON.parse(fs.readFileSync(settingsPath, "utf-8"));
-      }
-    } catch {}
-    settings.model = model;
-    fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + "\n");
-    // Clear cached config so CLI and server both pick up the change
-    clearConfigCache();
-    return c.json({ model, saved: true });
+  // --- Model info (single model, no selector) ---
+  app.get("/api/model", (c) => {
+    return c.json({ model: FIREWORKS_MODEL, label: FIREWORKS_MODEL_LABEL, provider: "fireworks" });
   });
 
   // --- Sessions ---
@@ -614,10 +564,9 @@ export async function startServer(options: ServerOptions): Promise<void> {
   // --- Chat (SSE streaming) ---
   app.post("/api/chat", async (c) => {
     const body = await c.req.json();
-    const { sessionId, message, model, attachments } = body as {
+    const { sessionId, message, attachments } = body as {
       sessionId?: string;
       message: string;
-      model?: string;
       attachments?: Array<{ type: "image" | "file"; name: string; mimeType: string; data: string }>;
     };
 
@@ -691,8 +640,7 @@ export async function startServer(options: ServerOptions): Promise<void> {
           async (event: string, data: any) => {
             await stream.writeSSE({ event, data: JSON.stringify(data) });
           },
-          abortController.signal,
-          model
+          abortController.signal
         );
 
         // Update session
@@ -877,8 +825,7 @@ async function chatForWeb(
   client: OpenAI,
   messages: ChatCompletionMessageParam[],
   emit: (event: string, data: any) => Promise<void>,
-  signal?: AbortSignal,
-  modelOverride?: string
+  signal?: AbortSignal
 ): Promise<ChatCompletionMessageParam[]> {
   const mcpTools = getMcpToolDefinitions();
   const activeTools = [...toolDefinitions, ...mcpTools] as ChatCompletionTool[];
@@ -919,7 +866,7 @@ async function chatForWeb(
         }
         stream = await client.chat.completions.create(
           {
-            model: modelOverride || getModelId(),
+            model: getModelId(),
             messages: updatedMessages,
             tools: activeTools,
             tool_choice: "auto",

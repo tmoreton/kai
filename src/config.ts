@@ -67,40 +67,6 @@ export function clearConfigCache(): void {
   cachedConfig = null;
 }
 
-export function getKaiMdContent(charBudget = 12_000): string {
-  const paths = [
-    path.resolve(process.env.HOME || "~", ".kai/KAI.md"),
-    path.resolve(process.cwd(), "KAI.md"),
-    path.resolve(process.cwd(), ".kai/KAI.md"),
-  ];
-
-  const sections: string[] = [];
-
-  for (const p of paths) {
-    try {
-      if (fs.existsSync(p)) {
-        const content = fs.readFileSync(p, "utf-8").trim();
-        if (content) {
-          sections.push(`# From ${p}\n${content}`);
-        }
-      }
-    } catch {
-      // skip
-    }
-  }
-
-  let result = sections.join("\n\n---\n\n");
-
-  // Enforce char budget (~4 chars per token)
-  if (result.length > charBudget) {
-    result =
-      result.substring(0, charBudget) +
-      "\n\n[KAI.md truncated to fit context budget]";
-  }
-
-  return result;
-}
-
 /** Root data directory: ~/.kai */
 export const KAI_HOME = path.resolve(process.env.HOME || "~", ".kai");
 

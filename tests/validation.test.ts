@@ -134,15 +134,20 @@ describe("validateToolArgs", () => {
   });
 
   describe("spawn_agent", () => {
-    it("accepts valid agent types", () => {
+    it("accepts built-in agent types", () => {
       for (const agent of ["explorer", "planner", "worker"]) {
         const result = validateToolArgs("spawn_agent", { agent, task: "do something" });
         expect(result.valid).toBe(true);
       }
     });
 
-    it("rejects invalid agent type", () => {
-      const result = validateToolArgs("spawn_agent", { agent: "hacker", task: "do something" });
+    it("accepts persona IDs as agent type", () => {
+      const result = validateToolArgs("spawn_agent", { agent: "youtube", task: "do something" });
+      expect(result.valid).toBe(true);
+    });
+
+    it("rejects empty agent", () => {
+      const result = validateToolArgs("spawn_agent", { agent: "", task: "do something" });
       expect(result.valid).toBe(false);
     });
   });

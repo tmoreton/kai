@@ -875,14 +875,7 @@
     <main class="main">
       <!-- Chat View -->
       <div class="view active" id="view-chat">
-        <div class="chat-header">
-          <div class="model-picker" id="model-picker" onclick="toggleModelDropdown(event)">
-            <div class="model-picker-icon" id="model-picker-icon" style="background:#6366F1">K</div>
-            <span class="model-picker-name" id="model-picker-name">Kimi K2.5</span>
-            <span class="model-picker-arrow">&#9662;</span>
-            <div class="model-dropdown" id="model-dropdown"></div>
-          </div>
-        </div>
+        <div class="chat-header"></div>
         <div class="chat-area" id="chat-area">
           <div class="messages" id="messages">
             <div class="welcome" id="welcome">
@@ -1308,97 +1301,7 @@ npm run dev</code></pre>
       renderAttachments();
     };
 
-    // ---- Models ----
-    const MODELS = [
-      { id: 'qwen/qwen3.5-397b-a17b', name: 'Qwen 3.5 397B', desc: 'Hybrid reasoning', color: '#1D4ED8', letter: 'Q' },
-      { id: 'moonshotai/kimi-k2.5', name: 'Kimi K2.5', desc: 'Fast & capable', color: '#6366F1', letter: 'K' },
-      { id: 'deepseek/deepseek-v3.2', name: 'DeepSeek V3.2', desc: 'Strong all-rounder', color: '#0EA5E9', letter: 'D' },
-      { id: 'z-ai/glm-5-turbo', name: 'GLM-5 Turbo', desc: 'Fast inference', color: '#10B981', letter: 'G' },
-      { id: 'minimax/minimax-m2.7', name: 'MiniMax M2.7', desc: 'Multimodal', color: '#EC4899', letter: 'M' },
-      { id: 'openai/gpt-oss-120b', name: 'GPT-OSS 120B', desc: 'Open weights', color: '#10A37F', letter: 'G' },
-      { id: 'xiaomi/mimo-v2-pro', name: 'MiMo V2 Pro', desc: 'Reasoning model', color: '#F97316', letter: 'M' },
-      { id: 'mistralai/mistral-large-2512', name: 'Mistral Large', desc: 'Multilingual', color: '#F97316', letter: 'M' },
-    ];
-
-    state.selectedModel = null; // Set from server on init
-
-    function renderModelDropdown() {
-      const dropdown = $('model-dropdown');
-      const isCustom = !MODELS.find(m => m.id === state.selectedModel);
-      dropdown.innerHTML = MODELS.map(m => `
-        <div class="model-option ${m.id === state.selectedModel ? 'active' : ''}" onclick="event.stopPropagation();pickModel('${m.id}')">
-          <div class="model-option-icon" style="background:${m.color}">${m.letter}</div>
-          <div class="model-option-info">
-            <div class="model-option-name">${esc(m.name)}</div>
-            <div class="model-option-desc">${esc(m.desc)}</div>
-          </div>
-          ${m.id === state.selectedModel ? '<span class="model-option-check">&#10003;</span>' : ''}
-        </div>
-      `).join('') + `
-        <div style="border-top:1px solid var(--border-light);margin:4px 0;padding:8px 8px 4px">
-          <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;padding:0 4px">Custom model</div>
-          <form onsubmit="event.preventDefault();pickCustomModel()" onclick="event.stopPropagation()">
-            <input type="text" id="custom-model-input" placeholder="e.g. xiaomi/mimo-v2-pro"
-              value="${isCustom ? esc(state.selectedModel) : ''}"
-              style="width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--mono);color:var(--text);background:var(--bg);outline:none" />
-          </form>
-        </div>
-      `;
-    }
-
-    function updateModelPicker() {
-      const m = MODELS.find(m => m.id === state.selectedModel);
-      if (m) {
-        $('model-picker-icon').style.background = m.color;
-        $('model-picker-icon').textContent = m.letter;
-        $('model-picker-name').textContent = m.name;
-      } else {
-        // Custom model
-        const short = state.selectedModel.split('/').pop() || state.selectedModel;
-        $('model-picker-icon').style.background = '#6B7280';
-        $('model-picker-icon').textContent = short[0]?.toUpperCase() || '?';
-        $('model-picker-name').textContent = short;
-      }
-    }
-
-    // Persist model choice to server (syncs CLI + web)
-    function saveModelPreference(modelId) {
-      fetch('/api/model', {
-        method: 'POST', headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({ model: modelId }),
-      }).catch(() => {});
-    }
-
-    window.pickCustomModel = function() {
-      const input = $('custom-model-input');
-      const val = input?.value.trim();
-      if (val) {
-        state.selectedModel = val;
-        updateModelPicker();
-        $('model-dropdown').classList.remove('show');
-        saveModelPreference(val);
-      }
-    };
-
-    window.toggleModelDropdown = function(e) {
-      e.stopPropagation();
-      const dd = $('model-dropdown');
-      const isOpen = dd.classList.contains('show');
-      dd.classList.toggle('show');
-      if (!isOpen) renderModelDropdown();
-    };
-
-    window.pickModel = function(id) {
-      state.selectedModel = id;
-      updateModelPicker();
-      $('model-dropdown').classList.remove('show');
-      saveModelPreference(id);
-    };
-
-    // Close dropdown on outside click
-    document.addEventListener('click', () => {
-      $('model-dropdown').classList.remove('show');
-    });
+    // ---- Model (fixed — Kimi K2.5 Turbo via Fireworks) ----
 
     // ---- Init ----
     async function init() {
@@ -1411,14 +1314,8 @@ npm run dev</code></pre>
         ]);
         state.status = status; state.sessions = sessions; state.agents = agents; state.projects = projects;
 
-        // Sync model picker with server's configured model
-        const serverModel = (status.model || '').toLowerCase();
-        const match = MODELS.find(m => serverModel.includes(m.id.split('/').pop().toLowerCase()));
-        state.selectedModel = match ? match.id : (status.model || MODELS[0].id);
-
         renderNav();
         renderFooter();
-        updateModelPicker();
       } catch {
         $('footer').innerHTML = '<span class="status-dot off"></span> Connection error';
       }
@@ -2272,11 +2169,9 @@ npm run dev</code></pre>
       addUserMsg(displayText);
 
       // Gather payload
-      const selectedModel = state.selectedModel || undefined;
       const payload = {
         sessionId: state.sessionId,
         message: text,
-        model: selectedModel || undefined,
         attachments: state.attachments.length > 0
           ? state.attachments.map(a => ({ type: a.type, name: a.name, mimeType: a.mimeType, data: a.data }))
           : undefined,

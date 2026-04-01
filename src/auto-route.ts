@@ -8,45 +8,59 @@
 import OpenAI from "openai";
 import { getModelId } from "./client.js";
 import { setPlanMode, isPlanMode } from "./plan-mode.js";
+import { listPersonas } from "./agent-persona.js";
 import chalk from "chalk";
 
 export interface RouteDecision {
   /** Execution strategy */
-  strategy: "direct" | "plan_first" | "swarm" | "plan_then_swarm";
+  strategy: "direct" | "plan_first" | "swarm" | "plan_then_swarm" | "delegate";
   /** Why this strategy was chosen (shown to user) */
   reason: string;
+  /** For delegate: which persona agent to route to */
+  delegateTo?: string;
   /** For swarm/plan_then_swarm: suggested agent tasks */
-  swarmTasks?: Array<{ agent: "explorer" | "planner" | "worker"; task: string }>;
+  swarmTasks?: Array<{ agent: string; task: string }>;
   /** Injected system hint for the main chat loop */
   hint: string;
 }
 
-const CLASSIFY_PROMPT = `You are a task router. Classify the user's request and decide the best execution strategy.
+function buildClassifyPrompt(): string {
+  // Dynamically discover available persona agents
+  const personas = listPersonas();
+  let personaSection = "";
+  if (personas.length > 0) {
+    const personaLines = personas.map((p) => `- "${p.id}": ${p.name} — ${p.role}`).join("\n");
+    personaSection = `\n\nPersona agents (user-created, with persistent memory):\n${personaLines}`;
+  }
+
+  return `You are a task router. Classify the user's request and decide the best execution strategy.
 
 Strategies:
 - "direct": Simple tasks. Single-file edits, quick questions, running a command, small bug fixes. Most requests are direct.
 - "plan_first": Complex tasks that need research before coding. Multi-file refactors, new features touching many files, architecture changes. The agent should explore the codebase first in read-only mode before making changes.
-- "swarm": Tasks with 2+ clearly independent subtasks that can run in parallel. Example: "search for all API routes AND find all database models" or "update the auth module and the logging module" (independent modules). Also use when the user mentions multiple domain-specific agents (e.g. "YouTube stuff and personal tasks").
-- "plan_then_swarm": Very large tasks that need planning first, then parallel execution. Example: "refactor the entire test suite" or "migrate from REST to GraphQL".
+- "swarm": Tasks with 2+ clearly independent subtasks that can run in parallel. Also use when the task spans multiple domains handled by different persona agents.
+- "plan_then_swarm": Very large tasks that need planning first, then parallel execution.
+- "delegate": The task belongs entirely to one persona agent. Route the whole thing to that agent.
 
-Available agent types for swarm_tasks:
-- Built-in: "explorer" (read-only code search), "planner" (research + plan), "worker" (full read/write)
-- Persona agents: "youtube" (content strategy), "personal" (life management), or any custom persona ID
+Available agents:
+- Built-in: "explorer" (read-only code search), "planner" (research + plan), "worker" (full read/write)${personaSection}
 
 Respond with ONLY valid JSON, no markdown fences:
 {
-  "strategy": "direct" | "plan_first" | "swarm" | "plan_then_swarm",
+  "strategy": "direct" | "plan_first" | "swarm" | "plan_then_swarm" | "delegate",
   "reason": "one sentence why",
-  "swarm_tasks": [{"agent": "explorer|planner|worker|youtube|personal|...", "task": "description"}] // only for swarm strategies, 2-5 tasks
+  "delegate_to": "agent-id",  // only for "delegate" strategy
+  "swarm_tasks": [{"agent": "agent-id", "task": "description"}] // only for swarm strategies, 2-5 tasks
 }
 
 Rules:
 - Default to "direct" if unsure. Most requests ARE direct.
-- Only use "plan_first" for tasks that clearly need multi-file understanding first.
-- Only use "swarm" when there are genuinely independent subtasks.
-- Use persona agents (youtube, personal) when the task matches their domain.
+- Use "delegate" when the task clearly belongs to one persona agent. This is common — use it freely for domain-specific requests.
+- Use "swarm" when there are 2+ independent subtasks across different agents/domains.
+- Only use "plan_first" for complex multi-file coding tasks.
 - Keep swarm_tasks to 2-5 entries max.
 - Be concise.`;
+}
 
 /**
  * Classify a user request and return the execution strategy.
@@ -65,7 +79,7 @@ export async function autoRoute(
     const response = await client.chat.completions.create({
       model: getModelId(),
       messages: [
-        { role: "system", content: CLASSIFY_PROMPT },
+        { role: "system", content: buildClassifyPrompt() },
         { role: "user", content: userMessage },
       ],
       max_tokens: 512,
@@ -80,13 +94,23 @@ export async function autoRoute(
     const parsed = JSON.parse(cleaned);
 
     const strategy = parsed.strategy as RouteDecision["strategy"];
-    if (!["direct", "plan_first", "swarm", "plan_then_swarm"].includes(strategy)) {
+    if (!["direct", "plan_first", "swarm", "plan_then_swarm", "delegate"].includes(strategy)) {
       return fallback();
     }
 
     // Build the hint that gets injected into the conversation
     let hint = "";
     const swarmTasks: RouteDecision["swarmTasks"] = [];
+    let delegateTo: string | undefined;
+
+    if (strategy === "delegate") {
+      delegateTo = parsed.delegate_to as string;
+      if (delegateTo) {
+        hint = `[AUTO-ROUTE: This task belongs to the "${delegateTo}" agent. Use spawn_agent("${delegateTo}", "<the user's full request>") to delegate this task to the specialized agent. Pass the user's request as-is — the agent has its own context and memory.]`;
+      } else {
+        return fallback();
+      }
+    }
 
     if (strategy === "plan_first" || strategy === "plan_then_swarm") {
       hint += "[AUTO-ROUTE: This is a complex task. Start in EXPLORATION mode — use read_file, glob, grep to understand the codebase before making any changes. Create a plan with task_create before implementing.]";
@@ -96,8 +120,7 @@ export async function autoRoute(
       if (Array.isArray(parsed.swarm_tasks)) {
         for (const t of parsed.swarm_tasks.slice(0, 5)) {
           if (t.agent && t.task) {
-            const agent = ["explorer", "planner", "worker"].includes(t.agent) ? t.agent : "explorer";
-            swarmTasks.push({ agent: agent as "explorer" | "planner" | "worker", task: t.task });
+            swarmTasks.push({ agent: t.agent, task: t.task });
           }
         }
       }
@@ -109,6 +132,7 @@ export async function autoRoute(
     return {
       strategy,
       reason: parsed.reason || "",
+      delegateTo,
       swarmTasks: swarmTasks.length >= 2 ? swarmTasks : undefined,
       hint,
     };
@@ -144,6 +168,13 @@ export function applyRoute(decision: RouteDecision): string | null {
         chalk.dim(` — ${decision.reason}`)
       );
     }
+  }
+
+  if (decision.strategy === "delegate" && decision.delegateTo) {
+    console.log(
+      chalk.magenta(`  🤖 Auto-routing: delegating to ${decision.delegateTo} agent`) +
+      chalk.dim(` — ${decision.reason}`)
+    );
   }
 
   if (decision.strategy === "direct") {

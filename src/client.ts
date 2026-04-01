@@ -20,7 +20,7 @@ import {
 } from "./constants.js";
 import { backoffDelay, sleep } from "./utils.js";
 import { resolveProvider, type ResolvedProvider } from "./providers/index.js";
-import { renderMarkdown } from "./render.js";
+import { FIREWORKS_MODEL } from "./constants.js";
 import { getLastDiff } from "./tools/files.js";
 import { renderColorDiff } from "./diff.js";
 import chalk from "chalk";
@@ -32,21 +32,16 @@ function getResolved(): ResolvedProvider {
   return _resolved;
 }
 
-/** Re-read config and refresh the resolved provider (e.g. after /model set). */
-export function refreshProvider(): void {
-  _resolved = resolveProvider();
-}
-
 export function createClient(): OpenAI {
   return getResolved().client;
 }
 
 export function getModelId(): string {
-  return getResolved().model;
+  return FIREWORKS_MODEL;
 }
 
 export function getProviderName(): string {
-  return getResolved().provider.name;
+  return "fireworks";
 }
 
 export async function chat(

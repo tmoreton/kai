@@ -104,24 +104,6 @@ export function saveAgent(agent: Omit<AgentRecord, "created_at" | "updated_at">)
   `).run(agent.id, agent.name, agent.description, agent.workflow_path, agent.schedule, agent.enabled, agent.config);
 }
 
-/**
- * Ensure an agent record exists in the DB (for CLI-triggered workflow runs).
- * If the agent already exists, this is a no-op.
- */
-export function ensureAgent(id: string, name: string, workflowPath?: string): void {
-  const existing = getDb().prepare("SELECT id FROM agents WHERE id = ?").get(id);
-  if (!existing) {
-    saveAgent({
-      id,
-      name,
-      description: `Auto-registered for CLI workflow: ${name}`,
-      workflow_path: workflowPath || "",
-      schedule: "",
-      enabled: 1,
-      config: "{}",
-    });
-  }
-}
 
 export function getAgent(id: string): AgentRecord | undefined {
   return getDb().prepare("SELECT * FROM agents WHERE id = ?").get(id) as AgentRecord | undefined;

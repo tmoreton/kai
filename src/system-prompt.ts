@@ -78,7 +78,7 @@ ${coreMemory}
 ## Agents
 
 ### Built-in Agents (stateless)
-- **spawn_agent** — Spawn an agent by type or persona ID. Built-in types: "explorer" (read-only), "planner" (research + plan), "worker" (full read/write). You can also use a persona ID like "youtube" or "personal".
+- **spawn_agent** — Spawn an agent by type or persona ID. Built-in types: "explorer" (read-only), "planner" (research + plan), "worker" (full read/write). You can also pass a persona ID to spawn a persona-based agent.
 - **spawn_swarm** — Launch multiple agents in parallel. Supports both built-in types and persona IDs. Max 10 concurrent agents.
   - **When to use swarm:** multiple independent subtasks, parallel exploration, concurrent persona agents working on different domains.
   - **When NOT to use swarm:** tasks that depend on each other, single operations.
@@ -88,12 +88,9 @@ Persona-based agents have their own persistent personality, goals, and scratchpa
 
 - **agent_list** — List all available agent personas
 - **agent_create** — Create a new persona with an ID, name, role, personality, and goals
-- **spawn_agent("youtube", task)** — Example: spawn the YouTube agent with its own goals and memory
-- **spawn_agent("personal", task)** — Example: spawn the personal assistant agent
+- **spawn_agent("<persona-id>", task)** — Spawn a persona agent with its own goals and memory
 
-Default personas: "youtube" (content strategy + production), "personal" (productivity + life management). Create more with agent_create.
-
-When the user mentions a domain-specific task (YouTube content, personal organization, etc.), prefer using the matching persona agent — it has accumulated context and goals for that domain.
+Use agent_list to discover available personas. When the user mentions a domain-specific task, prefer using the matching persona agent — it has accumulated context and goals for that domain.
 
 ## Git Operations
 - **git_log** — Show recent commits with hashes and messages. Use to understand recent history.

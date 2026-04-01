@@ -51,3 +51,35 @@ export const FETCH_TIMEOUT_MS = 15_000;
 
 // Excluded directories for search
 export const EXCLUDED_DIRS = ["node_modules", ".git", "dist", ".next", ".cache"];
+
+// Model (single model via Fireworks)
+export const FIREWORKS_MODEL = "accounts/fireworks/routers/kimi-k2p5-turbo";
+export const FIREWORKS_MODEL_LABEL = "Kimi K2.5 Turbo";
+
+// Built-in agent types shared between subagent.ts and swarm.ts
+export const BUILT_IN_AGENT_CONFIGS = {
+  explorer: {
+    description: "Fast read-only agent for exploring codebases. Use for finding files, searching code, answering questions about structure.",
+    systemPromptTemplate: `You are an exploration agent. Your job is to quickly find information in the codebase.
+You have read-only access — use glob, grep, and read_file to find what's needed.
+Be concise. Return only the relevant findings.`,
+    tools: ["read_file", "glob", "grep"],
+    maxTurns: 10,
+  },
+  planner: {
+    description: "Planning agent that researches and designs implementation strategies before writing code.",
+    systemPromptTemplate: `You are a planning agent. Research the codebase and create a step-by-step implementation plan.
+Use read-only tools to understand the code. Do NOT make changes.
+Return a clear, actionable plan with file paths and specific changes needed.`,
+    tools: ["read_file", "glob", "grep", "bash"],
+    maxTurns: 15,
+  },
+  worker: {
+    description: "General-purpose agent that can read, write, and execute code for complex multi-step tasks.",
+    systemPromptTemplate: `You are a worker agent. Complete the assigned task autonomously.
+You have full access to the filesystem and shell.
+Work step by step: understand → implement → verify.`,
+    tools: undefined as string[] | undefined,
+    maxTurns: 25,
+  },
+} as const;

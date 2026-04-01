@@ -1,0 +1,85 @@
+name: Kai Backup
+description: Nightly git backup of ~/.kai — auto-commits soul, personas, archival, workflows, and settings so you can always revert if something breaks
+schedule: "0 23 * * *"
+
+config:
+  kai_dir: "~/.kai"
+
+steps:
+  # === INIT GIT REPO IF NEEDED ===
+  - name: init_repo
+    type: shell
+    command: |
+      cd ~/.kai
+      if [ ! -d .git ]; then
+        git init
+        # Default gitignore — skip large/ephemeral files
+        cat > .gitignore << 'GITIGNORE'
+      sessions/
+      agents.db
+      agents.db-journal
+      *.log
+      node_modules/
+      .env
+      GITIGNORE
+        git add .gitignore
+        git commit -m "init: kai backup repo"
+        echo "INITIALIZED"
+      else
+        echo "ALREADY_INITIALIZED"
+      fi
+    output_var: init_status
+
+  # === CHECK FOR CHANGES ===
+  - name: check_changes
+    type: shell
+    command: "cd ~/.kai && git add -A && git status --porcelain"
+    output_var: git_status
+
+  # === GET DIFF FOR COMMIT MESSAGE ===
+  - name: get_diff
+    type: shell
+    command: "cd ~/.kai && git diff --cached --stat 2>/dev/null || echo 'no staged changes'"
+    output_var: git_diff
+    condition: "${vars.git_status}"
+
+  # === GENERATE COMMIT MESSAGE ===
+  - name: commit_message
+    type: llm
+    condition: "${vars.git_status}"
+    prompt: |
+      Generate a concise git commit message for these changes to a Kai AI assistant's data directory (~/.kai).
+
+      ## Changed files:
+      ${vars.git_diff}
+
+      ## Files that changed (porcelain):
+      ${vars.git_status}
+
+      The directory contains: soul (AI personality/memory), agent personas, archival knowledge, workflows, and settings.
+
+      Write a single-line commit message (under 72 chars) that summarizes what changed. Be specific.
+      Examples: "update youtube agent goals + scratchpad", "add new devops persona", "update soul human block with project context"
+
+      Return ONLY the commit message, nothing else.
+
+  # === COMMIT ===
+  - name: commit
+    type: shell
+    condition: "${vars.git_status}"
+    command: |
+      cd ~/.kai
+      git commit -m "${vars.commit_message}" 2>&1 || echo "NO_CHANGES"
+    output_var: commit_result
+
+  # === SUMMARY ===
+  - name: summary
+    type: shell
+    command: |
+      cd ~/.kai
+      echo "=== Kai Backup Summary ==="
+      echo "Last 5 commits:"
+      git log --oneline -5 2>/dev/null || echo "(no commits yet)"
+      echo ""
+      echo "Repo size:"
+      du -sh .git 2>/dev/null || echo "(unknown)"

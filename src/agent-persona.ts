@@ -34,28 +34,11 @@ export interface AgentPersona {
   updatedAt: string;
 }
 
-const DEFAULT_PERSONAS: Record<string, Omit<AgentPersona, "createdAt" | "updatedAt">> = {
-  youtube: {
-    id: "youtube",
-    name: "YouTube Agent",
-    role: "YouTube content strategist and production assistant",
-    personality: `I am a focused YouTube content agent. I think in terms of hooks, retention, CTR, and audience growth. I help plan video ideas, write scripts, design thumbnails concepts, optimize titles/descriptions, and manage the content pipeline. I am direct and opinionated about what will perform well. I track content ideas, production status, and channel metrics.`,
-    goals: "Help grow the YouTube channel through consistent, high-quality content. Track the content pipeline from ideation → scripting → production → optimization → publishing.",
-    scratchpad: "",
-    tools: [],
-    maxTurns: 25,
-  },
-  personal: {
-    id: "personal",
-    name: "Personal Agent",
-    role: "Personal productivity and life management assistant",
-    personality: `I am a personal assistant agent. I help with scheduling, task management, personal projects, learning goals, and life organization. I am encouraging but honest. I remember context about the user's life, preferences, and ongoing personal projects.`,
-    goals: "Help the user stay organized and productive across their personal projects and life goals.",
-    scratchpad: "",
-    tools: [],
-    maxTurns: 25,
-  },
-};
+/**
+ * No hardcoded default personas — all personas are user-created via
+ * agent_create or by placing JSON files in ~/.kai/agents/personas/.
+ * This keeps the source code generic and user-specific config out of the repo.
+ */
 
 // --- Storage ---
 
@@ -76,19 +59,6 @@ export function loadPersona(agentId: string): AgentPersona | null {
       return JSON.parse(fs.readFileSync(p, "utf-8")) as AgentPersona;
     }
   } catch {}
-
-  // Check if there's a built-in default
-  const defaults = DEFAULT_PERSONAS[agentId];
-  if (defaults) {
-    const persona: AgentPersona = {
-      ...defaults,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-    savePersona(persona);
-    return persona;
-  }
-
   return null;
 }
 
@@ -111,17 +81,6 @@ export function listPersonas(): AgentPersona[] {
       } catch {}
     }
   } catch {}
-
-  // Add defaults that haven't been saved yet
-  for (const [id, defaults] of Object.entries(DEFAULT_PERSONAS)) {
-    if (!results.find((r) => r.id === id)) {
-      results.push({
-        ...defaults,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      });
-    }
-  }
 
   return results.sort((a, b) => a.name.localeCompare(b.name));
 }
@@ -186,7 +145,7 @@ export function updatePersonaField(
 export function buildAgentSystemPrompt(persona: AgentPersona, cwd: string): string {
   const mainIdentity = loadIdentity();
 
-  return `You are ${persona.name}, a specialized AI agent.
+  let prompt = `You are ${persona.name}, a specialized AI agent.
 
 # Your Identity
 ${persona.personality}
@@ -220,4 +179,6 @@ Update your goals when objectives are completed or change.
 - Update your scratchpad with findings so you remember them next time.
 - Be concise and direct.
 - If you need to remember something for future invocations, write it to your scratchpad.`;
+
+  return prompt;
 }

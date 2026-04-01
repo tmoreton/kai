@@ -31,10 +31,3 @@ export function resolveFilePath(filePath: string): string {
 export function expandHome(filePath: string): string {
   return filePath.replace(/^~/, process.env.HOME || "~");
 }
-
-/**
- * Get the user's home directory.
- */
-export function getHomeDir(): string {
-  return process.env.HOME || "~";
-}

@@ -19,10 +19,7 @@ export function registerImageIntegration(): void {
           width: params.width,
           height: params.height,
           output_dir: params.output_dir,
-          count: params.count,
-          steps: params.steps,
           negative_prompt: params.negative_prompt,
-          seed: params.seed,
         });
       },
     },

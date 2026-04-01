@@ -12,7 +12,7 @@ import {
   getSteps,
   type StepRecord,
 } from "./db.js";
-import { resolveProvider, getFallbackModel, type ResolvedProvider } from "../providers/index.js";
+import { resolveProvider, type ResolvedProvider } from "../providers/index.js";
 import { backoffDelay, sleep } from "../utils.js";
 import {
   RETRYABLE_STATUS_CODES,
@@ -444,10 +444,9 @@ async function executeLlmStep(step: WorkflowStep, ctx: WorkflowContext): Promise
     { role: "user" as const, content: prompt },
   ];
 
-  // Try primary model with retries, then fallback models
+  // Try primary model with retries
   const fallbackModels = [
     model,
-    getFallbackModel(),
   ];
 
   for (const currentModel of fallbackModels) {

@@ -1,4 +1,4 @@
-import { execSync, spawn, type ChildProcess } from "child_process";
+import { execSync } from "child_process";
 
 // Tailscale CLI path varies by platform
 const TAILSCALE_PATHS = [
@@ -6,8 +6,6 @@ const TAILSCALE_PATHS = [
   "/Applications/Tailscale.app/Contents/MacOS/Tailscale", // macOS app
   "/usr/bin/tailscale",                                  // Linux package
 ];
-
-let tailscaleProcess: ChildProcess | null = null;
 
 function findTailscaleCli(): string | null {
   for (const bin of TAILSCALE_PATHS) {

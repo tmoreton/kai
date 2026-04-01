@@ -7,6 +7,7 @@ import { Command } from "commander";
 import chalk from "chalk";
 import { startRepl } from "./repl.js";
 import { initMcpServers, shutdownMcpServers, listMcpServers } from "./tools/index.js";
+import { FIREWORKS_MODEL, FIREWORKS_MODEL_LABEL } from "./constants.js";
 
 // Load .env from all possible locations — override existing env vars
 // so ~/.kai/.env always takes precedence over stale shell exports
@@ -210,93 +211,14 @@ agent
     }
   });
 
-// --- Model commands ---
-const model = program.command("model").description("Manage default model");
-
-model
-  .command("list")
-  .description("List available models")
+// --- Model command ---
+program
+  .command("model")
+  .description("Show current model")
   .action(async () => {
     const chalk = (await import("chalk")).default;
-    const { getConfig } = await import("./config.js");
-    const { OPENROUTER_PROVIDER } = await import("./providers/index.js");
-
-    const config = getConfig();
-    const active = config.model || process.env.MODEL_ID || OPENROUTER_PROVIDER.defaultModel;
-
-    const models = [
-      { id: "moonshotai/kimi-k2.5", label: "Kimi K2.5" },
-      { id: "qwen/qwen3.5-397b-a17b", label: "Qwen 3.5 397B" },
-      { id: "deepseek/deepseek-v3.2", label: "DeepSeek V3.2" },
-      { id: "qwen/qwen3-235b-a22b", label: "Qwen 3 235B" },
-      { id: "mistralai/mistral-large-2512", label: "Mistral Large" },
-      { id: "xiaomi/mimo-v2-pro", label: "MiMo V2 Pro" },
-      { id: "z-ai/glm-5-turbo", label: "GLM-5 Turbo" },
-      { id: "minimax/minimax-m2.7", label: "MiniMax M2.7" },
-      { id: "openai/gpt-oss-120b", label: "GPT-OSS 120B" },
-    ];
-
-    console.log(chalk.bold("\n  Available Models\n"));
-    for (const m of models) {
-      const isCurrent = m.id === active;
-      const dot = isCurrent ? chalk.green("●") : chalk.dim("○");
-      const label = isCurrent ? chalk.bold(m.label) : m.label;
-      console.log(`  ${dot} ${label}  ${chalk.dim(m.id)}`);
-    }
-    console.log(chalk.dim(`\n  Image model: ${OPENROUTER_PROVIDER.imageModel}`));
-    console.log(chalk.dim(`  Or use any OpenRouter model: kai model set <model-id>\n`));
-  });
-
-model
-  .command("set <model-id>")
-  .description("Set the default model")
-  .action(async (modelId) => {
-    const chalk = (await import("chalk")).default;
-    const fs = await import("fs");
-    const path = await import("path");
-    const { ensureKaiDir } = await import("./config.js");
-    
-    const configPath = path.resolve(ensureKaiDir(), "settings.json");
-    let config = {};
-    
-    try {
-      if (fs.existsSync(configPath)) {
-        config = JSON.parse(fs.readFileSync(configPath, "utf-8"));
-      }
-    } catch {
-      // Start fresh if invalid
-    }
-    
-    (config as any).model = modelId;
-    fs.writeFileSync(configPath, JSON.stringify(config, null, 2) + "\n");
-    
-    console.log(chalk.green(`  ✓ Default model set to: ${modelId}`));
-    console.log(chalk.dim("  This will be used for all future sessions.\n"));
-  });
-
-model
-  .command("show")
-  .alias("get")
-  .description("Show current default model")
-  .action(async () => {
-    const chalk = (await import("chalk")).default;
-    const { getConfig } = await import("./config.js");
-    const { OPENROUTER_PROVIDER } = await import("./providers/index.js");
-    
-    const config = getConfig();
-    const currentModel = config.model || process.env.MODEL_ID || OPENROUTER_PROVIDER.defaultModel;
-    
-    console.log(chalk.bold("\n  Current Model\n"));
-    console.log(`  ${chalk.green("●")} ${currentModel}`);
-    
-    if (config.model) {
-      console.log(chalk.dim("    (from ~/.kai/settings.json)"));
-    } else if (process.env.MODEL_ID) {
-      console.log(chalk.dim("    (from MODEL_ID environment variable)"));
-    } else {
-      console.log(chalk.dim("    (built-in default)"));
-    }
-    console.log("");
+    console.log(chalk.bold(`\n  Model: `) + chalk.cyan(FIREWORKS_MODEL_LABEL));
+    console.log(chalk.dim(`  ${FIREWORKS_MODEL} (via Fireworks)\n`));
   });
 
 // --- MCP commands ---

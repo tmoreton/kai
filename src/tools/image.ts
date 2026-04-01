@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import { resolveProvider, getImageModel } from "../providers/index.js";
+import { createImageClient, getImageModel } from "../providers/index.js";
 import { kaiPath } from "../config.js";
 import { expandHome, backoffDelay, sleep } from "../utils.js";
 
@@ -18,10 +18,7 @@ export interface GenerateImageArgs {
   width?: number;
   height?: number;
   output_dir?: string;
-  count?: number;
-  steps?: number;
   negative_prompt?: string;
-  seed?: number;
 }
 
 export interface GenerateImageResult {
@@ -33,7 +30,7 @@ export interface GenerateImageResult {
 export async function generateImage(
   args: GenerateImageArgs
 ): Promise<GenerateImageResult> {
-  const { client } = resolveProvider();
+  const client = createImageClient();
   const model = args.model || getImageModel();
 
   const fullPrompt = args.negative_prompt

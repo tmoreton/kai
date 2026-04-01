@@ -46,18 +46,6 @@ export function saveProfile(profile: ProjectProfile): void {
   fs.writeFileSync(profilePath(), JSON.stringify(profile, null, 2), "utf-8");
 }
 
-/**
- * Add a note to the project profile (called as Kai learns things).
- */
-export function addProfileNote(note: string): void {
-  const profile = loadProfile();
-  if (!profile) return;
-  if (!profile.notes.includes(note)) {
-    profile.notes.push(note);
-    if (profile.notes.length > 20) profile.notes = profile.notes.slice(-20);
-    saveProfile(profile);
-  }
-}
 
 /**
  * Scan the current project and generate a profile.

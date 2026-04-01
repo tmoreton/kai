@@ -1,7 +1,7 @@
 import * as readline from "readline";
 import type { ChatCompletionMessageParam } from "openai/resources/chat/completions";
 import chalk from "chalk";
-import { createClient, chat, getModelId, getProviderName, refreshProvider } from "./client.js";
+import { createClient, chat, getModelId, getProviderName } from "./client.js";
 import { buildSystemPrompt } from "./system-prompt.js";
 import { getCwd, cleanupBackgroundProcesses } from "./tools/bash.js";
 import { formatCost, estimateContextSize, formatContextBreakdown, compactMessages } from "./context.js";
@@ -38,6 +38,7 @@ import {
 import { isPlanMode, togglePlanMode } from "./plan-mode.js";
 import { checkBudget } from "./context.js";
 import { autoRoute, applyRoute } from "./auto-route.js";
+import { bootstrapBuiltinAgents } from "./agents/bootstrap.js";
 
 const IMAGE_EXTS = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"]);
 const MIME_MAP: Record<string, string> = {
@@ -68,6 +69,12 @@ export async function startRepl(options: ReplOptions = {}, initialPrompt?: strin
   const pruned = cleanupSessions(30);
   if (pruned > 0) {
     console.log(chalk.dim(`  Cleaned up ${pruned} old session(s).\n`));
+  }
+
+  // Install built-in agents on first run (e.g. nightly backup)
+  const bootstrapped = bootstrapBuiltinAgents();
+  if (bootstrapped > 0) {
+    console.log(chalk.dim(`  Installed ${bootstrapped} built-in agent(s). Run /agent to see them.\n`));
   }
 
   const client = createClient();
@@ -356,7 +363,7 @@ export async function startRepl(options: ReplOptions = {}, initialPrompt?: strin
       const msg = err instanceof Error ? err.message : String(err);
       console.error(chalk.red(`\n  Error: ${msg}\n`));
       if (msg.includes("401")) {
-        console.error(chalk.yellow("  Check your OPENROUTER_API_KEY in .env\n"));
+        console.error(chalk.yellow("  Check your FIREWORKS_API_KEY in .env\n"));
       }
     }
 
@@ -466,11 +473,18 @@ async function runDoctor(): Promise<void> {
   }
 
   // API Keys
+  const fireworksKey = process.env.FIREWORKS_API_KEY;
+  checks.push({
+    name: "FIREWORKS_API_KEY",
+    status: fireworksKey ? "ok" : "fail",
+    detail: fireworksKey ? `set (${fireworksKey.substring(0, 8)}...)` : "missing — required for LLM access",
+  });
+
   const openrouterKey = process.env.OPENROUTER_API_KEY;
   checks.push({
     name: "OPENROUTER_API_KEY",
-    status: openrouterKey ? "ok" : "fail",
-    detail: openrouterKey ? `set (${openrouterKey.substring(0, 8)}...)` : "missing — required for LLM access",
+    status: openrouterKey ? "ok" : "warn",
+    detail: openrouterKey ? `set (${openrouterKey.substring(0, 8)}...)` : "missing — image generation will not work",
   });
 
   const tavilyKey = process.env.TAVILY_API_KEY;
@@ -653,16 +667,6 @@ async function handleCommand(
     }
     return "handled";
   }
-  if (cmd === "/cost compact") {
-    const before = estimateContextSize(messages);
-    const compacted = compactMessages(messages);
-    messages.length = 0;
-    messages.push(...compacted);
-    const after = estimateContextSize(messages);
-    console.log(chalk.dim(`  Compacted: ~${before.toLocaleString()} → ~${after.toLocaleString()} tokens\n`));
-    return "handled";
-  }
-
   // === /doctor — system diagnostics ===
   if (cmd === "/doctor") {
     await runDoctor();
@@ -1172,70 +1176,11 @@ ${(gitDiff(false) || "(none)").substring(0, 2000)}`;
     return "handled";
   }
 
-  // === /model [list|set <id>] ===
-  if (cmd === "/model" || cmd === "/model show") {
-    const { getConfig, clearConfigCache } = await import("./config.js");
-    const { OPENROUTER_PROVIDER } = await import("./providers/index.js");
-    const config = getConfig();
-    const current = config.model || process.env.MODEL_ID || OPENROUTER_PROVIDER.defaultModel;
-    console.log(chalk.bold(`\n  Current model: `) + chalk.cyan(current));
-    if (config.model) {
-      console.log(chalk.dim("  (from ~/.kai/settings.json)"));
-    } else if (process.env.MODEL_ID) {
-      console.log(chalk.dim("  (from MODEL_ID env)"));
-    } else {
-      console.log(chalk.dim("  (built-in default)"));
-    }
-    console.log(chalk.dim("\n  Change: /model set <model-id>"));
-    console.log(chalk.dim("  List:   /model list\n"));
-    return "handled";
-  }
-  if (cmd === "/model list") {
-    const { getConfig } = await import("./config.js");
-    const { OPENROUTER_PROVIDER } = await import("./providers/index.js");
-    const config = getConfig();
-    const active = config.model || process.env.MODEL_ID || OPENROUTER_PROVIDER.defaultModel;
-    const models = [
-      { id: "moonshotai/kimi-k2.5", label: "Kimi K2.5" },
-      { id: "qwen/qwen3.5-397b-a17b", label: "Qwen 3.5 397B" },
-      { id: "deepseek/deepseek-v3.2", label: "DeepSeek V3.2" },
-      { id: "qwen/qwen3-235b-a22b", label: "Qwen 3 235B" },
-      { id: "mistralai/mistral-large-2512", label: "Mistral Large" },
-      { id: "xiaomi/mimo-v2-pro", label: "MiMo V2 Pro" },
-      { id: "z-ai/glm-5-turbo", label: "GLM-5 Turbo" },
-      { id: "minimax/minimax-m2.7", label: "MiniMax M2.7" },
-      { id: "openai/gpt-oss-120b", label: "GPT-OSS 120B" },
-    ];
-    console.log(chalk.bold("\n  Available Models\n"));
-    for (const m of models) {
-      const isCurrent = m.id === active;
-      const dot = isCurrent ? chalk.green("●") : chalk.dim("○");
-      const label = isCurrent ? chalk.bold(m.label) : m.label;
-      console.log(`  ${dot} ${label}  ${chalk.dim(m.id)}`);
-    }
-    console.log(chalk.dim(`\n  Set: /model set <model-id>\n`));
-    return "handled";
-  }
-  if (cmd.startsWith("/model set ")) {
-    const modelId = input.substring(11).trim();
-    if (!modelId) {
-      console.log(chalk.yellow("  Usage: /model set <model-id>\n"));
-      return "handled";
-    }
-    const { ensureKaiDir, clearConfigCache } = await import("./config.js");
-    const settingsPath = path.resolve(ensureKaiDir(), "settings.json");
-    let settings: any = {};
-    try {
-      if (fs.existsSync(settingsPath)) {
-        settings = JSON.parse(fs.readFileSync(settingsPath, "utf-8"));
-      }
-    } catch {}
-    settings.model = modelId;
-    fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + "\n");
-    clearConfigCache();
-    refreshProvider();
-    console.log(chalk.green(`\n  Model set to: ${modelId}`));
-    console.log(chalk.dim("  Active now — next message will use this model.\n"));
+  // === /model ===
+  if (cmd === "/model" || cmd.startsWith("/model")) {
+    const { FIREWORKS_MODEL_LABEL, FIREWORKS_MODEL } = await import("./constants.js");
+    console.log(chalk.bold(`\n  Model: `) + chalk.cyan(FIREWORKS_MODEL_LABEL));
+    console.log(chalk.dim(`  ${FIREWORKS_MODEL} (via Fireworks)\n`));
     return "handled";
   }
 
@@ -1256,8 +1201,6 @@ ${(gitDiff(false) || "(none)").substring(0, 2000)}`;
   /soul                   View memory (persona, human, goals, scratchpad, recall)
 
   /model                  Show current model
-  /model list             List available models
-  /model set <model-id>   Change model (persists across CLI + web)
 
   /diff                   All changes made this session
   /git                    Status + changed files

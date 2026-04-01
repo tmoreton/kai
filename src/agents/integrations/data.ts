@@ -107,7 +107,7 @@ export function registerDataIntegration(): void {
         const file = resolvePath(params.file);
         if (!fs.existsSync(file)) return { archived: false, reason: "file does not exist" };
 
-        const archiveDir = resolvePath(params.archive_dir || "~/.kai/youtube/archives");
+        const archiveDir = resolvePath(params.archive_dir || "~/.kai/archives");
         if (!fs.existsSync(archiveDir)) fs.mkdirSync(archiveDir, { recursive: true });
 
         const basename = path.basename(file, path.extname(file));

@@ -9,6 +9,7 @@
 import { runSubagent, runPersonaAgent, type SubagentConfig } from "./subagent.js";
 import { loadPersona } from "./agent-persona.js";
 import { getCwd } from "./tools/bash.js";
+import { BUILT_IN_AGENT_CONFIGS } from "./constants.js";
 import chalk from "chalk";
 
 export interface SwarmTask {
@@ -23,47 +24,20 @@ interface SwarmResult {
   output: string;
 }
 
-const BUILTIN_CONFIGS: Record<string, () => SubagentConfig> = {
-  explorer: () => ({
-    name: "explorer",
-    description: "Fast read-only code exploration",
-    systemPrompt: `You are an exploration agent. Your job is to quickly find information in the codebase.
-You have read-only access — use glob, grep, and read_file to find what's needed.
-Be concise. Return only the relevant findings.
-Working directory: ${getCwd()}`,
-    tools: ["read_file", "glob", "grep"],
-    maxTurns: 10,
-  }),
-  planner: () => ({
-    name: "planner",
-    description: "Research and plan implementation",
-    systemPrompt: `You are a planning agent. Research the codebase and create a step-by-step implementation plan.
-Use read-only tools to understand the code. Do NOT make changes.
-Return a clear, actionable plan with file paths and specific changes needed.
-Working directory: ${getCwd()}`,
-    tools: ["read_file", "glob", "grep", "bash"],
-    maxTurns: 15,
-  }),
-  worker: () => ({
-    name: "worker",
-    description: "Full read/write agent for complex tasks",
-    systemPrompt: `You are a worker agent. Complete the assigned task autonomously.
-You have full access to the filesystem and shell.
-Work step by step: understand → implement → verify.
-Working directory: ${getCwd()}`,
-    maxTurns: 25,
-  }),
-};
-
 /**
  * Launch a single agent — resolves built-in types first, then persona IDs.
  */
 function launchAgent(agentType: string, task: string, index: number): Promise<string> {
   // Built-in agent
-  const configBuilder = BUILTIN_CONFIGS[agentType];
-  if (configBuilder) {
-    const config = configBuilder();
-    config.name = `${config.name}-${index + 1}`;
+  const agentDef = BUILT_IN_AGENT_CONFIGS[agentType as keyof typeof BUILT_IN_AGENT_CONFIGS];
+  if (agentDef) {
+    const config: SubagentConfig = {
+      name: `${agentType}-${index + 1}`,
+      description: agentDef.description,
+      systemPrompt: `${agentDef.systemPromptTemplate}\nWorking directory: ${getCwd()}`,
+      tools: agentDef.tools ? [...agentDef.tools] : undefined,
+      maxTurns: agentDef.maxTurns,
+    };
     return runSubagent(config, task);
   }
 
