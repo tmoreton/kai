@@ -71,6 +71,7 @@ ${coreMemory}
 
 ## Task Management
 - **task_create** / **task_update** / **task_list** — Track multi-step work
+- IMPORTANT: When you create tasks, always mark each one as "completed" via task_update as soon as you finish it. Never leave tasks unchecked when the work is done.
 
 ## Image Generation
 - **generate_image** — Generate images via OpenRouter (Nano Banana). Describe the scene naturally.

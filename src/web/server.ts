@@ -40,6 +40,7 @@ import {
   loadSession,
   listSessions,
   deleteSession,
+  findSessionByPersona,
   type Session,
 } from "../sessions.js";
 import {
@@ -639,6 +640,78 @@ export async function startServer(options: ServerOptions): Promise<void> {
     return c.json({ ok: true });
   });
 
+  // --- Persona Chat: Get or create persistent session ---
+  app.post("/api/personas/:id/chat", async (c) => {
+    const personaId = c.req.param("id");
+    const persona = loadPersona(personaId);
+    if (!persona) return c.json({ error: "Persona not found" }, 404);
+
+    // Check if persona already has a chat session
+    let session = findSessionByPersona(personaId);
+    
+    if (session) {
+      // Existing session found - refresh the system prompt with latest persona data
+      const personaContext = buildPersonaContext(persona);
+      const baseSystemPrompt = buildSystemPrompt();
+      session.messages[0] = { 
+        role: "system", 
+        content: `${baseSystemPrompt}\n\n---\n\n${personaContext}` 
+      };
+      saveSession(session);
+      return c.json({ id: session.id, name: session.name, persona: persona.name, existing: true });
+    }
+
+    // Create new session with persona context
+    session = createNewSession();
+    session.name = `Chat with ${persona.name}`;
+    session.type = "chat";
+    session.personaId = personaId;
+    
+    const personaContext = buildPersonaContext(persona);
+    const baseSystemPrompt = buildSystemPrompt();
+    session.messages[0] = { 
+      role: "system", 
+      content: `${baseSystemPrompt}\n\n---\n\n${personaContext}` 
+    };
+
+    // Add initial greeting
+    session.messages.push({ 
+      role: "assistant", 
+      content: `Hi, I'm ${persona.name}. ${persona.role ? `I ${persona.role.toLowerCase().replace(/^i /, "").replace(/\.$/, "")}.` : "How can I help you today?"}` 
+    });
+
+    saveSession(session);
+    return c.json({ id: session.id, name: session.name, persona: persona.name, existing: false });
+  });
+
+  // --- New Persona Chat: Force create fresh session ---
+  app.post("/api/personas/:id/chat/new", async (c) => {
+    const personaId = c.req.param("id");
+    const persona = loadPersona(personaId);
+    if (!persona) return c.json({ error: "Persona not found" }, 404);
+
+    // Create fresh session (don't reuse existing)
+    const session = createNewSession();
+    session.name = `Chat with ${persona.name}`;
+    session.type = "chat";
+    session.personaId = personaId;
+    
+    const personaContext = buildPersonaContext(persona);
+    const baseSystemPrompt = buildSystemPrompt();
+    session.messages[0] = { 
+      role: "system", 
+      content: `${baseSystemPrompt}\n\n---\n\n${personaContext}` 
+    };
+
+    session.messages.push({ 
+      role: "assistant", 
+      content: `Hi, I'm ${persona.name}. ${persona.role ? `I ${persona.role.toLowerCase().replace(/^i /, "").replace(/\.$/, "")}.` : "How can I help you today?"}` 
+    });
+
+    saveSession(session);
+    return c.json({ id: session.id, name: session.name, persona: persona.name, existing: false });
+  });
+
   // --- Chat (SSE streaming) ---
   app.post("/api/chat", async (c) => {
     const body = await c.req.json();
@@ -654,9 +727,13 @@ export async function startServer(options: ServerOptions): Promise<void> {
       const loaded = loadSession(sessionId);
       if (loaded) {
         session = loaded;
-        // Refresh system prompt
+        // Refresh system prompt (keep persona context if present)
         if (session.messages[0]?.role === "system") {
-          session.messages[0] = { role: "system", content: buildSystemPrompt() };
+          const existingSystem = session.messages[0].content;
+          // Only update if it's the default system prompt (not persona-enhanced)
+          if (typeof existingSystem !== "string" || !existingSystem.includes("You are ")) {
+            session.messages[0] = { role: "system", content: buildSystemPrompt() };
+          }
         }
       } else {
         session = createNewSession();
@@ -669,32 +746,65 @@ export async function startServer(options: ServerOptions): Promise<void> {
     if (attachments && attachments.length > 0) {
       const parts: any[] = [];
       const savedPaths: string[] = [];
+      const uploadErrors: string[] = [];
+      
       for (const att of attachments) {
         if (att.type === "image") {
-          // Save to disk so tools (e.g. generate_image) can reference the file
-          const uploadsDir = path.join(ensureKaiDir(), "uploads");
-          if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
-          const ext = att.name.match(/\.\w+$/)?.[0] || ".png";
-          const savedPath = path.join(uploadsDir, `${Date.now()}-${att.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`)
-          fs.writeFileSync(savedPath, Buffer.from(att.data, "base64"));
-          savedPaths.push(savedPath);
+          try {
+            // Validate base64 data
+            if (!att.data || att.data.length === 0) {
+              uploadErrors.push(`Empty image data for ${att.name}`);
+              continue;
+            }
+            
+            // Save to disk so tools (e.g. generate_image) can reference the file
+            const uploadsDir = path.join(ensureKaiDir(), "uploads");
+            if (!fs.existsSync(uploadsDir)) {
+              fs.mkdirSync(uploadsDir, { recursive: true });
+            }
+            
+            // Sanitize filename and add timestamp
+            const safeName = att.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+            const timestamp = Date.now();
+            const ext = att.name.match(/\.\w+$/)?.[0] || ".png";
+            const filename = `${timestamp}-${safeName}`;
+            const savedPath = path.join(uploadsDir, filename);
+            
+            // Decode and save
+            const buffer = Buffer.from(att.data, "base64");
+            fs.writeFileSync(savedPath, buffer);
+            savedPaths.push(savedPath);
 
-          parts.push({
-            type: "image_url",
-            image_url: { url: `data:${att.mimeType};base64,${att.data}` },
-          });
+            // Add as image to message
+            parts.push({
+              type: "image_url",
+              image_url: { url: `data:${att.mimeType};base64,${att.data}` },
+            });
+          } catch (err: any) {
+            console.error("Failed to save image:", att.name, err);
+            uploadErrors.push(`Failed to save ${att.name}: ${err.message}`);
+          }
         } else {
           // Non-image files: include as text content
-          parts.push({
-            type: "text",
-            text: `[File: ${att.name}]\n${Buffer.from(att.data, "base64").toString("utf-8")}`,
-          });
+          try {
+            const content = Buffer.from(att.data, "base64").toString("utf-8");
+            parts.push({
+              type: "text",
+              text: `[File: ${att.name}]\n${content}`,
+            });
+          } catch (err: any) {
+            uploadErrors.push(`Failed to read ${att.name}: ${err.message}`);
+          }
         }
       }
+      
       // Include saved file paths so the LLM can pass them to tools like generate_image(reference_image)
       let text = message;
       if (savedPaths.length > 0) {
         text += `\n\n[Attached images saved to: ${savedPaths.join(", ")}]`;
+      }
+      if (uploadErrors.length > 0) {
+        text += `\n\n[Upload errors: ${uploadErrors.join("; ")}]`;
       }
       parts.push({ type: "text", text });
       session.messages.push({ role: "user", content: parts });
@@ -1088,6 +1198,17 @@ function createNewSession(): Session {
   };
 }
 
+function buildPersonaContext(persona: { name: string; role?: string; personality?: string; goals?: string; scratchpad?: string }): string {
+  return [
+    `You are ${persona.name}.`,
+    persona.role ? `Role: ${persona.role}` : "",
+    persona.personality ? `\nPersonality:\n${persona.personality}` : "",
+    persona.goals ? `\nGoals:\n${persona.goals}` : "",
+    persona.scratchpad ? `\nWorking Notes (scratchpad):\n${persona.scratchpad}` : "",
+    "\nMaintain this persona throughout the conversation. Reference your goals and working notes as appropriate.",
+  ].filter(Boolean).join("\n");
+}
+
 /**
  * Web-specific chat loop adapted from client.ts chat().
  * Replaces terminal output (spinners, chalk) with SSE events.
@@ -1353,9 +1474,10 @@ async function chatForWeb(
     }
   }
 
+  await emit("turn_limit", { turns: MAX_TOOL_TURNS });
   updatedMessages.push({
     role: "assistant",
-    content: "[Reached maximum tool call limit.]",
+    content: "[Reached maximum tool call limit. The user can continue if needed.]",
   });
   return updatedMessages;
 }

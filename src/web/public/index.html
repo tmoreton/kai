@@ -1910,22 +1910,73 @@ npm run dev</code></pre>
       return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = () => resolve(reader.result.split(',')[1]);
-        reader.onerror = reject;
+        reader.onerror = (err) => reject(new Error(`Failed to read file: ${err?.message || 'unknown error'}`));
+        reader.onabort = () => reject(new Error('File reading was aborted'));
         reader.readAsDataURL(file);
       });
     }
 
+    // Handle file selection - with improved error handling for mobile
     document.getElementById('file-input').addEventListener('change', async (e) => {
       const files = Array.from(e.target.files || []);
+      if (files.length === 0) return;
+      
+      // Show loading indicator
+      const bar = $('attachments-bar');
+      const originalContent = bar.innerHTML;
+      bar.innerHTML = '<span class="attach-chip"><span class="chip-name">Loading...</span></span>';
+      
+      let loaded = 0;
+      const errors = [];
+      
       for (const file of files) {
-        const isImage = file.type.startsWith('image/');
-        const data = await fileToBase64(file);
-        const att = { name: file.name, mimeType: file.type, data, type: isImage ? 'image' : 'file' };
-        if (isImage) att.preview = URL.createObjectURL(file);
-        state.attachments.push(att);
+        try {
+          // Validate file object
+          if (!file || typeof file.name !== 'string') {
+            errors.push(`File ${loaded + 1}: Invalid file object`);
+            continue;
+          }
+          
+          const isImage = file.type?.startsWith('image/') || /\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i.test(file.name);
+          
+          // For very large files, warn but still try
+          if (file.size > 10 * 1024 * 1024) {
+            console.warn(`Large file detected: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)}MB)`);
+          }
+          
+          // Create preview URL first (safer on mobile)
+          let previewUrl = null;
+          if (isImage && file.size < 50 * 1024 * 1024) {
+            try {
+              previewUrl = URL.createObjectURL(file);
+            } catch (e) {
+              console.warn('Could not create preview URL:', e);
+            }
+          }
+          
+          const data = await fileToBase64(file);
+          const att = { 
+            name: file.name, 
+            mimeType: file.type || (isImage ? 'image/png' : 'application/octet-stream'), 
+            data, 
+            type: isImage ? 'image' : 'file' 
+          };
+          
+          if (previewUrl) att.preview = previewUrl;
+          state.attachments.push(att);
+          loaded++;
+        } catch (err) {
+          console.error('Failed to load file:', file.name, err);
+          errors.push(`${file.name || 'Unknown file'}: ${err.message}`);
+        }
       }
+      
+      if (errors.length > 0) {
+        addNote(`Failed to load ${errors.length} file(s):\n${errors.join('\n')}`);
+      }
+      
       renderAttachments();
-      e.target.value = '';
+      e.target.value = ''; // Clear so same file can be selected again
     });
 
     function renderAttachments() {
@@ -2209,11 +2260,6 @@ npm run dev</code></pre>
 
       panel.innerHTML = `
         <div class="persona-detail">
-          <button class="run-detail-back" onclick="switchView('chat');state.selectedPersonaId=null;state.selectedAgentId=null;renderNav()" style="margin-bottom:12px">
-            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 2L4 8l6 6"/></svg>
-            Back to Chat
-          </button>
-
           <div class="persona-detail-header">
             <div class="persona-avatar-large">${persona.name.charAt(0).toUpperCase()}</div>
             <div class="persona-detail-info">
@@ -2221,17 +2267,20 @@ npm run dev</code></pre>
               <input type="text" class="persona-detail-role" id="persona-role" value="${esc(persona.role)}" placeholder="Role (e.g., YouTube Content Strategist)" onblur="savePersonaField('${persona.id}', 'role', this.value)">
             </div>
             <div class="persona-detail-actions">
+              <button class="btn btn-primary" onclick="startPersonaChat('${persona.id}')">
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h12v8H5l-3 3V3z"/></svg>
+                Chat
+              </button>
               <button class="btn btn-danger" onclick="confirmDeletePersona('${persona.id}', '${esc(persona.name)}')">Delete</button>
             </div>
           </div>
 
           <div class="persona-tabs">
-            <button class="persona-tab active" data-ptab="personality" onclick="switchPersonaTab('personality')">Personality & Goals</button>
+            <button class="persona-tab active" data-ptab="overview" onclick="switchPersonaTab('overview')">Overview</button>
             <button class="persona-tab" data-ptab="tasks" onclick="switchPersonaTab('tasks')">Tasks (${subagents.length})</button>
-            <button class="persona-tab" data-ptab="scratchpad" onclick="switchPersonaTab('scratchpad')">Scratchpad</button>
           </div>
 
-          <div class="persona-tab-content active" id="ptab-personality">
+          <div class="persona-tab-content active" id="ptab-overview">
             <div class="persona-field">
               <label>Personality</label>
               <div class="field-desc">How this agent behaves, speaks, and approaches tasks</div>
@@ -2242,6 +2291,11 @@ npm run dev</code></pre>
               <div class="field-desc">What this agent is trying to achieve</div>
               <textarea class="persona-textarea" id="persona-goals" onblur="savePersonaField('${persona.id}', 'goals', this.value)">${esc(persona.goals)}</textarea>
             </div>
+            <div class="persona-field">
+              <label>Working Notes</label>
+              <div class="field-desc">Persistent scratchpad that accumulates across runs. The agent can read and update this.</div>
+              <textarea class="persona-textarea scratchpad" id="persona-scratchpad" onblur="savePersonaField('${persona.id}', 'scratchpad', this.value)">${esc(persona.scratchpad || '')}</textarea>
+            </div>
           </div>
 
           <div class="persona-tab-content" id="ptab-tasks">
@@ -2251,14 +2305,6 @@ npm run dev</code></pre>
             </div>
             <div class="persona-tasks-list">
               ${subagents.length === 0 ? '<div class="persona-empty">No tasks yet. Add a scheduled workflow for this persona.</div>' : renderSubagentList(subagents)}
-            </div>
-          </div>
-
-          <div class="persona-tab-content" id="ptab-scratchpad">
-            <div class="persona-field">
-              <label>Working Notes</label>
-              <div class="field-desc">Persistent notes that accumulate across runs. The agent can read and update this.</div>
-              <textarea class="persona-textarea scratchpad" id="persona-scratchpad" onblur="savePersonaField('${persona.id}', 'scratchpad', this.value)">${esc(persona.scratchpad || '')}</textarea>
             </div>
           </div>
         </div>
@@ -2296,6 +2342,22 @@ npm run dev</code></pre>
         if (p) p[field] = value;
       } catch (e) {
         console.error('Failed to save persona field:', e);
+      }
+    };
+
+    window.startPersonaChat = async function(personaId) {
+      try {
+        const response = await api.post(`/api/personas/${personaId}/chat`, {});
+        if (response.error) {
+          console.error('Failed to start persona chat:', response.error);
+          return;
+        }
+        // Load the new session and switch to chat view
+        state.sessionId = response.id;
+        await loadSession(response.id);
+        switchView('chat');
+      } catch (e) {
+        console.error('Failed to start persona chat:', e);
       }
     };
 
@@ -3313,9 +3375,23 @@ Please fix this error and then confirm what changes you made.`;
         }
         case 'recap': showRecap(data); break;
         case 'done': finalize(); break;
+        case 'turn_limit': finalize(); showTurnLimit(); break;
         case 'error': handleError(data); break;
         case 'status': addNote(data.message); break;
       }
+    }
+
+    function showTurnLimit() {
+      const d = document.createElement('div');
+      d.className = 'msg turn-limit-msg';
+      d.innerHTML = `
+        <div style="display:flex;align-items:center;gap:12px;padding:12px 16px;background:var(--bg-hover);border-radius:var(--radius-sm);margin:8px 0">
+          <span style="color:var(--text-secondary);font-size:14px">Reached tool turn limit</span>
+          <button class="btn btn-primary" onclick="this.parentElement.parentElement.remove();sendMsg('continue')" style="font-size:13px;padding:4px 16px">Continue</button>
+        </div>
+      `;
+      $msgs.appendChild(d);
+      scroll();
     }
 
     function finalize() {
@@ -3462,17 +3538,54 @@ Please fix this error and then confirm what changes you made.`;
     // ---- Input ----
     $input.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } });
     $input.addEventListener('input', autoResize);
+    
+    // Improved paste handler with better error handling
     $input.addEventListener('paste', async (e) => {
-      const items = Array.from(e.clipboardData?.items || []);
+      // Check for file paste (relevant on mobile and some desktop browsers)
+      if (!e.clipboardData) return;
+      
+      const items = Array.from(e.clipboardData.items || []);
+      const files = Array.from(e.clipboardData.files || []);
+      
+      // Handle pasted files (mobile Safari, some Android browsers)
+      for (const file of files) {
+        if (file.type?.startsWith('image/')) {
+          e.preventDefault();
+          try {
+            const data = await fileToBase64(file);
+            const preview = URL.createObjectURL(file);
+            state.attachments.push({
+              name: file.name || `pasted-image-${Date.now()}.png`,
+              mimeType: file.type,
+              data,
+              type: 'image',
+              preview
+            });
+            renderAttachments();
+            return;
+          } catch (err) {
+            console.error('Failed to paste file:', err);
+            addNote(`Failed to paste image: ${err.message}`);
+          }
+        }
+      }
+      
+      // Handle DataTransfer items
       for (const item of items) {
-        if (item.type.startsWith('image/')) {
+        if (item.type?.startsWith('image/')) {
           e.preventDefault();
           const file = item.getAsFile();
           if (!file) continue;
-          const data = await fileToBase64(file);
-          const name = `pasted-image.${file.type.split('/')[1] || 'png'}`;
-          state.attachments.push({ name, mimeType: file.type, data, type: 'image', preview: URL.createObjectURL(file) });
-          renderAttachments();
+          try {
+            const data = await fileToBase64(file);
+            const name = file.name || `pasted-image.${file.type.split('/')[1] || 'png'}`;
+            state.attachments.push({ name, mimeType: file.type, data, type: 'image', preview: URL.createObjectURL(file) });
+            renderAttachments();
+            return; // Only handle first image
+          } catch (err) {
+            console.error('Failed to paste image:', err);
+            addNote(`Failed to paste image: ${err.message}`);
+          }
         }
       }
     });

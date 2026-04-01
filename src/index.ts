@@ -67,6 +67,8 @@ program
     if (!options.skipBuild) {
       const { execSync } = await import("child_process");
       const projectRoot = new URL("../", import.meta.url).pathname;
+      console.log("  Cleaning dist...");
+      execSync("rm -rf dist", { cwd: projectRoot, stdio: "inherit" });
       console.log("  Building...");
       execSync("npm run build", { cwd: projectRoot, stdio: "inherit" });
     }

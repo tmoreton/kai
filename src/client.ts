@@ -608,11 +608,11 @@ export async function chat(
     }
   }
 
-  // Hit max turns — return what we have
-  console.log(chalk.yellow(`\n  ! Reached max tool turns (${maxTurns}). Stopping.\n`));
+  // Hit max turns — tell user clearly and return
+  console.log(chalk.yellow(`\n  ⚠ Reached tool turn limit (${maxTurns}). Type "continue" to keep going.\n`));
   updatedMessages.push({
     role: "assistant",
-    content: "[Reached maximum tool call limit. Please continue with a follow-up message if needed.]",
+    content: "[Reached maximum tool call limit. The user can continue if needed.]",
   });
   return updatedMessages;
 }
