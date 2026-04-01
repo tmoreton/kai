@@ -1,3 +1,4 @@
+import fs from "fs";
 import path from "path";
 import { getCwd } from "./tools/bash.js";
 import { RETRY_BASE_DELAY_MS, RETRY_MAX_DELAY_MS } from "./constants.js";
@@ -21,8 +22,26 @@ export function sleep(ms: number): Promise<void> {
  * Absolute paths are returned as-is.
  */
 export function resolveFilePath(filePath: string): string {
-  if (path.isAbsolute(filePath)) return filePath;
-  return path.resolve(getCwd(), filePath);
+  const resolved = path.isAbsolute(filePath) ? filePath : path.resolve(getCwd(), filePath);
+  if (fs.existsSync(resolved)) return resolved;
+
+  // macOS screenshot filenames use U+202F (narrow no-break space) before AM/PM,
+  // but users and LLMs type regular ASCII spaces. Try alternate space variants.
+  const withNarrowNbsp = resolved.replace(/ /g, " \u202F").replace(/ \u202F/g, (_, i) => {
+    // Only replace spaces that could be the AM/PM space — try all combos via glob
+    return " ";
+  });
+
+  // Try: replace all regular spaces with the Unicode variants macOS uses
+  const variants = [
+    resolved.replace(/ (?=AM|PM)/gi, "\u202F"),  // narrow no-break space before AM/PM
+    resolved.replace(/ (?=AM|PM)/gi, "\u00A0"),   // no-break space before AM/PM
+  ];
+  for (const variant of variants) {
+    if (fs.existsSync(variant)) return variant;
+  }
+
+  return resolved;
 }
 
 /**

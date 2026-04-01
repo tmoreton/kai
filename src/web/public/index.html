@@ -4087,7 +4087,7 @@ Please fix this error and then confirm what changes you made.`;
       ov.classList.toggle('show', isOpen);
       btn.classList.toggle('hidden', isOpen);
     };
-    function closeSidebar() {
+    window.closeSidebar = function() {
       $('sidebar').classList.remove('open');
       $('sidebar-overlay').classList.remove('show');
       document.querySelector('.sidebar-toggle').classList.remove('hidden');

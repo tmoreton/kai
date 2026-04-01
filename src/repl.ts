@@ -37,6 +37,7 @@ import {
 } from "./commands.js";
 import { isPlanMode, togglePlanMode } from "./plan-mode.js";
 import { autoRoute, applyRoute } from "./auto-route.js";
+import { resolveFilePath, expandHome } from "./utils.js";
 import { bootstrapBuiltinAgents } from "./agents/bootstrap.js";
 
 const IMAGE_EXTS = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"]);
@@ -46,7 +47,7 @@ const MIME_MAP: Record<string, string> = {
 };
 
 function readImageAsDataUrl(filePath: string): { dataUrl: string; sizeKB: number } | { error: string } {
-  const resolved = path.isAbsolute(filePath) ? filePath : path.resolve(getCwd(), filePath);
+  const resolved = resolveFilePath(expandHome(filePath));
   if (!fs.existsSync(resolved)) return { error: `Image not found: ${resolved}` };
   const ext = path.extname(resolved).toLowerCase();
   if (!IMAGE_EXTS.has(ext)) return { error: `Unsupported format: ${ext}` };
