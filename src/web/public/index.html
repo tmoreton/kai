@@ -1322,6 +1322,20 @@
       display: flex;
       gap: 12px;
     }
+    .notif-mark-all-btn {
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 16px;
+      font-size: 13px;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .notif-mark-all-btn:hover {
+      background: var(--hover);
+      color: var(--text);
+    }
     .notif-view-btn {
       background: none;
       border: 1px solid var(--border);
@@ -1890,7 +1904,9 @@ npm run dev</code></pre>
             Notifications
             <span id="notif-count-badge" style="background:var(--accent);color:white;font-size:12px;padding:2px 8px;border-radius:12px;display:none"></span>
           </div>
-          <div class="notif-view-actions"></div>
+          <div class="notif-view-actions">
+            <button class="notif-mark-all-btn" onclick="markAllRead()">Mark all as read</button>
+          </div>
         </div>
         <div class="notif-view-content">
           <div class="notif-list-full" id="notif-list-full"></div>
@@ -1961,6 +1977,7 @@ npm run dev</code></pre>
     const api = {
       get: (u) => fetch(u).then(r => r.json()),
       post: (u, b) => fetch(u, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(b) }).then(r => r.json()),
+      put: (u, b) => fetch(u, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(b) }).then(r => r.json()),
       patch: (u, b) => fetch(u, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify(b) }).then(r => r.json()),
       del: (u) => fetch(u, { method:'DELETE' }).then(r => r.json()),
       stopChat: (sid) => fetch('/api/chat/stop', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({sessionId:sid}) }),
@@ -2371,6 +2388,7 @@ npm run dev</code></pre>
 
     function renderAgentsHome() {
       const panel = $('agents-detail-panel');
+      const viewMode = state.agentsViewMode || 'grouped';
 
       // Group agents by persona
       const personaAgents = new Map(); // personaId -> { persona, agents[] }
@@ -2396,88 +2414,137 @@ npm run dev</code></pre>
       html += '<div class="agents-home-header">';
       html += '<div><div class="agents-home-title">Agents</div>';
       html += `<div class="agents-home-subtitle">${state.personas.length} agent${state.personas.length !== 1 ? 's' : ''} &middot; ${state.agents.length} task${state.agents.length !== 1 ? 's' : ''}</div></div>`;
+      html += '<div style="display:flex;gap:8px;align-items:center">';
+      html += `<div class="view-toggle" style="display:flex;border:1px solid var(--border);border-radius:6px;overflow:hidden">
+        <button class="btn btn-sm${viewMode === 'grouped' ? ' btn-primary' : ''}" style="border:none;border-radius:0;padding:4px 10px;font-size:12px" onclick="setAgentsViewMode('grouped')">By Agent</button>
+        <button class="btn btn-sm${viewMode === 'all' ? ' btn-primary' : ''}" style="border:none;border-radius:0;padding:4px 10px;font-size:12px" onclick="setAgentsViewMode('all')">All Tasks</button>
+      </div>`;
       html += '<button class="btn btn-primary" onclick="showCreatePersona()">+ New Agent</button>';
-      html += '</div>';
+      html += '</div></div>';
 
-      // Agent cards grid with nested tasks
-      if (personaAgents.size > 0) {
-        html += '<div class="persona-grid">';
-        for (const [id, { persona, agents }] of personaAgents) {
-          const initial = persona.name.charAt(0).toUpperCase();
-          const lastRun = agents.find(a => a.lastRun)?.lastRun;
-          const status = !lastRun ? 'never' : lastRun.status;
-          const statusColor = status === 'completed' ? 'var(--green)' : status === 'failed' ? 'var(--red)' : 'var(--text-muted)';
-          
-          // Build tasks list for this agent
-          const tasksHtml = agents.map(a => {
-            const taskStatus = !a.lastRun ? 'never' : a.lastRun.status;
-            const taskStatusColor = taskStatus === 'completed' ? 'var(--green)' : taskStatus === 'failed' ? 'var(--red)' : 'var(--text-muted)';
-            return `
-              <div class="subagent-item-inline" onclick="event.stopPropagation();selectAgent('${a.id}')">
-                <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="${taskStatusColor}" stroke-width="2"><circle cx="8" cy="8" r="3"/></svg>
-                <span class="subagent-name-inline">${esc(friendlyName(a.name))}</span>
-                <span class="subagent-meta-inline">${a.schedule ? cronToWords(a.schedule) : 'Manual'}</span>
-                ${!a.lastRun ? '' : `<span class="subagent-time-inline">${a.lastRun.status === 'completed' ? timeAgo(a.lastRun.completedAt) : 'Failed'}</span>`}
+      if (viewMode === 'all') {
+        // Flat list of ALL tasks
+        const allTasks = [...state.agents].sort((a, b) => {
+          // Sort by last run time (most recent first), then by name
+          const aTime = a.lastRun?.completedAt || a.lastRun?.startedAt || '';
+          const bTime = b.lastRun?.completedAt || b.lastRun?.startedAt || '';
+          if (bTime && aTime) return bTime.localeCompare(aTime);
+          if (bTime) return 1;
+          if (aTime) return -1;
+          return a.name.localeCompare(b.name);
+        });
+
+        if (allTasks.length === 0) {
+          html += `<div class="agents-empty" style="height:auto;padding:40px 0">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="4"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg>
+            <span>No tasks yet.</span>
+          </div>`;
+        } else {
+          html += '<div class="standalone-agent-list">';
+          for (const a of allTasks) {
+            const status = !a.lastRun ? 'never' : a.lastRun.status;
+            const statusColor = status === 'completed' ? 'var(--green)' : status === 'failed' ? 'var(--red)' : 'var(--text-muted)';
+            const persona = a.personaId ? state.personas.find(p => p.id === a.personaId) : null;
+            html += `
+              <div class="standalone-agent-item" onclick="selectAgent('${a.id}')">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="${statusColor}" stroke-width="1.5"><circle cx="8" cy="8" r="3"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2"/></svg>
+                <span class="standalone-agent-name">${esc(friendlyName(a.name))}</span>
+                ${persona ? `<span class="standalone-agent-meta" style="opacity:0.7">${esc(persona.name)}</span>` : '<span class="standalone-agent-meta" style="opacity:0.4">Unassigned</span>'}
+                <span class="standalone-agent-meta">${a.schedule ? cronToWords(a.schedule) : 'Manual'}</span>
+                <span class="standalone-agent-meta">${!a.lastRun ? '' : a.lastRun.status === 'completed' ? timeAgo(a.lastRun.completedAt) : a.lastRun.status === 'running' ? 'Running' : 'Failed'}</span>
               </div>
             `;
-          }).join('');
-          
-          html += `
-            <div class="persona-card">
-              <div class="persona-card-header" onclick="selectPersona('${persona.id}')">
-                <div class="persona-avatar">${initial}</div>
-                <div>
-                  <div class="persona-card-name">${esc(persona.name)}</div>
-                  <div class="persona-card-role">${esc(persona.role)}</div>
+          }
+          html += '</div>';
+        }
+      } else {
+        // Grouped view (by agent/persona)
+
+        // Agent cards grid with nested tasks
+        if (personaAgents.size > 0) {
+          html += '<div class="persona-grid">';
+          for (const [id, { persona, agents }] of personaAgents) {
+            const initial = persona.name.charAt(0).toUpperCase();
+            const lastRun = agents.find(a => a.lastRun)?.lastRun;
+            const status = !lastRun ? 'never' : lastRun.status;
+            const statusColor = status === 'completed' ? 'var(--green)' : status === 'failed' ? 'var(--red)' : 'var(--text-muted)';
+
+            // Build tasks list for this agent
+            const tasksHtml = agents.map(a => {
+              const taskStatus = !a.lastRun ? 'never' : a.lastRun.status;
+              const taskStatusColor = taskStatus === 'completed' ? 'var(--green)' : taskStatus === 'failed' ? 'var(--red)' : 'var(--text-muted)';
+              return `
+                <div class="subagent-item-inline" onclick="event.stopPropagation();selectAgent('${a.id}')">
+                  <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="${taskStatusColor}" stroke-width="2"><circle cx="8" cy="8" r="3"/></svg>
+                  <span class="subagent-name-inline">${esc(friendlyName(a.name))}</span>
+                  <span class="subagent-meta-inline">${a.schedule ? cronToWords(a.schedule) : 'Manual'}</span>
+                  ${!a.lastRun ? '' : `<span class="subagent-time-inline">${a.lastRun.status === 'completed' ? timeAgo(a.lastRun.completedAt) : 'Failed'}</span>`}
                 </div>
-                <svg class="persona-card-status" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="${statusColor}" stroke-width="2"><circle cx="8" cy="8" r="4"/></svg>
-              </div>
-              ${persona.personality ? `<div class="persona-card-body" onclick="selectPersona('${persona.id}')">${esc(persona.personality.substring(0, 120))}${persona.personality.length > 120 ? '...' : ''}</div>` : ''}
-              <div class="persona-tasks-inline">
-                ${tasksHtml}
-              </div>
-              <div class="persona-card-footer">
-                <span class="persona-task-count">${agents.length} task${agents.length !== 1 ? 's' : ''}</span>
-                <button class="btn btn-sm" onclick="event.stopPropagation();showCreateAgentForPersona('${persona.id}')">+ Add Task</button>
-              </div>
-            </div>
-          `;
-        }
-        html += '</div>';
-      }
+              `;
+            }).join('');
 
-      // Standalone workflows section
-      if (standalone.length > 0) {
-        html += `<div class="standalone-section">
-          <div class="standalone-section-title">Standalone Workflows</div>
-          <div class="standalone-agent-list">`;
-        for (const a of standalone) {
-          const status = !a.lastRun ? 'never' : a.lastRun.status;
-          const statusColor = status === 'completed' ? 'var(--green)' : status === 'failed' ? 'var(--red)' : 'var(--text-muted)';
+            html += `
+              <div class="persona-card">
+                <div class="persona-card-header" onclick="selectPersona('${persona.id}')">
+                  <div class="persona-avatar">${initial}</div>
+                  <div>
+                    <div class="persona-card-name">${esc(persona.name)}</div>
+                    <div class="persona-card-role">${esc(persona.role)}</div>
+                  </div>
+                  <svg class="persona-card-status" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="${statusColor}" stroke-width="2"><circle cx="8" cy="8" r="4"/></svg>
+                </div>
+                ${persona.personality ? `<div class="persona-card-body" onclick="selectPersona('${persona.id}')">${esc(persona.personality.substring(0, 120))}${persona.personality.length > 120 ? '...' : ''}</div>` : ''}
+                <div class="persona-tasks-inline">
+                  ${tasksHtml}
+                </div>
+                <div class="persona-card-footer">
+                  <span class="persona-task-count">${agents.length} task${agents.length !== 1 ? 's' : ''}</span>
+                  <button class="btn btn-sm" onclick="event.stopPropagation();showCreateAgentForPersona('${persona.id}')">+ Add Task</button>
+                </div>
+              </div>
+            `;
+          }
+          html += '</div>';
+        }
+
+        // Standalone workflows section
+        if (standalone.length > 0) {
+          html += `<div class="standalone-section">
+            <div class="standalone-section-title">Standalone Workflows</div>
+            <div class="standalone-agent-list">`;
+          for (const a of standalone) {
+            const status = !a.lastRun ? 'never' : a.lastRun.status;
+            const statusColor = status === 'completed' ? 'var(--green)' : status === 'failed' ? 'var(--red)' : 'var(--text-muted)';
+            html += `
+              <div class="standalone-agent-item" onclick="selectAgent('${a.id}')">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="${statusColor}" stroke-width="1.5"><circle cx="8" cy="8" r="3"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2"/></svg>
+                <span class="standalone-agent-name">${esc(friendlyName(a.name))}</span>
+                <span class="standalone-agent-meta">${a.schedule ? cronToWords(a.schedule) : 'Manual'}</span>
+                <span class="standalone-agent-meta">${!a.lastRun ? '' : a.lastRun.status === 'completed' ? timeAgo(a.lastRun.completedAt) : 'Failed'}</span>
+              </div>
+            `;
+          }
+          html += '</div></div>';
+        }
+
+        if (state.personas.length === 0 && state.agents.length === 0) {
           html += `
-            <div class="standalone-agent-item" onclick="selectAgent('${a.id}')">
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="${statusColor}" stroke-width="1.5"><circle cx="8" cy="8" r="3"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2"/></svg>
-              <span class="standalone-agent-name">${esc(friendlyName(a.name))}</span>
-              <span class="standalone-agent-meta">${a.schedule ? cronToWords(a.schedule) : 'Manual'}</span>
-              <span class="standalone-agent-meta">${!a.lastRun ? '' : a.lastRun.status === 'completed' ? timeAgo(a.lastRun.completedAt) : 'Failed'}</span>
+            <div class="agents-empty" style="height:auto;padding:40px 0">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="4"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+              <span>No personas yet. Click "New Persona" to create one.</span>
             </div>
           `;
         }
-        html += '</div></div>';
-      }
-
-      if (state.personas.length === 0 && state.agents.length === 0) {
-        html += `
-          <div class="agents-empty" style="height:auto;padding:40px 0">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="4"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
-            <span>No personas yet. Click "New Persona" to create one.</span>
-          </div>
-        `;
       }
 
       html += '</div>';
       panel.innerHTML = html;
     }
+
+    window.setAgentsViewMode = function(mode) {
+      state.agentsViewMode = mode;
+      renderAgentsHome();
+    };
 
     window.selectPersona = async function(id) {
       state.selectedPersonaId = id;
@@ -4330,6 +4397,7 @@ Please fix this error and then confirm what changes you made.`;
       state.unreadCount = 0;
       state.notifications.forEach(n => n.read = 1);
       renderNotifBadge();
+      updateNotifCountBadge();
       renderNotifList();
     };
 
@@ -4489,7 +4557,49 @@ Please fix this error and then confirm what changes you made.`;
         </div>`;
         html += '</div>';
 
+        // === Soul (Identity) Card ===
+        html += `<div class="settings-card">
+          <div class="settings-card-header"><h2>Soul Identity</h2></div>
+          <p class="settings-card-desc">Edit Kai's core memory and identity. This controls how Kai behaves and what it knows about itself and you. Stored in <code style="font-size:12px;background:var(--bg-sidebar);padding:2px 6px;border-radius:3px">~/.kai/soul/identity.json</code>.</p>`;
+        html += `<div class="settings-form">
+          <div class="settings-field">
+            <label>Identity JSON</label>
+            <textarea id="soul-editor" class="skill-editor-textarea" style="min-height: 300px; font-family: var(--mono); font-size: 12px;" placeholder="{  ${esc('"')}persona${esc('"')}: { ... },  ${esc('"')}human${esc('"')}: { ... } }"></textarea>
+          </div>
+          <div class="settings-form-row" style="justify-content: flex-end;">
+            <button class="settings-add-btn" onclick="saveSoul()" id="save-soul-btn">Save Changes</button>
+          </div>
+        </div>`;
+        html += '</div>';
+
+        // === Context (Goals + Scratchpad) Card ===
+        html += `<div class="settings-card">
+          <div class="settings-card-header">
+            <h2>Context Memory</h2>
+            <div style="display:flex;gap:8px;align-items:center;">
+              <label class="settings-toggle">
+                <input type="checkbox" id="ctx-scope-toggle" onchange="loadContext()">
+                <span>Use Project Context</span>
+              </label>
+            </div>
+          </div>
+          <p class="settings-card-desc">Edit current goals and scratchpad. Toggle to switch between project-specific and global context files.</p>
+          <p class="settings-card-desc" id="ctx-location" style="font-size:12px;color:var(--text-muted);margin-top:-8px;"></p>`;
+        html += `<div class="settings-form">
+          <div class="settings-field">
+            <textarea id="context-editor" class="skill-editor-textarea" style="min-height: 280px; font-family: var(--mono); font-size: 12px;" placeholder="{  ${esc('"')}goals${esc('"')}: { ... },  ${esc('"')}scratchpad${esc('"')}: { ... } }"></textarea>
+          </div>
+          <div class="settings-form-row" style="justify-content: flex-end;">
+            <button class="settings-add-btn" onclick="saveContext()" id="save-context-btn">Save Changes</button>
+          </div>
+        </div>`;
+        html += '</div>';
+
         container.innerHTML = html;
+
+        // Load soul and context data after HTML is inserted
+        loadSoul();
+        loadContext();
       } catch (err) {
         container.innerHTML = `<p style="color:var(--red)">Failed to load settings: ${err.message}</p>`;
       }
@@ -4595,6 +4705,79 @@ Please fix this error and then confirm what changes you made.`;
         renderSettingsView();
       } catch (err) {
         showToast('Error', err.message);
+      }
+    };
+
+    // ---- Soul/Context Editors ----
+    window.loadSoul = async function() {
+      try {
+        const res = await api.get('/api/settings/soul');
+        const el = $('soul-editor');
+        if (el && res.content) el.value = res.content;
+      } catch (err) {
+        console.error('Failed to load soul:', err);
+      }
+    };
+
+    window.saveSoul = async function() {
+      const btn = $('save-soul-btn');
+      const content = $('soul-editor').value;
+      btn.disabled = true;
+      btn.textContent = 'Saving...';
+      try {
+        // Validate JSON before saving
+        JSON.parse(content);
+        await api.put('/api/settings/soul', { content });
+        showToast('Soul Updated', 'Identity changes saved to ~/.kai/soul/identity.json');
+      } catch (err) {
+        showToast('Error', err.message || 'Invalid JSON');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Save Changes';
+      }
+    };
+
+    window.loadContext = async function() {
+      try {
+        const res = await api.get('/api/settings/context');
+        const el = $('context-editor');
+        if (el && res.content) el.value = res.content;
+
+        // Update toggle and location display
+        const toggle = $('ctx-scope-toggle');
+        const locationEl = $('ctx-location');
+        if (toggle) {
+          toggle.checked = res.isProject;
+          toggle.disabled = !res.projectPath;
+        }
+        if (locationEl) {
+          if (res.isProject && res.projectPath) {
+            locationEl.textContent = `Editing: ${res.projectPath.replace(/^.*\//, './...')}`;
+          } else {
+            locationEl.textContent = 'Editing: ~/.kai/soul/context.json';
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load context:', err);
+      }
+    };
+
+    window.saveContext = async function() {
+      const btn = $('save-context-btn');
+      const content = $('context-editor').value;
+      const scope = $('ctx-scope-toggle')?.checked ? 'project' : 'global';
+      btn.disabled = true;
+      btn.textContent = 'Saving...';
+      try {
+        // Validate JSON before saving
+        JSON.parse(content);
+        await api.put('/api/settings/context', { content, scope });
+        showToast('Context Updated', `Changes saved to ${scope === 'project' ? 'project' : 'global'} context`);
+      } catch (err) {
+        showToast('Error', err.message || 'Invalid JSON');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Save Changes';
       }
     };
 

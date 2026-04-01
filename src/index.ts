@@ -71,6 +71,15 @@ program
       execSync("rm -rf dist", { cwd: projectRoot, stdio: "inherit" });
       console.log("  Building...");
       execSync("npm run build", { cwd: projectRoot, stdio: "inherit" });
+      // Re-exec with --skip-build so Node loads the freshly compiled code
+      // instead of using stale cached modules from before the rebuild
+      const args = process.argv.slice(2).filter(a => a !== "--skip-build");
+      args.push("--skip-build");
+      execSync(`node ${projectRoot}dist/index.js ${args.join(" ")}`, {
+        cwd: projectRoot,
+        stdio: "inherit",
+      });
+      return;
     }
     const { startServer } = await import("./web/server.js");
     await startServer({

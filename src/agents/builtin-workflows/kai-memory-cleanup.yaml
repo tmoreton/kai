@@ -1,5 +1,5 @@
 name: Kai Memory Cleanup
-description: Weekly maintenance — prunes old recall entries, deduplicates archival knowledge, and reports memory usage
+description: Weekly maintenance — consolidates knowledge, flags stale memories, extracts learnings from recent conversations
 schedule: "0 4 * * 0"
 
 config:
@@ -8,7 +8,7 @@ config:
   recall_max_entries_per_project: 5000
 
 steps:
-  # === MEASURE CURRENT SIZES ===
+  # === GATHER CURRENT STATE ===
   - name: measure_before
     type: shell
     command: |
@@ -32,13 +32,6 @@ steps:
         echo "  $f: $lines entries ($size)"
       done
 
-      # Sessions
-      echo ""
-      echo "SESSIONS:"
-      session_count=$(ls ~/.kai/sessions/*.json 2>/dev/null | wc -l || echo 0)
-      session_size=$(du -sh ~/.kai/sessions 2>/dev/null | cut -f1 || echo "0")
-      echo "  $session_count sessions ($session_size)"
-
       # Total
       echo ""
       echo "TOTAL ~/.kai:"
@@ -60,10 +53,7 @@ steps:
 
         # Keep only entries newer than cutoff, and cap at max entries
         tmpfile=$(mktemp)
-        # Filter by date (entries have "timestamp" field with ISO date)
         if [ -n "$CUTOFF_DATE" ]; then
-          grep "\"timestamp\":\"${CUTOFF_DATE}" "$f" > "$tmpfile" 2>/dev/null || true
-          # Also keep entries from after the cutoff
           awk -v cutoff="$CUTOFF_DATE" '
             {
               if (match($0, /"timestamp":"([^"]+)"/, arr)) {
@@ -87,7 +77,7 @@ steps:
         if [ "$pruned" -gt 0 ]; then
           mv "$tmpfile" "$f"
           pruned_total=$((pruned_total + pruned))
-          echo "Pruned $pruned entries from $f ($original_lines → $new_lines)"
+          echo "Pruned $pruned entries from $f ($original_lines -> $new_lines)"
         else
           rm -f "$tmpfile"
           echo "No pruning needed for $f ($original_lines entries)"
@@ -98,41 +88,158 @@ steps:
       echo "Total pruned: $pruned_total entries"
     output_var: prune_result
 
-  # === DEDUPLICATE ARCHIVAL ===
+  # === READ ALL MEMORY SOURCES ===
   - name: read_archival
     type: shell
     command: |
-      # Collect all archival entries for LLM deduplication analysis
+      # Collect all archival entries
+      echo "=== ARCHIVAL ENTRIES ==="
       for f in $(find ~/.kai/archival -name "*.jsonl" 2>/dev/null); do
-        echo "=== $f ==="
+        echo "--- FILE: $f ---"
         cat "$f" 2>/dev/null
       done
     output_var: archival_content
 
-  - name: deduplicate_archival
-    type: llm
-    condition: "${vars.archival_content}"
-    prompt: |
-      Review these archival memory entries for duplicates, contradictions, or outdated information.
+  - name: read_soul
+    type: shell
+    command: |
+      # Read core memory blocks
+      echo "=== SOUL: IDENTITY ==="
+      cat ~/.kai/soul/identity.json 2>/dev/null || echo "{}"
 
-      ## Archival Entries:
+      echo ""
+      echo "=== SOUL: PROJECT CONTEXTS ==="
+      for f in $(find ~/.kai/soul/projects -name "context.json" 2>/dev/null); do
+        echo "--- $f ---"
+        cat "$f" 2>/dev/null
+      done
+
+      echo ""
+      echo "=== AGENT PERSONAS ==="
+      for f in $(find ~/.kai/agents/personas -name "*.json" 2>/dev/null); do
+        echo "--- $f ---"
+        cat "$f" 2>/dev/null
+      done
+    output_var: soul_content
+
+  - name: read_recent_recall
+    type: shell
+    command: |
+      # Get the last 200 lines from each recall file (recent conversations only)
+      echo "=== RECENT CONVERSATIONS ==="
+      for f in $(find ~/.kai/recall -name "*.jsonl" 2>/dev/null); do
+        echo "--- $f ---"
+        tail -200 "$f" 2>/dev/null
+      done
+    output_var: recent_recall
+
+  # === LLM: CONSOLIDATE & ANALYZE ===
+  - name: consolidate_knowledge
+    type: llm
+    prompt: |
+      You are Kai's memory maintenance agent. Perform a thorough weekly review of all memory.
+
+      ## Current Archival Knowledge:
       ${vars.archival_content}
 
-      For each file, output a cleaned JSONL — one JSON object per line — with:
-      1. Duplicate entries merged (keep the most recent/complete version)
-      2. Contradictory entries resolved (keep the newest)
-      3. Entries that are clearly outdated flagged with a note
+      ## Core Memory (Soul):
+      ${vars.soul_content}
 
-      IMPORTANT: Output the cleaned entries in the EXACT same JSONL format.
-      Group output by file path. Format:
+      ## Recent Conversations (last ~200 messages per project):
+      ${vars.recent_recall}
 
+      ## Tasks:
+
+      ### 1. Extract New Learnings
+      Review recent conversations for valuable knowledge that ISN'T already in archival memory:
+      - User preferences, workflows, or patterns discovered
+      - Technical decisions or architecture choices made
+      - Project context that would be useful in future sessions
+      - Recurring topics or pain points
+
+      ### 2. Consolidate Archival Entries
+      Look for archival entries that can be merged:
+      - Multiple entries about the same topic → merge into one comprehensive entry
+      - Entries that contradict each other → keep the most recent/accurate
+      - Entries that are now redundant given soul/core memory → flag for removal
+
+      ### 3. Flag Stale Memories
+      Identify entries in soul or archival that may be outdated:
+      - Goals or scratchpad notes referencing completed work
+      - Archival entries about tools/libraries/approaches no longer in use
+      - User preferences that recent conversations suggest have changed
+      - Persona goals/scratchpad that look stale
+
+      ### 4. Memory Health Assessment
+      - Is the human block in soul up-to-date with what you know from conversations?
+      - Are project goals still relevant?
+      - Are there knowledge gaps — things frequently discussed but not stored?
+
+      ## Output Format
+
+      Respond with these sections:
+
+      ### NEW_ENTRIES
+      New archival entries to add (one per line, JSONL format):
+      ```
+      {"content":"...","tags":["..."],"source":"extracted from recall"}
+      ```
+      If none needed, write: NONE
+
+      ### CONSOLIDATED_ARCHIVAL
+      For each archival file that needs updates, output the cleaned JSONL:
+      ```
       === FILE: path/to/file.jsonl ===
       {"id":"...","content":"...","tags":[...],"createdAt":"..."}
-      {"id":"...","content":"...","tags":[...],"createdAt":"..."}
+      ```
+      If no consolidation needed, write: NO_CHANGES_NEEDED
 
-      If nothing needs deduplication, output "NO_CHANGES_NEEDED".
+      ### STALE_MEMORIES
+      List any stale or outdated memories with recommendations:
+      - [LOCATION: soul/archival/persona] DESCRIPTION — RECOMMENDATION
+      If none found, write: NONE
 
-      Be conservative — only remove entries that are clearly redundant or contradictory.
+      ### KNOWLEDGE_GAPS
+      Important patterns or facts from conversations that should be remembered:
+      - TOPIC — WHY IT MATTERS
+      If none found, write: NONE
+
+      ### HEALTH_SUMMARY
+      2-3 sentence assessment of memory health and any recommended updates to core memory blocks.
+
+      Be thoughtful and conservative — only extract genuinely useful knowledge, only flag things that are truly stale.
+
+  # === APPLY: ADD NEW ENTRIES ===
+  - name: apply_new_entries
+    type: shell
+    condition: "${vars.consolidate_knowledge}"
+    command: |
+      # Extract NEW_ENTRIES section and append to global archival
+      ANALYSIS="${vars.consolidate_knowledge}"
+
+      # Check if there are new entries to add
+      if echo "$ANALYSIS" | grep -q "### NEW_ENTRIES" && ! echo "$ANALYSIS" | sed -n '/### NEW_ENTRIES/,/###/p' | grep -q "NONE"; then
+        echo "Adding new archival entries..."
+        # Extract JSON lines between NEW_ENTRIES and next section
+        echo "$ANALYSIS" | sed -n '/### NEW_ENTRIES/,/### /{/^{/p}' | while read line; do
+          if echo "$line" | python3 -c "import sys,json; json.load(sys.stdin)" 2>/dev/null; then
+            # Add id and createdAt fields
+            enriched=$(echo "$line" | python3 -c "
+      import sys, json, time
+      entry = json.load(sys.stdin)
+      entry['id'] = 'arch-' + hex(int(time.time()*1000))[2:]
+      entry['createdAt'] = '$(date -u +%Y-%m-%dT%H:%M:%S.000Z)'
+      if 'source' not in entry: entry['source'] = 'memory-maintenance'
+      print(json.dumps(entry))
+      ")
+            echo "$enriched" >> ~/.kai/archival/global.jsonl
+            echo "  Added: $(echo "$enriched" | python3 -c "import sys,json; print(json.load(sys.stdin).get('content','')[:80])")"
+          fi
+        done
+      else
+        echo "No new entries to add."
+      fi
+    output_var: new_entries_result
 
   # === MEASURE AFTER ===
   - name: measure_after
@@ -160,28 +267,38 @@ steps:
       done
     output_var: size_after
 
-  # === REPORT ===
+  # === FINAL REPORT ===
   - name: report
     type: llm
     prompt: |
-      Generate a brief memory maintenance report.
+      Generate a concise weekly memory maintenance report for the user.
 
-      ## Before:
+      ## Storage Before:
       ${vars.size_before}
 
       ## Recall Pruning:
       ${vars.prune_result}
 
-      ## Archival Deduplication:
-      ${vars.deduplicate_archival}
+      ## Knowledge Consolidation Analysis:
+      ${vars.consolidate_knowledge}
 
-      ## After:
+      ## New Entries Added:
+      ${vars.new_entries_result}
+
+      ## Storage After:
       ${vars.size_after}
 
-      Summarize: what was cleaned up, how much space was freed, any concerns (e.g. archival growing too fast, recall too large). Keep it under 200 words.
+      Write a brief, useful report (under 300 words) covering:
+      1. **What was cleaned up** — entries pruned, duplicates merged
+      2. **New knowledge extracted** — what was learned from recent conversations
+      3. **Stale memories flagged** — anything that needs manual attention
+      4. **Knowledge gaps** — topics that keep coming up but aren't stored
+      5. **Recommendations** — any suggested updates to core memory
+
+      Format it nicely with headers. Be specific and actionable, not generic.
 
   - name: notify
     type: notify
     params:
-      title: "Kai Memory Cleanup"
-      message: "Weekly maintenance complete — recall pruned, archival deduplicated"
+      title: "Kai Memory Report"
+      message: "Weekly maintenance — knowledge consolidated, stale memories flagged"

@@ -182,6 +182,16 @@ export function completeRun(runId: string, status: "completed" | "failed" | "pau
   `).run(status, error || null, runId);
 }
 
+export function markAllStuckRunsFailed(agentId: string, staleMinutes = 30): number {
+  const staleThreshold = new Date(Date.now() - staleMinutes * 60 * 1000).toISOString();
+  const result = getDb().prepare(`
+    UPDATE runs SET status = 'failed', completed_at = datetime('now'),
+      error = 'Marked stuck by heartbeat (batch cleanup)'
+    WHERE agent_id = ? AND status = 'running' AND started_at < ?
+  `).run(agentId, staleThreshold);
+  return result.changes;
+}
+
 export function getLatestRuns(agentId: string, limit = 10): RunRecord[] {
   return getDb().prepare(
     "SELECT * FROM runs WHERE agent_id = ? ORDER BY started_at DESC LIMIT ?"
@@ -197,12 +207,14 @@ export function getFailedOrStuckRuns(limitPerAgent = 1, staleMinutes = 30): RunR
   const staleThreshold = new Date(Date.now() - staleMinutes * 60 * 1000).toISOString();
 
   // Recent failed runs (one per agent, within last 24h)
+  // Only include failed runs that are the MOST RECENT run for that agent
+  // (i.e., no successful run has happened since the failure)
   const cutoff24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
   const failed = db.prepare(`
     SELECT r.* FROM runs r
     INNER JOIN (
       SELECT agent_id, MAX(started_at) as latest
-      FROM runs WHERE status = 'failed' AND started_at > ?
+      FROM runs WHERE started_at > ?
       GROUP BY agent_id
     ) latest ON r.agent_id = latest.agent_id AND r.started_at = latest.latest
     WHERE r.status = 'failed'

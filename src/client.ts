@@ -27,6 +27,22 @@ import chalk from "chalk";
 
 let _resolved: ResolvedProvider | null = null;
 
+// When true, the spinner and streaming output pause to let the user type.
+// Set by the REPL when keypress activity is detected.
+let _userTyping = false;
+let _userTypingTimer: ReturnType<typeof setTimeout> | null = null;
+
+export function signalUserTyping(): void {
+  _userTyping = true;
+  if (_userTypingTimer) clearTimeout(_userTypingTimer);
+  // Auto-reset after 2s of no typing activity
+  _userTypingTimer = setTimeout(() => { _userTyping = false; }, 2000);
+}
+
+export function isUserTyping(): boolean {
+  return _userTyping;
+}
+
 function getResolved(): ResolvedProvider {
   if (!_resolved) _resolved = resolveProvider();
   return _resolved;
@@ -88,9 +104,8 @@ export async function chat(
     const thinkingFrames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
     let frameIndex = 0;
     let firstToken = false;
-    const spinnerText = "  thinking...";
     const spinner = setInterval(() => {
-      if (!firstToken) {
+      if (!firstToken && !_userTyping) {
         const frame = thinkingFrames[frameIndex++ % thinkingFrames.length];
         process.stderr.write(`\x1b[2K\r  ${chalk.cyan(frame)} ${chalk.dim("thinking...")}`);
       }
@@ -100,10 +115,28 @@ export async function chat(
     let controller: AbortController;
     let timeout: ReturnType<typeof setTimeout>;
 
+    // Link user abort signal to spinner cleanup
+    if (options?.signal) {
+      options.signal.addEventListener("abort", () => {
+        clearInterval(spinner);
+        process.stderr.write("\x1b[2K\r");
+      }, { once: true });
+    }
+
     let stream: any;
     for (let attempt = 0; attempt < RETRY_MAX_ATTEMPTS; attempt++) {
+      // Bail immediately if user already aborted
+      if (options?.signal?.aborted) {
+        clearInterval(spinner);
+        process.stderr.write("\x1b[2K\r");
+        return updatedMessages;
+      }
       controller = new AbortController();
       timeout = setTimeout(() => controller.abort(), STREAM_TIMEOUT_MS);
+      // Link user abort to HTTP request abort
+      if (options?.signal) {
+        options.signal.addEventListener("abort", () => controller.abort(), { once: true });
+      }
       try {
         if (attempt > 0) {
           process.stderr.write(`\x1b[2K\r  Retrying (${attempt + 1}/${RETRY_MAX_ATTEMPTS})...\n`);
@@ -523,7 +556,9 @@ export async function chat(
         let si = 0;
         if (isSlow) {
           toolSpinner = setInterval(() => {
-            process.stderr.write(`\x1b[2K\r${chalk.dim(`    ${spinChars[si++ % spinChars.length]} Working...`)}`);
+            if (!_userTyping) {
+              process.stderr.write(`\x1b[2K\r${chalk.dim(`    ${spinChars[si++ % spinChars.length]} Working...`)}`);
+            }
           }, 100);
         }
 

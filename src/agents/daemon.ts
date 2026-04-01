@@ -21,6 +21,7 @@ import {
   getFailedOrStuckRuns,
   getConsecutiveFailCount,
   completeRun,
+  markAllStuckRunsFailed,
   addLog,
   createNotification,
   type AgentRecord,
@@ -200,13 +201,11 @@ async function checkAndRetryFailedRuns(): Promise<void> {
     const agent = getAgent(run.agent_id);
     if (!agent || !agent.enabled) continue;
 
-    // Handle stuck runs — mark them failed so they can be retried
+    // Handle stuck runs — mark ALL stuck runs for this agent as failed so they don't keep retriggering
     if (run.status === "running") {
-      const startedAt = new Date(run.started_at).getTime();
-      const stuckMinutes = Math.round((Date.now() - startedAt) / 60_000);
-      completeRun(run.id, "failed", `Marked stuck after ${stuckMinutes} minutes by heartbeat`);
-      addLog(run.agent_id, "warn", `Run ${run.id} marked stuck after ${stuckMinutes}m — will retry`, run.id);
-      console.log(chalk.yellow(`  ⚠ Stuck run detected: ${agent.name} (${stuckMinutes}m) — marking failed`));
+      const cleaned = markAllStuckRunsFailed(run.agent_id, STALE_RUN_MINUTES);
+      addLog(run.agent_id, "warn", `Marked ${cleaned} stuck run(s) as failed — will retry`, run.id);
+      console.log(chalk.yellow(`  ⚠ Stuck runs detected: ${agent.name} (${cleaned} run(s)) — marking failed`));
     }
 
     // Check consecutive failure count to avoid retry loops
