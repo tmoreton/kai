@@ -48,7 +48,7 @@ export const toolDefinitions = [
     function: {
       name: "read_file",
       description:
-        "Read a file and return its contents with line numbers. Use this before editing any file. Supports offset and limit for large files.",
+        "Read a file and return its contents. Supports text files (with line numbers), PDFs, DOCX, XLSX/XLS (converted to text/CSV), CSV, and images (returned as base64 for vision). Use this before editing any file. Supports offset and limit for large text files.",
       parameters: {
         type: "object",
         properties: {

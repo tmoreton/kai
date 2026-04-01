@@ -495,6 +495,128 @@
     .agent-tab-content { display: none; }
     .agent-tab-content.active { display: block; }
 
+    /* Agent Chat Tab */
+    #agent-chat-container {
+      display: flex;
+      flex-direction: column;
+      height: calc(100vh - 240px);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--bg-surface);
+      overflow: hidden;
+    }
+    .agent-chat-area {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px;
+    }
+    .agent-chat-welcome {
+      text-align: center;
+      padding: 40px 20px;
+      color: var(--text-secondary);
+    }
+    .agent-chat-avatar {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--accent), #115E59);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      color: #fff;
+      font-weight: 700;
+      margin: 0 auto 16px;
+    }
+    .agent-chat-welcome h3 {
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 6px;
+    }
+    .agent-chat-welcome p {
+      font-size: 14px;
+      max-width: 360px;
+      margin: 0 auto;
+      line-height: 1.5;
+    }
+    .agent-chat-msg {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 16px;
+      animation: fadeIn .2s ease;
+    }
+    .agent-chat-msg.user {
+      justify-content: flex-end;
+    }
+    .agent-chat-msg.user .agent-chat-bubble {
+      background: var(--text);
+      color: #fff;
+      border-radius: 18px 18px 4px 18px;
+    }
+    .agent-chat-bubble {
+      background: var(--bg-hover);
+      padding: 10px 14px;
+      border-radius: 18px 18px 18px 4px;
+      font-size: 14px;
+      line-height: 1.5;
+      max-width: 75%;
+      word-wrap: break-word;
+    }
+    .agent-chat-bubble.typing::after {
+      content: '...';
+      animation: dots 1.4s infinite;
+    }
+    @keyframes dots {
+      0%, 20% { content: '.'; }
+      40% { content: '..'; }
+      60%, 100% { content: '...'; }
+    }
+    .agent-chat-input-wrap {
+      display: flex;
+      gap: 10px;
+      padding: 12px 16px;
+      border-top: 1px solid var(--border);
+      background: var(--bg);
+    }
+    .agent-chat-input {
+      flex: 1;
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 10px 16px;
+      font-size: 14px;
+      resize: none;
+      outline: none;
+      background: var(--bg-surface);
+      color: var(--text);
+      min-height: 40px;
+      max-height: 120px;
+    }
+    .agent-chat-input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(13,148,136,.1);
+    }
+    .agent-chat-send {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      border: none;
+      background: var(--text);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all .15s;
+    }
+    .agent-chat-send:hover {
+      background: #333;
+    }
+    .agent-chat-send svg {
+      width: 14px;
+      height: 14px;
+    }
+
     /* Recap section */
     .agent-recap {
       padding: 18px 20px; border-radius: var(--radius); margin-bottom: 20px;
@@ -2267,10 +2389,6 @@ npm run dev</code></pre>
               <input type="text" class="persona-detail-role" id="persona-role" value="${esc(persona.role)}" placeholder="Role (e.g., YouTube Content Strategist)" onblur="savePersonaField('${persona.id}', 'role', this.value)">
             </div>
             <div class="persona-detail-actions">
-              <button class="btn btn-primary" onclick="startPersonaChat('${persona.id}')">
-                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h12v8H5l-3 3V3z"/></svg>
-                Chat
-              </button>
               <button class="btn btn-danger" onclick="confirmDeletePersona('${persona.id}', '${esc(persona.name)}')">Delete</button>
             </div>
           </div>
@@ -2278,6 +2396,7 @@ npm run dev</code></pre>
           <div class="persona-tabs">
             <button class="persona-tab active" data-ptab="overview" onclick="switchPersonaTab('overview')">Overview</button>
             <button class="persona-tab" data-ptab="tasks" onclick="switchPersonaTab('tasks')">Tasks (${subagents.length})</button>
+            <button class="persona-tab" data-ptab="chat" onclick="switchPersonaTab('chat');startPersonaChat('${persona.id}')">Chat</button>
           </div>
 
           <div class="persona-tab-content active" id="ptab-overview">
@@ -2296,6 +2415,18 @@ npm run dev</code></pre>
               <div class="field-desc">Persistent scratchpad that accumulates across runs. The agent can read and update this.</div>
               <textarea class="persona-textarea scratchpad" id="persona-scratchpad" onblur="savePersonaField('${persona.id}', 'scratchpad', this.value)">${esc(persona.scratchpad || '')}</textarea>
             </div>
+            <div class="persona-field">
+              <label>Reference Files</label>
+              <div class="field-desc">Attach images, docs, or other files this agent should always have access to.</div>
+              <div id="persona-files-list" style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px">
+                ${renderFileRefs(persona)}
+              </div>
+              <label class="btn btn-ghost" style="cursor:pointer;display:inline-flex;align-items:center;gap:6px;font-size:13px">
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 2v12M2 8h12"/></svg>
+                Add File
+                <input type="file" style="display:none" onchange="uploadPersonaFile('${persona.id}', this)">
+              </label>
+            </div>
           </div>
 
           <div class="persona-tab-content" id="ptab-tasks">
@@ -2305,6 +2436,20 @@ npm run dev</code></pre>
             </div>
             <div class="persona-tasks-list">
               ${subagents.length === 0 ? '<div class="persona-empty">No tasks yet. Add a scheduled workflow for this persona.</div>' : renderSubagentList(subagents)}
+            </div>
+          </div>
+
+          <div class="persona-tab-content" id="ptab-chat">
+            <div id="persona-chat-container" style="display:flex;flex-direction:column;height:calc(100vh - 280px);min-height:400px">
+              <div id="persona-chat-messages" style="flex:1;overflow-y:auto;padding:16px 0;display:flex;flex-direction:column;gap:12px">
+                <div style="text-align:center;color:var(--text-muted);font-size:13px;padding:40px 0">Send a message to start chatting with ${esc(persona.name)}</div>
+              </div>
+              <div style="border-top:1px solid var(--border);padding:12px 0 0">
+                <div style="display:flex;gap:8px;align-items:flex-end">
+                  <textarea id="persona-chat-input" placeholder="Message ${esc(persona.name)}..." rows="1" style="flex:1;resize:none;border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;font-size:14px;font-family:var(--sans);background:var(--bg-surface);outline:none;max-height:120px" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendPersonaChatMsg('${persona.id}')}"></textarea>
+                  <button class="btn btn-primary" onclick="sendPersonaChatMsg('${persona.id}')" style="padding:10px 16px">Send</button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -2345,20 +2490,151 @@ npm run dev</code></pre>
       }
     };
 
+    function renderFileRefs(persona) {
+      const files = persona.files || [];
+      if (files.length === 0) return '<div style="color:var(--text-muted);font-size:13px">No files attached.</div>';
+      return files.map(f => {
+        const isImage = f.mimeType && f.mimeType.startsWith('image/');
+        const sizeKB = Math.round(f.size / 1024);
+        const previewUrl = `/api/personas/${persona.id}/files/${encodeURIComponent(f.storedName)}`;
+        return `
+          <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:var(--bg-hover);border-radius:var(--radius-sm)">
+            ${isImage ? `<img src="${previewUrl}" style="width:36px;height:36px;object-fit:cover;border-radius:6px;cursor:pointer" onclick="event.stopPropagation();showLightbox('${previewUrl}')">` : `<div style="width:36px;height:36px;background:var(--bg-surface);border-radius:6px;display:flex;align-items:center;justify-content:center"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="var(--text-muted)" stroke-width="1.5"><path d="M4 2h5l3 3v9H4V2z"/><path d="M9 2v3h3"/></svg></div>`}
+            <div style="flex:1;min-width:0">
+              <div style="font-size:13px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(f.label)}</div>
+              <div style="font-size:11px;color:var(--text-muted)">${esc(f.name)} · ${sizeKB}KB</div>
+            </div>
+            <button class="btn btn-ghost" style="padding:4px 8px;font-size:12px;color:var(--red)" onclick="event.stopPropagation();removePersonaFile('${persona.id}','${f.storedName}')">Remove</button>
+          </div>
+        `;
+      }).join('');
+    }
+
+    window.uploadPersonaFile = async function(personaId, input) {
+      const file = input.files?.[0];
+      if (!file) return;
+      const label = prompt('Label for this file (e.g. "thumbnail reference", "brand guide"):', file.name);
+      if (label === null) { input.value = ''; return; }
+
+      const form = new FormData();
+      form.append('file', file);
+      form.append('label', label || file.name);
+
+      try {
+        const resp = await fetch(`/api/personas/${personaId}/files`, { method: 'POST', body: form });
+        if (!resp.ok) throw new Error('Upload failed');
+        const ref = await resp.json();
+        // Update local state
+        const p = state.personas.find(p => p.id === personaId);
+        if (p) {
+          if (!p.files) p.files = [];
+          p.files.push(ref);
+        }
+        renderPersonaDetail(personaId);
+      } catch (e) {
+        console.error('File upload failed:', e);
+      }
+      input.value = '';
+    };
+
+    window.removePersonaFile = async function(personaId, storedName) {
+      try {
+        await fetch(`/api/personas/${personaId}/files/${encodeURIComponent(storedName)}`, { method: 'DELETE' });
+        const p = state.personas.find(p => p.id === personaId);
+        if (p && p.files) {
+          p.files = p.files.filter(f => f.storedName !== storedName);
+        }
+        renderPersonaDetail(personaId);
+      } catch (e) {
+        console.error('File removal failed:', e);
+      }
+    };
+
+    // Persona chat session ID cache (per persona, for the inline tab chat)
+    const personaChatSessions = new Map();
+
     window.startPersonaChat = async function(personaId) {
+      // If already initialized for this persona in the tab, do nothing
+      if (personaChatSessions.has(personaId)) return;
       try {
         const response = await api.post(`/api/personas/${personaId}/chat`, {});
-        if (response.error) {
-          console.error('Failed to start persona chat:', response.error);
-          return;
-        }
-        // Load the new session and switch to chat view
-        state.sessionId = response.id;
-        await loadSession(response.id);
-        switchView('chat');
+        if (response.error) { console.error('Failed to start persona chat:', response.error); return; }
+        personaChatSessions.set(personaId, response.id);
       } catch (e) {
         console.error('Failed to start persona chat:', e);
       }
+    };
+
+    window.sendPersonaChatMsg = async function(personaId) {
+      const input = $('persona-chat-input');
+      const msg = input.value.trim();
+      if (!msg) return;
+
+      const container = $('persona-chat-messages');
+      // Clear placeholder
+      const placeholder = container.querySelector('div[style*="text-align:center"]');
+      if (placeholder) placeholder.remove();
+
+      // Add user message
+      container.innerHTML += `<div style="display:flex;justify-content:flex-end"><div style="background:var(--accent);color:white;padding:8px 14px;border-radius:14px 14px 4px 14px;max-width:75%;font-size:14px;line-height:1.5">${esc(msg)}</div></div>`;
+      container.scrollTop = container.scrollHeight;
+      input.value = '';
+
+      // Add typing indicator
+      const typingEl = document.createElement('div');
+      typingEl.innerHTML = '<div style="color:var(--text-muted);font-size:13px;padding:4px 0">Thinking...</div>';
+      container.appendChild(typingEl);
+      container.scrollTop = container.scrollHeight;
+
+      try {
+        // Ensure session is initialized
+        if (!personaChatSessions.has(personaId)) await startPersonaChat(personaId);
+        const sessionId = personaChatSessions.get(personaId);
+
+        const res = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sessionId, message: msg })
+        });
+
+        typingEl.remove();
+
+        // Read SSE stream for response
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let responseText = '';
+        let responseEl = null;
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          const chunk = decoder.decode(value, { stream: true });
+          for (const line of chunk.split('\n')) {
+            if (!line.startsWith('data: ')) continue;
+            try {
+              const payload = JSON.parse(line.slice(6));
+              if (payload.event === 'token') {
+                if (!responseEl) {
+                  responseEl = document.createElement('div');
+                  responseEl.innerHTML = '<div style="background:var(--bg-hover);padding:8px 14px;border-radius:14px 14px 14px 4px;max-width:75%;font-size:14px;line-height:1.5"></div>';
+                  container.appendChild(responseEl);
+                }
+                responseText += payload.data.text;
+                responseEl.firstChild.innerHTML = renderMd(responseText);
+                container.scrollTop = container.scrollHeight;
+              }
+            } catch {}
+          }
+        }
+
+        if (!responseEl && !responseText) {
+          container.innerHTML += '<div style="color:var(--text-muted);font-size:13px">No response received.</div>';
+        }
+      } catch (e) {
+        typingEl.remove();
+        container.innerHTML += `<div style="color:var(--red);font-size:13px">Error: ${esc(e.message || 'Failed to send')}</div>`;
+      }
+      container.scrollTop = container.scrollHeight;
     };
 
     window.confirmDeletePersona = function(id, name) {
@@ -2498,6 +2774,7 @@ npm run dev</code></pre>
 
           <div class="agent-tabs">
             <button class="agent-tab active" data-atab="overview" onclick="switchAgentTab('overview')">Overview</button>
+            <button class="agent-tab" data-atab="chat" onclick="switchAgentTab('chat')">Chat</button>
             <button class="agent-tab" data-atab="runs" onclick="switchAgentTab('runs')">Runs (${agent.runs?.length || 0})</button>
             <button class="agent-tab" data-atab="logs" onclick="switchAgentTab('logs')">Logs</button>
           </div>
@@ -2505,6 +2782,24 @@ npm run dev</code></pre>
           <div class="agent-tab-content active" id="atab-overview">
             <div id="agent-recap-container"></div>
             <div id="agent-steps-container"></div>
+          </div>
+
+          <div class="agent-tab-content" id="atab-chat">
+            <div id="agent-chat-container">
+              <div class="agent-chat-area" id="agent-chat-messages">
+                <div class="agent-chat-welcome">
+                  <div class="agent-chat-avatar">${agent.name.charAt(0).toUpperCase()}</div>
+                  <h3>${esc(agent.name)}</h3>
+                  <p>${esc(agent.role || 'I\'m here to help. Ask me anything!')}</p>
+                </div>
+              </div>
+              <div class="agent-chat-input-wrap">
+                <textarea id="agent-chat-input" class="agent-chat-input" placeholder="Ask this agent..." rows="1"></textarea>
+                <button class="agent-chat-send" onclick="sendAgentChatMessage('${agent.id}')">
+                  <svg viewBox="0 0 16 16" fill="currentColor"><path d="M3 13l10-5L3 3v4l6 1-6 1z"/></svg>
+                </button>
+              </div>
+            </div>
           </div>
 
           <div class="agent-tab-content" id="atab-runs">
@@ -2761,6 +3056,77 @@ npm run dev</code></pre>
       $('confirm-action').disabled = false;
       confirmCallback = null;
     };
+
+    // ==============================
+    // AGENT CHAT FUNCTIONS
+    // ==============================
+    window.sendAgentChatMessage = async function(agentId) {
+      const input = $('agent-chat-input');
+      const message = input.value.trim();
+      if (!message || state.streaming) return;
+
+      const container = $('agent-chat-messages');
+      
+      // Remove welcome message if exists
+      const welcome = container.querySelector('.agent-chat-welcome');
+      if (welcome) welcome.remove();
+
+      // Add user message
+      container.innerHTML += `<div class="agent-chat-msg user"><div class="agent-chat-bubble">${esc(message)}</div></div>`;
+      
+      // Add typing indicator
+      const typingId = 'typing-' + Date.now();
+      container.innerHTML += `<div class="agent-chat-msg" id="${typingId}"><div class="agent-chat-bubble typing"></div></div>`;
+      
+      container.scrollTop = container.scrollHeight;
+      input.value = '';
+      input.style.height = 'auto';
+
+      try {
+        state.streaming = true;
+        const res = await fetch('/api/agent-chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ agentId, message })
+        });
+        
+        // Remove typing indicator
+        const typing = $(typingId);
+        if (typing) typing.remove();
+
+        const data = await res.json();
+        
+        if (data.error) {
+          throw new Error(data.error);
+        }
+        
+        // Add agent response
+        const responseText = data.response || data.text || 'No response';
+        container.innerHTML += `<div class="agent-chat-msg"><div class="agent-chat-bubble">${renderMdInline(responseText)}</div></div>`;
+        container.scrollTop = container.scrollHeight;
+      } catch (err) {
+        // Remove typing indicator
+        const typing = $(typingId);
+        if (typing) typing.remove();
+        
+        // Show error in chat
+        container.innerHTML += `<div class="agent-chat-msg"><div class="agent-chat-bubble" style="color:var(--red)">Sorry, I couldn't process that. ${esc(err.message || 'Please try again.')}</div></div>`;
+        container.scrollTop = container.scrollHeight;
+      } finally {
+        state.streaming = false;
+      }
+    };
+
+    function renderMdInline(text) {
+      if (!text) return '';
+      // Simple markdown rendering for inline use
+      let html = esc(text);
+      html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+      html = html.replace(/\*(.*?)\*/g, '<em>$1</em>');
+      html = html.replace(/`([^`]+)`/g, '<code style="background:#f3f1ed;padding:2px 4px;border-radius:3px;font-family:var(--mono);font-size:12px;">$1</code>');
+      html = html.replace(/\n/g, '<br>');
+      return html;
+    }
 
     // ==============================
     // ERROR HANDLING

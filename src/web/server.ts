@@ -65,7 +65,7 @@ import {
   getDaemonPidPath,
 } from "../agents/daemon.js";
 import { closeDb } from "../agents/db.js";
-import { listPersonas, loadPersona, createPersona, updatePersonaField } from "../agent-persona.js";
+import { listPersonas, loadPersona, createPersona, updatePersonaField, addFileReference, removeFileReference, getFilePath } from "../agent-persona.js";
 import { ensureGlobalDir } from "../project.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -406,6 +406,7 @@ export async function startServer(options: ServerOptions): Promise<void> {
         scratchpad: p.scratchpad,
         tools: p.tools,
         maxTurns: p.maxTurns,
+        files: p.files || [],
       })),
     });
   });
@@ -448,6 +449,46 @@ export async function startServer(options: ServerOptions): Promise<void> {
     } catch (e) {
       return c.json({ error: String(e) }, 500);
     }
+  });
+
+  // --- Persona File References ---
+  app.post("/api/personas/:id/files", async (c) => {
+    const id = c.req.param("id");
+    const persona = loadPersona(id);
+    if (!persona) return c.json({ error: "Persona not found" }, 404);
+
+    const formData = await c.req.formData();
+    const file = formData.get("file") as File | null;
+    const label = (formData.get("label") as string) || "";
+    if (!file) return c.json({ error: "No file provided" }, 400);
+
+    const buffer = Buffer.from(await file.arrayBuffer());
+    const ref = addFileReference(id, file.name, label || file.name, file.type || "application/octet-stream", buffer);
+    if (!ref) return c.json({ error: "Failed to save file" }, 500);
+
+    return c.json(ref);
+  });
+
+  app.delete("/api/personas/:id/files/:storedName", (c) => {
+    const id = c.req.param("id");
+    const storedName = c.req.param("storedName");
+    const removed = removeFileReference(id, storedName);
+    if (!removed) return c.json({ error: "File not found" }, 404);
+    return c.json({ deleted: true });
+  });
+
+  app.get("/api/personas/:id/files/:storedName", (c) => {
+    const id = c.req.param("id");
+    const storedName = c.req.param("storedName");
+    const filePath = getFilePath(id, storedName);
+    if (!fs.existsSync(filePath)) return c.json({ error: "File not found" }, 404);
+
+    const persona = loadPersona(id);
+    const ref = persona?.files?.find((f) => f.storedName === storedName);
+    const mimeType = ref?.mimeType || "application/octet-stream";
+
+    const data = fs.readFileSync(filePath);
+    return new Response(data, { headers: { "Content-Type": mimeType } });
   });
 
   app.get("/api/agents/:id", (c) => {
@@ -710,6 +751,50 @@ export async function startServer(options: ServerOptions): Promise<void> {
 
     saveSession(session);
     return c.json({ id: session.id, name: session.name, persona: persona.name, existing: false });
+  });
+
+  // --- Agent Detail Chat (simple request/response) ---
+  app.post("/api/agent-chat", async (c) => {
+    const body = await c.req.json();
+    const { agentId, message } = body as { agentId: string; message: string };
+    if (!agentId || !message) return c.json({ error: "Missing agentId or message" }, 400);
+
+    // Find the agent and its persona
+    const agent = getAgent(agentId);
+    const config = agent ? JSON.parse(agent.config || "{}") : {};
+    const personaId = config.personaId || agentId;
+    const persona = loadPersona(personaId);
+
+    // Build system prompt from persona or agent info
+    let systemPrompt: string;
+    if (persona) {
+      const { buildAgentSystemPrompt } = await import("../agent-persona.js");
+      const { getCwd } = await import("../tools/bash.js");
+      systemPrompt = buildAgentSystemPrompt(persona, getCwd());
+    } else if (agent) {
+      systemPrompt = `You are ${agent.name}. ${agent.description || ""}\nAnswer questions about your workflows, past runs, and status.`;
+    } else {
+      return c.json({ error: "Agent not found" }, 404);
+    }
+
+    try {
+      const client = createClient();
+      const response = await client.chat.completions.create({
+        model: getModelId(),
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: message },
+        ],
+        max_tokens: 4096,
+      });
+
+      const text = response.choices[0]?.message?.content
+        || (response.choices[0]?.message as any)?.reasoning || "";
+      return c.json({ response: text });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return c.json({ error: msg }, 500);
+    }
   });
 
   // --- Chat (SSE streaming) ---

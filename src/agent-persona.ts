@@ -19,6 +19,20 @@ import path from "path";
 import { ensureGlobalDir } from "./project.js";
 import { loadIdentity } from "./soul.js";
 
+export interface FileReference {
+  /** Original filename */
+  name: string;
+  /** What this file is for (e.g. "thumbnail reference", "brand guide") */
+  label: string;
+  /** Stored filename on disk (under ~/.kai/agents/files/{persona-id}/) */
+  storedName: string;
+  /** MIME type */
+  mimeType: string;
+  /** File size in bytes */
+  size: number;
+  addedAt: string;
+}
+
 export interface AgentPersona {
   id: string;
   name: string;
@@ -30,6 +44,8 @@ export interface AgentPersona {
   tools: string[];
   /** Max turns before the agent must wrap up. */
   maxTurns: number;
+  /** Attached reference files (images, docs, etc.) */
+  files?: FileReference[];
   createdAt: string;
   updatedAt: string;
 }
@@ -134,6 +150,62 @@ export function updatePersonaField(
   return `Agent "${agentId}" ${field} updated.`;
 }
 
+// --- File References ---
+
+function personaFilesDir(agentId: string): string {
+  return ensureGlobalDir(`agents/files/${agentId}`);
+}
+
+export function addFileReference(
+  agentId: string,
+  originalName: string,
+  label: string,
+  mimeType: string,
+  data: Buffer
+): FileReference | null {
+  const persona = loadPersona(agentId);
+  if (!persona) return null;
+
+  const ext = path.extname(originalName) || "";
+  const storedName = `${Date.now()}-${originalName.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
+  const dir = personaFilesDir(agentId);
+  fs.writeFileSync(path.join(dir, storedName), data);
+
+  const ref: FileReference = {
+    name: originalName,
+    label: label || originalName,
+    storedName,
+    mimeType,
+    size: data.length,
+    addedAt: new Date().toISOString(),
+  };
+
+  if (!persona.files) persona.files = [];
+  persona.files.push(ref);
+  savePersona(persona);
+  return ref;
+}
+
+export function removeFileReference(agentId: string, storedName: string): boolean {
+  const persona = loadPersona(agentId);
+  if (!persona || !persona.files) return false;
+
+  const idx = persona.files.findIndex((f) => f.storedName === storedName);
+  if (idx === -1) return false;
+
+  // Remove from disk
+  const filePath = path.join(personaFilesDir(agentId), storedName);
+  try { if (fs.existsSync(filePath)) fs.unlinkSync(filePath); } catch {}
+
+  persona.files.splice(idx, 1);
+  savePersona(persona);
+  return true;
+}
+
+export function getFilePath(agentId: string, storedName: string): string {
+  return path.join(personaFilesDir(agentId), storedName);
+}
+
 // --- System Prompt Builder ---
 
 /**
@@ -178,6 +250,15 @@ Update your goals when objectives are completed or change.
 - Update your scratchpad with findings so you remember them next time.
 - Be concise and direct.
 - If you need to remember something for future invocations, write it to your scratchpad.`;
+
+  // Include file references so the agent knows what's available
+  if (persona.files && persona.files.length > 0) {
+    const fileList = persona.files.map((f) => {
+      const filePath = getFilePath(persona.id, f.storedName);
+      return `- **${f.label}** — \`${filePath}\` (${f.mimeType})`;
+    }).join("\n");
+    prompt += `\n\n# Reference Files\nYou have these reference files attached. Use read_file to access them when relevant.\n${fileList}`;
+  }
 
   return prompt;
 }

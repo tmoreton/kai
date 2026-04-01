@@ -7,6 +7,7 @@ import {
   COMPACT_RECENT_RATIO,
 } from "./constants.js";
 import { getConfig } from "./config.js";
+import { getCachedFileIndex } from "./tools/file-cache.js";
 
 // Rough token estimation: ~4 chars per token for English
 function estimateTokens(text: string): number {
@@ -121,6 +122,7 @@ export function compactMessages(
   // Build a smarter summary that preserves key info
   const summaryParts: string[] = [];
   let filesModified = new Set<string>();
+  let filesRead = new Set<string>();
   let toolsUsed = new Set<string>();
   let keyDecisions: string[] = [];
 
@@ -136,10 +138,15 @@ export function compactMessages(
         for (const tc of msg.tool_calls) {
           if ("function" in tc && tc.function) {
             toolsUsed.add(tc.function.name);
-            // Track files modified
             try {
               const args = JSON.parse(tc.function.arguments);
-              if (args.file_path) filesModified.add(args.file_path);
+              if (args.file_path) {
+                if (tc.function.name === "read_file") {
+                  filesRead.add(args.file_path);
+                } else {
+                  filesModified.add(args.file_path);
+                }
+              }
             } catch {}
           }
         }
@@ -153,6 +160,12 @@ export function compactMessages(
     // Skip tool role messages entirely — they're the bulk of the bloat
   }
 
+  // Also include files still in the read cache (accessible without re-reading)
+  const cachedFiles = getCachedFileIndex();
+  for (const f of cachedFiles) {
+    filesRead.add(f.path);
+  }
+
   let summary = "# Compacted conversation history\n\n";
   summary += "## What happened:\n";
   summary += summaryParts.slice(0, 15).join("\n") + "\n\n";
@@ -162,6 +175,14 @@ export function compactMessages(
   }
   if (filesModified.size > 0) {
     summary += `## Files modified: ${[...filesModified].join(", ")}\n`;
+  }
+  if (filesRead.size > 0) {
+    summary += `## Files already read (still cached — no need to re-read unless modified):\n`;
+    const cacheIndex = new Map(cachedFiles.map((f) => [f.path, f.lines]));
+    for (const f of filesRead) {
+      const lines = cacheIndex.get(f);
+      summary += `- ${f}${lines ? ` (${lines} lines)` : ""}\n`;
+    }
   }
   if (keyDecisions.length > 0) {
     summary += "\n## Key decisions:\n";

@@ -14,7 +14,7 @@ import { skillsDir } from "./loader.js";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Built-in skill directories (relative to this file's location in dist/)
-const BUILTIN_SKILLS = ["youtube", "web"];
+const BUILTIN_SKILLS = ["youtube", "web", "browser"];
 
 export function bootstrapBuiltinSkills(): void {
   const targetDir = skillsDir();

@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import { expandHome } from "../utils.js";
+import { expandHome, resolveFilePath } from "../utils.js";
 import { resolveVisionProvider } from "../providers/index.js";
 
 /**
@@ -23,10 +23,10 @@ export async function analyzeImage(args: {
   image_path: string;
   question?: string;
 }): Promise<string> {
-  const imgPath = expandHome(args.image_path);
+  const imgPath = resolveFilePath(expandHome(args.image_path));
 
   if (!fs.existsSync(imgPath)) {
-    return `Image not found: ${imgPath}`;
+    return `Image not found: ${imgPath}. Check the path is correct — file names with spaces or special characters must be exact.`;
   }
 
   const ext = path.extname(imgPath).toLowerCase();

@@ -385,9 +385,35 @@ export async function chat(
 
     if (allParallelSafe) {
       // === PARALLEL EXECUTION for read-only tools ===
-      console.log(chalk.dim(`\n  ⚡ Running ${parsed.length} tools in parallel...`));
 
-      for (const p of parsed) {
+      // Deduplicate read_file calls for the same path + offset + limit
+      const deduped: typeof parsed = [];
+      const readFileMap = new Map<string, number>(); // key -> index in deduped
+      const dupMapping = new Map<number, number>(); // original index -> deduped index
+
+      for (let i = 0; i < parsed.length; i++) {
+        const p = parsed[i];
+        if (p.toolName === "read_file") {
+          const key = `${p.args.file_path}:${p.args.offset || 1}:${p.args.limit || 2000}`;
+          const existing = readFileMap.get(key);
+          if (existing !== undefined) {
+            dupMapping.set(i, existing);
+            continue;
+          }
+          readFileMap.set(key, deduped.length);
+        }
+        dupMapping.set(i, deduped.length);
+        deduped.push(p);
+      }
+
+      const skipped = parsed.length - deduped.length;
+      if (skipped > 0) {
+        console.log(chalk.dim(`\n  ⚡ Running ${deduped.length} tools in parallel (${skipped} duplicate read${skipped > 1 ? "s" : ""} collapsed)...`));
+      } else {
+        console.log(chalk.dim(`\n  ⚡ Running ${deduped.length} tools in parallel...`));
+      }
+
+      for (const p of deduped) {
         console.log(
           chalk.dim(`  ⏺ `) +
             chalk.cyan(formatToolLabel(p.toolName)) +
@@ -397,9 +423,15 @@ export async function chat(
         );
       }
 
-      const results = await Promise.allSettled(
-        parsed.map((p) => executeTool(p.toolName, p.args))
+      const dedupedResults = await Promise.allSettled(
+        deduped.map((p) => executeTool(p.toolName, p.args))
       );
+
+      // Expand results back to match all original parsed entries (including duplicates)
+      const results = parsed.map((_, i) => {
+        const dedupedIdx = dupMapping.get(i)!;
+        return dedupedResults[dedupedIdx];
+      });
 
       for (let i = 0; i < parsed.length; i++) {
         const p = parsed[i];
