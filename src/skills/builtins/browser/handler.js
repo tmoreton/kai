@@ -6,6 +6,8 @@
  */
 
 import { createRequire } from "module";
+import fs from "fs";
+import path from "path";
 
 const CONTENT_LIMIT = 80000;
 const NAV_TIMEOUT_MS = 30000;
@@ -169,15 +171,22 @@ export default {
         });
       }
 
-      const base64 = buffer.toString("base64");
       const title = await p.title();
       const url = p.url();
 
+      // Save to disk instead of returning base64 inline
+      const homeDir = process.env.HOME || "~";
+      const outDir = path.join(homeDir, ".kai", "agent-output", "screenshots");
+      if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
+      const outPath = path.join(outDir, `browser-${Date.now()}.png`);
+      fs.writeFileSync(outPath, buffer);
+
       return JSON.stringify({
+        type: "image_result",
         title,
         url,
-        screenshot_base64: base64,
-        size_bytes: buffer.length,
+        path: outPath,
+        size_kb: Math.round(buffer.length / 1024),
       });
     },
 

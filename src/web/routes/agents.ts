@@ -375,7 +375,18 @@ export function registerAgentRoutes(app: Hono) {
     const limit = parseInt(c.req.query("limit") || "30");
     const notifications = listNotifications(limit);
     const unread = unreadNotificationCount();
-    return c.json({ notifications, unread });
+    return c.json({
+      notifications: notifications.map((n) => ({
+        id: n.id,
+        agentId: n.agent_id,
+        title: n.title,
+        message: n.body || '',
+        read: !!n.read,
+        createdAt: n.created_at,
+        attachments: n.attachments ? JSON.parse(n.attachments) : undefined,
+      })),
+      unread,
+    });
   });
 
   app.patch("/api/notifications/:id/read", (c) => {

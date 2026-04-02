@@ -20,10 +20,12 @@ import {
   hasPendingApprovals,
   type StepRecord,
 } from "./db.js";
-import { resolveProvider, type ResolvedProvider } from "../providers/index.js";
+import { resolveProvider, resolveProviderWithFallback, type ResolvedProvider } from "../providers/index.js";
 import { backoffDelay, sleep } from "../utils.js";
 import {
   RETRYABLE_STATUS_CODES,
+  DEFAULT_OPENROUTER_MODEL,
+  DEFAULT_OPENROUTER_BASE_URL,
   WORKFLOW_STEP_OUTPUT_LIMIT,
   WORKFLOW_REVIEW_OUTPUT_LIMIT,
   SHELL_STEP_TIMEOUT,
@@ -41,6 +43,19 @@ function getSharedClient(): OpenAI {
 function getSharedModel(): string {
   if (!_resolved) _resolved = resolveProvider();
   return _resolved.model;
+}
+
+/** Build an OpenRouter fallback client for workflow LLM calls */
+function getFallbackProvider(): { client: OpenAI; model: string } | null {
+  const key = process.env.OPENROUTER_API_KEY;
+  if (!key) return null;
+  return {
+    client: new OpenAI({
+      apiKey: key,
+      baseURL: DEFAULT_OPENROUTER_BASE_URL,
+    }),
+    model: DEFAULT_OPENROUTER_MODEL,
+  };
 }
 
 /**
@@ -429,40 +444,54 @@ async function generateAndCacheRecap(runId: string, agentId: string, workflowNam
     ? `\n\n**Files Created (${createdFiles.length}):**\n${createdFiles.map(f => `- ${f}`).join("\n")}`
     : "";
 
-  try {
-    const client = getSharedClient();
-    const model = getSharedModel();
-    const response = await client.chat.completions.create({
-      model,
-      messages: [
-        {
-          role: "system",
-          content: "You are presenting the final output of an AI agent workflow run to the user. Focus on the ACTUAL CONTENT and END RESULTS produced — not on describing what the agent is or what it can do. For example, if the agent fetched news articles, show the articles with titles, links, and summaries. If it generated a report, show the report. Present the real data and findings, not meta-commentary about the agent's capabilities or architecture. Be concise, use markdown formatting, and keep it under 300 words.",
-        },
-        {
-          role: "user",
-          content: `Present the end results from this "${workflowName}" agent run. Show the actual content produced, not a description of the agent:\n\n${keyOutputs.join("\n\n---\n\n")}${attachmentsSummary}`,
-        },
-      ],
-      max_tokens: 2048,
-    });
+  // Build provider list: primary + OpenRouter fallback
+  const recapProviders: { client: OpenAI; model: string }[] = [
+    { client: getSharedClient(), model: getSharedModel() },
+  ];
+  const recapFallback = getFallbackProvider();
+  if (recapFallback) recapProviders.push(recapFallback);
 
-    const recap = response.choices[0]?.message?.content
-      || (response.choices[0]?.message as any)?.reasoning || "";
-
-    if (recap) {
-      saveRunRecap(runId, recap);
-      createNotification({
-        type: "agent_completed",
-        title: `${workflowName} completed`,
-        body: recap,
-        agentId,
-        runId,
-        attachments: createdFiles.length > 0 ? createdFiles : undefined,
+  let recapGenerated = false;
+  for (const provider of recapProviders) {
+    try {
+      const response = await provider.client.chat.completions.create({
+        model: provider.model,
+        messages: [
+          {
+            role: "system",
+            content: "You are presenting the final output of an AI agent workflow run to the user. Focus on the ACTUAL CONTENT and END RESULTS produced — not on describing what the agent is or what it can do. For example, if the agent fetched news articles, show the articles with titles, links, and summaries. If it generated a report, show the report. Present the real data and findings, not meta-commentary about the agent's capabilities or architecture. Be concise, use markdown formatting, and keep it under 300 words.",
+          },
+          {
+            role: "user",
+            content: `Present the end results from this "${workflowName}" agent run. Show the actual content produced, not a description of the agent:\n\n${keyOutputs.join("\n\n---\n\n")}${attachmentsSummary}`,
+          },
+        ],
+        max_tokens: 2048,
       });
+
+      const recap = response.choices[0]?.message?.content
+        || (response.choices[0]?.message as any)?.reasoning || "";
+
+      if (recap) {
+        saveRunRecap(runId, recap);
+        createNotification({
+          type: "agent_completed",
+          title: `${workflowName} completed`,
+          body: recap,
+          agentId,
+          runId,
+          attachments: createdFiles.length > 0 ? createdFiles : undefined,
+        });
+        recapGenerated = true;
+      }
+      break; // Success — stop trying providers
+    } catch {
+      // Try next provider
     }
-  } catch {
-    // Recap generation is best-effort; don't fail the run
+  }
+
+  if (!recapGenerated) {
+    // All providers failed — still notify, just without LLM recap
     createNotification({
       type: "agent_completed",
       title: `${workflowName} completed`,
@@ -521,19 +550,22 @@ Evaluation criteria:
 - Would a human find this genuinely useful?
 ${iteration > 0 ? `\nThis is iteration ${iteration + 1}. Be stricter — earlier iterations already improved the output. If it's good enough now, PASS it.` : ""}`;
 
-  const client = getSharedClient();
-  const model = getSharedModel();
-  const models = [model];
+  // Build provider list: primary + OpenRouter fallback
+  const providers: { client: OpenAI; model: string }[] = [
+    { client: getSharedClient(), model: getSharedModel() },
+  ];
+  const fallback = getFallbackProvider();
+  if (fallback) providers.push(fallback);
 
-  for (const currentModel of models) {
+  for (const provider of providers) {
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
         if (attempt > 0) {
           await sleep(backoffDelay(attempt));
         }
 
-        const response = await client.chat.completions.create({
-          model: currentModel,
+        const response = await provider.client.chat.completions.create({
+          model: provider.model,
           messages: [{ role: "user", content: reviewPrompt }],
           max_tokens: 1024,
         });
@@ -563,7 +595,7 @@ ${iteration > 0 ? `\nThis is iteration ${iteration + 1}. Be stricter — earlier
     }
   }
 
-  // All models failed — auto-pass to avoid blocking the pipeline
+  // All providers failed — auto-pass to avoid blocking the pipeline
   return { verdict: "PASS", summary: "Review skipped (API unavailable)", feedback: "" };
 }
 
@@ -574,8 +606,8 @@ async function executeLlmStep(step: WorkflowStep, ctx: WorkflowContext): Promise
 
   const prompt = interpolate(step.prompt, ctx);
 
-  const client = getSharedClient();
-  const model = getSharedModel();
+  const primaryClient = getSharedClient();
+  const primaryModel = getSharedModel();
 
   const messages = [
     {
@@ -585,15 +617,19 @@ async function executeLlmStep(step: WorkflowStep, ctx: WorkflowContext): Promise
     { role: "user" as const, content: prompt },
   ];
 
-  // Try primary model with retries
-  const fallbackModels = [
-    model,
+  // Build provider list: primary + OpenRouter fallback (if key available)
+  const providers: { client: OpenAI; model: string; name: string }[] = [
+    { client: primaryClient, model: primaryModel, name: "primary" },
   ];
+  const fallback = getFallbackProvider();
+  if (fallback) {
+    providers.push({ client: fallback.client, model: fallback.model, name: "openrouter" });
+  }
 
-  for (const currentModel of fallbackModels) {
-    const isFallback = currentModel !== model;
+  for (const provider of providers) {
+    const isFallback = provider.name !== "primary";
     if (isFallback) {
-      console.log(chalk.dim(`    Falling back to ${currentModel}...`));
+      console.log(chalk.yellow(`    ⚠ Primary LLM failed — falling back to OpenRouter (${provider.model})...`));
     }
 
     const maxRetries = isFallback ? 2 : 3;
@@ -604,8 +640,8 @@ async function executeLlmStep(step: WorkflowStep, ctx: WorkflowContext): Promise
           console.log(chalk.dim(`    Retrying (attempt ${attempt + 1}/${maxRetries})...`));
         }
 
-        const response = await client.chat.completions.create({
-          model: currentModel,
+        const response = await provider.client.chat.completions.create({
+          model: provider.model,
           messages,
           max_tokens: step.max_tokens ?? 4000,
           stream: step.stream ?? false,
@@ -625,12 +661,11 @@ async function executeLlmStep(step: WorkflowStep, ctx: WorkflowContext): Promise
         }
       } catch (err: any) {
         const status = err?.status || err?.response?.status;
-        // For non-transient errors on primary model, throw immediately
-        // For fallback models, any error just moves to next fallback
+        // For non-transient errors on primary, skip to fallback instead of throwing
         if (!isFallback && status && !RETRYABLE_STATUS_CODES.includes(status)) {
-          throw new Error(`LLM error (${status}): ${err.message}`);
+          break; // Move to fallback provider
         }
-        // Continue to next retry or fallback
+        // Continue to next retry
       }
     }
   }

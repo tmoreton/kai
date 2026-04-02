@@ -48,12 +48,9 @@ export async function readFile(args: {
       return await parseDocument(fullPath, ext, sizeKB);
     }
 
-    // --- Images: return description + base64 for vision ---
+    // --- Images: return marker for vision analysis (no base64 inline) ---
     if (IMAGE_EXTENSIONS.has(ext)) {
-      const buf = fs.readFileSync(fullPath);
-      const base64 = buf.toString("base64");
-      const mime = ext === ".png" ? "image/png" : ext === ".gif" ? "image/gif" : ext === ".webp" ? "image/webp" : "image/jpeg";
-      return `[IMAGE: ${fullPath} (${sizeKB} KB)]\ndata:${mime};base64,${base64}`;
+      return `[IMAGE: ${fullPath} (${sizeKB} KB)]`;
     }
 
     // --- Other binary files ---

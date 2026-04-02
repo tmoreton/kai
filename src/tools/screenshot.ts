@@ -49,15 +49,10 @@ export async function takeScreenshot(args: ScreenshotArgs): Promise<string> {
       const stat = fs.statSync(outPath);
       const sizeKB = Math.round(stat.size / 1024);
 
-      // Read as base64 data URL for vision model consumption
-      const base64 = fs.readFileSync(outPath).toString("base64");
-      const dataUrl = `data:image/png;base64,${base64}`;
-
       resolve(JSON.stringify({
         type: "image_result",
         path: outPath,
         size_kb: sizeKB,
-        data_url: dataUrl,
       }));
     });
   });

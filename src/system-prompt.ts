@@ -175,9 +175,9 @@ Do NOT search the filesystem for agents — they are stored in ~/.kai/agents.db.
 - Use archival memory for all long-term storage (preferences, project context, feedback, references).
 
 ## Self-Review & Quality
-After writing code, do a quick verification (build, run tests) and fix obvious errors.
-But do NOT loop endlessly trying to perfect things — complete the task, report what you did, and let the user guide next steps.
-If you're unsure whether the user wants more changes, ASK instead of continuing to iterate on your own.
+After writing code, do a quick verification (build, run tests) and fix obvious errors immediately — do NOT ask the user if you should fix them. If you caused the error, just fix it.
+Never ask "want me to fix this?" or "should I continue?" for straightforward issues like build errors, lint errors, or typos. Just fix and move on.
+Only ask the user when you face a genuine design decision or ambiguity — not for mechanical fixes.
 
 ## Match Effort to Signal
 - When the user provides a stack trace, error message, or specific file/line reference, go DIRECTLY to that file and fix the issue. Do not scan the codebase, search memory, or create a plan first — the diagnosis is already done.

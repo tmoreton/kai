@@ -147,12 +147,13 @@ export function autoRouteHeuristic(userMessage: string): RouteDecision {
   }
 
   // Check for multiple explicit subtasks (numbered lists, "and also", etc.)
+  // Plan first to understand dependencies, then swarm the independent items
   const subtaskIndicators = msg.match(/(?:^|\n)\s*(?:\d+[\.\)]\s|[-*]\s)/gm);
   if (subtaskIndicators && subtaskIndicators.length >= 3 && msg.length > 200) {
     return {
-      strategy: "plan_first",
-      reason: "multiple subtasks listed",
-      hint: "[AUTO-ROUTE: This is a complex task. Start in EXPLORATION mode — use read_file, glob, grep to understand the codebase before making any changes. Create a step-by-step plan before implementing.]",
+      strategy: "plan_then_swarm",
+      reason: `${subtaskIndicators.length} subtasks detected — plan then parallelize`,
+      hint: `[AUTO-ROUTE: The user listed ${subtaskIndicators.length} items. First, explore the codebase to understand what's needed for each item (use read_file, glob, grep). Then use spawn_swarm to run the independent items in parallel — assign each to a "worker" agent (or "explorer" for read-only tasks). Group dependent items together under one agent. After all agents finish, a synthesis step will merge their results.]`,
     };
   }
 

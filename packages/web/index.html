@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  
+  <!-- PWA Meta Tags -->
+  <meta name="theme-color" content="#FAF9F7">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Kai">
+  <meta name="application-name" content="Kai">
+  <meta name="msapplication-TileColor" content="#FAF9F7">
+  <meta name="msapplication-TileImage" content="/icons/icon-192x192.svg">
+  <meta name="msapplication-config" content="/browserconfig.xml">
+  
+  <!-- SEO Meta Tags -->
+  <meta name="description" content="Your personal AI assistant for conversations, learning, and productivity">
+  <meta name="keywords" content="AI, assistant, chat, conversation, productivity">
+  <meta name="author" content="Kai">
+  
+  <!-- Open Graph Meta Tags -->
+  <meta property="og:title" content="Kai">
+  <meta property="og:description" content="Your personal AI assistant for conversations, learning, and productivity">
+  <meta property="og:type" content="website">
+  <meta property="og:image" content="/icons/icon-512x512.svg">
+  <meta property="og:image:width" content="512">
+  <meta property="og:image:height" content="512">
+  
+  <!-- Twitter Card Meta Tags -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Kai">
+  <meta name="twitter:description" content="Your personal AI assistant for conversations, learning, and productivity">
+  <meta name="twitter:image" content="/icons/icon-512x512.svg">
+  
+  <title>Kai</title>
+  
+  <!-- Icons -->
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="alternate icon" type="image/x-icon" href="/favicon.ico">
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.svg">
+  <link rel="apple-touch-icon" sizes="152x152" href="/icons/icon-192x192.svg">
+  <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.svg">
+  <link rel="apple-touch-icon" sizes="167x167" href="/icons/icon-192x192.svg">
+  
+  <!-- Manifest -->
+  <link rel="manifest" href="/manifest.json">
+  
+  <!-- Preconnect for performance -->
+  <link rel="preconnect" href="https://cdn.jsdelivr.net">
+  
+  <!-- Marked.js for markdown parsing -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  
+  <!-- PWA Install Detection Script -->
+  <script>
+    // Detect if running as installed PWA
+    if (window.matchMedia('(display-mode: standalone)').matches || 
+        window.navigator.standalone === true) {
+      document.documentElement.classList.add('pwa-standalone');
+      console.log('Running as installed PWA');
+    }
+    
+    // Listen for display mode changes
+    window.matchMedia('(display-mode: standalone)').addEventListener('change', (evt) => {
+      if (evt.matches) {
+        document.documentElement.classList.add('pwa-standalone');
+      } else {
+        document.documentElement.classList.remove('pwa-standalone');
+      }
+    });
+  </script>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="module" src="/src/main.tsx"></script>
+</body>
+</html>
