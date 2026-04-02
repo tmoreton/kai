@@ -307,9 +307,9 @@ export function useErrorHandler<T>(
 ): UseErrorHandlerReturn<T> {
   const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState<Error | null>(null);
-  const [isLoading, _setIsLoading] = useState(false);
-  const [retryCount, _setRetryCount] = useState(0);
-  const [lastArgs, _setLastArgs] = useState<unknown[] | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [_retryCount, setRetryCount] = useState(0);
+  const [lastArgs, setLastArgs] = useState<unknown[] | null>(null);
 
   const reset = useCallback(() => {
     setData(null);
@@ -387,32 +387,16 @@ export function AsyncBoundary({
     <ErrorBoundary
       fallback={
         ErrorComponent ? (
-          <ErrorBoundaryWrapper ErrorComponent={ErrorComponent} />
+          <div role="alert">
+            {ErrorComponent({
+              error: new Error('Something went wrong'),
+              reset: () => window.location.reload(),
+            })}
+          </div>
         ) : undefined
       }
     >
       {children}
     </ErrorBoundary>
-  );
-}
-
-// Helper component for AsyncBoundary
-function ErrorBoundaryWrapper({
-  ErrorComponent,
-}: {
-  ErrorComponent: (props: { error: Error; reset: () => void }) => ReactNode;
-}) {
-  const [error, setError] = useState<Error | null>(null);
-  const [key, setKey] = useState(0);
-
-  // This would need to be integrated with ErrorBoundary state
-  // Simplified version for demonstration
-  return (
-    <div key={key}>
-      {ErrorComponent({
-        error: error || new Error('Unknown error'),
-        reset: () => setKey((k) => k + 1),
-      })}
-    </div>
   );
 }
