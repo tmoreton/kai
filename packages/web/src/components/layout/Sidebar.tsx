@@ -279,7 +279,7 @@ export function Sidebar() {
           )}
         </SidebarSection>
 
-        {/* Code Section */}
+        {/* Code Section - Grouped by Project */}
         <SidebarSection
           title="Code"
           icon={<Code className="w-4 h-4" />}
@@ -292,16 +292,46 @@ export function Sidebar() {
           {projects.length === 0 ? (
             <div className="px-2 py-3 text-sm text-muted-foreground">No projects yet</div>
           ) : (
-            projects.slice(0, 10).map((session: Session) => (
-              <SidebarItem
-                key={session.id}
-                to={`/chat/${session.id}`}
-                icon={<Code className="w-4 h-4" />}
-                label={session.preview || session.name || 'Code session'}
-                active={sessionId === session.id}
-                meta={formatShortDate(session.updatedAt)}
-              />
-            ))
+            (() => {
+              // Group sessions by project (cwd)
+              const grouped = projects.reduce((acc, session) => {
+                const projectPath = session.cwd || 'Unknown';
+                const projectName = projectPath.split('/').pop() || projectPath;
+                if (!acc[projectPath]) {
+                  acc[projectPath] = { name: projectName, sessions: [] };
+                }
+                acc[projectPath].sessions.push(session);
+                return acc;
+              }, {} as Record<string, { name: string; sessions: Session[] }>);
+
+              return Object.entries(grouped).map(([path, { name, sessions }]) => (
+                <div key={path} className="mb-2">
+                  {/* Project Header */}
+                  <div className="flex items-center gap-1.5 px-2 py-1 text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                    <span className="w-4 h-4">📁</span>
+                    <span className="truncate">{name}</span>
+                  </div>
+                  {/* Sessions under this project */}
+                  <div className="ml-4 space-y-0.5 border-l border-border pl-2">
+                    {sessions.slice(0, 5).map((session: Session) => (
+                      <SidebarItem
+                        key={session.id}
+                        to={`/chat/${session.id}`}
+                        icon={<Code className="w-3.5 h-3.5" />}
+                        label={session.preview || session.name || 'Code session'}
+                        active={sessionId === session.id}
+                        meta={formatShortDate(session.updatedAt)}
+                      />
+                    ))}
+                    {sessions.length > 5 && (
+                      <div className="px-2 py-1 text-xs text-muted-foreground">
+                        +{sessions.length - 5} more...
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ));
+            })()
           )}
         </SidebarSection>
 
