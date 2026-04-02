@@ -26,8 +26,7 @@ program
 // --- Default: Interactive REPL (with optional initial prompt) ---
 program
   .argument("[prompt]", "Initial prompt (runs then continues into REPL)")
-  .option("-c, --continue", "Continue most recent session")
-  .option("-r, --resume <id>", "Resume a specific session by ID")
+  .option("-c, --continue [id]", "Continue most recent session, or a specific session by ID")
   .option("-n, --name <name>", "Name for the session")
   .option("-y, --yes", "Auto-approve all tool calls")
   .action(async (promptArg, options) => {
@@ -41,9 +40,11 @@ program
 
     const initialPrompt = [pipedInput, promptArg].filter(Boolean).join("\n\n") || undefined;
 
+    // -c with no value → true (continue most recent), -c <id> → string
+    const continueVal = options.continue;
     await startRepl({
-      continueSession: options.continue,
-      resumeSessionId: options.resume,
+      continueSession: continueVal === true,
+      resumeSessionId: typeof continueVal === "string" ? continueVal : undefined,
       sessionName: options.name,
       autoApprove: options.yes,
     }, initialPrompt);

@@ -4,7 +4,7 @@ import type {
   ChatCompletionTool,
 } from "openai/resources/chat/completions";
 import { toolDefinitions, getMcpToolDefinitions } from "./tools/index.js";
-import { getSkillToolDefinitions, getCoreSkillToolDefinitions } from "./skills/index.js";
+import { getSkillToolDefinitions } from "./skills/index.js";
 import { executeTool } from "./tools/executor.js";
 import { shouldCompact, compactMessages, invalidateContextCache, trackToolMetadata } from "./context.js";
 import {
@@ -38,10 +38,9 @@ let _cachedToolDefs: ChatCompletionTool[] | null = null;
 
 function getCachedToolDefinitions(): ChatCompletionTool[] {
   if (_cachedToolDefs) return _cachedToolDefs;
-  const coreSkillTools = getCoreSkillToolDefinitions();
   const mcpTools = getMcpToolDefinitions();
   const userSkillTools = getSkillToolDefinitions();
-  _cachedToolDefs = [...coreSkillTools, ...toolDefinitions, ...mcpTools, ...userSkillTools] as ChatCompletionTool[];
+  _cachedToolDefs = [...toolDefinitions, ...mcpTools, ...userSkillTools] as ChatCompletionTool[];
   return _cachedToolDefs;
 }
 

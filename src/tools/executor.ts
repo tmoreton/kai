@@ -17,7 +17,6 @@ import { tryExecuteMcpTool } from "./mcp.js";
 import { tryExecuteSkillTool } from "../skills/executor.js";
 import { validateToolArgs } from "./validation.js";
 import { isToolAllowedInPlanMode, isPlanMode } from "../plan-mode.js";
-import { tryExecuteCoreSkillTool } from "../skills/index.js";
 import { takeScreenshot } from "./screenshot.js";
 import { analyzeImage } from "./vision.js";
 import { recordError } from "../error-tracker.js";
@@ -173,23 +172,17 @@ export async function executeTool(
       case "analyze_image":
         result = await analyzeImage(args as { image_path: string; question?: string }); break;
       default: {
-        // Check if it's a core skill tool (skill__id__tool)
-        const coreResult = await tryExecuteCoreSkillTool(name, args);
-        if (coreResult !== null) {
-          result = coreResult;
+        // Check if it's an MCP tool (mcp__server__tool)
+        const mcpResult = await tryExecuteMcpTool(name, args);
+        if (mcpResult !== null) {
+          result = mcpResult;
         } else {
-          // Check if it's an MCP tool (mcp__server__tool)
-          const mcpResult = await tryExecuteMcpTool(name, args);
-          if (mcpResult !== null) {
-            result = mcpResult;
+          // Check if it's a user skill tool (skill__id__tool from ~/.kai/skills/)
+          const skillResult = await tryExecuteSkillTool(name, args);
+          if (skillResult !== null) {
+            result = skillResult;
           } else {
-            // Check if it's a user skill tool (skill__id__tool from ~/.kai/skills/)
-            const skillResult = await tryExecuteSkillTool(name, args);
-            if (skillResult !== null) {
-              result = skillResult;
-            } else {
-              throw ToolError.unknown(name);
-            }
+            throw ToolError.unknown(name);
           }
         }
       }

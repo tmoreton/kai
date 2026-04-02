@@ -212,6 +212,11 @@ async function checkAndRetryFailedRuns(): Promise<void> {
     // Check consecutive failure count to avoid retry loops
     const failCount = getConsecutiveFailCount(run.agent_id);
     if (failCount >= MAX_AUTO_RETRIES) {
+      // Already notified recently — skip entirely (don't keep retrying auto-fix)
+      if (hasRecentNotification(run.agent_id, "agent_error", 24)) {
+        continue;
+      }
+
       // Try auto-fix before giving up
       const fixed = await attemptAutoFix(agent, run);
       if (fixed) {
@@ -236,18 +241,16 @@ async function checkAndRetryFailedRuns(): Promise<void> {
         continue;
       }
 
-      // Only notify once per 24h for the same agent/type (prevent spam)
-      if (!hasRecentNotification(run.agent_id, "agent_error", 24)) {
-        addLog(run.agent_id, "error", `Auto-retry disabled: ${failCount} consecutive failures. Manual intervention required.`);
-        createNotification({
-          type: "agent_error",
-          title: `${agent.name}: ${failCount} consecutive failures`,
-          body: `Last error: ${run.error || "unknown"}. Auto-retry stopped. Run manually with: kai agent run ${agent.id}`,
-          agentId: run.agent_id,
-          runId: run.id,
-        });
-        console.log(chalk.red(`  ✗ ${agent.name}: ${failCount} consecutive failures — auto-retry stopped`));
-      }
+      // Notify once — won't repeat for 24h thanks to hasRecentNotification check above
+      addLog(run.agent_id, "error", `Auto-retry disabled: ${failCount} consecutive failures. Manual intervention required.`);
+      createNotification({
+        type: "agent_error",
+        title: `${agent.name}: ${failCount} consecutive failures`,
+        body: `Last error: ${run.error || "unknown"}. Auto-retry stopped. Run manually with: kai agent run ${agent.id}`,
+        agentId: run.agent_id,
+        runId: run.id,
+      });
+      console.log(chalk.red(`  ✗ ${agent.name}: ${failCount} consecutive failures — auto-retry stopped`));
       continue;
     }
 

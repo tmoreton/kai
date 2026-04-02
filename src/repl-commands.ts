@@ -47,7 +47,6 @@ export const SLASH_COMMANDS = [
   { cmd: "/agent output", desc: "View output" },
   { cmd: "/notify", desc: "Agent notifications digest" },
   { cmd: "/notify --all", desc: "All notifications" },
-  { cmd: "/trends <id>", desc: "Show agent output trends" },
   { cmd: "/agent info", desc: "Agent details" },
   { cmd: "/skill", desc: "List installed skills" },
   { cmd: "/skill reload", desc: "Hot-reload all skills" },

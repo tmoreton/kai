@@ -543,7 +543,7 @@ export function hasRecentNotification(agentId: string, type: string, hours = 24)
   const db = getDb();
   const cutoff = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
   const row = db.prepare(
-    "SELECT COUNT(*) as count FROM notifications WHERE agent_id = ? AND type = ? AND created_at > ? AND read = 0"
+    "SELECT COUNT(*) as count FROM notifications WHERE agent_id = ? AND type = ? AND created_at > ?"
   ).get(agentId, type, cutoff) as any;
   return (row?.count || 0) > 0;
 }
