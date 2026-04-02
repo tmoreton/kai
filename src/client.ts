@@ -6,7 +6,7 @@ import type {
 import { toolDefinitions, getMcpToolDefinitions } from "./tools/index.js";
 import { getSkillToolDefinitions, getCoreSkillToolDefinitions } from "./skills/index.js";
 import { executeTool } from "./tools/executor.js";
-import { trackUsage, shouldCompact, compactMessages, checkBudget, invalidateContextCache, trackToolMetadata } from "./context.js";
+import { shouldCompact, compactMessages, invalidateContextCache, trackToolMetadata } from "./context.js";
 import {
   MAX_TOKENS,
   MAX_TOOL_TURNS,
@@ -104,12 +104,15 @@ export async function chat(
 
   let consecutiveErrors = 0;
   let lastFailedCall = "";
-  let budgetWarned = false;
+  let consecutiveFutile = 0; // Track consecutive no-result / empty tool calls
+  const MAX_FUTILE_TURNS = 4; // Break after N turns of getting nowhere
 
   // Repetition loop detection: track recent tool call signatures
   const recentToolSignatures: string[] = [];
+  const recentToolNames: string[] = []; // Track just tool names for fuzzy repetition
   const MAX_REPETITION_WINDOW = 8; // Look at last N tool calls
   const REPETITION_THRESHOLD = 3;  // Break if same signature appears this many times
+  const NAME_REPETITION_THRESHOLD = 4; // Break if same tool names called this many turns
 
   while (turns < maxTurns) {
     if (options?.signal?.aborted) {
@@ -192,16 +195,10 @@ export async function chat(
       id: string;
       function: { name: string; arguments: string };
     }>();
-    let chunkUsage: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number } | null = null;
-
     try {
       for await (const chunk of stream) {
         if (options?.signal?.aborted) break;
         const delta = chunk.choices?.[0]?.delta;
-
-        if (chunk.usage) {
-          chunkUsage = chunk.usage;
-        }
 
         if (!delta) continue;
 
@@ -280,25 +277,6 @@ export async function chat(
 
     // Collect accumulated tool calls from the index map
     const toolCalls = Array.from(toolCallMap.values());
-
-    if (chunkUsage) {
-      trackUsage(chunkUsage);
-    }
-
-    // Budget enforcement
-    const budget = checkBudget();
-    if (budget.status === "exceeded") {
-      console.log(chalk.red(`\n  ! Token budget exceeded (${budget.used.toLocaleString()} / ${budget.limit.toLocaleString()}). Stopping.\n`));
-      updatedMessages.push({
-        role: "assistant",
-        content: content || "[Session token budget exceeded. Please start a new session or increase budgetTokens in settings.]",
-      });
-      return updatedMessages;
-    }
-    if (budget.status === "warning" && !budgetWarned) {
-      budgetWarned = true;
-      console.log(chalk.yellow(`\n  ! Approaching token budget (${budget.used.toLocaleString()} / ${budget.limit.toLocaleString()})\n`));
-    }
 
     // Rescue leaked tool calls from content OR reasoning text
     const allText = content + "\n" + reasoning;
@@ -474,9 +452,16 @@ export async function chat(
       // Track metadata for compaction before executing
       for (const p of deduped) trackToolMetadata(p.toolName, p.args);
 
-      const dedupedResults = await Promise.allSettled(
-        deduped.map((p) => executeTool(p.toolName, p.args))
-      );
+      // Rate-limited parallel execution: max 5 concurrent to avoid hammering APIs/filesystem
+      const MAX_PARALLEL = 5;
+      const dedupedResults: PromiseSettledResult<string>[] = [];
+      for (let batch = 0; batch < deduped.length; batch += MAX_PARALLEL) {
+        const slice = deduped.slice(batch, batch + MAX_PARALLEL);
+        const batchResults = await Promise.allSettled(
+          slice.map((p) => executeTool(p.toolName, p.args))
+        );
+        dedupedResults.push(...batchResults);
+      }
 
       // Expand results back to match all original parsed entries (including duplicates)
       const results = parsed.map((_, i) => {
@@ -491,13 +476,14 @@ export async function chat(
           ? result.value
           : `Tool "${p.toolName}" failed: ${(result as PromiseRejectedResult).reason?.message || "Unknown error"}`;
 
-        // Display output
+        // Display output with truncation indicator
         const lines = resultStr.split("\n");
         if (lines.length > TOOL_OUTPUT_MAX_LINES) {
           console.log(chalk.gray(`    ⎿  ${formatToolLabel(p.toolName)}: ${lines.slice(0, TOOL_OUTPUT_PREVIEW_LINES).join("\n       ")}...`));
-          console.log(chalk.gray(`       (${lines.length} lines total)`));
+          console.log(chalk.gray(`       (${lines.length} lines total — truncated)`));
         } else if (resultStr.length > TOOL_OUTPUT_MAX_CHARS) {
           console.log(chalk.gray(`    ⎿  ${formatToolLabel(p.toolName)}: ${resultStr.substring(0, TOOL_OUTPUT_MAX_CHARS)}...`));
+          console.log(chalk.gray(`       (${resultStr.length} chars total — truncated)`));
         } else {
           console.log(chalk.gray(`    ⎿  ${formatToolLabel(p.toolName)}: ${resultStr}`));
         }
@@ -586,7 +572,7 @@ export async function chat(
         if (isSlow) {
           toolSpinner = setInterval(() => {
             if (!_userTyping) {
-              process.stderr.write(`\x1b[2K\r${chalk.dim(`    ${spinChars[si++ % spinChars.length]} Working...`)}`);
+              process.stderr.write(`\x1b[s\r\x1b[K${chalk.dim(`    ${spinChars[si++ % spinChars.length]} Working...`)}\x1b[u`);
             }
           }, 100);
         }
@@ -611,9 +597,10 @@ export async function chat(
           const lines = resultStr.split("\n");
           if (lines.length > TOOL_OUTPUT_MAX_LINES) {
             console.log(chalk.gray(`    ⎿  ${lines.slice(0, TOOL_OUTPUT_PREVIEW_LINES).join("\n       ")}...`));
-            console.log(chalk.gray(`       (${lines.length} lines total)`));
+            console.log(chalk.gray(`       (${lines.length} lines total — truncated)`));
           } else if (resultStr.length > TOOL_OUTPUT_MAX_CHARS) {
             console.log(chalk.gray(`    ⎿  ${resultStr.substring(0, TOOL_OUTPUT_MAX_CHARS)}...`));
+            console.log(chalk.gray(`       (${resultStr.length} chars total — truncated)`));
           } else {
             console.log(chalk.gray(`    ⎿  ${resultStr}`));
           }
@@ -680,6 +667,37 @@ export async function chat(
       }
     }
 
+    // Futile turn detection: check if all tool results in this turn were empty/no-match
+    const FUTILE_PATTERNS = [
+      "No files matched",
+      "No matches found",
+      "No matching",
+      "Invalid arguments for",
+      "Error: spawnSync",
+      "(no output)",
+    ];
+    const lastToolResults = updatedMessages
+      .slice(-toolCalls.length)
+      .filter((m) => m.role === "tool")
+      .map((m) => typeof m.content === "string" ? m.content : "");
+    const allFutile = lastToolResults.length > 0 && lastToolResults.every(
+      (r) => FUTILE_PATTERNS.some((p) => r.includes(p)) || r.trim() === ""
+    );
+    if (allFutile) {
+      consecutiveFutile++;
+    } else {
+      consecutiveFutile = 0;
+    }
+    if (consecutiveFutile >= MAX_FUTILE_TURNS) {
+      console.log(chalk.yellow(`\n  ! ${consecutiveFutile} consecutive turns with no useful results. Stopping.\n`));
+      updatedMessages.push({
+        role: "user",
+        content: `[SYSTEM: Your last ${consecutiveFutile} tool call turns all returned empty/no-match results. You appear stuck. STOP retrying and tell the user what you were trying to find and ask them for guidance. Do NOT continue with more glob/grep calls.]`,
+      });
+      consecutiveFutile = 0;
+      // Let model respond to summarize
+    }
+
     // Repetition loop detection: track tool call signatures for this turn
     const turnSignature = toolCalls
       .map((tc) => `${tc.function.name}:${tc.function.arguments.substring(0, 80)}`)
@@ -690,12 +708,27 @@ export async function chat(
       recentToolSignatures.shift();
     }
 
+    // Also track just tool names for fuzzy repetition detection
+    const turnToolNames = toolCalls.map((tc) => tc.function.name).sort().join("|");
+    recentToolNames.push(turnToolNames);
+    if (recentToolNames.length > MAX_REPETITION_WINDOW) {
+      recentToolNames.shift();
+    }
+
     // Check if the same signature has appeared too many times recently
     const signatureCounts = new Map<string, number>();
     for (const sig of recentToolSignatures) {
       signatureCounts.set(sig, (signatureCounts.get(sig) || 0) + 1);
     }
     const maxCount = Math.max(...signatureCounts.values());
+
+    // Also check tool-name-only repetition (catches varied garbage args)
+    const nameRepCounts = new Map<string, number>();
+    for (const names of recentToolNames) {
+      nameRepCounts.set(names, (nameRepCounts.get(names) || 0) + 1);
+    }
+    const maxNameCount = Math.max(...nameRepCounts.values());
+
     if (maxCount >= REPETITION_THRESHOLD) {
       console.log(chalk.yellow(`\n  ! Detected repetitive tool loop (same actions repeated ${maxCount} times). Stopping.\n`));
       updatedMessages.push({
@@ -703,6 +736,12 @@ export async function chat(
         content: `[SYSTEM: You are stuck in a repetitive loop — you have called the same tools ${maxCount} times. STOP and summarize what you accomplished and what issues remain. Do NOT continue retrying. Ask the user if they want you to proceed differently.]`,
       });
       // Let the model respond one more time to summarize, then the text-only path will return
+    } else if (maxNameCount >= NAME_REPETITION_THRESHOLD && consecutiveFutile >= 2) {
+      console.log(chalk.yellow(`\n  ! Same tools called ${maxNameCount} times with no useful results. Stopping.\n`));
+      updatedMessages.push({
+        role: "user",
+        content: `[SYSTEM: You have called the same types of tools (${turnToolNames}) ${maxNameCount} times without getting useful results. The patterns/arguments you're using appear to be malformed. STOP and ask the user for help. Do NOT retry.]`,
+      });
     }
   }
 

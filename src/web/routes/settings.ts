@@ -59,7 +59,6 @@ export function registerSettingsRoutes(app: Hono) {
     try {
       const updates = await c.req.json();
       const allowed: Record<string, any> = {};
-      if ("budgetTokens" in updates) allowed.budgetTokens = updates.budgetTokens;
       if ("autoCompact" in updates) allowed.autoCompact = updates.autoCompact;
       if ("maxTokens" in updates) allowed.maxTokens = updates.maxTokens;
 

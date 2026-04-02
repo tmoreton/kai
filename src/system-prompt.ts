@@ -215,7 +215,6 @@ The user has these slash commands available in the REPL. When relevant, suggest 
 **Session & Context:**
 - \`/clear\` — Clear conversation history
 - \`/compact\` — Compress context to save tokens
-- \`/cost\` — Show token usage + context breakdown
 - \`/export [path]\` — Export session to markdown file
 - \`/plan\` — Toggle plan mode (restricts you to read-only tools until toggled off)
 - \`/sessions\` — List recent sessions

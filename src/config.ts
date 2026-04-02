@@ -29,9 +29,6 @@ export interface KaiConfig {
   maxTokens?: number;
   temperature?: number;
   mcp?: McpConfig;
-  /** Maximum token budget per session. Warns at 80%, stops at 100%. */
-  budgetTokens?: number;
-
   // Provider endpoints (defaults used if omitted)
   fireworksBaseUrl?: string;
   openrouterBaseUrl?: string;

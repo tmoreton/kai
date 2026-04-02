@@ -1,5 +1,4 @@
 import type { ChatCompletionMessageParam } from "openai/resources/chat/completions";
-import chalk from "chalk";
 import {
   MAX_CONTEXT_TOKENS,
   COMPACT_THRESHOLD,
@@ -84,54 +83,6 @@ function messageTokens(msg: ChatCompletionMessageParam): number {
   return Math.ceil(textLength / 4) + (imageCount * 1000) + 4; // message overhead
 }
 
-export interface TokenUsage {
-  promptTokens: number;
-  completionTokens: number;
-  totalTokens: number;
-  estimatedContextTokens: number;
-  apiCalls: number;
-}
-
-const usage: TokenUsage = {
-  promptTokens: 0,
-  completionTokens: 0,
-  totalTokens: 0,
-  estimatedContextTokens: 0,
-  apiCalls: 0,
-};
-
-export function getUsage(): TokenUsage {
-  return { ...usage };
-}
-
-export function trackUsage(apiUsage: {
-  prompt_tokens?: number;
-  completion_tokens?: number;
-  total_tokens?: number;
-}) {
-  usage.promptTokens += apiUsage.prompt_tokens || 0;
-  usage.completionTokens += apiUsage.completion_tokens || 0;
-  usage.totalTokens += apiUsage.total_tokens || 0;
-  usage.apiCalls += 1;
-}
-
-export type BudgetStatus = "ok" | "warning" | "exceeded";
-
-/**
- * Check if the session has exceeded its token budget.
- * Returns "ok", "warning" (>80%), or "exceeded" (>100%).
- */
-export function checkBudget(): { status: BudgetStatus; used: number; limit: number } {
-  const config = getConfig();
-  const limit = config.budgetTokens || 0;
-  if (!limit) return { status: "ok", used: usage.totalTokens, limit: 0 };
-
-  const used = usage.totalTokens;
-  if (used >= limit) return { status: "exceeded", used, limit };
-  if (used >= limit * 0.8) return { status: "warning", used, limit };
-  return { status: "ok", used, limit };
-}
-
 // Memoized context size: avoid O(n) rescan when message count hasn't changed
 let _cachedContextSize = 0;
 let _cachedMessageCount = -1;
@@ -150,7 +101,6 @@ export function estimateContextSize(
   }
   // Add ~5000 for tool definitions (always sent)
   total += 5000;
-  usage.estimatedContextTokens = total;
 
   _cachedContextSize = total;
   _cachedMessageCount = messages.length;
@@ -305,62 +255,3 @@ export function compactMessages(
   ];
 }
 
-export function formatCost(): string {
-  const u = getUsage();
-
-  return [
-    chalk.bold("  Token Usage:"),
-    chalk.dim(`    Input:      ${u.promptTokens.toLocaleString()} tokens`),
-    chalk.dim(`    Output:     ${u.completionTokens.toLocaleString()} tokens`),
-    chalk.dim(`    Total:      ${u.totalTokens.toLocaleString()} tokens`),
-    chalk.dim(`    API calls:  ${u.apiCalls}`),
-    chalk.dim(`    Context:    ~${u.estimatedContextTokens.toLocaleString()} / ${MAX_CONTEXT_TOKENS.toLocaleString()} tokens`),
-  ].join("\n");
-}
-
-export function formatContextBreakdown(
-  messages: ChatCompletionMessageParam[]
-): string {
-  let systemTokens = 0;
-  let userTokens = 0;
-  let assistantTokens = 0;
-  let toolTokens = 0;
-  const toolDefinitionTokens = 5000; // Estimated constant
-
-  for (const msg of messages) {
-    const tokens = messageTokens(msg);
-    switch (msg.role) {
-      case "system":
-        systemTokens += tokens;
-        break;
-      case "user":
-        userTokens += tokens;
-        break;
-      case "assistant":
-        assistantTokens += tokens;
-        break;
-      case "tool":
-        toolTokens += tokens;
-        break;
-    }
-  }
-
-  const total = systemTokens + userTokens + assistantTokens + toolTokens + toolDefinitionTokens;
-  const pct = (n: number) => ((n / total) * 100).toFixed(0);
-  const bar = (n: number) => {
-    const filled = Math.round((n / total) * 30);
-    return "█".repeat(filled) + "░".repeat(30 - filled);
-  };
-
-  return [
-    chalk.bold("\n  Context Breakdown:"),
-    chalk.dim(`    System prompt: ${systemTokens.toLocaleString()} tokens (${pct(systemTokens)}%) ${bar(systemTokens)}`),
-    chalk.dim(`    Tool defs:     ${toolDefinitionTokens.toLocaleString()} tokens (${pct(toolDefinitionTokens)}%) ${bar(toolDefinitionTokens)}`),
-    chalk.dim(`    User msgs:     ${userTokens.toLocaleString()} tokens (${pct(userTokens)}%) ${bar(userTokens)}`),
-    chalk.dim(`    Assistant:     ${assistantTokens.toLocaleString()} tokens (${pct(assistantTokens)}%) ${bar(assistantTokens)}`),
-    chalk.dim(`    Tool outputs:  ${toolTokens.toLocaleString()} tokens (${pct(toolTokens)}%) ${bar(toolTokens)}`),
-    chalk.dim(`    ─────────────`),
-    chalk.dim(`    Total:         ~${total.toLocaleString()} / ${MAX_CONTEXT_TOKENS.toLocaleString()} tokens (${pct(total)}%)`),
-    "",
-  ].join("\n");
-}

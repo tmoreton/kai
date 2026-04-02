@@ -8,7 +8,7 @@ import { getModelId, summarizeArgs, rescueToolCallsFromText } from "../client.js
 import { toolDefinitions, getMcpToolDefinitions } from "../tools/index.js";
 import { getSkillToolDefinitions } from "../skills/index.js";
 import { executeTool } from "../tools/executor.js";
-import { trackUsage, shouldCompact, compactMessages } from "../context.js";
+import { shouldCompact, compactMessages } from "../context.js";
 import {
   MAX_TOKENS,
   MAX_TOOL_TURNS,
@@ -24,7 +24,7 @@ import { getCwd } from "../tools/bash.js";
 import {
   generateSessionId,
   type Session,
-} from "../sessions.js";
+} from "../sessions/manager.js";
 
 export function createNewSession(): Session {
   return {
@@ -130,14 +130,11 @@ export async function chatForWeb(
       id: string;
       function: { name: string; arguments: string };
     }>();
-    let chunkUsage: any = null;
-
     try {
       for await (const chunk of stream) {
         if (signal?.aborted) break;
 
         const delta = chunk.choices[0]?.delta;
-        if (chunk.usage) chunkUsage = chunk.usage;
         if (!delta) continue;
 
         let text = delta.content;
@@ -179,8 +176,6 @@ export async function chatForWeb(
     }
 
     const toolCalls = Array.from(toolCallMap.values());
-    if (chunkUsage) trackUsage(chunkUsage);
-
     // Rescue tool calls leaked as text
     if (toolCalls.length === 0 && (content.includes("<|tool_call_begin|>") || content.includes("<function=") || content.includes("functions."))) {
       const rescued = rescueToolCallsFromText(content);

@@ -14,8 +14,11 @@ import {
   loadSession,
   getMostRecentSession,
   cleanupSessions,
+  autoCompact,
+  formatSessionList,
+  listSessions,
   type Session,
-} from "./sessions.js";
+} from "./sessions/manager.js";
 import { appendRecall, type RecallEntry } from "./recall.js";
 import fs from "fs";
 import path from "path";
@@ -32,6 +35,7 @@ import { autoRoute, applyRoute } from "./auto-route.js";
 import { resolveFilePath, expandHome } from "./utils.js";
 import { bootstrapBuiltinAgents } from "./agents/bootstrap.js";
 import { SLASH_COMMANDS, handleCommand } from "./repl-commands.js";
+import { startSpinner, stopSpinner, renderToolCard, renderAssistantMarker, clearLine, COLOR_THEME, MarkdownStreamBuffer } from "./render/stream.js";
 
 const IMAGE_EXTS = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"]);
 const MIME_MAP: Record<string, string> = {
@@ -131,9 +135,6 @@ export async function startRepl(options: ReplOptions = {}, initialPrompt?: strin
   if (gitSummary) console.log(chalk.dim(`  git:         ${gitSummary}`));
   console.log(chalk.dim(`  session:     ${session.name || session.id}`));
   console.log(chalk.dim(`  permissions: ${getPermissionMode()}`));
-  if ((kaiConfig as any).budgetTokens) {
-    console.log(chalk.dim(`  budget:      ${((kaiConfig as any).budgetTokens as number).toLocaleString()} tokens`));
-  }
   // Show MCP server count if any are configured
   try {
     const { getMcpToolDefinitions } = await import("./tools/index.js");
@@ -292,40 +293,62 @@ export async function startRepl(options: ReplOptions = {}, initialPrompt?: strin
         messages.push({ role: "user", content: routeHint });
       }
 
-      const streamTokens: string[] = [];
-      let streamLineCount = 0;
+      // Check for auto-compaction before chatting
+      const compactResult = autoCompact(session);
+      if (compactResult.compacted) {
+        messages = session.messages;
+        console.log(chalk.dim(`📦 Session compacted from ${compactResult.stats?.estimatedTokens.toLocaleString()} to ${Math.round((compactResult.stats?.estimatedTokens || 0) * 0.7).toLocaleString()} tokens\n`));
+      }
+
       let firstResponseToken = true;
+      const streamBuffer = new MarkdownStreamBuffer();
+
+      // Start spinner for thinking phase
+      let thinkingSpinner: ReturnType<typeof startSpinner> | null = null;
+      thinkingSpinner = startSpinner("thinking...", (text) => {
+        process.stderr.write(text);
+      });
 
       chatAbort = new AbortController();
       const updatedMessages = await chat(client, messages, (token) => {
         if (firstResponseToken && token.trim()) {
-          process.stdout.write(chalk.cyan("⏺ "));
+          if (thinkingSpinner) {
+            stopSpinner(thinkingSpinner, null);
+          }
+          renderAssistantMarker();
           firstResponseToken = false;
         }
-        streamTokens.push(token);
-        process.stdout.write(token);
-        // Track newlines for re-render
-        for (const ch of token) {
-          if (ch === "\n") streamLineCount++;
+        // Buffer tokens and flush rendered markdown at safe boundaries
+        const rendered = streamBuffer.push(token);
+        if (rendered) {
+          process.stdout.write(rendered);
         }
       }, { signal: chatAbort.signal });
 
-      // Re-render the final assistant content with markdown formatting
-      const lastMsg = updatedMessages[updatedMessages.length - 1];
-      if (lastMsg?.role === "assistant" && typeof lastMsg.content === "string" && lastMsg.content.trim()) {
-        // Move cursor up to overwrite raw streamed text, then render markdown
-        if (streamLineCount > 0) {
-          process.stdout.write(`\x1b[${streamLineCount + 1}A\x1b[0J`);
-        } else {
-          process.stdout.write("\r\x1b[0J");
-        }
-        process.stdout.write(renderMarkdown(lastMsg.content));
+      // Stop spinner if still running (no tokens received)
+      if (thinkingSpinner && firstResponseToken) {
+        stopSpinner(thinkingSpinner, null);
+      }
+
+      // Flush any remaining buffered content
+      const remaining = streamBuffer.flush();
+      if (remaining) {
+        process.stdout.write(remaining);
       }
 
       messages.length = 0;
       messages.push(...updatedMessages);
 
       process.stdout.write("\n");
+
+      // Show token budget inline after each response
+      const contextTokens = estimateContextSize(messages);
+      const MAX_CTX = 256_000;
+      const ctxK = Math.round(contextTokens / 1000);
+      const maxK = Math.round(MAX_CTX / 1000);
+      const pct = Math.round((contextTokens / MAX_CTX) * 100);
+      const ctxColor = pct > 80 ? chalk.yellow : pct > 60 ? chalk.dim : chalk.dim;
+      console.log(ctxColor(`  [${ctxK}k / ${maxK}k tokens · ${pct}%]`));
 
       const taskDisplay = getTasksForDisplay();
       if (taskDisplay) console.log(taskDisplay + "\n");

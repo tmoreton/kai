@@ -10,7 +10,7 @@ import {
   listSessions,
   deleteSession,
   type Session,
-} from "../../sessions.js";
+} from "../../sessions/manager.js";
 
 export function registerSessionRoutes(app: Hono) {
   app.get("/api/sessions", (c) => {
@@ -26,7 +26,10 @@ export function registerSessionRoutes(app: Hono) {
 
     return c.json(
       sessions.map((s) => {
-        const firstUserMsg = s.messages.find((m) => {
+        // Load full session for preview extraction
+        const full = loadSession(s.id);
+        const msgs = full?.messages || [];
+        const firstUserMsg = msgs.find((m: any) => {
           if (m.role !== "user") return false;
           const text = typeof m.content === "string" ? m.content
             : Array.isArray(m.content) ? m.content.map((p: any) => p.type === "text" ? p.text : "").join("") : "";
@@ -43,10 +46,10 @@ export function registerSessionRoutes(app: Hono) {
           name: s.name,
           type: s.type || "chat",
           preview,
-          cwd: s.cwd,
+          cwd: full?.cwd || "",
           createdAt: s.createdAt,
           updatedAt: s.updatedAt,
-          messageCount: s.messages.filter((m) => m.role === "user").length,
+          messageCount: Math.floor(s.messageCount / 2),
         };
       })
     );
@@ -114,16 +117,20 @@ export function registerSessionRoutes(app: Hono) {
       const sessionType = s.type || "code";
       if (sessionType !== "code") continue;
 
-      const cwd = s.cwd || "unknown";
+      // Load full session for cwd and message details
+      const full = loadSession(s.id);
+      if (!full) continue;
+
+      const cwd = full.cwd || "unknown";
       if (!projectMap.has(cwd)) {
         const name = cwd.split("/").filter(Boolean).pop() || cwd;
         projectMap.set(cwd, { cwd, name, sessionCount: 0, lastActive: s.updatedAt, sessions: [] });
       }
       const proj = projectMap.get(cwd)!;
-      const userMsgCount = s.messages.filter((m) => m.role === "user").length;
+      const userMsgCount = full.messages.filter((m: any) => m.role === "user").length;
       if (userMsgCount === 0) continue;
 
-      const firstUserMsg = s.messages.find((m) => {
+      const firstUserMsg = full.messages.find((m: any) => {
         if (m.role !== "user") return false;
         const text = typeof m.content === "string" ? m.content
           : Array.isArray(m.content) ? m.content.map((p: any) => p.type === "text" ? p.text : "").join("") : "";

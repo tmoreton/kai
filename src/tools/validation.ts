@@ -33,13 +33,25 @@ export const editFileSchema = z.object({
   replace_all: z.boolean().optional(),
 });
 
+// Reject glob patterns that are clearly garbage (single punctuation, JSON fragments)
+const saneGlobPattern = z.string().min(1, "pattern is required").refine(
+  (p) => /[a-zA-Z0-9*?/]/.test(p),
+  "pattern must contain at least one alphanumeric character, wildcard (*/?), or path separator (/)"
+);
+
 export const globSchema = z.object({
-  pattern: z.string().min(1, "pattern is required"),
+  pattern: saneGlobPattern,
   path: z.string().optional(),
 });
 
+// Reject grep patterns that are just punctuation fragments
+const saneGrepPattern = z.string().min(1, "pattern is required").refine(
+  (p) => p.length >= 2 || /[a-zA-Z0-9]/.test(p),
+  "pattern too short or contains no useful characters"
+);
+
 export const grepSchema = z.object({
-  pattern: z.string().min(1, "pattern is required"),
+  pattern: saneGrepPattern,
   path: z.string().optional(),
   include: z.string().optional(),
   context: z.number().int().min(0).optional(),

@@ -13,7 +13,6 @@ import { getConfig } from "../config.js";
 import { getCwd } from "../tools/bash.js";
 import { initMcpServers } from "../tools/index.js";
 import { setPermissionMode } from "../permissions.js";
-import { getUsage } from "../context.js";
 import {
   isDaemonRunning,
   startDaemon,
@@ -104,7 +103,6 @@ export async function startServer(options: ServerOptions): Promise<void> {
       daemonInProcess: daemonStartedInProcess,
       agents: agents,
       ui: ui,
-      usage: getUsage(),
       tailscale: tailscale,
       funnel: funnel,
     });

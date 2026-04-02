@@ -14,7 +14,7 @@ import {
   listSessions,
   formatSessionList,
   type Session,
-} from "./sessions.js";
+} from "./sessions/manager.js";
 import { getRecallStats } from "./recall.js";
 import { loadSoul } from "./soul.js";
 import fs from "fs";
@@ -200,7 +200,7 @@ export async function exportSession(session: Session, outputPath?: string): Prom
       const content = typeof msg.content === "string"
         ? msg.content
         : Array.isArray(msg.content)
-          ? msg.content.map((c) => ("text" in c ? c.text : "[image]")).join("\n")
+          ? msg.content.map((c: any) => ("text" in c ? c.text : "[image]")).join("\n")
           : "";
       // Skip system injections
       if (content.startsWith("[SYSTEM:")) continue;

@@ -23,7 +23,7 @@ import {
   saveSession,
   findSessionByPersona,
   type Session,
-} from "../../sessions.js";
+} from "../../sessions/manager.js";
 import { getCwd } from "../../tools/bash.js";
 import { ensureKaiDir } from "../../config.js";
 import { ensureGlobalDir } from "../../project.js";

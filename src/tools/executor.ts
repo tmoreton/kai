@@ -9,6 +9,7 @@ import { runSwarm, handleScratchpadTool } from "../swarm.js";
 import { loadPersona, updatePersonaField, listPersonas, createPersona } from "../agent-persona.js";
 import { checkPermission } from "../permissions.js";
 import { runBeforeHooks, runAfterHooks } from "../hooks.js";
+import { ToolError, PermissionError } from "../errors.js";
 import { updateCoreMemory, readCoreMemory } from "../soul.js";
 import { searchRecall } from "../recall.js";
 import { archivalInsert, archivalSearch } from "../archival.js";
@@ -28,25 +29,25 @@ export async function executeTool(
 ): Promise<ToolResult> {
   // Plan mode check — block write operations
   if (!isToolAllowedInPlanMode(name)) {
-    return `Blocked: "${name}" is not allowed in plan mode. Only read-only tools are available. Present your plan to the user and ask them to approve it before making changes. They can type /plan to exit plan mode.`;
+    throw new PermissionError(name, "plan_mode", `Blocked: "${name}" is not allowed in plan mode. Only read-only tools are available. Present your plan to the user and ask them to approve it before making changes. They can type /plan to exit plan mode.`);
   }
 
   // Validate tool arguments with Zod
   const validation = validateToolArgs(name, args);
   if (!validation.valid) {
-    return `Invalid arguments for ${name}: ${validation.error}`;
+    throw ToolError.validationFailed(name, validation.error!);
   }
   args = validation.args;
 
   const permission = await checkPermission(name, args);
   if (permission === "deny") {
-    return `Permission denied for ${name}. The user blocked this action.`;
+    throw new PermissionError(name, "user", `Permission denied for ${name}. The user blocked this action.`);
   }
 
   // Run before-hooks — can deny execution
   const beforeHook = await runBeforeHooks(name, args);
   if (!beforeHook.allowed) {
-    return `Hook denied ${name}: ${beforeHook.reason || "blocked by before-hook"}`;
+    throw new PermissionError(name, "hook", `Hook denied ${name}: ${beforeHook.reason || "blocked by before-hook"}`);
   }
 
   let result: string;
@@ -186,15 +187,20 @@ export async function executeTool(
             if (skillResult !== null) {
               result = skillResult;
             } else {
-              result = `Unknown tool: ${name}`;
+              throw ToolError.unknown(name);
             }
           }
         }
       }
     }
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
-    result = `Tool "${name}" failed: ${msg}`;
+    // Rethrow typed errors (permission, validation) — they carry structured context
+    if (err instanceof PermissionError || err instanceof ToolError) {
+      result = err.message;
+    } else {
+      const msg = err instanceof Error ? err.message : String(err);
+      result = `Tool "${name}" failed: ${msg}`;
+    }
   }
 
   // Run after-hooks — can override output
