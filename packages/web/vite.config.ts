@@ -110,20 +110,7 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     sourcemap: true,
-    rollupOptions: {
-      output: {
-        manualChunks: (id: string) => {
-          // Separate vendor chunks for better caching
-          if (id.includes('react') || id.includes('react-dom') || id.includes('react-router-dom')) {
-            return 'react-vendor';
-          }
-          if (id.includes('@radix-ui') || id.includes('class-variance-authority') || id.includes('clsx') || id.includes('tailwind-merge')) {
-            return 'ui-vendor';
-          }
-          return null;
-        },
-      },
-    },
-    chunkSizeWarningLimit: 500, // Warn if chunks exceed 500kb
+    // Disabled code splitting - all routes bundled together to prevent chunk loading errors
+    chunkSizeWarningLimit: 1000, // Increased since we're bundling more together
   },
 })

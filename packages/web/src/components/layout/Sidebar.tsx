@@ -5,7 +5,6 @@ import {
   MessageSquare,
   Bot,
   Code,
-  FileText,
   Settings,
   Bell,
   Plus,
@@ -336,13 +335,6 @@ export function Sidebar() {
         </SidebarSection>
 
         {/* Static sections */}
-        <SidebarItem
-          to="/docs"
-          icon={<FileText className="w-4 h-4" />}
-          label="Docs"
-          active={isActive('/docs')}
-        />
-
         <SidebarItem
           to="/settings"
           icon={<Settings className="w-4 h-4" />}
