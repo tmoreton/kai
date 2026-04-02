@@ -60,6 +60,7 @@ export interface ReplOptions {
   resumeSessionId?: string;
   sessionName?: string;
   autoApprove?: boolean;
+  unleash?: boolean;
 }
 
 export async function startRepl(options: ReplOptions = {}, initialPrompt?: string): Promise<void> {
@@ -358,7 +359,7 @@ export async function startRepl(options: ReplOptions = {}, initialPrompt?: strin
         if (rendered) {
           process.stdout.write(rendered);
         }
-      }, { signal: chatAbort.signal });
+      }, { signal: chatAbort.signal, unleash: options.unleash });
 
       // Stop spinner if still running (no tokens received)
       if (thinkingSpinner && firstResponseToken) {

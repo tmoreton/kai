@@ -29,6 +29,7 @@ program
   .option("-c, --continue [id]", "Continue most recent session, or a specific session by ID")
   .option("-n, --name <name>", "Name for the session")
   .option("-y, --yes", "Auto-approve all tool calls")
+  .option("--yolo", "Disable tool turn limits and stopping guards")
   .action(async (promptArg, options) => {
     let pipedInput = "";
     if (!process.stdin.isTTY) {
@@ -47,6 +48,7 @@ program
       resumeSessionId: typeof continueVal === "string" ? continueVal : undefined,
       sessionName: options.name,
       autoApprove: options.yes,
+      unleash: options.yolo,
     }, initialPrompt);
   });
 
@@ -67,10 +69,10 @@ program
     if (!options.skipBuild) {
       const { execSync } = await import("child_process");
       const projectRoot = new URL("../", import.meta.url).pathname;
-      console.log("  Cleaning dist...");
-      execSync("rm -rf dist", { cwd: projectRoot, stdio: "inherit" });
-      console.log("  Building...");
-      execSync("npm run build", { cwd: projectRoot, stdio: "inherit" });
+      console.log("  Building web app...");
+      execSync("npm run build:web", { cwd: projectRoot, stdio: "inherit" });
+      console.log("  Building server...");
+      execSync("npm run build:server", { cwd: projectRoot, stdio: "inherit" });
       // Re-exec with --skip-build so Node loads the freshly compiled code
       // instead of using stale cached modules from before the rebuild
       const args = process.argv.slice(2).filter(a => a !== "--skip-build");

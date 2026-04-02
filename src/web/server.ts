@@ -30,7 +30,8 @@ import { registerSettingsRoutes } from "./routes/settings.js";
 import { registerChatRoutes } from "./routes/chat.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const publicDir = path.resolve(__dirname, "public");
+// Serve the new web app from packages/web/dist
+const publicDir = path.resolve(__dirname, "../../packages/web/dist");
 
 // Track whether we started the daemon in-process
 let daemonStartedInProcess = false;

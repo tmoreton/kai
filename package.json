@@ -13,8 +13,11 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "tsc && rm -rf dist/web/public && cp -r src/web/public dist/web/public && rm -rf dist/agents/builtin-workflows && mkdir -p dist/agents/builtin-workflows && cp src/agents/builtin-workflows/*.yaml dist/agents/builtin-workflows/ && rm -rf dist/skills/builtins && mkdir -p dist/skills/builtins && cp -r src/skills/builtins/* dist/skills/builtins/ && chmod +x dist/index.js",
+    "build": "npm run build:web && npm run build:server",
+    "build:server": "tsc && rm -rf dist/agents/builtin-workflows && mkdir -p dist/agents/builtin-workflows && cp src/agents/builtin-workflows/*.yaml dist/agents/builtin-workflows/ && rm -rf dist/skills/builtins && mkdir -p dist/skills/builtins && cp -r src/skills/builtins/* dist/skills/builtins/ && chmod +x dist/index.js",
+    "build:web": "cd packages/web && npm install --legacy-peer-deps && npm run build",
     "dev": "tsx src/index.ts",
+    "dev:web": "cd packages/web && npm run dev",
     "start": "npm run build && node dist/index.js",
     "prepublishOnly": "npm run build",
     "test": "vitest run",

@@ -86,11 +86,16 @@ export async function chat(
   client: OpenAI,
   messages: ChatCompletionMessageParam[],
   onToken?: (token: string) => void,
-  options?: { tools?: ChatCompletionTool[]; maxTurns?: number; signal?: AbortSignal }
+  options?: { tools?: ChatCompletionTool[]; maxTurns?: number; signal?: AbortSignal; unleash?: boolean }
 ): Promise<ChatCompletionMessageParam[]> {
   const activeTools = options?.tools ?? getCachedToolDefinitions();
-  const maxTurns = options?.maxTurns ?? MAX_TOOL_TURNS;
+  const unleash = options?.unleash ?? false;
+  const maxTurns = unleash ? Infinity : (options?.maxTurns ?? MAX_TOOL_TURNS);
   const updatedMessages = [...messages];
+
+  if (unleash) {
+    console.log(chalk.magenta("  ⚡ Unleash mode: tool turn limits and stopping guards disabled.\n"));
+  }
 
   // Auto-compact if context is getting large
   if (shouldCompact(updatedMessages)) {
@@ -106,14 +111,14 @@ export async function chat(
   let consecutiveErrors = 0;
   let lastFailedCall = "";
   let consecutiveFutile = 0; // Track consecutive no-result / empty tool calls
-  const MAX_FUTILE_TURNS = 4; // Break after N turns of getting nowhere
+  const MAX_FUTILE_TURNS = unleash ? Infinity : 4; // Break after N turns of getting nowhere
 
   // Repetition loop detection: track recent tool call signatures
   const recentToolSignatures: string[] = [];
   const recentToolNames: string[] = []; // Track just tool names for fuzzy repetition
   const MAX_REPETITION_WINDOW = 8; // Look at last N tool calls
-  const REPETITION_THRESHOLD = 3;  // Break if same signature appears this many times
-  const NAME_REPETITION_THRESHOLD = 4; // Break if same tool names called this many turns
+  const REPETITION_THRESHOLD = unleash ? Infinity : 3;  // Break if same signature appears this many times
+  const NAME_REPETITION_THRESHOLD = unleash ? Infinity : 4; // Break if same tool names called this many turns
 
   while (turns < maxTurns) {
     if (options?.signal?.aborted) {
@@ -316,7 +321,7 @@ export async function chat(
     }
 
     // Nudge the model when approaching the turn limit
-    if (turns === maxTurns - 5) {
+    if (!unleash && turns === maxTurns - 5) {
       updatedMessages.push({
         role: "user",
         content: "[SYSTEM: You are approaching the tool call limit. Wrap up your current task and provide a summary to the user. Do not start new work.]",
@@ -649,15 +654,19 @@ export async function chat(
         }
 
         // Check if tool result contains an image (from screenshot/read_file)
+        // Instead of inlining base64 (which bloats context), analyze via vision model
+        // and return the text description to keep context lean
         const imageToolResult = tryParseImageResult(contextContent);
         if (imageToolResult) {
+          const { analyzeImage } = await import("./tools/vision.js");
+          const description = await analyzeImage({
+            image_path: imageToolResult.path,
+            question: "Describe this screenshot in detail. Include any text, UI elements, errors, or notable visual content.",
+          });
           updatedMessages.push({
             role: "tool",
             tool_call_id: p.tc.id,
-            content: [
-              { type: "text", text: `Image: ${imageToolResult.path} (${imageToolResult.size_kb} KB)` },
-              { type: "image_url", image_url: { url: imageToolResult.data_url } },
-            ] as any,
+            content: `[Screenshot: ${imageToolResult.path} (${imageToolResult.size_kb} KB)]\n\n${description}`,
           });
         } else {
           updatedMessages.push({
@@ -668,7 +677,7 @@ export async function chat(
         }
 
         // Circuit breaker: too many consecutive errors
-        if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
+        if (!unleash && consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
           console.log(chalk.yellow(`\n  ! ${MAX_CONSECUTIVE_ERRORS} consecutive errors. Stopping tool loop.\n`));
           updatedMessages.push({
             role: "user",
@@ -926,34 +935,24 @@ export function rescueToolCallsFromText(
  */
 function tryParseImageResult(
   result: string
-): { path: string; size_kb: number; data_url: string } | null {
+): { path: string; size_kb: number } | null {
   try {
     const parsed = JSON.parse(result);
 
-    // Case 1: Screenshot tool returns JSON with type: "image_result"
-    if (parsed?.type === "image_result" && parsed.data_url && parsed.path) {
-      return parsed;
-    }
-
-    // Case 2: Browser skill screenshot returns { screenshot_base64, size_bytes, ... }
-    if (parsed?.screenshot_base64) {
-      return {
-        path: parsed.url || parsed.title || "browser screenshot",
-        size_kb: Math.round((parsed.size_bytes || 0) / 1024),
-        data_url: `data:image/png;base64,${parsed.screenshot_base64}`,
-      };
+    // Case 1: Screenshot / browser screenshot returns JSON with type: "image_result"
+    if (parsed?.type === "image_result" && parsed.path) {
+      return { path: parsed.path, size_kb: parsed.size_kb || 0 };
     }
   } catch {
     // Not JSON — check other formats
   }
 
-  // Case 3: read_file returns "[IMAGE: path (size KB)]\ndata:..." format
-  const imageMatch = result.match(/^\[IMAGE: (.+?) \((\d+) KB\)\]\n(data:image\/[^;]+;base64,.+)$/s);
+  // Case 2: read_file returns "[IMAGE: path (size KB)]\ndata:..." format
+  const imageMatch = result.match(/^\[IMAGE: (.+?) \((\d+) KB\)\]/);
   if (imageMatch) {
     return {
       path: imageMatch[1],
       size_kb: parseInt(imageMatch[2], 10),
-      data_url: imageMatch[3],
     };
   }
 
