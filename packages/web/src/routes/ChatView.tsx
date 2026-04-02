@@ -541,7 +541,7 @@ export function ChatView() {
               <button
                 onClick={handleSend}
                 disabled={(!input.trim() && attachments.length === 0) || (!!error && !error.recoverable)}
-                className="p-2 rounded-full bg-kai-text text-white hover:bg-primary/90 disabled:opacity-40 flex-shrink-0"
+                className="p-2 rounded-full bg-primary text-white hover:bg-primary/90 disabled:opacity-40 flex-shrink-0"
               >
                 <Send className="w-5 h-5" />
               </button>
