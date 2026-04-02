@@ -230,7 +230,7 @@ export function NotificationsView() {
                   {expandedId === notification.id ? (
                     <div className="text-muted-foreground leading-relaxed">
                       {notification.message}
-                      {notification.attachments && notification.attachments.length > 0 && (
+                      {notification.attachments && Array.isArray(notification.attachments) && notification.attachments.length > 0 && (
                         <div className="flex flex-wrap gap-2 mt-4">
                           {notification.attachments.map((att, i) => (
                             <a
