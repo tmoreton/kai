@@ -51,9 +51,10 @@ export function ChatView() {
 
   // Only fetch session if we have a sessionId, otherwise it's a new chat
   const { data: session, isError: isSessionError, error: sessionError } = useQuery({
-    ...sessionsQueries.detail(sessionId || ''),
+    queryKey: ['session', sessionId],
+    queryFn: () => api.sessions.get(sessionId!),
     retry: 3,
-    enabled: !!sessionId, // Only fetch if we have a sessionId
+    enabled: !!sessionId && sessionId !== 'new',
   });
 
   // Handle session loading errors

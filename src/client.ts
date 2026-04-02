@@ -320,11 +320,12 @@ export async function chat(
       }
     }
 
-    // Nudge the model when approaching the turn limit
-    if (!unleash && turns === maxTurns - 5) {
+    // Nudge the model when approaching the turn limit — but don't tell it to stop,
+    // just inform it so it can prioritize remaining work
+    if (!unleash && turns === maxTurns - 3) {
       updatedMessages.push({
         role: "user",
-        content: "[SYSTEM: You are approaching the tool call limit. Wrap up your current task and provide a summary to the user. Do not start new work.]",
+        content: "[SYSTEM: You are approaching the tool call limit. Prioritize finishing your current fix. Do NOT ask the user whether to continue — just finish the work.]",
       });
     }
 
