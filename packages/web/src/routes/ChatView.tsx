@@ -361,7 +361,7 @@ export function ChatView() {
   // Error UI
   if (error && !messages.length) {
     return (
-      <div className="flex flex-col h-full bg-kai-bg">
+      <div className="flex flex-col h-full bg-background">
         <div className="flex-1 flex items-center justify-center p-6">
           <div className="max-w-md w-full bg-card border border-border rounded-xl p-8 text-center">
             <div className="flex justify-center mb-4">
@@ -369,7 +369,7 @@ export function ChatView() {
                 <AlertCircle className="w-8 h-8 text-destructive" />
               </div>
             </div>
-            <h1 className="text-xl font-semibold text-kai-text mb-2">
+            <h1 className="text-xl font-semibold text-foreground mb-2">
               {error.type === 'network' ? 'Connection Error' : 
                error.type === 'timeout' ? 'Request Timeout' : 
                error.type === 'server' ? 'Session Not Found' : 'Something went wrong'}
@@ -380,7 +380,7 @@ export function ChatView() {
                 <button
                   onClick={handleRetry}
                   disabled={retryCount > 3}
-                  className="flex items-center gap-2 px-4 py-2 bg-kai-teal text-white rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
+                  className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
                 >
                   <RefreshCw className={`w-4 h-4 ${retryCount > 0 ? 'animate-spin' : ''}`} />
                   {retryCount > 0 ? 'Retrying...' : 'Try Again'}
@@ -401,13 +401,13 @@ export function ChatView() {
   }
 
   return (
-    <div className="flex flex-col h-full bg-kai-bg">
+    <div className="flex flex-col h-full bg-background">
       {/* Header */}
-      <div className="flex items-center justify-end px-4 py-2 border-b border-border bg-kai-bg">
+      <div className="flex items-center justify-end px-4 py-2 border-b border-border bg-background">
         <div className="relative" ref={menuRef}>
           <button
             onClick={() => setShowMenu(!showMenu)}
-            className="p-2 rounded-lg hover:bg-accent/10 text-muted-foreground hover:text-kai-text"
+            className="p-2 rounded-lg hover:bg-accent/10 text-muted-foreground hover:text-foreground"
           >
             <MoreVertical className="w-5 h-5" />
           </button>
@@ -415,7 +415,7 @@ export function ChatView() {
             <div className="absolute right-0 top-full mt-1 w-48 bg-card border border-border rounded-lg shadow-lg py-1 z-50">
               <button
                 onClick={handleExport}
-                className="flex items-center gap-2 w-full px-4 py-2 text-sm text-kai-text hover:bg-accent/10"
+                className="flex items-center gap-2 w-full px-4 py-2 text-sm text-foreground hover:bg-accent/10"
               >
                 <FileText className="w-4 h-4" />
                 Export as Markdown
@@ -434,7 +434,7 @@ export function ChatView() {
 
       {/* Error Banner */}
       {error && messages.length > 0 && (
-        <div className="px-4 py-2 bg-destructive/10 border-b border-kai-red">
+        <div className="px-4 py-2 bg-destructive/10 border-b border-destructive">
           <div className="flex items-center justify-between max-w-3xl mx-auto">
             <div className="flex items-center gap-2 text-destructive text-sm">
               <AlertCircle className="w-4 h-4" />
@@ -482,7 +482,7 @@ export function ChatView() {
       </div>
 
       {/* Input Area */}
-      <div className="border-t border-border bg-kai-bg p-4">
+      <div className="border-t border-border bg-background p-4">
         <div className="max-w-3xl mx-auto">
           {/* Attachments */}
           {attachments.length > 0 && (
@@ -508,7 +508,7 @@ export function ChatView() {
             />
             <label
               htmlFor="file-upload"
-              className="p-2 rounded-full hover:bg-accent/10 text-muted-foreground hover:text-kai-text cursor-pointer flex-shrink-0"
+              className="p-2 rounded-full hover:bg-accent/10 text-muted-foreground hover:text-foreground cursor-pointer flex-shrink-0"
             >
               <Paperclip className="w-5 h-5" />
             </label>
@@ -520,7 +520,7 @@ export function ChatView() {
               onKeyDown={handleKeyDown}
               placeholder={error ? "Connection issues - messages may not send" : "How can I help you today?"}
               rows={1}
-              className="flex-1 min-h-[44px] max-h-[200px] py-2.5 px-1 bg-transparent border-none outline-none resize-none text-kai-text placeholder:text-muted-foreground"
+              className="flex-1 min-h-[44px] max-h-[200px] py-2.5 px-1 bg-transparent border-none outline-none resize-none text-foreground placeholder:text-muted-foreground"
               style={{ lineHeight: "1.5" }}
               disabled={!!error && !error.recoverable}
             />
@@ -533,7 +533,7 @@ export function ChatView() {
             {streaming ? (
               <button
                 onClick={handleStop}
-                className="p-2 rounded-full bg-kai-red text-white hover:bg-primary/90 flex-shrink-0 animate-pulse"
+                className="p-2 rounded-full bg-destructive text-white hover:bg-primary/90 flex-shrink-0 animate-pulse"
               >
                 <Square className="w-5 h-5" fill="currentColor" />
               </button>
@@ -601,7 +601,7 @@ function MessageBubble({
   return (
     <div className={`flex gap-4 ${isUser ? 'flex-row-reverse' : ''}`}>
       <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
-        isUser ? 'bg-kai-text text-white' : 'bg-kai-teal text-white'
+        isUser ? 'bg-primary text-white' : 'bg-primary text-white'
       }`}>
         {isUser ? 'U' : 'K'}
       </div>
@@ -626,13 +626,13 @@ function MessageBubble({
 function ThinkingIndicator() {
   return (
     <div className="flex gap-4">
-      <div className="w-8 h-8 rounded-full bg-kai-teal text-white flex items-center justify-center flex-shrink-0">
+      <div className="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center flex-shrink-0">
         K
       </div>
       <div className="flex-1 flex items-center gap-1 text-muted-foreground">
-        <span className="w-2 h-2 rounded-full bg-kai-teal animate-bounce" style={{ animationDelay: '0ms' }} />
-        <span className="w-2 h-2 rounded-full bg-kai-teal animate-bounce" style={{ animationDelay: '150ms' }} />
-        <span className="w-2 h-2 rounded-full bg-kai-teal animate-bounce" style={{ animationDelay: '300ms' }} />
+        <span className="w-2 h-2 rounded-full bg-primary animate-bounce" style={{ animationDelay: '0ms' }} />
+        <span className="w-2 h-2 rounded-full bg-primary animate-bounce" style={{ animationDelay: '150ms' }} />
+        <span className="w-2 h-2 rounded-full bg-primary animate-bounce" style={{ animationDelay: '300ms' }} />
       </div>
     </div>
   );
@@ -648,14 +648,14 @@ function WelcomeScreen({ onSelect }: { onSelect: (text: string) => void }) {
 
   return (
     <div className="text-center py-12">
-      <h2 className="text-2xl font-semibold text-kai-text mb-2">Welcome to Kai</h2>
+      <h2 className="text-2xl font-semibold text-foreground mb-2">Welcome to Kai</h2>
       <p className="text-muted-foreground mb-8">What would you like to work on today?</p>
       <div className="grid gap-3 max-w-md mx-auto">
         {suggestions.map((suggestion, i) => (
           <button
             key={i}
             onClick={() => onSelect(suggestion)}
-            className="p-3 bg-card border border-border rounded-lg text-left text-sm text-muted-foreground hover:border-primary hover:text-kai-text transition-colors"
+            className="p-3 bg-card border border-border rounded-lg text-left text-sm text-muted-foreground hover:border-primary hover:text-foreground transition-colors"
           >
             {suggestion}
           </button>
