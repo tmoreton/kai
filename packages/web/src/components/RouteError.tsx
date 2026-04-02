@@ -103,7 +103,7 @@ export function RouteError() {
   };
 
   return (
-    <div className="h-full w-full flex items-center justify-center bg-kai-bg p-6">
+    <div className="h-full w-full flex items-center justify-center bg-background p-6">
       <div className="max-w-md w-full bg-card border border-border rounded-xl p-8 text-center shadow-lg">
         {/* Icon */}
         <div className="flex justify-center mb-4">
@@ -114,11 +114,11 @@ export function RouteError() {
 
         {/* Status Code (if applicable) */}
         {status && !isSessionError && (
-          <div className="text-4xl font-bold text-kai-text mb-2">{status}</div>
+          <div className="text-4xl font-bold text-foreground mb-2">{status}</div>
         )}
 
         {/* Title */}
-        <h1 className="text-xl font-semibold text-kai-text mb-2">
+        <h1 className="text-xl font-semibold text-foreground mb-2">
           {isSessionError 
             ? "Session not found" 
             : errorType === 'network' 

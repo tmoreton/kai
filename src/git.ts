@@ -14,10 +14,6 @@ function gitCacheValid(): boolean {
   );
 }
 
-/** Invalidate git cache (call after git operations) */
-export function invalidateGitCache(): void {
-  _gitCache.cachedAt = 0;
-}
 
 export function isGitRepo(): boolean {
   if (gitCacheValid()) return _gitCache.isRepo;

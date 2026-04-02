@@ -321,64 +321,66 @@ export function PersonaEditor() {
 
   return (
     <div className="h-full overflow-y-auto">
-      <div className="max-w-6xl mx-auto p-6">
+      <div className="max-w-6xl mx-auto p-4 sm:p-6">
         {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-4">
-            <button
-              onClick={handleBack}
-              className="flex items-center gap-2 text-muted-foreground hover:text-primary transition-colors"
-            >
-              <ArrowLeft className="w-5 h-5" />
-              <span className="text-sm font-medium">Back to Agents</span>
-            </button>
-            <h1 className="text-2xl font-semibold text-kai-text">
-              {isEditMode ? 'Edit Persona' : 'Create Persona'}
-            </h1>
-            {isDirty && (
-              <span className="px-2 py-1 bg-amber-100 text-amber-700 text-xs font-medium rounded">
-                Unsaved changes
-              </span>
-            )}
-          </div>
-
-          <div className="flex items-center gap-3">
-            {/* Tab switcher for mobile */}
-            <div className="flex items-center gap-1 bg-card border border-border rounded-lg p-1 sm:hidden">
-              <TabButton
-                active={activeTab === 'edit'}
-                onClick={() => setActiveTab('edit')}
-                icon={<FileText className="w-4 h-4" />}
+        <div className="space-y-3 mb-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+              <button
+                onClick={handleBack}
+                className="flex items-center gap-1 sm:gap-2 text-muted-foreground hover:text-primary transition-colors flex-shrink-0"
               >
-                Edit
-              </TabButton>
-              <TabButton
-                active={activeTab === 'preview'}
-                onClick={() => setActiveTab('preview')}
-                icon={<Sparkles className="w-4 h-4" />}
-              >
-                Preview
-              </TabButton>
+                <ArrowLeft className="w-5 h-5" />
+                <span className="text-sm font-medium hidden sm:inline">Back to Agents</span>
+              </button>
+              <h1 className="text-lg sm:text-2xl font-semibold text-kai-text truncate">
+                {isEditMode ? 'Edit Persona' : 'Create Persona'}
+              </h1>
+              {isDirty && (
+                <span className="px-2 py-1 bg-amber-100 text-amber-700 text-xs font-medium rounded flex-shrink-0">
+                  Unsaved
+                </span>
+              )}
             </div>
 
-            {isEditMode && (
+            <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+              {isEditMode && (
+                <button
+                  onClick={handleDelete}
+                  disabled={deleteMutation.isPending}
+                  className="flex items-center gap-2 px-3 sm:px-4 py-2 text-destructive border border-kai-red rounded-lg text-sm font-medium hover:bg-destructive/10 transition-colors disabled:opacity-50"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  <span className="hidden sm:inline">Delete</span>
+                </button>
+              )}
               <button
-                onClick={handleDelete}
-                disabled={deleteMutation.isPending}
-                className="flex items-center gap-2 px-4 py-2 text-destructive border border-kai-red rounded-lg text-sm font-medium hover:bg-destructive/10 transition-colors disabled:opacity-50"
+                onClick={handleSave}
+                disabled={!isDirty || saveMutation.isPending}
+                className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-kai-teal text-white rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
               >
-                <Trash2 className="w-4 h-4" />
-                <span className="hidden sm:inline">Delete</span>
+                <Save className="w-4 h-4" />
+                <span className="hidden sm:inline">{saveMutation.isPending ? 'Saving...' : 'Save'}</span>
               </button>
-            )}
-            <button
-              onClick={handleSave}
-              disabled={!isDirty || saveMutation.isPending}
-              className="flex items-center gap-2 px-4 py-2 bg-kai-teal text-white rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
+            </div>
+          </div>
+
+          {/* Tab switcher for mobile */}
+          <div className="flex items-center gap-1 bg-card border border-border rounded-lg p-1 lg:hidden">
+            <TabButton
+              active={activeTab === 'edit'}
+              onClick={() => setActiveTab('edit')}
+              icon={<FileText className="w-4 h-4" />}
             >
-              <Save className="w-4 h-4" />
-              {saveMutation.isPending ? 'Saving...' : 'Save'}
-            </button>
+              Edit
+            </TabButton>
+            <TabButton
+              active={activeTab === 'preview'}
+              onClick={() => setActiveTab('preview')}
+              icon={<Sparkles className="w-4 h-4" />}
+            >
+              Tools & Files
+            </TabButton>
           </div>
         </div>
 

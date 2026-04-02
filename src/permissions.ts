@@ -80,10 +80,6 @@ export function getPermissionRules(): PermissionRule[] {
   return _cachedRules;
 }
 
-/** Invalidate permission rule cache (call after config change) */
-export function invalidatePermissionCache(): void {
-  _cachedRules = null;
-}
 
 function matchRule(
   toolName: string,

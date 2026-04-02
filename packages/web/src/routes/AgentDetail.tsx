@@ -79,45 +79,45 @@ export function AgentDetail() {
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
-      <div className="border-b border-border bg-card px-6 py-4">
-        <div className="flex items-center gap-4">
-          <button 
+      <div className="border-b border-border bg-card px-4 sm:px-6 py-3 sm:py-4 space-y-3">
+        <div className="flex items-center gap-3 sm:gap-4">
+          <button
             onClick={() => navigate('/agents')}
-            className="p-2 hover:bg-accent rounded-lg transition-colors"
+            className="p-2 hover:bg-accent rounded-lg transition-colors flex-shrink-0"
           >
             <ArrowLeft className="w-5 h-5 text-muted-foreground" />
           </button>
-          
-          <div className="w-12 h-12 rounded-full bg-kai-teal-light flex items-center justify-center text-primary text-xl font-semibold">
+
+          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-kai-teal-light flex items-center justify-center text-primary text-lg sm:text-xl font-semibold flex-shrink-0">
             {persona.name.charAt(0).toUpperCase()}
           </div>
-          
-          <div className="flex-1 min-w-0">
-            <h1 className="text-xl font-semibold text-kai-text truncate">{persona.name}</h1>
-            <p className="text-sm text-muted-foreground truncate">{persona.role}</p>
-          </div>
 
-          {/* Tab Navigation */}
-          <div className="flex items-center gap-1 bg-accent rounded-lg p-1">
-            <TabButton 
-              active={activeTab === 'chat'} 
-              onClick={() => setActiveTab('chat')}
-              icon={<MessageSquare className="w-4 h-4" />}
-              label="Chat"
-            />
-            <TabButton 
-              active={activeTab === 'workflows'} 
-              onClick={() => setActiveTab('workflows')}
-              icon={<GitBranch className="w-4 h-4" />}
-              label="Workflows"
-            />
-            <TabButton 
-              active={activeTab === 'history'} 
-              onClick={() => setActiveTab('history')}
-              icon={<History className="w-4 h-4" />}
-              label="History"
-            />
+          <div className="flex-1 min-w-0">
+            <h1 className="text-lg sm:text-xl font-semibold text-kai-text truncate">{persona.name}</h1>
+            <p className="text-xs sm:text-sm text-muted-foreground truncate">{persona.role}</p>
           </div>
+        </div>
+
+        {/* Tab Navigation */}
+        <div className="flex items-center gap-1 bg-muted rounded-lg p-1 w-full sm:w-auto">
+          <TabButton
+            active={activeTab === 'chat'}
+            onClick={() => setActiveTab('chat')}
+            icon={<MessageSquare className="w-4 h-4" />}
+            label="Chat"
+          />
+          <TabButton
+            active={activeTab === 'workflows'}
+            onClick={() => setActiveTab('workflows')}
+            icon={<GitBranch className="w-4 h-4" />}
+            label="Workflows"
+          />
+          <TabButton
+            active={activeTab === 'history'}
+            onClick={() => setActiveTab('history')}
+            icon={<History className="w-4 h-4" />}
+            label="History"
+          />
         </div>
 
         {/* Error Banner */}
@@ -149,10 +149,10 @@ function TabButton({ active, onClick, icon, label }: { active: boolean; onClick:
     <button
       onClick={onClick}
       className={cn(
-        "flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors",
-        active 
-          ? "bg-kai-teal text-white" 
-          : "text-muted-foreground hover:text-kai-text hover:bg-accent"
+        "flex items-center justify-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors flex-1 sm:flex-none",
+        active
+          ? "bg-kai-teal text-white shadow-sm"
+          : "text-foreground/70 hover:text-foreground hover:bg-muted-foreground/10"
       )}
     >
       {icon}
@@ -220,18 +220,24 @@ function AgentChat({ persona }: { persona: Persona }) {
       let assistantContent = '';
 
       for await (const { event, data } of stream) {
-        if (event === 'message') {
-          assistantContent = (data as { content: string }).content;
-          setMessages(prev => {
-            const newMessages = [...prev];
-            const lastMsg = newMessages[newMessages.length - 1];
-            if (lastMsg?.role === 'assistant') {
-              lastMsg.content = assistantContent;
-            } else {
-              newMessages.push({ role: 'assistant', content: assistantContent });
-            }
-            return newMessages;
-          });
+        switch (event) {
+          case 'token':
+            assistantContent += (data as { text: string }).text;
+            setMessages(prev => {
+              const last = prev[prev.length - 1];
+              if (last?.role === 'assistant') {
+                return [...prev.slice(0, -1), { ...last, content: assistantContent }];
+              }
+              return [...prev, { role: 'assistant', content: assistantContent }];
+            });
+            break;
+          case 'done':
+            break;
+          case 'error': {
+            const errorData = data as { message?: string };
+            toast.error('Chat error', errorData.message || 'An error occurred');
+            break;
+          }
         }
       }
     } catch (err) {
@@ -254,7 +260,7 @@ function AgentChat({ persona }: { persona: Persona }) {
   return (
     <div className="h-full flex flex-col">
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+      <div className="flex-1 overflow-y-auto px-3 sm:px-6 py-4 space-y-4">
         {messages.length === 0 ? (
           <div className="h-full flex items-center justify-center text-muted-foreground">
             <div className="text-center">
@@ -377,14 +383,53 @@ function AgentWorkflows({ agents, personaId }: { agents: Agent[]; personaId: str
   }
 
   const selectedAgent = agents.find(a => a.id === selectedAgentId) || agents[0];
+  const [showSidebar, setShowSidebar] = useState(false);
 
   return (
-    <div className="h-full flex">
-      {/* Workflow List */}
-      <div className="w-64 border-r border-border bg-card overflow-y-auto">
-        <div className="p-4 border-b border-border">
-          <h3 className="font-semibold text-kai-text">Workflows</h3>
-          <p className="text-xs text-muted-foreground mt-1">{agents.length} total</p>
+    <div className="h-full flex flex-col sm:flex-row">
+      {/* Mobile workflow selector */}
+      <div className="sm:hidden border-b border-border bg-card px-4 py-3">
+        <div className="flex items-center justify-between">
+          <button
+            onClick={() => setShowSidebar(!showSidebar)}
+            className="flex items-center gap-2 text-sm font-medium text-kai-text"
+          >
+            <GitBranch className="w-4 h-4" />
+            {selectedAgent.name}
+            <ArrowLeft className={cn("w-4 h-4 transition-transform", showSidebar ? "rotate-90" : "-rotate-90")} />
+          </button>
+          <Button size="sm" variant="ghost" onClick={() => navigate(`/agents/persona/edit/${personaId}`)}>
+            <Plus className="w-4 h-4" />
+          </Button>
+        </div>
+        {showSidebar && (
+          <div className="mt-2 border-t border-border pt-2 space-y-1">
+            {agents.map(agent => (
+              <button
+                key={agent.id}
+                onClick={() => { setSelectedAgentId(agent.id); setShowSidebar(false); }}
+                className={cn(
+                  "w-full text-left px-3 py-2 rounded-lg text-sm transition-colors",
+                  selectedAgentId === agent.id ? "bg-kai-teal/10 text-kai-text font-medium" : "text-muted-foreground hover:bg-accent"
+                )}
+              >
+                {agent.name}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Desktop Workflow List */}
+      <div className="hidden sm:block w-64 border-r border-border bg-card overflow-y-auto flex-shrink-0">
+        <div className="p-4 border-b border-border flex items-center justify-between">
+          <div>
+            <h3 className="font-semibold text-kai-text">Workflows</h3>
+            <p className="text-xs text-muted-foreground mt-1">{agents.length} total</p>
+          </div>
+          <Button size="sm" variant="ghost" onClick={() => navigate(`/agents/persona/edit/${personaId}`)}>
+            <Plus className="w-4 h-4" />
+          </Button>
         </div>
         {agents.map(agent => (
           <button
@@ -414,7 +459,7 @@ function AgentWorkflows({ agents, personaId }: { agents: Agent[]; personaId: str
       </div>
 
       {/* Workflow Editor */}
-      <div className="flex-1 overflow-hidden">
+      <div className="flex-1 overflow-hidden min-h-0">
         <EmbeddedWorkflowEditor agentId={selectedAgent.id} agentName={selectedAgent.name} />
       </div>
     </div>
@@ -478,12 +523,12 @@ function EmbeddedWorkflowEditor({ agentId, agentName }: { agentId: string; agent
   return (
     <div className="h-full flex flex-col">
       {/* Toolbar */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-card">
-        <div className="flex items-center gap-2">
-          <GitBranch className="w-4 h-4 text-muted-foreground" />
-          <span className="font-medium text-sm">{agentName}</span>
+      <div className="flex items-center justify-between px-3 sm:px-4 py-3 border-b border-border bg-card">
+        <div className="flex items-center gap-2 min-w-0">
+          <GitBranch className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+          <span className="font-medium text-sm truncate">{agentName}</span>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-shrink-0">
           <Button 
             variant="outline" 
             size="sm" 
@@ -547,6 +592,7 @@ function AgentHistory({ agents }: { agents: Agent[] }) {
   const logs = agentDetail?.runs || [];
 
   const selectedAgent = agents.find(a => a.id === selectedAgentId) || agents[0];
+  const [showSelector, setShowSelector] = useState(false);
 
   if (agents.length === 0) {
     return (
@@ -557,9 +603,37 @@ function AgentHistory({ agents }: { agents: Agent[] }) {
   }
 
   return (
-    <div className="h-full flex">
-      {/* Agent Selector */}
-      <div className="w-64 border-r border-border bg-card overflow-y-auto">
+    <div className="h-full flex flex-col sm:flex-row">
+      {/* Mobile workflow selector */}
+      <div className="sm:hidden border-b border-border bg-card px-4 py-3">
+        <button
+          onClick={() => setShowSelector(!showSelector)}
+          className="flex items-center gap-2 text-sm font-medium text-kai-text w-full"
+        >
+          <History className="w-4 h-4" />
+          {selectedAgent?.name || 'Select Workflow'}
+          <ArrowLeft className={cn("w-4 h-4 ml-auto transition-transform", showSelector ? "rotate-90" : "-rotate-90")} />
+        </button>
+        {showSelector && (
+          <div className="mt-2 border-t border-border pt-2 space-y-1">
+            {agents.map(agent => (
+              <button
+                key={agent.id}
+                onClick={() => { setSelectedAgentId(agent.id); setShowSelector(false); }}
+                className={cn(
+                  "w-full text-left px-3 py-2 rounded-lg text-sm transition-colors",
+                  selectedAgentId === agent.id ? "bg-kai-teal/10 text-kai-text font-medium" : "text-muted-foreground hover:bg-accent"
+                )}
+              >
+                {agent.name}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Desktop Agent Selector */}
+      <div className="hidden sm:block w-64 border-r border-border bg-card overflow-y-auto flex-shrink-0">
         <div className="p-4 border-b border-border">
           <h3 className="font-semibold text-kai-text">Select Workflow</h3>
         </div>
@@ -579,7 +653,7 @@ function AgentHistory({ agents }: { agents: Agent[] }) {
       </div>
 
       {/* History List */}
-      <div className="flex-1 overflow-y-auto px-6 py-4">
+      <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4">
         {isLoading ? (
           <div className="flex items-center justify-center h-full">
             <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
@@ -606,27 +680,28 @@ function HistoryRow({ log }: { log: any }) {
   const date = log.startedAt || log.completedAt;
   
   return (
-    <div className="flex items-center gap-4 p-4 bg-card border border-border rounded-lg hover:border-kai-teal transition-colors">
-      <StatusIcon status={status} />
-      
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <span className="font-medium text-kai-text">
-            {status === 'completed' ? 'Completed' : status === 'failed' ? 'Failed' : status}
-          </span>
-          <span className="text-xs text-muted-foreground">
-            #{log.id?.slice(0, 8) || 'unknown'}{log.trigger ? ` · ${log.trigger}` : ''}
-          </span>
+    <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 p-3 sm:p-4 bg-card border border-border rounded-lg hover:border-kai-teal transition-colors">
+      <div className="flex items-center gap-3 flex-1 min-w-0">
+        <StatusIcon status={status} />
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="font-medium text-kai-text text-sm">
+              {status === 'completed' ? 'Completed' : status === 'failed' ? 'Failed' : status}
+            </span>
+            <span className="text-xs text-muted-foreground">
+              #{log.id?.slice(0, 8) || 'unknown'}{log.trigger ? ` · ${log.trigger}` : ''}
+            </span>
+          </div>
+          {log.error && (
+            <p className="text-sm text-red-500 mt-1 truncate">{log.error}</p>
+          )}
+          {log.recap && (
+            <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{log.recap}</p>
+          )}
         </div>
-        {log.error && (
-          <p className="text-sm text-red-500 mt-1 truncate">{log.error}</p>
-        )}
-        {log.recap && (
-          <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{log.recap}</p>
-        )}
       </div>
 
-      <div className="text-right text-sm text-muted-foreground">
+      <div className="text-left sm:text-right text-xs sm:text-sm text-muted-foreground pl-8 sm:pl-0 flex-shrink-0">
         <div className="flex items-center gap-1">
           <Clock className="w-3 h-3" />
           {date ? new Date(date).toLocaleString() : 'Unknown time'}

@@ -190,16 +190,18 @@ export function Sidebar() {
     }
   };
 
-  // Mobile collapsed state - just show hamburger
+  // Mobile collapsed state - slim rail
   if (isMobile && !mobileOpen) {
     return (
-      <button
-        onClick={() => setMobileOpen(true)}
-        className="fixed top-3 left-3 z-50 p-2 rounded-lg border border-border bg-card shadow-sm hover:bg-accent/50"
-        title="Open menu"
-      >
-        <PanelLeft className="w-5 h-5 text-muted-foreground" />
-      </button>
+      <div className="w-12 flex-shrink-0 flex flex-col items-center py-3 bg-secondary border-r border-border">
+        <button
+          onClick={() => setMobileOpen(true)}
+          className="p-2 rounded-lg hover:bg-accent/50 text-muted-foreground"
+          title="Open menu"
+        >
+          <PanelLeft className="w-5 h-5" />
+        </button>
+      </div>
     );
   }
 
@@ -396,16 +398,40 @@ export function Sidebar() {
     );
   }
 
-  // Desktop sidebar collapsed
+  // Desktop sidebar collapsed - slim rail
   if (sidebarCollapsed) {
     return (
-      <button
-        onClick={toggleSidebar}
-        className="fixed top-3 left-3 z-50 p-2 rounded-lg border border-border bg-card shadow-sm hover:bg-accent/50"
-        title="Expand sidebar"
-      >
-        <PanelLeft className="w-5 h-5 text-muted-foreground" />
-      </button>
+      <div className="w-12 flex-shrink-0 flex flex-col items-center py-3 gap-3 bg-secondary border-r border-border">
+        <button
+          onClick={toggleSidebar}
+          className="p-2 rounded-lg hover:bg-accent/50 text-muted-foreground"
+          title="Expand sidebar"
+        >
+          <PanelLeft className="w-5 h-5" />
+        </button>
+        <button
+          onClick={handleNewChat}
+          className="p-2 rounded-lg hover:bg-accent/50 text-muted-foreground"
+          title="New Chat"
+        >
+          <Plus className="w-5 h-5" />
+        </button>
+        <div className="flex-1" />
+        <Link
+          to="/settings"
+          className="p-2 rounded-lg hover:bg-accent/50 text-muted-foreground"
+          title="Settings"
+        >
+          <Settings className="w-5 h-5" />
+        </Link>
+        <Link
+          to="/notifications"
+          className="p-2 rounded-lg hover:bg-accent/50 text-muted-foreground"
+          title="Notifications"
+        >
+          <Bell className="w-5 h-5" />
+        </Link>
+      </div>
     );
   }
 

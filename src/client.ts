@@ -44,11 +44,6 @@ function getCachedToolDefinitions(): ChatCompletionTool[] {
   return _cachedToolDefs;
 }
 
-/** Invalidate tool definition cache (call after skill reload or MCP change) */
-export function invalidateToolCache(): void {
-  _cachedToolDefs = null;
-}
-
 // When true, the spinner and streaming output pause to let the user type.
 // Set by the REPL when keypress activity is detected.
 let _userTyping = false;
@@ -59,10 +54,6 @@ export function signalUserTyping(): void {
   if (_userTypingTimer) clearTimeout(_userTypingTimer);
   // Auto-reset after 2s of no typing activity
   _userTypingTimer = setTimeout(() => { _userTyping = false; }, 2000);
-}
-
-export function isUserTyping(): boolean {
-  return _userTyping;
 }
 
 function getResolved(): ResolvedProvider {

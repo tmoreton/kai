@@ -125,20 +125,21 @@ export function AgentsView() {
   }
 
   return (
-    <div className="h-full overflow-y-auto p-6">
+    <div className="h-full overflow-y-auto p-4 sm:p-6">
       <div className="max-w-5xl mx-auto">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-2xl font-semibold text-kai-text">Agents</h1>
-            <p className="text-muted-foreground mt-1">Manage personas and automated workflows</p>
+            <h1 className="text-xl sm:text-2xl font-semibold text-kai-text">Agents</h1>
+            <p className="text-sm text-muted-foreground mt-1">Manage personas and automated workflows</p>
           </div>
           <div className="flex items-center gap-3">
             <button
               onClick={() => navigate('/agents/persona/new')}
-              className="flex items-center gap-2 px-4 py-2 bg-kai-text text-white rounded-lg hover:bg-primary/90 text-sm font-medium"
+              className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-kai-text text-white rounded-lg hover:bg-primary/90 text-sm font-medium"
             >
               <Plus className="w-4 h-4" />
-              New Persona
+              <span className="hidden sm:inline">New Persona</span>
+              <span className="sm:hidden">New</span>
             </button>
           </div>
         </div>
