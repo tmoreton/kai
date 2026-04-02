@@ -482,6 +482,9 @@ export async function chat(
           // Compact display for grep — show match count
           const matchCount = resultStr === "No matches found." ? 0 : lines.length;
           console.log(chalk.gray(`    ⎿  ${matchCount} match${matchCount !== 1 ? "es" : ""}`));
+        } else if (p.toolName === "bash" || p.toolName === "bash_background") {
+          // Hide bash output completely — just show completion
+          console.log(chalk.gray(`    ⎿  done`));
         } else if (lines.length > TOOL_OUTPUT_MAX_LINES) {
           console.log(chalk.gray(`    ⎿  ${formatToolLabel(p.toolName)}: ${lines.slice(0, TOOL_OUTPUT_PREVIEW_LINES).join("\n       ")}...`));
           console.log(chalk.gray(`       (${lines.length} lines total — truncated)`));
@@ -598,6 +601,9 @@ export async function chat(
           const lines = resultStr.split("\n");
           const matchCount = resultStr === "No matches found." ? 0 : lines.length;
           console.log(chalk.gray(`    ⎿  ${matchCount} match${matchCount !== 1 ? "es" : ""}`));
+        } else if (p.toolName === "bash" || p.toolName === "bash_background") {
+          // Hide bash output completely — just show completion
+          console.log(chalk.gray(`    ⎿  done`));
         } else {
           const lines = resultStr.split("\n");
           if (lines.length > TOOL_OUTPUT_MAX_LINES) {

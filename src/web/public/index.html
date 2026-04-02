@@ -761,6 +761,9 @@
       border: 1px solid var(--border-light); border-radius: var(--radius-sm);
       margin-bottom: 8px; overflow: hidden; background: var(--bg-surface);
     }
+    .step-card.failed { border-color: var(--red); background: var(--red-light); }
+    .step-card.completed { border-color: var(--green); }
+    .step-card.running { border-color: var(--accent); }
     .step-header {
       padding: 10px 14px; display: flex; align-items: center; gap: 10px; cursor: pointer;
       user-select: none; transition: background .1s;
@@ -3731,7 +3734,7 @@ npm run dev</code></pre>
         const isMarkdown = s.output && (s.output.includes('#') || s.output.includes('**') || s.output.includes('- '));
         const imgMatch = s.output?.match(/(\/[^\s"']+\.(?:png|jpg|jpeg|gif|webp))/i);
         h += `
-          <div class="step-card ${hasOutput ? '' : ''}" onclick="this.classList.toggle('open')">
+          <div class="step-card ${s.status}" onclick="this.classList.toggle('open')">
             <div class="step-header">
               <span class="step-status-dot ${s.status}"></span>
               <span class="step-name">${esc(s.name.replace(/_/g, ' '))}</span>
@@ -3795,7 +3798,7 @@ npm run dev</code></pre>
           const isMarkdown = s.output && (s.output.includes('#') || s.output.includes('**') || s.output.includes('- '));
           const imgMatch = s.output?.match(/(\/[^\s"']+\.(?:png|jpg|jpeg|gif|webp))/i);
           h += `
-            <div class="step-card" onclick="this.classList.toggle('open')">
+            <div class="step-card ${s.status}" onclick="this.classList.toggle('open')">
               <div class="step-header">
                 <span class="step-status-dot ${s.status}"></span>
                 <span class="step-name">${esc(s.name.replace(/_/g, ' '))}</span>

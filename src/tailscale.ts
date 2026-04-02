@@ -78,7 +78,7 @@ export async function startTailscaleServe(options: TailscaleServeOptions): Promi
     // Start in background mode
     execSync(`${cli} ${command} --bg ${options.port}`, {
       encoding: "utf-8",
-      timeout: 15000,
+      timeout: 60000,
       stdio: "pipe",
     });
 

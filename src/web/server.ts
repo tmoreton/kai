@@ -28,7 +28,6 @@ import { registerSessionRoutes } from "./routes/sessions.js";
 import { registerAgentRoutes } from "./routes/agents.js";
 import { registerSettingsRoutes } from "./routes/settings.js";
 import { registerChatRoutes } from "./routes/chat.js";
-import { registerWebhookRoutes } from "./routes/webhooks.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const publicDir = path.resolve(__dirname, "public");
@@ -132,7 +131,6 @@ export async function startServer(options: ServerOptions): Promise<void> {
   registerAgentRoutes(app);
   registerSettingsRoutes(app);
   registerChatRoutes(app);
-  registerWebhookRoutes(app);
 
   // --- Serve local images ---
   app.get("/api/image", (c) => {

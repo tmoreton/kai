@@ -82,6 +82,12 @@ async function startDaemonInner(): Promise<void> {
 
   // Start proactive heartbeat loop (checks conditions + logs status)
   startProactiveHeartbeat();
+
+  // Start email reply poller (if RESEND_API_KEY is set)
+  try {
+    const { startEmailPoller } = await import("./email-poller.js");
+    startEmailPoller();
+  } catch {}
 }
 
 /**
@@ -415,6 +421,8 @@ export function stopDaemon(): void {
     task.stop();
   }
   scheduledJobs.clear();
+
+  import("./email-poller.js").then(m => m.stopEmailPoller()).catch(() => {});
 }
 
 export function getDaemonPidPath(): string {
