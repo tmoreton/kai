@@ -19,6 +19,20 @@ export interface RouteDecision {
   hint: string;
 }
 
+// Patterns that indicate the user already has the diagnosis — skip analysis, go direct
+const FAST_PATH_PATTERNS = [
+  // Stack traces (e.g. "at Function.foo (file.ts:50:13)")
+  /at\s+\S+\s+\(.*:\d+:\d+\)/,
+  // Error messages with file:line references
+  /(?:Error|TypeError|ReferenceError|SyntaxError).*\n/,
+  // Explicit file:line references (e.g. "bash.ts:50", "src/foo.js:120")
+  /\b[\w/.-]+\.[a-z]{1,4}:\d+\b/,
+  // User pasted a Node/Python/etc traceback
+  /^\s+at\s+/m,
+  // Short targeted fix requests with a file reference
+  /\b(?:fix|patch|change|update)\b.*\b[\w/.-]+\.[a-z]{1,4}\b/i,
+];
+
 // Patterns that suggest complex, multi-file work
 const COMPLEX_PATTERNS = [
   /refactor\s+(?:the\s+)?(?:entire|whole|all|every)/i,
@@ -29,6 +43,15 @@ const COMPLEX_PATTERNS = [
   /redesign\s+/i,
   /architect/i,
   /set\s*up\s+(?:a\s+)?(?:new\s+)?(?:project|repo|monorepo|pipeline|ci)/i,
+];
+
+// Patterns that suggest parallelizable work → swarm candidates
+const SWARM_PATTERNS = [
+  /(?:review|audit|analyze|check|scan)\s+(?:the\s+)?(?:entire|whole|full|all)?\s*(?:codebase|repo|project|code)/i,
+  /find\s+(?:all|every)\s+(?:security|performance|bug|issue|problem|vulnerability)/i,
+  /(?:compare|evaluate|investigate)\s+(?:\w+\s+(?:vs|versus|and|,)\s+)+/i,
+  /(?:update|change|rename|replace)\s+(?:\w+\s+)?(?:everywhere|across|in all|in every)/i,
+  /(?:search|look|check)\s+(?:across|through|in)\s+(?:all|every|the entire)/i,
 ];
 
 // Patterns that suggest delegation to a persona agent
@@ -74,6 +97,16 @@ export function autoRouteHeuristic(userMessage: string): RouteDecision {
     return { strategy: "direct", reason: "short message", hint: "" };
   }
 
+  // Fast path: user already provided the diagnosis (stack trace, file:line, etc.)
+  // Go direct — no plan mode, no exploration, just fix it
+  if (FAST_PATH_PATTERNS.some((p) => p.test(msg))) {
+    return {
+      strategy: "direct",
+      reason: "diagnostic context provided — fast path",
+      hint: "",
+    };
+  }
+
   // Check for code indicators first — these override delegation
   const isCodeTask = CODE_INDICATORS.some((p) => p.test(msg));
 
@@ -93,6 +126,15 @@ export function autoRouteHeuristic(userMessage: string): RouteDecision {
         };
       }
     }
+  }
+
+  // Check for swarm-worthy tasks (broad analysis, multi-area work)
+  if (SWARM_PATTERNS.some((p) => p.test(msg))) {
+    return {
+      strategy: "swarm",
+      reason: "parallelizable broad task detected",
+      hint: `[AUTO-ROUTE: This task can be parallelized. Use spawn_swarm to launch multiple explorer or worker agents simultaneously. Break the work into independent subtasks (e.g. by directory, by concern, by file). Each agent has access to a shared scratchpad (swarm_scratchpad_read/write) to coordinate and avoid duplicate work. After all agents finish, a synthesis step will automatically merge their findings. Example: for "audit the codebase", spawn explorers for src/agents/, src/tools/, src/skills/, etc.]`,
+    };
   }
 
   // Check for complex multi-file tasks
