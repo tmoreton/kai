@@ -174,10 +174,11 @@ export async function startRepl(options: ReplOptions = {}, initialPrompt?: strin
   let chatAbort: AbortController | null = null;
   const inputQueue: string[] = [];
 
-  // Multiline paste detection: buffer rapid lines and join them
+  // Multiline paste detection using bracketed paste mode
   let pasteBuffer: string[] = [];
   let pasteTimer: ReturnType<typeof setTimeout> | null = null;
-  const PASTE_DEBOUNCE_MS = 30; // lines arriving within 30ms are treated as a paste
+  const PASTE_DEBOUNCE_MS = 50;
+  let isPasting = false;
 
   function completer(line: string): [string[], string] {
     if (line.startsWith("/")) {
@@ -199,6 +200,26 @@ export async function startRepl(options: ReplOptions = {}, initialPrompt?: strin
     return chalk.bold.cyan("kai › ");
   }
 
+  // Enable bracketed paste mode so we can detect paste start/end
+  // Paste start: \x1b[200~  Paste end: \x1b[201~
+  if (process.stdin.isTTY) {
+    process.stdout.write("\x1b[?2004h");
+    // Register BEFORE readline so our handler fires first
+    process.stdin.on("data", (chunk: Buffer) => {
+      const str = chunk.toString();
+      if (str.includes("\x1b[200~")) isPasting = true;
+      if (str.includes("\x1b[201~")) {
+        isPasting = false;
+        // After paste ends, show a summary and wait for Enter to submit
+        if (pasteBuffer.length > 0) {
+          const lineCount = pasteBuffer.length;
+          const preview = pasteBuffer[0].substring(0, 40);
+          process.stdout.write(chalk.dim(` [pasted ${lineCount} line${lineCount > 1 ? "s" : ""}]`));
+        }
+      }
+    });
+  }
+
   const rl = readline.createInterface({
     input: process.stdin,
     output: process.stdout,
@@ -206,6 +227,12 @@ export async function startRepl(options: ReplOptions = {}, initialPrompt?: strin
     terminal: true,
     completer,
   });
+
+  // Disable bracketed paste on exit
+  const disableBracketedPaste = () => {
+    if (process.stdout.isTTY) process.stdout.write("\x1b[?2004l");
+  };
+  process.on("exit", disableBracketedPaste);
 
   // Signal typing activity so spinners pause while user types during processing
   if (process.stdin.isTTY) {
@@ -441,7 +468,16 @@ export async function startRepl(options: ReplOptions = {}, initialPrompt?: strin
   }
 
   rl.on("line", (line) => {
-    pasteBuffer.push(line);
+    // Strip any leftover bracketed paste escape sequences from the line
+    const cleaned = line.replace(/\x1b\[\??200[0-9]?[~h]/g, "");
+    pasteBuffer.push(cleaned);
+
+    if (isPasting) {
+      // Mid-paste: buffer lines but don't flush — wait for paste to end + Enter
+      return;
+    }
+
+    // Normal Enter or paste just ended: use debounce to catch any trailing lines
     if (pasteTimer) clearTimeout(pasteTimer);
     pasteTimer = setTimeout(flushPasteBuffer, PASTE_DEBOUNCE_MS);
   });

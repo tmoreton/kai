@@ -772,6 +772,41 @@
     }
     .sidebar-overlay.show { display: block; opacity: 1; }
 
+    /* ---- Command Palette ---- */
+    .command-palette {
+      position: absolute; bottom: calc(100% + 8px); left: 0; right: 0;
+      background: var(--bg-surface); border: 1px solid var(--border);
+      border-radius: var(--radius); box-shadow: 0 -4px 20px rgba(0,0,0,.1);
+      max-height: 300px; overflow-y: auto; z-index: 100;
+    }
+    .command-palette-header {
+      padding: 10px 14px; font-size: 12px; color: var(--text-muted);
+      border-bottom: 1px solid var(--border-light); font-weight: 500;
+    }
+    .command-list { padding: 4px; }
+    .command-item {
+      display: flex; align-items: center; gap: 10px; padding: 8px 10px;
+      cursor: pointer; border-radius: var(--radius-sm); transition: all .1s;
+    }
+    .command-item:hover, .command-item.selected {
+      background: var(--accent-light);
+    }
+    .command-item.selected { background: var(--accent); color: white; }
+    .command-item.selected .command-desc { color: rgba(255,255,255,.8); }
+    .command-name {
+      font-family: var(--mono); font-size: 13px; font-weight: 500;
+      flex-shrink: 0; min-width: 120px;
+    }
+    .command-desc {
+      font-size: 13px; color: var(--text-secondary);
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .command-category {
+      padding: 6px 10px; font-size: 11px; font-weight: 600;
+      color: var(--text-muted); text-transform: uppercase;
+      letter-spacing: 0.5px; margin-top: 4px;
+    }
+
     @media (max-width: 768px) {
       .sidebar {
         position: fixed; left: 0; top: 0; bottom: 0; z-index: 40;
@@ -1684,6 +1719,11 @@
         <div class="input-area">
           <div class="input-wrap">
             <div class="attachments-bar" id="attachments-bar"></div>
+            <!-- Command Palette -->
+            <div class="command-palette" id="command-palette" style="display:none">
+              <div class="command-palette-header">Type a command</div>
+              <div class="command-list" id="command-list"></div>
+            </div>
             <div class="input-row">
               <button class="attach-btn" onclick="document.getElementById('file-input').click()" title="Attach image or file">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
@@ -1725,6 +1765,7 @@
               <a href="#docs-memory">Memory</a>
               <a href="#docs-agents-section">Agents</a>
               <a href="#docs-skills">Skills & MCP</a>
+              <a href="#docs-commands">Commands</a>
               <a href="#docs-setup">Setup</a>
             </nav>
 
@@ -1870,6 +1911,94 @@ export default {
               </div>
             </section>
 
+            <!-- Commands -->
+            <section id="docs-commands">
+              <h2>Commands</h2>
+              <p>Use slash commands in the chat for quick actions. Type <code>/</code> in the input box to see suggestions.</p>
+
+              <div class="docs-card">
+                <h3>Session & Context</h3>
+                <table>
+                  <tr><th>Command</th><th>Description</th></tr>
+                  <tr><td><code>/help</code></td><td>Show all available commands</td></tr>
+                  <tr><td><code>/clear</code></td><td>Clear conversation (keep system prompt)</td></tr>
+                  <tr><td><code>/compact</code></td><td>Compress context to save tokens</td></tr>
+                  <tr><td><code>/cost</code></td><td>Token usage + context breakdown</td></tr>
+                  <tr><td><code>/sessions</code></td><td>List recent sessions</td></tr>
+                  <tr><td><code>/sessions rename &lt;name&gt;</code></td><td>Rename current session</td></tr>
+                  <tr><td><code>/soul</code></td><td>View core memory + recall stats</td></tr>
+                  <tr><td><code>/export [path]</code></td><td>Export session to markdown</td></tr>
+                  <tr><td><code>/exit</code></td><td>Exit Kai</td></tr>
+                </table>
+              </div>
+
+              <div class="docs-card">
+                <h3>Git Commands</h3>
+                <table>
+                  <tr><th>Command</th><th>Description</th></tr>
+                  <tr><td><code>/git</code></td><td>Git status + changed files</td></tr>
+                  <tr><td><code>/git diff</code></td><td>Colorized diff (staged + unstaged)</td></tr>
+                  <tr><td><code>/git log [n]</code></td><td>Recent commits (default 15)</td></tr>
+                  <tr><td><code>/git commit [msg]</code></td><td>AI-generated commit (add <code>--push</code> to push)</td></tr>
+                  <tr><td><code>/git pr [title]</code></td><td>Create PR (branch + commit + push + open)</td></tr>
+                  <tr><td><code>/git branch [name]</code></td><td>List or create/switch branches</td></tr>
+                  <tr><td><code>/git undo [n] [hard]</code></td><td>Undo last N commits + clear conversation</td></tr>
+                  <tr><td><code>/git stash [msg]</code></td><td>Stash uncommitted changes</td></tr>
+                </table>
+              </div>
+
+              <div class="docs-card">
+                <h3>Agents</h3>
+                <table>
+                  <tr><th>Command</th><th>Description</th></tr>
+                  <tr><td><code>/agent</code></td><td>List background agents</td></tr>
+                  <tr><td><code>/agent run &lt;id&gt;</code></td><td>Run an agent now</td></tr>
+                  <tr><td><code>/agent output &lt;id&gt;</code></td><td>View agent output</td></tr>
+                  <tr><td><code>/agent info &lt;id&gt;</code></td><td>Agent details + run history</td></tr>
+                  <tr><td><code>/notify</code></td><td>Agent notifications digest</td></tr>
+                  <tr><td><code>/notify --all</code></td><td>All notifications</td></tr>
+                </table>
+              </div>
+
+              <div class="docs-card">
+                <h3>Code Quality</h3>
+                <table>
+                  <tr><th>Command</th><th>Description</th></tr>
+                  <tr><td><code>/review [focus]</code></td><td>AI code review of current git changes</td></tr>
+                  <tr><td><code>/security-review [focus]</code></td><td>Security-focused audit of current changes</td></tr>
+                  <tr><td><code>/plan</code></td><td>Toggle plan mode (read-only tools)</td></tr>
+                  <tr><td><code>/diff</code></td><td>All changes made this session</td></tr>
+                </table>
+              </div>
+
+              <div class="docs-card">
+                <h3>System & Skills</h3>
+                <table>
+                  <tr><th>Command</th><th>Description</th></tr>
+                  <tr><td><code>/doctor</code></td><td>System diagnostics</td></tr>
+                  <tr><td><code>/skill</code></td><td>List installed skills</td></tr>
+                  <tr><td><code>/skill reload</code></td><td>Hot-reload all skills</td></tr>
+                  <tr><td><code>/mcp</code></td><td>List connected MCP servers + tools</td></tr>
+                  <tr><td><code>/mcp add &lt;name&gt; &lt;cmd&gt;</code></td><td>Add an MCP server</td></tr>
+                  <tr><td><code>/mcp remove &lt;name&gt;</code></td><td>Remove an MCP server</td></tr>
+                  <tr><td><code>/errors</code></td><td>View tracked errors</td></tr>
+                </table>
+              </div>
+
+              <div class="docs-card">
+                <h3>Custom Commands</h3>
+                <p>Create custom commands by adding markdown files to <code>.kai/commands/</code> (project-level) or <code>~/.kai/commands/</code> (global). The filename becomes the command name.</p>
+                <p style="margin-top:12px"><strong>Example:</strong> Create <code>.kai/commands/deploy.md</code> with:</p>
+                <pre><code># Deploy to production
+
+Run the deployment script with:
+<code>{{args}}</code>
+
+Always check tests pass first.</code></pre>
+                <p>Then use <code>/deploy --env=prod</code> in chat.</p>
+              </div>
+            </section>
+
             <!-- Setup -->
             <section id="docs-setup">
               <h2>Setup</h2>
@@ -1985,6 +2114,141 @@ npm run dev</code></pre>
 
     const $ = id => document.getElementById(id);
     const $msgs = $('messages'), $chat = $('chat-area'), $input = $('input');
+
+    // --- Command Palette Functions (defined before use) ---
+    const SLASH_COMMANDS = [
+      { cmd: "/help", desc: "Show all commands", category: "Session" },
+      { cmd: "/clear", desc: "Clear conversation", category: "Session" },
+      { cmd: "/compact", desc: "Compress context to save tokens", category: "Session" },
+      { cmd: "/cost", desc: "Token usage + context breakdown", category: "Session" },
+      { cmd: "/sessions", desc: "List recent sessions", category: "Session" },
+      { cmd: "/soul", desc: "View core memory + recall stats", category: "Session" },
+      { cmd: "/export", desc: "Export session to markdown", category: "Session" },
+      { cmd: "/git", desc: "Git status + changed files", category: "Git" },
+      { cmd: "/git diff", desc: "Colorized diff", category: "Git" },
+      { cmd: "/git log", desc: "Recent commits", category: "Git" },
+      { cmd: "/git commit", desc: "AI-generated commit", category: "Git" },
+      { cmd: "/git pr", desc: "Create PR", category: "Git" },
+      { cmd: "/git branch", desc: "Branch management", category: "Git" },
+      { cmd: "/git undo", desc: "Undo commits + reset", category: "Git" },
+      { cmd: "/git stash", desc: "Stash uncommitted changes", category: "Git" },
+      { cmd: "/agent", desc: "List background agents", category: "Agents" },
+      { cmd: "/agent run", desc: "Run agent", category: "Agents" },
+      { cmd: "/agent output", desc: "View agent output", category: "Agents" },
+      { cmd: "/agent info", desc: "Agent details + history", category: "Agents" },
+      { cmd: "/notify", desc: "Agent notifications digest", category: "Agents" },
+      { cmd: "/review", desc: "Code review current changes", category: "Code Quality" },
+      { cmd: "/security-review", desc: "Security audit", category: "Code Quality" },
+      { cmd: "/plan", desc: "Toggle plan mode (read-only)", category: "Code Quality" },
+      { cmd: "/diff", desc: "Changes made this session", category: "Code Quality" },
+      { cmd: "/doctor", desc: "System diagnostics", category: "System" },
+      { cmd: "/skill", desc: "List installed skills", category: "System" },
+      { cmd: "/skill reload", desc: "Hot-reload all skills", category: "System" },
+      { cmd: "/mcp", desc: "List MCP servers + tools", category: "System" },
+      { cmd: "/errors", desc: "View tracked errors", category: "System" },
+    ];
+
+    let commandPaletteOpen = false;
+    let selectedCommandIndex = 0;
+    let filteredCommands = [];
+
+    function showCommandPalette(filter = "") {
+      const palette = $('command-palette');
+      const list = $('command-list');
+      
+      const query = filter.toLowerCase().replace(/^\//, '');
+      filteredCommands = query 
+        ? SLASH_COMMANDS.filter(c => c.cmd.toLowerCase().includes(query) || c.desc.toLowerCase().includes(query))
+        : SLASH_COMMANDS;
+      
+      const byCategory = {};
+      for (const cmd of filteredCommands) {
+        if (!byCategory[cmd.category]) byCategory[cmd.category] = [];
+        byCategory[cmd.category].push(cmd);
+      }
+      
+      let html = '';
+      let index = 0;
+      for (const [category, commands] of Object.entries(byCategory)) {
+        html += `<div class="command-category">${esc(category)}</div>`;
+        for (const cmd of commands) {
+          html += `<div class="command-item${index === 0 ? ' selected' : ''}" data-index="${index}" onclick="selectCommand('${esc(cmd.cmd)}')">
+            <span class="command-name">${esc(cmd.cmd)}</span>
+            <span class="command-desc">${esc(cmd.desc)}</span>
+          </div>`;
+          index++;
+        }
+      }
+      
+      list.innerHTML = html || '<div class="command-item" style="color:var(--text-muted)">No commands found</div>';
+      palette.style.display = 'block';
+      commandPaletteOpen = true;
+      selectedCommandIndex = 0;
+    }
+
+    function hideCommandPalette() {
+      $('command-palette').style.display = 'none';
+      commandPaletteOpen = false;
+    }
+
+    function updateCommandSelection(newIndex) {
+      const items = document.querySelectorAll('.command-item[data-index]');
+      items.forEach((item, i) => {
+        item.classList.toggle('selected', i === newIndex);
+      });
+      selectedCommandIndex = newIndex;
+      const selected = items[newIndex];
+      if (selected) selected.scrollIntoView({ block: 'nearest' });
+    }
+
+    window.selectCommand = function(cmd) {
+      $input.value = cmd + ' ';
+      hideCommandPalette();
+      $input.focus();
+      $input.style.height = 'auto';
+      $input.style.height = $input.scrollHeight + 'px';
+    };
+
+    // --- Command Palette Event Listeners (after functions defined) ---
+    $input.addEventListener('input', (e) => {
+      const val = e.target.value;
+      if (val.startsWith('/')) {
+        showCommandPalette(val);
+      } else {
+        hideCommandPalette();
+      }
+    });
+
+    $input.addEventListener('keydown', (e) => {
+      if (!commandPaletteOpen) return;
+      
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        updateCommandSelection(Math.min(selectedCommandIndex + 1, filteredCommands.length - 1));
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        updateCommandSelection(Math.max(selectedCommandIndex - 1, 0));
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        if (filteredCommands[selectedCommandIndex]) {
+          selectCommand(filteredCommands[selectedCommandIndex].cmd);
+        }
+      } else if (e.key === 'Escape') {
+        hideCommandPalette();
+      } else if (e.key === 'Tab') {
+        e.preventDefault();
+        if (filteredCommands[selectedCommandIndex]) {
+          selectCommand(filteredCommands[selectedCommandIndex].cmd);
+        }
+      }
+    });
+
+    // Hide palette when clicking outside
+    document.addEventListener('click', (e) => {
+      if (commandPaletteOpen && !e.target.closest('.input-wrap')) {
+        hideCommandPalette();
+      }
+    });
 
     // --- Voice input (Web Speech API) ---
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
