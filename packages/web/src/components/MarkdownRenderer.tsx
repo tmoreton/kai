@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
-import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
+import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
 import { cn } from "../lib/utils";
 
 interface MarkdownRendererProps {
@@ -20,21 +20,30 @@ export function MarkdownRenderer({ content, className, onImageClick }: MarkdownR
 
         if (!inline && language) {
           return (
-            <SyntaxHighlighter
-              style={oneDark}
-              language={language}
-              PreTag="div"
-              className="rounded-lg my-3"
-              {...props}
-            >
-              {String(children).replace(/\n$/, "")}
-            </SyntaxHighlighter>
+            <div className="relative group">
+              <div className="absolute right-2 top-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                <span className="text-xs text-muted-foreground bg-background/80 px-2 py-1 rounded">
+                  {language}
+                </span>
+              </div>
+              <SyntaxHighlighter
+                style={vscDarkPlus}
+                language={language}
+                PreTag="div"
+                className="rounded-lg my-3 !bg-[#1e1e1e] !p-4 text-sm overflow-x-auto"
+                showLineNumbers={true}
+                lineNumberStyle={{ minWidth: '2.5em', paddingRight: '1em', color: '#6e7681' }}
+                {...props}
+              >
+                {String(children).replace(/\n$/, "")}
+              </SyntaxHighlighter>
+            </div>
           );
         }
 
         return (
           <code
-            className="bg-accent/50 px-1.5 py-0.5 rounded text-sm font-mono text-primary"
+            className="bg-secondary px-1.5 py-0.5 rounded text-sm font-mono text-foreground border border-border"
             {...props}
           >
             {children}

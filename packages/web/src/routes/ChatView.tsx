@@ -608,7 +608,7 @@ function MessageBubble({
       }`}>
         {isUser ? 'U' : 'K'}
       </div>
-      <div className={`flex-1 min-w-0 ${isUser ? 'items-end' : ''}`}>
+      <div className={`flex-1 min-w-0 flex flex-col ${isUser ? 'items-end' : 'items-start'}`}>
         <div className={`inline-block max-w-[85%] px-4 py-3 rounded-2xl ${
           isUser 
             ? 'bg-primary text-white rounded-tr-sm' 
