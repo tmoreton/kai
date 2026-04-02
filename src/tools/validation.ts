@@ -90,7 +90,7 @@ export const spawnSwarmSchema = z.object({
   tasks: z.array(z.object({
     agent: z.string().min(1, "agent type or persona ID is required"),
     task: z.string().min(1, "task is required"),
-  })).min(1, "at least one task is required").max(10, "maximum 10 concurrent agents"),
+  })).max(10, "maximum 10 concurrent agents"),
 });
 
 export const generateImageSchema = z.object({

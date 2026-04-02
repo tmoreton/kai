@@ -20,6 +20,7 @@ import { isToolAllowedInPlanMode, isPlanMode } from "../plan-mode.js";
 import { tryExecuteCoreSkillTool } from "../skills/index.js";
 import { takeScreenshot } from "./screenshot.js";
 import { analyzeImage } from "./vision.js";
+import { recordError } from "../error-tracker.js";
 
 export type ToolResult = string;
 
@@ -201,6 +202,7 @@ export async function executeTool(
       const msg = err instanceof Error ? err.message : String(err);
       result = `Tool "${name}" failed: ${msg}`;
     }
+    recordError({ source: "tool", error: err, context: { toolName: name, args } });
   }
 
   // Run after-hooks — can override output

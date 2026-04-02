@@ -42,12 +42,12 @@ export function trackToolMetadata(toolName: string, args: Record<string, unknown
 }
 
 /** Get the incrementally-tracked metadata */
-export function getTrackedMetadata(): ConversationMetadata {
+function getTrackedMetadata(): ConversationMetadata {
   return _metadata;
 }
 
 /** Reset tracked metadata (call after compaction) */
-export function resetTrackedMetadata(): void {
+function resetTrackedMetadata(): void {
   _metadata.filesRead.clear();
   _metadata.filesModified.clear();
   _metadata.toolsUsed.clear();

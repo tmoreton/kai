@@ -49,7 +49,7 @@ export function registerSettingsRoutes(app: Hono) {
         version: s.manifest.version,
         description: s.manifest.description || "",
         author: s.manifest.author || "",
-        tools: s.manifest.tools.map((t) => ({ name: t.name, description: t.description })),
+        tools: s.manifest.tools.map((t: any) => ({ name: t.name, description: t.description })),
         path: s.path,
       })),
     });

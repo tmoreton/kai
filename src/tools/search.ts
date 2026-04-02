@@ -73,7 +73,19 @@ export async function grepTool(args: {
     if (err && typeof err === "object" && "status" in err && err.status === 1) {
       return "No matches found.";
     }
+    // If grep fails due to regex syntax (e.g. unbalanced braces), retry with fixed-string mode
     const msg = err instanceof Error ? err.message : String(err);
+    if (msg.includes("braces not balanced") || msg.includes("Invalid regex") || msg.includes("Unmatched")) {
+      try {
+        return runSystemGrep({ ...args, _fixedString: true } as any, searchPath);
+      } catch (retryErr: unknown) {
+        if (retryErr && typeof retryErr === "object" && "status" in retryErr && retryErr.status === 1) {
+          return "No matches found.";
+        }
+        const retryMsg = retryErr instanceof Error ? retryErr.message : String(retryErr);
+        return `Error: ${retryMsg}`;
+      }
+    }
     return `Error: ${msg}`;
   }
 }
@@ -111,10 +123,11 @@ function runRipgrep(
 }
 
 function runSystemGrep(
-  args: { pattern: string; include?: string; context?: number; ignore_case?: boolean },
+  args: { pattern: string; include?: string; context?: number; ignore_case?: boolean; _fixedString?: boolean },
   searchPath: string
 ): string {
   const grepArgs = ["-rn", "--color=never"];
+  if (args._fixedString) grepArgs.push("-F");
   if (args.ignore_case) grepArgs.push("-i");
   if (args.context) grepArgs.push(`-C${args.context}`);
   if (args.include) grepArgs.push(`--include=${args.include}`);

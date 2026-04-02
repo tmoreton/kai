@@ -54,8 +54,19 @@ export const SLASH_COMMANDS = [
   { cmd: "/mcp", desc: "List MCP servers" },
   { cmd: "/mcp add", desc: "Add MCP server" },
   { cmd: "/mcp remove", desc: "Remove MCP server" },
+  { cmd: "/errors", desc: "View tracked errors" },
   { cmd: "/exit", desc: "Exit Kai" },
 ];
+
+function timeSince(isoDate: string): string {
+  const ms = Date.now() - new Date(isoDate).getTime();
+  const mins = Math.floor(ms / 60000);
+  if (mins < 1) return "<1m";
+  if (mins < 60) return `${mins}m`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h`;
+  return `${Math.floor(hours / 24)}d`;
+}
 
 export async function runDoctor(): Promise<void> {
   const { execFileSync } = await import("child_process");
@@ -421,6 +432,61 @@ ${diff.substring(0, 6000)}`;
     session.name = input.substring(17).trim();
     saveSession(session);
     console.log(chalk.dim(`  Session renamed to: ${session.name}\n`));
+    return "handled";
+  }
+
+  // === /errors — view tracked errors ===
+  if (cmd === "/errors" || cmd.startsWith("/errors ")) {
+    const { getErrorSummary, getErrorTrends, getUnresolvedErrors } = await import("./agents/db.js");
+
+    const arg = input.substring(7).trim();
+    if (arg === "all") {
+      const errors = getUnresolvedErrors(50);
+      if (errors.length === 0) {
+        console.log(chalk.green("\n  No tracked errors.\n"));
+        return "handled";
+      }
+      console.log(chalk.bold(`\n  All unresolved errors (${errors.length}):\n`));
+      for (const e of errors) {
+        const age = timeSince(e.last_seen);
+        console.log(`  ${chalk.red(e.error_class || "Error")} ${chalk.dim(`[${e.source}]`)} ${e.message.substring(0, 100)}`);
+        console.log(chalk.dim(`    count: ${e.count} | first: ${e.first_seen} | last: ${age} ago | fp: ${e.fingerprint.substring(0, 8)}`));
+        if (e.context) {
+          try {
+            const ctx = JSON.parse(e.context);
+            if (ctx.toolName) console.log(chalk.dim(`    tool: ${ctx.toolName}`));
+          } catch {}
+        }
+        console.log("");
+      }
+      return "handled";
+    }
+
+    // Default: summary view
+    const summary = getErrorSummary(15);
+    const trends = getErrorTrends(24);
+
+    if (summary.length === 0) {
+      console.log(chalk.green("\n  No tracked errors. The system is healthy.\n"));
+      return "handled";
+    }
+
+    console.log(chalk.bold("\n  Error Summary (last 24h):\n"));
+
+    // Trend by source
+    if (trends.length > 0) {
+      const trendLine = trends.map((t) => `${t.source}: ${t.count}`).join("  ");
+      console.log(chalk.dim(`  By source: ${trendLine}\n`));
+    }
+
+    // Top errors by fingerprint
+    for (const e of summary) {
+      const countStr = chalk.yellow(`x${e.total_count}`);
+      const sourceStr = chalk.dim(`[${e.source}]`);
+      const classStr = chalk.red(e.error_class || "Error");
+      console.log(`  ${countStr} ${classStr} ${sourceStr} ${e.message.substring(0, 80)}`);
+    }
+    console.log(chalk.dim(`\n  Use /errors all for full details.\n`));
     return "handled";
   }
 
@@ -857,6 +923,8 @@ ${(gitDiff(false) || "(none)").substring(0, 2000)}`;
   /sessions               List recent sessions
   /sessions rename <name> Rename current session
   /soul                   View memory (persona, human, goals, scratchpad, recall)
+  /errors                 View tracked errors (summary)
+  /errors all             View all unresolved errors (detailed)
 
   /diff                   All changes made this session
   /git                    Status + changed files

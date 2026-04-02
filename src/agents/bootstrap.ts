@@ -38,6 +38,20 @@ const BUILTIN_AGENTS: BuiltinAgent[] = [
     schedule: "0 4 * * 0",
     yamlFile: "kai-memory-cleanup.yaml",
   },
+  {
+    id: "agent-kai-self-diagnosis",
+    name: "Kai Self-Diagnosis",
+    description: "Daily error analysis — reviews accumulated errors and generates structured diagnoses for self-healing",
+    schedule: "0 3 * * *",
+    yamlFile: "kai-self-diagnosis.yaml",
+  },
+  {
+    id: "agent-kai-self-heal",
+    name: "Kai Self-Heal",
+    description: "Applies high-confidence fixes from diagnosis reports on a git branch with build/test gates",
+    schedule: "30 3 * * *",
+    yamlFile: "kai-self-heal.yaml",
+  },
 ];
 
 /**

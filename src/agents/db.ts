@@ -100,10 +100,35 @@ export function getDb(): Database.Database {
     );
     CREATE INDEX IF NOT EXISTS idx_approvals_run ON approvals(run_id);
     CREATE INDEX IF NOT EXISTS idx_approvals_pending ON approvals(approved);
+
+    -- Error tracking for self-healing
+    CREATE TABLE IF NOT EXISTS error_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      fingerprint TEXT NOT NULL,
+      source TEXT NOT NULL,           -- 'repl' | 'client' | 'tool' | 'daemon' | 'uncaught'
+      error_class TEXT,               -- 'ApiError' | 'ToolError' | 'Error' etc
+      error_code TEXT,                -- KaiError.code if available
+      message TEXT NOT NULL,
+      stack TEXT,
+      context TEXT,                   -- JSON: {toolName, args, sessionId, ...}
+      count INTEGER DEFAULT 1,
+      first_seen TEXT DEFAULT (datetime('now')),
+      last_seen TEXT DEFAULT (datetime('now')),
+      resolved INTEGER DEFAULT 0,
+      healing_run_id TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_error_fingerprint ON error_events(fingerprint);
+    CREATE INDEX IF NOT EXISTS idx_error_unresolved ON error_events(resolved, last_seen);
   `);
 
   // Migrations for existing databases
   try { db.exec("ALTER TABLE runs ADD COLUMN recap TEXT"); } catch {}
+  try { db.exec(`CREATE TABLE IF NOT EXISTS error_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, fingerprint TEXT NOT NULL, source TEXT NOT NULL,
+    error_class TEXT, error_code TEXT, message TEXT NOT NULL, stack TEXT, context TEXT,
+    count INTEGER DEFAULT 1, first_seen TEXT DEFAULT (datetime('now')),
+    last_seen TEXT DEFAULT (datetime('now')), resolved INTEGER DEFAULT 0, healing_run_id TEXT
+  )`); } catch {}
 
   return db;
 }
@@ -521,4 +546,122 @@ export function hasRecentNotification(agentId: string, type: string, hours = 24)
     "SELECT COUNT(*) as count FROM notifications WHERE agent_id = ? AND type = ? AND created_at > ? AND read = 0"
   ).get(agentId, type, cutoff) as any;
   return (row?.count || 0) > 0;
+}
+
+// --- Error Events (self-healing tracker) ---
+
+export interface ErrorEventRecord {
+  id: number;
+  fingerprint: string;
+  source: string;
+  error_class: string | null;
+  error_code: string | null;
+  message: string;
+  stack: string | null;
+  context: string | null;
+  count: number;
+  first_seen: string;
+  last_seen: string;
+  resolved: number;
+  healing_run_id: string | null;
+}
+
+/**
+ * Record an error event. If an error with the same fingerprint was seen in the
+ * last 24 hours, bumps the count instead of inserting a new row.
+ */
+export function recordErrorEvent(opts: {
+  fingerprint: string;
+  source: string;
+  errorClass?: string;
+  errorCode?: string;
+  message: string;
+  stack?: string;
+  context?: Record<string, unknown>;
+}): void {
+  const db = getDb();
+  const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+
+  // Try to bump existing entry with same fingerprint within 24h window
+  const updated = db.prepare(`
+    UPDATE error_events
+    SET count = count + 1, last_seen = datetime('now'),
+        stack = COALESCE(?, stack), context = COALESCE(?, context)
+    WHERE fingerprint = ? AND last_seen > ? AND resolved = 0
+  `).run(
+    opts.stack || null,
+    opts.context ? JSON.stringify(opts.context) : null,
+    opts.fingerprint,
+    cutoff
+  );
+
+  if (updated.changes > 0) return;
+
+  // Insert new error event
+  db.prepare(`
+    INSERT INTO error_events (fingerprint, source, error_class, error_code, message, stack, context)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    opts.fingerprint,
+    opts.source,
+    opts.errorClass || null,
+    opts.errorCode || null,
+    opts.message,
+    opts.stack || null,
+    opts.context ? JSON.stringify(opts.context) : null
+  );
+}
+
+/** Get unresolved errors, most recent first. */
+export function getUnresolvedErrors(limit = 50): ErrorEventRecord[] {
+  return getDb().prepare(
+    "SELECT * FROM error_events WHERE resolved = 0 ORDER BY last_seen DESC LIMIT ?"
+  ).all(limit) as ErrorEventRecord[];
+}
+
+/** Get unresolved errors grouped by fingerprint with total counts. */
+export function getErrorSummary(limit = 20): Array<{
+  fingerprint: string;
+  source: string;
+  error_class: string | null;
+  message: string;
+  total_count: number;
+  first_seen: string;
+  last_seen: string;
+}> {
+  return getDb().prepare(`
+    SELECT fingerprint, source, error_class, message,
+           SUM(count) as total_count, MIN(first_seen) as first_seen, MAX(last_seen) as last_seen
+    FROM error_events WHERE resolved = 0
+    GROUP BY fingerprint
+    ORDER BY total_count DESC
+    LIMIT ?
+  `).all(limit) as any[];
+}
+
+/** Mark an error (or all with same fingerprint) as resolved. */
+export function markErrorResolved(fingerprint: string, healingRunId?: string): number {
+  const result = getDb().prepare(
+    "UPDATE error_events SET resolved = 1, healing_run_id = ? WHERE fingerprint = ? AND resolved = 0"
+  ).run(healingRunId || null, fingerprint);
+  return result.changes;
+}
+
+/** Get error counts per source over the last N hours. */
+export function getErrorTrends(hours = 24): Array<{ source: string; count: number }> {
+  const cutoff = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
+  return getDb().prepare(`
+    SELECT source, SUM(count) as count
+    FROM error_events WHERE last_seen > ?
+    GROUP BY source ORDER BY count DESC
+  `).all(cutoff) as any[];
+}
+
+/** Purge resolved errors older than N days. */
+export function pruneResolvedErrors(days = 30): number {
+  const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+  const result = getDb().prepare(
+    "DELETE FROM error_events WHERE resolved = 1 AND last_seen < ?"
+  ).run(cutoff);
+  return result.changes;
 }

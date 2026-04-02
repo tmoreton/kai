@@ -24,6 +24,8 @@ import { resolveProvider, type ResolvedProvider } from "./providers/index.js";
 import { getLastDiff } from "./tools/files.js";
 import { renderColorDiff } from "./diff.js";
 import { isToolAllowedInPlanMode } from "./plan-mode.js";
+import { startSpinner, stopSpinner } from "./render/stream.js";
+import { recordError } from "./error-tracker.js";
 import chalk from "chalk";
 
 let _resolved: ResolvedProvider | null = null;
@@ -120,16 +122,11 @@ export async function chat(
     }
     turns++;
 
-    // Show thinking indicator
-    const thinkingFrames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
-    let frameIndex = 0;
+    // Show thinking indicator using centralized spinner
     let firstToken = false;
-    const spinner = setInterval(() => {
-      if (!firstToken && !_userTyping) {
-        const frame = thinkingFrames[frameIndex++ % thinkingFrames.length];
-        process.stderr.write(`\x1b[2K\r  ${chalk.cyan(frame)} ${chalk.dim("thinking...")}`);
-      }
-    }, 80);
+    const spinner = startSpinner("thinking...", (text) => {
+      if (!firstToken && !_userTyping) process.stderr.write(text);
+    });
 
     // Create stream with timeout — reset per retry attempt
     let controller: AbortController;
@@ -138,7 +135,7 @@ export async function chat(
     // Link user abort signal to spinner cleanup
     if (options?.signal) {
       options.signal.addEventListener("abort", () => {
-        clearInterval(spinner);
+        stopSpinner(spinner, null);
         process.stderr.write("\x1b[2K\r");
       }, { once: true });
     }
@@ -147,7 +144,7 @@ export async function chat(
     for (let attempt = 0; attempt < RETRY_MAX_ATTEMPTS; attempt++) {
       // Bail immediately if user already aborted
       if (options?.signal?.aborted) {
-        clearInterval(spinner);
+        stopSpinner(spinner, null);
         process.stderr.write("\x1b[2K\r");
         return updatedMessages;
       }
@@ -179,9 +176,10 @@ export async function chat(
         const status = (err as any)?.status || (err as any)?.response?.status;
         const isRetryable = status && RETRYABLE_STATUS_CODES.includes(status);
         if (!isRetryable || attempt === RETRY_MAX_ATTEMPTS - 1) {
-          clearInterval(spinner);
+          stopSpinner(spinner, null);
           process.stderr.write("\x1b[2K\r"); // Clear spinner
           const msg = err instanceof Error ? err.message : String(err);
+          recordError({ source: "client", error: err, context: { provider: getProviderName(), status, attempt } });
           throw new Error(`API request failed: ${msg}`);
         }
       }
@@ -217,7 +215,7 @@ export async function chat(
 
           if (!firstToken) {
             firstToken = true;
-            clearInterval(spinner);
+            stopSpinner(spinner, null);
             process.stderr.write("\x1b[2K\r"); // Clear spinner line
           }
           content += text;
@@ -227,7 +225,7 @@ export async function chat(
         if (delta.tool_calls) {
           if (!firstToken) {
             firstToken = true;
-            clearInterval(spinner);
+            stopSpinner(spinner, null);
             process.stderr.write("\x1b[2K\r");
           }
           for (const tc of delta.tool_calls) {
@@ -253,7 +251,7 @@ export async function chat(
     } catch (streamErr: unknown) {
       // If aborted by user, return what we have so far
       if (options?.signal?.aborted) {
-        clearInterval(spinner);
+        stopSpinner(spinner, null);
         clearTimeout(timeout!);
         process.stderr.write("\x1b[2K\r");
         if (content.trim()) {
@@ -268,7 +266,7 @@ export async function chat(
       }
       // If we already have partial content/tool calls, continue with what we have
     } finally {
-      clearInterval(spinner);
+      stopSpinner(spinner, null);
       clearTimeout(timeout!);
       if (!firstToken) {
         process.stderr.write("\x1b[2K\r");
@@ -478,7 +476,14 @@ export async function chat(
 
         // Display output with truncation indicator
         const lines = resultStr.split("\n");
-        if (lines.length > TOOL_OUTPUT_MAX_LINES) {
+        if (p.toolName === "read_file") {
+          // Compact display for file reads — just show line count
+          console.log(chalk.gray(`    ⎿  ${lines.length} lines`));
+        } else if (p.toolName === "grep") {
+          // Compact display for grep — show match count
+          const matchCount = resultStr === "No matches found." ? 0 : lines.length;
+          console.log(chalk.gray(`    ⎿  ${matchCount} match${matchCount !== 1 ? "es" : ""}`));
+        } else if (lines.length > TOOL_OUTPUT_MAX_LINES) {
           console.log(chalk.gray(`    ⎿  ${formatToolLabel(p.toolName)}: ${lines.slice(0, TOOL_OUTPUT_PREVIEW_LINES).join("\n       ")}...`));
           console.log(chalk.gray(`       (${lines.length} lines total — truncated)`));
         } else if (resultStr.length > TOOL_OUTPUT_MAX_CHARS) {
@@ -566,23 +571,15 @@ export async function chat(
         // Show spinner for slow tools (image gen, web fetch, agents, swarms)
         const slowTools = ["generate_image", "web_search", "spawn_agent", "spawn_swarm", "take_screenshot", "analyze_image"];
         const isSlow = slowTools.includes(p.toolName) || p.toolName.startsWith("mcp__");
-        let toolSpinner: ReturnType<typeof setInterval> | null = null;
-        const spinChars = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
-        let si = 0;
-        if (isSlow) {
-          toolSpinner = setInterval(() => {
-            if (!_userTyping) {
-              process.stderr.write(`\x1b[s\r\x1b[K${chalk.dim(`    ${spinChars[si++ % spinChars.length]} Working...`)}\x1b[u`);
-            }
-          }, 100);
-        }
+        const toolSpinner = isSlow
+          ? startSpinner("Working...", (text) => { if (!_userTyping) process.stderr.write(text); })
+          : null;
 
         trackToolMetadata(p.toolName, p.args);
         const resultStr: string = await executeTool(p.toolName, p.args);
 
         if (toolSpinner) {
-          clearInterval(toolSpinner);
-          process.stderr.write("\x1b[2K\r");
+          stopSpinner(toolSpinner, null);
         }
 
         // Display tool output — show diff for file operations
@@ -593,6 +590,15 @@ export async function chat(
           console.log(chalk.gray(`    ⎿  ${resultStr}`));
           const rendered = renderColorDiff(diff);
           console.log(rendered.split("\n").map((l) => `       ${l}`).join("\n"));
+        } else if (p.toolName === "read_file") {
+          // Compact display for file reads — just show line count
+          const lines = resultStr.split("\n");
+          console.log(chalk.gray(`    ⎿  ${lines.length} lines`));
+        } else if (p.toolName === "grep") {
+          // Compact display for grep — show match count
+          const lines = resultStr.split("\n");
+          const matchCount = resultStr === "No matches found." ? 0 : lines.length;
+          console.log(chalk.gray(`    ⎿  ${matchCount} match${matchCount !== 1 ? "es" : ""}`));
         } else {
           const lines = resultStr.split("\n");
           if (lines.length > TOOL_OUTPUT_MAX_LINES) {
@@ -627,6 +633,7 @@ export async function chat(
 
         if (isError) {
           consecutiveErrors++;
+          recordError({ source: "client", error: new Error(resultStr), context: { toolName: p.toolName, args: p.args } });
           if (callSignature === lastFailedCall) {
             contextContent += "\n\n[SYSTEM: This exact tool call has failed before with the same error. Try a DIFFERENT approach instead of retrying the same command.]";
           }

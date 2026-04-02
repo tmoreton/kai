@@ -29,6 +29,19 @@ export interface KaiConfig {
   maxTokens?: number;
   temperature?: number;
   mcp?: McpConfig;
+  /** Self-healing configuration */
+  selfHeal?: {
+    /** Enable nightly diagnosis (default: true) */
+    diagnose?: boolean;
+    /** Enable auto-fix application (default: false — requires explicit opt-in) */
+    autoFix?: boolean;
+    /** Minimum confidence threshold for auto-fixes (default: 0.8) */
+    minConfidence?: number;
+    /** Maximum files to modify per healing cycle (default: 3) */
+    maxFiles?: number;
+    /** Auto-merge fixes to main after approval (default: false) */
+    autoMerge?: boolean;
+  };
   // Provider endpoints (defaults used if omitted)
   fireworksBaseUrl?: string;
   openrouterBaseUrl?: string;
@@ -49,7 +62,7 @@ const CONFIG_PATHS = [
 
 let cachedConfig: KaiConfig | null = null;
 
-export function loadConfig(): KaiConfig {
+function loadConfig(): KaiConfig {
   const merged: KaiConfig = {};
 
   // Load in reverse order so project settings override user settings
@@ -75,7 +88,7 @@ export function getConfig(): KaiConfig {
 }
 
 /** Clear the config cache so the next getConfig() call re-reads from disk. */
-export function clearConfigCache(): void {
+function clearConfigCache(): void {
   cachedConfig = null;
 }
 
@@ -108,7 +121,7 @@ export function saveUserConfig(partial: Partial<KaiConfig>): void {
 }
 
 /** Root data directory: ~/.kai */
-export const KAI_HOME = path.resolve(process.env.HOME || "~", ".kai");
+const KAI_HOME = path.resolve(process.env.HOME || "~", ".kai");
 
 export function ensureKaiDir(): string {
   if (!fs.existsSync(KAI_HOME)) {

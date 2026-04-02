@@ -2,7 +2,7 @@ import { execSync } from "child_process";
 import { getCwd } from "./tools/bash.js";
 
 // Cache for frequently called git commands (avoid repeated subprocess spawns)
-const GIT_CACHE_TTL = 3000; // 3 seconds
+const GIT_CACHE_TTL = 30_000; // 30 seconds — git state rarely changes mid-turn
 let _gitCache: { branch: string; status: string; isRepo: boolean; cachedAt: number; cwd: string } = {
   branch: "", status: "", isRepo: false, cachedAt: 0, cwd: "",
 };

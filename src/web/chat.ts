@@ -6,7 +6,7 @@ import OpenAI from "openai";
 
 import { getModelId, summarizeArgs, rescueToolCallsFromText } from "../client.js";
 import { toolDefinitions, getMcpToolDefinitions } from "../tools/index.js";
-import { getSkillToolDefinitions } from "../skills/index.js";
+import { getSkillToolDefinitions, getCoreSkillToolDefinitions } from "../skills/index.js";
 import { executeTool } from "../tools/executor.js";
 import { shouldCompact, compactMessages } from "../context.js";
 import {
@@ -65,8 +65,9 @@ export async function chatForWeb(
   signal?: AbortSignal
 ): Promise<ChatCompletionMessageParam[]> {
   const mcpTools = getMcpToolDefinitions();
+  const coreSkillTools = getCoreSkillToolDefinitions();
   const skillTools = getSkillToolDefinitions();
-  const activeTools = [...toolDefinitions, ...mcpTools, ...skillTools] as ChatCompletionTool[];
+  const activeTools = [...coreSkillTools, ...toolDefinitions, ...mcpTools, ...skillTools] as ChatCompletionTool[];
   const updatedMessages = [...messages];
 
   // Auto-compact if context is getting large

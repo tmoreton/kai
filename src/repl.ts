@@ -32,6 +32,7 @@ import {
 } from "./commands.js";
 import { isPlanMode } from "./plan-mode.js";
 import { autoRoute, applyRoute } from "./auto-route.js";
+import { recordError, installGlobalErrorHandlers } from "./error-tracker.js";
 import { resolveFilePath, expandHome } from "./utils.js";
 import { bootstrapBuiltinAgents } from "./agents/bootstrap.js";
 import { SLASH_COMMANDS, handleCommand } from "./repl-commands.js";
@@ -62,11 +63,18 @@ export interface ReplOptions {
 }
 
 export async function startRepl(options: ReplOptions = {}, initialPrompt?: string): Promise<void> {
-  // Prune sessions older than 30 days on startup
-  const pruned = cleanupSessions(30);
-  if (pruned > 0) {
-    console.log(chalk.dim(`  Cleaned up ${pruned} old session(s).\n`));
-  }
+  // Install global error handlers for crash tracking
+  installGlobalErrorHandlers();
+
+  // Prune old sessions in background (non-blocking startup)
+  setTimeout(() => {
+    try {
+      const pruned = cleanupSessions(30);
+      if (pruned > 0) {
+        process.stderr.write(chalk.dim(`  Cleaned up ${pruned} old session(s).\n`));
+      }
+    } catch {}
+  }, 5000);
 
   // Install built-in agents on first run (e.g. nightly backup)
   const bootstrapped = bootstrapBuiltinAgents();
@@ -384,6 +392,7 @@ export async function startRepl(options: ReplOptions = {}, initialPrompt?: strin
         if (msg.includes("401")) {
           console.error(chalk.yellow("  Check your FIREWORKS_API_KEY in .env\n"));
         }
+        recordError({ source: "repl", error: err, context: { sessionId: session.id } });
       }
     }
 
