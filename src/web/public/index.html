@@ -5267,9 +5267,15 @@ Please fix this error and then confirm what changes you made.`;
 
         html += `<div class="settings-form">
           <div class="settings-form-title">Add MCP Server</div>
-          <div class="settings-form-row" style="flex-direction:column;gap:8px;">
-            <textarea id="mcp-config" rows="4" style="width:100%;font-family:var(--font-mono);font-size:13px;resize:vertical;" placeholder="name: filesystem\ncommand: npx\nargs: -y @modelcontextprotocol/server-filesystem /tmp"></textarea>
-            <button class="settings-add-btn" onclick="addMcpServer()" style="align-self:flex-end;">Add Server</button>
+          <div style="margin-bottom:8px;">
+            <textarea id="mcp-config" rows="7" style="width:100%;font-family:var(--mono);font-size:13px;resize:vertical;border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px;background:var(--bg-surface);color:var(--text);outline:none;line-height:1.5;tab-size:2;" spellcheck="false">{
+  "name": "filesystem",
+  "command": "npx",
+  "args": ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
+}</textarea>
+          </div>
+          <div style="display:flex;justify-content:flex-end;">
+            <button class="settings-add-btn" onclick="addMcpServer()">Add Server</button>
           </div>
         </div>`;
         html += '</div>';
@@ -5366,23 +5372,20 @@ Please fix this error and then confirm what changes you made.`;
     window.addMcpServer = async function() {
       const raw = $('mcp-config').value.trim();
       if (!raw) return;
-      // Parse key: value lines from the textarea
-      const fields = {};
-      for (const line of raw.split('\n')) {
-        const idx = line.indexOf(':');
-        if (idx === -1) continue;
-        const key = line.substring(0, idx).trim().toLowerCase();
-        const val = line.substring(idx + 1).trim();
-        if (key && val) fields[key] = val;
-      }
-      const name = fields.name;
-      const command = fields.command;
-      const argsStr = fields.args || '';
-      if (!name || !command) {
-        showToast('Error', 'Must include "name" and "command" fields');
+      let config;
+      try {
+        config = JSON.parse(raw);
+      } catch (e) {
+        showToast('Error', 'Invalid JSON. Check your syntax and try again.');
         return;
       }
-      const args = argsStr ? argsStr.split(/\s+/) : [];
+      const name = config.name;
+      const command = config.command;
+      if (!name || !command) {
+        showToast('Error', 'JSON must include "name" and "command" fields');
+        return;
+      }
+      const args = config.args || [];
       try {
         await api.post('/api/settings/mcp', { name, command, args });
         showToast('MCP Server Added', `"${name}" has been configured and initialized.`);

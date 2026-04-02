@@ -1,6 +1,7 @@
 import Database from "better-sqlite3";
 import path from "path";
 import { ensureKaiDir } from "../config.js";
+import { sendNotificationEmail } from "./notify-email.js";
 
 /**
  * SQLite database for agent state persistence.
@@ -495,11 +496,23 @@ export interface NotificationRecord {
 }
 
 export function createNotification(n: { type?: string; title: string; body?: string; agentId?: string; runId?: string }): number {
+  const type = n.type || "agent_run";
   const result = getDb().prepare(`
     INSERT INTO notifications (type, title, body, agent_id, run_id)
     VALUES (?, ?, ?, ?, ?)
-  `).run(n.type || "agent_run", n.title, n.body || null, n.agentId || null, n.runId || null);
+  `).run(type, n.title, n.body || null, n.agentId || null, n.runId || null);
+
+  // Only email error notifications
+  if (type === "agent_error" || type === "agent_failed") {
+    const id = Number(result.lastInsertRowid);
+    sendNotificationEmail({ type, title: n.title, body: n.body, agentId: n.agentId, notificationId: id }).catch(() => {});
+  }
+
   return Number(result.lastInsertRowid);
+}
+
+export function getNotification(id: number): NotificationRecord | null {
+  return getDb().prepare("SELECT * FROM notifications WHERE id = ?").get(id) as NotificationRecord | null;
 }
 
 export function listNotifications(limit = 30): NotificationRecord[] {

@@ -12,6 +12,7 @@ import { DEFAULT_FIREWORKS_MODEL } from "../constants.js";
 import { getConfig } from "../config.js";
 import { getCwd } from "../tools/bash.js";
 import { initMcpServers } from "../tools/index.js";
+import { loadAllSkills } from "../skills/index.js";
 import { setPermissionMode } from "../permissions.js";
 import {
   isDaemonRunning,
@@ -27,6 +28,7 @@ import { registerSessionRoutes } from "./routes/sessions.js";
 import { registerAgentRoutes } from "./routes/agents.js";
 import { registerSettingsRoutes } from "./routes/settings.js";
 import { registerChatRoutes } from "./routes/chat.js";
+import { registerWebhookRoutes } from "./routes/webhooks.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const publicDir = path.resolve(__dirname, "public");
@@ -56,8 +58,8 @@ export async function startServer(options: ServerOptions): Promise<void> {
   // Auto-approve tools in web mode (no readline available)
   setPermissionMode("auto");
 
-  // Initialize MCP servers before any interaction
-  await initMcpServers();
+  // Initialize MCP servers and skills before any interaction
+  await Promise.allSettled([initMcpServers(), loadAllSkills()]);
 
   // Start agent daemon in-process if requested
   if (agents) {
@@ -130,6 +132,7 @@ export async function startServer(options: ServerOptions): Promise<void> {
   registerAgentRoutes(app);
   registerSettingsRoutes(app);
   registerChatRoutes(app);
+  registerWebhookRoutes(app);
 
   // --- Serve local images ---
   app.get("/api/image", (c) => {
