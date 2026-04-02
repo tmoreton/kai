@@ -54,20 +54,20 @@ export async function bashTool(args: {
       env: { ...process.env, FORCE_COLOR: "0" },
     });
 
-    const stdoutChunks: Buffer[] = [];
-    const stderrChunks: Buffer[] = [];
+    const stdoutChunks: string[] = [];
+    const stderrChunks: string[] = [];
 
     child.stdout?.on("data", (data: string | Buffer) => {
-      stdoutChunks.push(Buffer.isBuffer(data) ? data : Buffer.from(data));
+      stdoutChunks.push(typeof data === "string" ? data : data.toString("utf-8"));
     });
 
     child.stderr?.on("data", (data: string | Buffer) => {
-      stderrChunks.push(Buffer.isBuffer(data) ? data : Buffer.from(data));
+      stderrChunks.push(typeof data === "string" ? data : data.toString("utf-8"));
     });
 
     child.on("close", (code) => {
-      let stdout = Buffer.concat(stdoutChunks).toString("utf-8");
-      const stderr = Buffer.concat(stderrChunks).toString("utf-8");
+      let stdout = stdoutChunks.join("");
+      const stderr = stderrChunks.join("");
 
       // Extract new cwd from wrapped command output
       if (hasCd && code === 0 && stdout.includes(marker)) {
