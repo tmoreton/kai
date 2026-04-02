@@ -87,7 +87,7 @@ export function registerSessionRoutes(app: Hono) {
       id: generateSessionId(),
       name: body.name,
       type: body.type || "chat",
-      cwd: getCwd(),
+      cwd: body.cwd || getCwd(),
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       messages: [{ role: "system", content: buildSystemPrompt() }],

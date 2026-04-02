@@ -335,17 +335,22 @@
     @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .6; } }
 
     /* Reusable Chat Input Component */
-    .chat-input-component { 
+    .chat-input-component {
       width: 100%;
-      position: relative;
+      padding: 16px 24px 28px;
+      background: var(--bg);
     }
-    .chat-input-row { 
-      display: flex; 
-      align-items: flex-end; 
-      gap: 8px; 
-      padding: 12px 0;
+    .chat-input-wrap {
+      max-width: 680px; margin: 0 auto; position: relative;
+      background: var(--bg-surface); border: 1px solid var(--border);
+      border-radius: 24px; transition: border-color .15s, box-shadow .15s;
     }
-    
+    .chat-input-wrap:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(13,148,136,.1); }
+    .chat-input-row {
+      display: flex;
+      align-items: flex-end;
+    }
+
     /* Mobile keyboard handling */
     @media (max-width: 768px) {
       .chat-input-component {
@@ -359,14 +364,17 @@
         border-top: 1px solid var(--border);
       }
       .chat-input-row {
-        padding: 8px 0;
+        padding: 0;
       }
+      .chat-textarea { min-height: 44px; padding: 10px 88px 10px 4px; font-size: 16px; }
+      .chat-input-send { width: 34px; height: 34px; right: 6px; bottom: 6px; }
+      .chat-input-attach { width: 34px; height: 34px; margin-bottom: 5px; }
       /* Add padding to chat area to account for fixed input */
       .chat-area, .messages, .agent-chat-area {
         padding-bottom: 80px !important;
       }
     }
-    
+
     /* Safe area for notched devices */
     @supports (padding-bottom: env(safe-area-inset-bottom)) {
       .chat-input-component {
@@ -374,51 +382,31 @@
       }
     }
     .chat-textarea {
-      flex: 1;
-      border: 1px solid var(--border);
-      border-radius: 20px;
-      padding: 10px 16px;
-      font-size: 14px;
-      resize: none;
-      outline: none;
-      background: var(--bg-surface);
-      color: var(--text);
-      min-height: 40px;
-      max-height: 200px;
-      font-family: var(--sans);
+      width: 100%; min-height: 52px; max-height: 200px; padding: 14px 88px 14px 4px;
+      background: transparent; border: none; border-radius: 24px;
+      color: var(--text); font-family: var(--sans); font-size: 15px; line-height: 1.5; resize: none; outline: none;
     }
-    .chat-textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(13,148,136,.1); }
-    .chat-tool-btn {
-      width: 36px;
-      height: 36px;
-      border-radius: 50%;
-      border: none;
-      background: var(--bg-hover);
-      color: var(--text-secondary);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      flex-shrink: 0;
-      transition: all .15s;
+    .chat-textarea::placeholder { color: var(--text-muted); }
+    .chat-input-attach {
+      width: 36px; height: 36px; border: none; background: none; color: var(--text-muted);
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0; margin-left: 4px; margin-bottom: 8px; border-radius: 50%; transition: all .15s;
     }
-    .chat-tool-btn:hover { color: var(--text); background: var(--bg-active); }
-    .chat-tool-btn.recording { color: var(--red); background: var(--red-light); animation: pulse 1.5s infinite; }
-    .chat-send-btn {
-      width: 36px;
-      height: 36px;
-      border-radius: 50%;
-      border: none;
-      background: var(--text);
-      color: #fff;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      flex-shrink: 0;
-      transition: all .15s;
+    .chat-input-attach:hover { color: var(--text); background: var(--bg-hover); }
+    .chat-input-attach svg { width: 18px; height: 18px; }
+    .chat-input-mic {
+      position: absolute; right: 48px; bottom: 8px; width: 36px; height: 36px; border: none;
+      background: none; color: var(--text-muted); cursor: pointer; display: flex;
+      align-items: center; justify-content: center; border-radius: 50%; transition: all .15s;
     }
-    .chat-send-btn:hover { background: #333; }
+    .chat-input-mic:hover { color: var(--text); background: var(--bg-hover); }
+    .chat-input-mic svg { width: 18px; height: 18px; }
+    .chat-input-mic.recording { color: var(--red); background: var(--red-light); animation: pulse 1.5s infinite; }
+    .chat-input-send {
+      position: absolute; right: 8px; bottom: 8px; width: 36px; height: 36px; border-radius: 50%; border: none;
+      background: var(--text); color: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all .15s;
+    }
+    .chat-input-send:hover { background: #333; }
 
     .input-box {
       width: 100%; min-height: 52px; max-height: 200px; padding: 14px 88px 14px 4px;
@@ -993,7 +981,6 @@
         padding: 8px 14px; 
         font-size: 13px; 
         white-space: nowrap;
-        display: none;
       }
       .project-card {
         max-width: 100%;
@@ -1717,6 +1704,15 @@
       .persona-grid { grid-template-columns: 1fr; }
       .notif-dropdown { width: calc(100vw - 24px); right: -60px; }
       .notif-view-header { padding-left: 48px; }
+      
+      /* Consistent mobile headers - add left padding for hamburger */
+      .code-view { padding: 20px 16px; }
+      .code-view > div:first-child { padding-left: 40px; }
+      .agents-home-header { padding-left: 40px; }
+      .docs-content { padding: 20px 16px 60px; }
+      .docs-content > h1 { padding-left: 40px; }
+      .settings-view { padding: 20px 16px 60px; }
+      .settings-view > h1 { padding-left: 40px; }
     }
 
     ::-webkit-scrollbar { width: 6px; }
@@ -2638,6 +2634,104 @@ npm run dev</code></pre>
       e.target.value = ''; // Clear so same file can be selected again
     });
 
+    // ---- File handling for main chat and components ----
+    async function processFiles(files, targetState = state.attachments) {
+      console.log(`[Attachments] Processing ${files.length} file(s)...`);
+      let loaded = 0;
+      const errors = [];
+      
+      for (const file of files) {
+        try {
+          if (!file || typeof file.name !== 'string') {
+            errors.push(`File ${loaded + 1}: Invalid file object`);
+            continue;
+          }
+          
+          const isImage = file.type?.startsWith('image/') || /\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i.test(file.name);
+          console.log(`[Attachments] Processing: ${file.name} (${file.type || 'unknown type'}, ${file.size} bytes, isImage: ${isImage})`);
+          
+          if (file.size > 10 * 1024 * 1024) {
+            console.warn(`[Attachments] Large file: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)}MB)`);
+          }
+          
+          let previewUrl = null;
+          if (isImage && file.size < 50 * 1024 * 1024) {
+            try {
+              previewUrl = URL.createObjectURL(file);
+            } catch (e) {
+              console.warn('[Attachments] Could not create preview:', e);
+            }
+          }
+          
+          const data = await fileToBase64(file);
+          console.log(`[Attachments] ${file.name} -> base64 length: ${data.length}`);
+          
+          const att = { 
+            name: file.name, 
+            mimeType: file.type || (isImage ? 'image/png' : 'application/octet-stream'), 
+            data, 
+            type: isImage ? 'image' : 'file' 
+          };
+          
+          if (previewUrl) att.preview = previewUrl;
+          targetState.push(att);
+          loaded++;
+          console.log(`[Attachments] Successfully added: ${file.name}`);
+        } catch (err) {
+          console.error('[Attachments] Failed to load:', file.name, err);
+          errors.push(`${file.name || 'Unknown file'}: ${err.message}`);
+        }
+      }
+      
+      if (errors.length > 0) {
+        addNote(`Failed to load ${errors.length} file(s):\n${errors.join('\n')}`);
+      }
+      
+      console.log(`[Attachments] Done: ${loaded}/${files.length} files loaded`);
+      return loaded;
+    }
+
+    window.handleMainFiles = async function(files) {
+      console.log('[Attachments] handleMainFiles called with', files.length, 'files');
+      const loaded = await processFiles(files, state.attachments);
+      renderAttachments();
+      // Also clear the file input
+      const fileInput = document.getElementById('file-input');
+      if (fileInput) fileInput.value = '';
+    };
+
+    window.handlePersonaFiles = async function(personaId, files) {
+      console.log('[Attachments] handlePersonaFiles called for', personaId, 'with', files.length, 'files');
+      // For persona chats, we need a separate attachment state
+      if (!state.personaAttachments) state.personaAttachments = {};
+      if (!state.personaAttachments[personaId]) state.personaAttachments[personaId] = [];
+      
+      const loaded = await processFiles(files, state.personaAttachments[personaId]);
+      renderPersonaAttachments(personaId);
+    };
+
+    function renderPersonaAttachments(personaId) {
+      const bar = document.getElementById(`persona-${personaId}-attachments`);
+      if (!bar) return;
+      
+      const attachments = state.personaAttachments?.[personaId] || [];
+      bar.innerHTML = attachments.map((a, i) => `
+        <span class="attach-chip">
+          ${a.type === 'image' ? `<img src="${a.preview}" alt="" />` : `<span class="chip-icon"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="14" height="14"><path d="M4 1h5l4 4v9a1 1 0 01-1 1H4a1 1 0 01-1-1V2a1 1 0 011-1z"/><path d="M9 1v4h4"/></svg></span>`}
+          <span class="chip-name">${esc(a.name)}</span>
+          <button class="chip-remove" onclick="removePersonaAttachment('${personaId}', ${i})">&times;</button>
+        </span>
+      `).join('');
+    }
+
+    window.removePersonaAttachment = function(personaId, i) {
+      const attachments = state.personaAttachments?.[personaId];
+      if (!attachments) return;
+      const att = attachments.splice(i, 1)[0];
+      if (att?.preview) URL.revokeObjectURL(att.preview);
+      renderPersonaAttachments(personaId);
+    };
+
     function renderAttachments() {
       const bar = $('attachments-bar');
       bar.innerHTML = state.attachments.map((a, i) => `
@@ -2834,13 +2928,23 @@ npm run dev</code></pre>
       const panel = $('agents-detail-panel');
       const viewMode = state.agentsViewMode || 'grouped';
 
+      // Helper: infer persona from agent ID if no explicit personaId
+      function inferPersonaId(agentId) {
+        if (agentId.startsWith('yt-') || agentId.startsWith('agent-yt-')) return 'youtube';
+        if (agentId.startsWith('agent-kai-') || agentId === 'agent-nightly-commit' || agentId === 'agent-daily-report') return 'system';
+        return null;
+      }
+
       // Group agents by persona
       const personaAgents = new Map(); // personaId -> { persona, agents[] }
       const standalone = []; // agents without personas
 
       for (const a of state.agents) {
-        if (a.personaId) {
-          const p = state.personas.find(p => p.id === a.personaId);
+        // Check explicit personaId first, then infer from ID pattern
+        let personaId = a.personaId || inferPersonaId(a.id);
+        
+        if (personaId) {
+          const p = state.personas.find(p => p.id === personaId);
           if (p) {
             if (!personaAgents.has(p.id)) {
               personaAgents.set(p.id, { persona: p, agents: [] });
@@ -3008,8 +3112,18 @@ npm run dev</code></pre>
         return;
       }
 
-      // Get subagents for this persona
-      const subagents = state.agents.filter(a => a.personaId === personaId);
+      // Helper: infer persona from agent ID if no explicit personaId
+      function inferPersonaId(agentId) {
+        if (agentId.startsWith('yt-') || agentId.startsWith('agent-yt-')) return 'youtube';
+        if (agentId.startsWith('agent-kai-') || agentId === 'agent-nightly-commit' || agentId === 'agent-daily-report') return 'system';
+        return null;
+      }
+
+      // Get subagents for this persona (check explicit personaId or infer from ID)
+      const subagents = state.agents.filter(a => {
+        const agentPersonaId = a.personaId || inferPersonaId(a.id);
+        return agentPersonaId === personaId;
+      });
 
       panel.innerHTML = `
         <div class="persona-detail">
@@ -3078,19 +3192,7 @@ npm run dev</code></pre>
                 </div>
               </div>
               <div style="border-top:1px solid var(--border);padding:12px 0 0">
-                <div style="display:flex;gap:8px;align-items:flex-end">
-                  <button class="attach-btn" onclick="document.getElementById('persona-file-input').click()" title="Attach file" style="width:36px;height:36px;border-radius:50%;border:1px solid var(--border);background:var(--bg);color:var(--text);display:flex;align-items:center;justify-content:center;cursor:pointer">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
-                  </button>
-                  <input type="file" id="persona-file-input" multiple accept="image/*,.txt,.md,.json,.csv,.js,.ts,.py,.html,.css,.xml,.yaml,.yml,.toml,.log" style="display:none" onchange="handlePersonaFile(this)" />
-                  <textarea id="persona-chat-input-${persona.id}" placeholder="Message ${esc(persona.name)}..." rows="1" style="flex:1;resize:none;border:1px solid var(--border);border-radius:20px;padding:10px 14px;font-size:14px;font-family:var(--sans);background:var(--bg-surface);outline:none;max-height:120px" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendPersonaChatMsg('${persona.id}')}" oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px'"></textarea>
-                  <button class="mic-btn" onclick="togglePersonaMic('${persona.id}')" title="Voice input" style="width:36px;height:36px;border-radius:50%;border:1px solid var(--border);background:var(--bg);color:var(--text);display:flex;align-items:center;justify-content:center;cursor:pointer">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px"><rect x="9" y="1" width="6" height="11" rx="3"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
-                  </button>
-                  <button onclick="sendPersonaChatMsg('${persona.id}')" style="width:36px;height:36px;border-radius:50%;border:none;background:var(--text);color:white;display:flex;align-items:center;justify-content:center;cursor:pointer">
-                    <svg viewBox="0 0 16 16" fill="currentColor" style="width:16px;height:16px"><path d="M3 13l10-5L3 3v4l6 1-6 1z"/></svg>
-                  </button>
-                </div>
+                ${renderChatInput({ id: 'persona-' + persona.id, placeholder: 'Message ' + esc(persona.name) + '...' })}
               </div>
             </div>
           </div>
@@ -3904,26 +4006,28 @@ npm run dev</code></pre>
       const fileInputId = `${id}-file`;
       const micBtnId = `${id}-mic-btn`;
       const textareaId = `${id}-input`;
-      
+
       return `
         <div class="chat-input-component" data-input-id="${id}">
-          <div class="attachments-bar" id="${id}-attachments"></div>
-          <div class="chat-input-row">
-            ${attachments ? `
-            <button class="chat-tool-btn" onclick="document.getElementById('${fileInputId}').click()" title="Attach file">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
-            </button>
-            <input type="file" id="${fileInputId}" multiple accept="image/*,.txt,.md,.json,.csv,.js,.ts,.py,.html,.css,.xml,.yaml,.yml,.toml,.log" style="display:none" onchange="handleChatFiles('${id}', this)" />
-            ` : ''}
-            <textarea id="${textareaId}" placeholder="${placeholder}" rows="1" class="chat-textarea" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendFromComponent('${id}')}" oninput="autoResizeComponent(this)"></textarea>
-            ${mic ? `
-            <button class="chat-tool-btn ${micActive ? 'recording' : ''}" id="${micBtnId}" onclick="toggleComponentMic('${id}')" title="Voice input">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="1" width="6" height="11" rx="3"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
-            </button>
-            ` : ''}
-            <button class="chat-send-btn" onclick="sendFromComponent('${id}')">
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M3 13l10-5L3 3v4l6 1-6 1z"/></svg>
-            </button>
+          <div class="chat-input-wrap">
+            <div class="attachments-bar" id="${id}-attachments"></div>
+            <div class="chat-input-row">
+              ${attachments ? `
+              <button class="chat-input-attach" onclick="document.getElementById('${fileInputId}').click()" title="Attach file">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
+              </button>
+              <input type="file" id="${fileInputId}" multiple accept="image/*,.txt,.md,.json,.csv,.js,.ts,.py,.html,.css,.xml,.yaml,.yml,.toml,.log" style="display:none" onchange="handleChatFiles('${id}', this)" />
+              ` : ''}
+              <textarea id="${textareaId}" placeholder="${placeholder}" rows="1" class="chat-textarea" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendFromComponent('${id}')}" oninput="autoResizeComponent(this)"></textarea>
+              ${mic ? `
+              <button class="chat-input-mic ${micActive ? 'recording' : ''}" id="${micBtnId}" onclick="toggleComponentMic('${id}')" title="Voice input">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="1" width="6" height="11" rx="3"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+              </button>
+              ` : ''}
+              <button class="chat-input-send" onclick="sendFromComponent('${id}')">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M3 13l10-5L3 3v4l6 1-6 1z"/></svg>
+              </button>
+            </div>
           </div>
         </div>
       `;
@@ -3962,6 +4066,7 @@ npm run dev</code></pre>
 
     window.handleChatFiles = function(componentId, input) {
       const files = Array.from(input.files || []);
+      console.log(`[Attachments] handleChatFiles called for ${componentId} with ${files.length} file(s)`);
       if (!files.length) return;
       
       if (componentId === 'main') {
@@ -4482,11 +4587,31 @@ Please fix this error and then confirm what changes you made.`;
           h += `<button class="project-show-more" onclick="expandProject('${btoa(p.cwd).replace(/[^a-zA-Z0-9]/g, '')}', decodeURIComponent('${cwdEnc}'))">Show all ${p.sessions.length} sessions</button>`;
         }
 
+        // Add "New Session" button to start a new chat in this project
+        const cwdEnc = encodeURIComponent(p.cwd);
+        h += `<button class="project-new-chat" onclick="newProjectSession(decodeURIComponent('${cwdEnc}'))">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 2v12M2 8h12"/></svg>
+          New Session
+        </button>`;
+
         h += `</div></div>`;
       }
 
       panel.innerHTML = h;
     }
+
+    window.newProjectSession = async function(cwd) {
+      // Create a new session in the specified project directory
+      try {
+        const session = await api.post('/api/sessions', { type: 'code', cwd: cwd });
+        state.sessions = await api.get('/api/sessions');
+        state.sessionId = session.id;
+        state.projects = await api.get('/api/projects');
+        newChat();
+      } catch (e) {
+        console.error('Failed to create session in project:', e);
+      }
+    };
 
     window.selectProject = function(cwd) {
       switchView('code');

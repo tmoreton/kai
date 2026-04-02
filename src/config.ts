@@ -21,7 +21,6 @@ export interface KaiConfig {
    *   "accounts/fireworks/routers/kimi-k2p5-turbo"  (defaults to fireworks)
    */
   model?: string;
-  visionModel?: string;
   imageModel?: string;
   permissions?: PermissionRule[];
   hooks?: Record<string, string>;

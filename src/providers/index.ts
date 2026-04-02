@@ -3,7 +3,6 @@ import chalk from "chalk";
 import { getConfig } from "../config.js";
 import {
   DEFAULT_FIREWORKS_MODEL,
-  DEFAULT_VISION_MODEL,
   DEFAULT_IMAGE_MODEL,
   DEFAULT_FIREWORKS_BASE_URL,
   DEFAULT_OPENROUTER_BASE_URL,
@@ -114,14 +113,9 @@ export function createImageClient(): OpenAI {
 
 /**
  * Resolve a vision-capable provider for image analysis.
+ * Always uses the same provider/model as the main chat (all models are multimodal).
  */
 export function resolveVisionProvider(): { client: OpenAI; model: string } {
-  const config = getConfig();
-  return {
-    client: new OpenAI({
-      apiKey: getOpenRouterKey(),
-      baseURL: config.openrouterBaseUrl || DEFAULT_OPENROUTER_BASE_URL,
-    }),
-    model: config.visionModel || DEFAULT_VISION_MODEL,
-  };
+  const resolved = resolveProvider();
+  return { client: resolved.client, model: resolved.model };
 }

@@ -927,17 +927,27 @@ export function rescueToolCallsFromText(
 function tryParseImageResult(
   result: string
 ): { path: string; size_kb: number; data_url: string } | null {
-  // Case 1: Screenshot tool returns JSON with type: "image_result"
   try {
     const parsed = JSON.parse(result);
+
+    // Case 1: Screenshot tool returns JSON with type: "image_result"
     if (parsed?.type === "image_result" && parsed.data_url && parsed.path) {
       return parsed;
+    }
+
+    // Case 2: Browser skill screenshot returns { screenshot_base64, size_bytes, ... }
+    if (parsed?.screenshot_base64) {
+      return {
+        path: parsed.url || parsed.title || "browser screenshot",
+        size_kb: Math.round((parsed.size_bytes || 0) / 1024),
+        data_url: `data:image/png;base64,${parsed.screenshot_base64}`,
+      };
     }
   } catch {
     // Not JSON — check other formats
   }
 
-  // Case 2: read_file returns "[IMAGE: path (size KB)]\ndata:..." format
+  // Case 3: read_file returns "[IMAGE: path (size KB)]\ndata:..." format
   const imageMatch = result.match(/^\[IMAGE: (.+?) \((\d+) KB\)\]\n(data:image\/[^;]+;base64,.+)$/s);
   if (imageMatch) {
     return {
