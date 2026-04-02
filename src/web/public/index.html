@@ -2977,7 +2977,7 @@ npm run dev</code></pre>
     }
 
     function renderAgentsHome() {
-      const panel = $('agents-detail-panel');
+      const panel = $('agent-detail-container');
       const viewMode = state.agentsViewMode || 'grouped';
 
       // Helper: infer persona from agent ID if no explicit personaId
@@ -4426,7 +4426,7 @@ Please fix this error and then confirm what changes you made.`;
 
     window.editAgent = async function(id) {
       const agent = await api.get(`/api/agents/${id}`);
-      const panel = $('agents-detail-panel');
+      const panel = $('agent-detail-container');
 
       // Load workflow YAML
       let yamlContent = '';
@@ -4516,15 +4516,15 @@ Please fix this error and then confirm what changes you made.`;
     ];
 
     window.showCreateAgent = function() {
-      switchView('agents');
-      const panel = $('agents-detail-panel');
+      switchView('agent-detail');
+      const panel = $('agent-detail-container');
       const options = SCHEDULE_PRESETS.map(p =>
         `<option value="${esc(p.value)}">${esc(p.label)}</option>`
       ).join('');
 
       const personaId = state.creatingAgentForPersona;
       const persona = personaId ? state.personas.find(p => p.id === personaId) : null;
-      const backAction = persona ? `selectPersona('${persona.id}')` : `switchView('agents');renderAgentsList()`;
+      const backAction = persona ? `selectPersona('${persona.id}')` : `switchView('agent-detail');renderAgentsList()`;
       const title = persona ? `New Workflow for ${persona.name}` : 'New Workflow';
 
       panel.innerHTML = `
