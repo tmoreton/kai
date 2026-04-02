@@ -115,6 +115,7 @@ async function parseDocument(filePath: string, ext: string, sizeKB: number): Pro
         break;
       }
       case ".docx": {
+        // @ts-ignore — optional dependency
         const mammoth = await import("mammoth");
         const result = await mammoth.extractRawText({ path: filePath });
         text = `[DOCX: ${filePath} — ${sizeKB} KB]\n\n${result.value}`;
@@ -122,6 +123,7 @@ async function parseDocument(filePath: string, ext: string, sizeKB: number): Pro
       }
       case ".xlsx":
       case ".xls": {
+        // @ts-ignore — optional dependency
         const XLSX = await import("xlsx");
         const workbook = XLSX.readFile(filePath);
         const sheets: string[] = [];

@@ -197,6 +197,11 @@ If you're unsure whether the user wants more changes, ASK instead of continuing 
 - Use tasks to track progress on multi-step work only.
 - Be concise and direct.
 
+## Output Style
+- Minimize emoji use. Use plain text headers and bullet points instead of emoji-heavy formatting.
+- Use markdown sparingly — short paragraphs, code blocks for code, and bullet lists for structure. Avoid decorative horizontal rules, large tables, or elaborate formatting.
+- Keep responses focused and scannable. Prefer flat lists over deeply nested structures.
+
 ## File Read Optimization
 - Keep track of files you've already read in this conversation.
 - If you've read a file recently and haven't modified it, reference the content from memory instead of re-reading it.

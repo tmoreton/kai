@@ -96,9 +96,29 @@ function findStreamSafeBoundary(text: string): number | null {
       fenceOpen = !fenceOpen;
     }
 
-    // A line boundary outside a code fence is safe to flush at
+    // Only flush at true paragraph breaks (blank lines) to preserve
+    // multi-line markdown structures like tables, lists, and headings.
+    // Inside code fences, never flush.
     if (!fenceOpen && i < lines.length - 1) {
-      lastSafe = offset + line.length + 1; // +1 for the \n
+      const nextLine = lines[i + 1];
+      const nextTrimmed = nextLine.trimStart();
+      const isBlankLine = trimmed === "";
+      const nextIsBlank = nextTrimmed === "";
+
+      // Safe to flush at blank lines (paragraph boundaries)
+      if (isBlankLine) {
+        lastSafe = offset + line.length + 1;
+      }
+      // Safe to flush before a heading (new section)
+      else if (nextTrimmed.startsWith("#") || nextTrimmed.startsWith("---")) {
+        lastSafe = offset + line.length + 1;
+      }
+      // Safe after a closing code fence
+      else if (trimmed.startsWith("```") && !fenceOpen) {
+        lastSafe = offset + line.length + 1;
+      }
+      // NOT safe inside tables (lines starting with |) or lists
+      // Let these accumulate until a blank line separates them
     }
 
     offset += line.length + 1;

@@ -71,7 +71,7 @@ export const webSearchSchema = z.object({
 
 export const taskCreateSchema = z.object({
   subject: z.string().min(1, "subject is required"),
-  description: z.string(),
+  description: z.string().optional().default(""),
 });
 
 export const taskUpdateSchema = z.object({
