@@ -43,6 +43,8 @@
       height: 100%; font-family: var(--sans); background: var(--bg); color: var(--text);
       font-size: 15px; line-height: 1.6; -webkit-font-smoothing: antialiased;
       overscroll-behavior: none; -webkit-tap-highlight-color: transparent;
+      overflow-x: hidden; /* Prevent horizontal scroll */
+      touch-action: pan-y; /* Only allow vertical touch scrolling */
     }
 
     .app { display: flex; height: 100vh; height: 100dvh; }
@@ -331,6 +333,93 @@
     .mic-btn svg { width: 18px; height: 18px; }
     .mic-btn.recording { color: var(--red); background: var(--red-light); animation: pulse 1.5s infinite; }
     @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .6; } }
+
+    /* Reusable Chat Input Component */
+    .chat-input-component { 
+      width: 100%;
+      position: relative;
+    }
+    .chat-input-row { 
+      display: flex; 
+      align-items: flex-end; 
+      gap: 8px; 
+      padding: 12px 0;
+    }
+    
+    /* Mobile keyboard handling */
+    @media (max-width: 768px) {
+      .chat-input-component {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background: var(--bg);
+        padding: 8px 12px;
+        z-index: 100;
+        border-top: 1px solid var(--border);
+      }
+      .chat-input-row {
+        padding: 8px 0;
+      }
+      /* Add padding to chat area to account for fixed input */
+      .chat-area, .messages, .agent-chat-area {
+        padding-bottom: 80px !important;
+      }
+    }
+    
+    /* Safe area for notched devices */
+    @supports (padding-bottom: env(safe-area-inset-bottom)) {
+      .chat-input-component {
+        padding-bottom: max(8px, env(safe-area-inset-bottom));
+      }
+    }
+    .chat-textarea {
+      flex: 1;
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 10px 16px;
+      font-size: 14px;
+      resize: none;
+      outline: none;
+      background: var(--bg-surface);
+      color: var(--text);
+      min-height: 40px;
+      max-height: 200px;
+      font-family: var(--sans);
+    }
+    .chat-textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(13,148,136,.1); }
+    .chat-tool-btn {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      border: none;
+      background: var(--bg-hover);
+      color: var(--text-secondary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      flex-shrink: 0;
+      transition: all .15s;
+    }
+    .chat-tool-btn:hover { color: var(--text); background: var(--bg-active); }
+    .chat-tool-btn.recording { color: var(--red); background: var(--red-light); animation: pulse 1.5s infinite; }
+    .chat-send-btn {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      border: none;
+      background: var(--text);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      flex-shrink: 0;
+      transition: all .15s;
+    }
+    .chat-send-btn:hover { background: #333; }
+
     .input-box {
       width: 100%; min-height: 52px; max-height: 200px; padding: 14px 88px 14px 4px;
       background: transparent; border: none; border-radius: 24px;
@@ -829,15 +918,20 @@
         justify-content: center;
       }
 
-      .messages { padding: 16px 12px 0; }
-      .msg-user .msg-bubble { max-width: 85%; font-size: 15px; }
-      .msg-body { font-size: 15px; }
+      .messages { padding: 16px 12px 0; overflow-x: hidden; }
+      .msg { max-width: 100%; overflow-x: hidden; }
+      .msg-user .msg-bubble { max-width: 85%; font-size: 15px; word-wrap: break-word; }
+      .msg-body { font-size: 15px; word-wrap: break-word; overflow-wrap: break-word; }
 
       /* Input area: stick to bottom with safe area */
       .input-area {
         padding: 10px 12px calc(env(safe-area-inset-bottom, 0px) + 10px);
+        max-width: 100vw;
       }
-      .input-wrap { border-radius: 20px; }
+      .input-wrap {
+        border-radius: 20px;
+        max-width: 100%;
+      }
       .input-box { min-height: 44px; padding: 10px 48px 10px 4px; font-size: 16px; }
       .action-btn { width: 34px; height: 34px; right: 6px; bottom: 6px; }
       .attach-btn { width: 34px; height: 34px; margin-bottom: 5px; }
@@ -864,17 +958,57 @@
       /* Hide desktop expand button on mobile */
       .sidebar-expand-btn.show { display: none; }
 
+      /* Prevent horizontal scroll on mobile */
+      html, body {
+        overflow-x: hidden;
+        touch-action: pan-y;
+      }
+      .app {
+        overflow-x: hidden;
+      }
+      .main {
+        overflow-x: hidden;
+        max-width: 100vw;
+      }
+      .chat-area {
+        overflow-x: hidden;
+      }
+      .messages {
+        overflow-x: hidden;
+        width: 100%;
+      }
+
       /* Sidebar footer safe area */
       .sidebar-footer { padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 12px); }
 
       /* Tool cards */
       .tool-head { padding: 6px 10px; }
-      .tool-detail { font-size: 11px; padding: 0 10px 8px; }
+      .tool-detail { font-size: 11px; padding: 0 10px 8px; overflow-x: hidden; }
+      .tool-detail pre { overflow-x: auto; max-width: 100%; }
 
-      /* Recap */
-      .recap-banner { margin-left: 0; padding: 10px 14px; }
-      .recap-stats { gap: 8px; }
-    }
+      /* Code view mobile */
+      .code-view { padding: 20px 16px; }
+      .code-view h1 { font-size: 20px; }
+      .code-view .btn-primary { 
+        padding: 8px 14px; 
+        font-size: 13px; 
+        white-space: nowrap;
+      }
+      .project-card {
+        max-width: 100%;
+        overflow-x: hidden;
+      }
+      .project-card-path {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        max-width: 100%;
+      }
+      .project-session-item .label {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
 
     /* ======================================= */
     /* ---- Docs view ---- */
@@ -2549,6 +2683,9 @@ npm run dev</code></pre>
 
         // Poll for new notifications every 30s
         setInterval(pollNotifications, 30000);
+
+        // Auto-reconnect when app comes back to foreground
+        setupAutoReconnect();
       } catch {
         $('footer').innerHTML = '<span class="status-dot off"></span> Connection error';
       }
@@ -2637,6 +2774,47 @@ npm run dev</code></pre>
         <span class="status-dot ${s.daemon ? 'on' : 'off'}"></span>
         ${s.daemon ? 'Connected' : 'Disconnected'} &middot; ${state.agents.length} agent${state.agents.length !== 1 ? 's' : ''}
       `;
+    }
+
+    // Auto-reconnect when app comes back to foreground
+    function setupAutoReconnect() {
+      // Reconnect on visibility change (app comes back from background)
+      document.addEventListener('visibilitychange', async () => {
+        if (document.visibilityState === 'visible') {
+          try {
+            // Try to ping the server
+            const s = await api.get('/api/status');
+            state.status = s;
+            renderFooter();
+            // If we were showing connection error, refresh the whole state
+            const footerText = $('footer').textContent || '';
+            if (footerText.includes('Connection error') || footerText.includes('Disconnected')) {
+              addNote('🔄 Reconnected');
+              await init();
+            }
+          } catch {
+            $('footer').innerHTML = '<span class="status-dot off"></span> Connection error';
+          }
+        }
+      });
+
+      // Reconnect when online event fires (network restored)
+      window.addEventListener('online', async () => {
+        try {
+          const s = await api.get('/api/status');
+          state.status = s;
+          renderFooter();
+          addNote('🔄 Back online');
+          await init();
+        } catch {
+          // Still can't connect
+        }
+      });
+
+      // Mark offline immediately when network lost
+      window.addEventListener('offline', () => {
+        $('footer').innerHTML = '<span class="status-dot off"></span> Offline';
+      });
     }
 
     // ==============================
@@ -2899,8 +3077,17 @@ npm run dev</code></pre>
               </div>
               <div style="border-top:1px solid var(--border);padding:12px 0 0">
                 <div style="display:flex;gap:8px;align-items:flex-end">
-                  <textarea id="persona-chat-input" placeholder="Message ${esc(persona.name)}..." rows="1" style="flex:1;resize:none;border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;font-size:14px;font-family:var(--sans);background:var(--bg-surface);outline:none;max-height:120px" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendPersonaChatMsg('${persona.id}')}"></textarea>
-                  <button class="btn btn-primary" onclick="sendPersonaChatMsg('${persona.id}')" style="padding:10px 16px">Send</button>
+                  <button class="attach-btn" onclick="document.getElementById('persona-file-input').click()" title="Attach file" style="width:36px;height:36px;border-radius:50%;border:1px solid var(--border);background:var(--bg);color:var(--text);display:flex;align-items:center;justify-content:center;cursor:pointer">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
+                  </button>
+                  <input type="file" id="persona-file-input" multiple accept="image/*,.txt,.md,.json,.csv,.js,.ts,.py,.html,.css,.xml,.yaml,.yml,.toml,.log" style="display:none" onchange="handlePersonaFile(this)" />
+                  <textarea id="persona-chat-input-${persona.id}" placeholder="Message ${esc(persona.name)}..." rows="1" style="flex:1;resize:none;border:1px solid var(--border);border-radius:20px;padding:10px 14px;font-size:14px;font-family:var(--sans);background:var(--bg-surface);outline:none;max-height:120px" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendPersonaChatMsg('${persona.id}')}" oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px'"></textarea>
+                  <button class="mic-btn" onclick="togglePersonaMic('${persona.id}')" title="Voice input" style="width:36px;height:36px;border-radius:50%;border:1px solid var(--border);background:var(--bg);color:var(--text);display:flex;align-items:center;justify-content:center;cursor:pointer">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px"><rect x="9" y="1" width="6" height="11" rx="3"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+                  </button>
+                  <button onclick="sendPersonaChatMsg('${persona.id}')" style="width:36px;height:36px;border-radius:50%;border:none;background:var(--text);color:white;display:flex;align-items:center;justify-content:center;cursor:pointer">
+                    <svg viewBox="0 0 16 16" fill="currentColor" style="width:16px;height:16px"><path d="M3 13l10-5L3 3v4l6 1-6 1z"/></svg>
+                  </button>
                 </div>
               </div>
             </div>
@@ -3076,9 +3263,13 @@ npm run dev</code></pre>
     };
 
     window.sendPersonaChatMsg = async function(personaId) {
-      const input = $('persona-chat-input');
-      const msg = input.value.trim();
+      const input = $(`persona-${personaId}-input`);
+      const msg = input?.value?.trim();
       if (!msg) return;
+
+      // Clear immediately for mobile
+      input.value = '';
+      input.style.height = 'auto';
 
       const container = $('persona-chat-msgs');
       const scrollArea = $('persona-chat-messages');
@@ -3092,7 +3283,6 @@ npm run dev</code></pre>
       // Add user message
       container.innerHTML += `<div class="msg msg-user"><div class="msg-bubble">${esc(msg)}</div></div>`;
       pScroll();
-      input.value = '';
 
       // Thinking indicator helpers
       let thinkingEl = null;
@@ -3705,18 +3895,196 @@ npm run dev</code></pre>
     }
 
     // ==============================
-    // ERROR HANDLING
+    // REUSABLE CHAT INPUT COMPONENT
     // ==============================
-    let currentError = null;
+    function renderChatInput(config) {
+      const { id, placeholder, onSend, onFile, mic = true, attachments = true } = config;
+      const fileInputId = `${id}-file`;
+      const micBtnId = `${id}-mic-btn`;
+      const textareaId = `${id}-input`;
+      
+      return `
+        <div class="chat-input-component" data-input-id="${id}">
+          <div class="attachments-bar" id="${id}-attachments"></div>
+          <div class="chat-input-row">
+            ${attachments ? `
+            <button class="chat-tool-btn" onclick="document.getElementById('${fileInputId}').click()" title="Attach file">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
+            </button>
+            <input type="file" id="${fileInputId}" multiple accept="image/*,.txt,.md,.json,.csv,.js,.ts,.py,.html,.css,.xml,.yaml,.yml,.toml,.log" style="display:none" onchange="handleChatFiles('${id}', this)" />
+            ` : ''}
+            <textarea id="${textareaId}" placeholder="${placeholder}" rows="1" class="chat-textarea" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendFromComponent('${id}')}" oninput="autoResizeComponent(this)"></textarea>
+            ${mic ? `
+            <button class="chat-tool-btn ${micActive ? 'recording' : ''}" id="${micBtnId}" onclick="toggleComponentMic('${id}')" title="Voice input">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="1" width="6" height="11" rx="3"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+            </button>
+            ` : ''}
+            <button class="chat-send-btn" onclick="sendFromComponent('${id}')">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M3 13l10-5L3 3v4l6 1-6 1z"/></svg>
+            </button>
+          </div>
+        </div>
+      `;
+    }
+
+    // Component handlers
+    window.sendFromComponent = function(componentId) {
+      const textarea = document.querySelector(`[data-input-id="${componentId}"] textarea`);
+      const message = textarea?.value?.trim();
+      if (!message) return;
+      
+      // Get the sender callback from the component's data
+      const component = document.querySelector(`[data-input-id="${componentId}"]`);
+      const sendHandler = component?.dataset?.onSend;
+      
+      // Clear immediately
+      textarea.value = '';
+      textarea.style.height = 'auto';
+      
+      // Call the appropriate send function
+      if (componentId === 'main') {
+        window.sendMessage();
+      } else if (componentId.startsWith('persona-')) {
+        const personaId = componentId.replace('persona-', '');
+        window.sendPersonaChatMsg(personaId);
+      } else if (componentId.startsWith('agent-')) {
+        const agentId = componentId.replace('agent-', '');
+        window.sendAgentChatMessage(agentId);
+      }
+    };
+
+    window.autoResizeComponent = function(textarea) {
+      textarea.style.height = 'auto';
+      textarea.style.height = Math.min(textarea.scrollHeight, 200) + 'px';
+    };
+
+    window.handleChatFiles = function(componentId, input) {
+      const files = Array.from(input.files || []);
+      if (!files.length) return;
+      
+      if (componentId === 'main') {
+        handleMainFiles(files);
+      } else if (componentId.startsWith('persona-')) {
+        const personaId = componentId.replace('persona-', '');
+        handlePersonaFiles(personaId, files);
+      }
+    };
+
+    window.toggleComponentMic = function(componentId) {
+      if (componentId === 'main') {
+        toggleMic();
+      } else {
+        // For persona/agent chats, use the same recognition but target different input
+        toggleMicForComponent(componentId);
+      }
+    };
+
+    // Toggle mic for persona/agent chat components
+    window.toggleMicForComponent = function(componentId) {
+      const btnId = `${componentId}-mic-btn`;
+      const inputId = `${componentId}-input`;
+      const btn = $(btnId);
+      const input = $(inputId);
+      
+      if (!btn || !input) return;
+      
+      if (micActive) {
+        // Stop recording
+        micActive = false;
+        if (recognition) recognition.stop();
+        btn.classList.remove('recording');
+      } else {
+        // Start recording
+        if (!recognition) initSpeechRecognition();
+        if (!recognition) {
+          alert('Speech recognition not supported in this browser');
+          return;
+        }
+        
+        // Set target input for this recording session
+        recognition.targetInput = input;
+        
+        micActive = true;
+        btn.classList.add('recording');
+        
+        recognition.onresult = (event) => {
+          const transcript = Array.from(event.results)
+            .map(r => r[0].transcript)
+            .join('');
+          input.value = transcript;
+          autoResizeComponent(input);
+        };
+        
+        recognition.onend = () => {
+          if (micActive) {
+            micActive = false;
+            btn.classList.remove('recording');
+          }
+        };
+        
+        try {
+          recognition.start();
+        } catch (err) {
+          console.error('Speech recognition error:', err);
+          micActive = false;
+          btn.classList.remove('recording');
+        }
+      }
+    };
+
+    // ==============================
+    // MOBILE KEYBOARD HANDLING
+    // ==============================
+    (function() {
+      // Handle mobile keyboard appearance
+      if ('visualViewport' in window) {
+        const vv = window.visualViewport;
+        const inputs = document.querySelectorAll('.chat-input-component textarea, .input-box, .agent-chat-input, #persona-chat-input');
+        
+        function handleResize() {
+          const keyboardHeight = window.innerHeight - vv.height;
+          const isKeyboardOpen = keyboardHeight > 100;
+          
+          // Adjust chat containers when keyboard opens
+          const chatContainers = document.querySelectorAll('.chat-input-component, .input-area, .agent-chat-input-wrap');
+          chatContainers.forEach(container => {
+            if (isKeyboardOpen) {
+              container.style.paddingBottom = '8px';
+            } else {
+              container.style.paddingBottom = '';
+            }
+          });
+          
+          // Scroll active input into view
+          const activeInput = document.activeElement;
+          if (activeInput && (activeInput.tagName === 'TEXTAREA' || activeInput.tagName === 'INPUT')) {
+            if (isKeyboardOpen) {
+              setTimeout(() => {
+                activeInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              }, 100);
+            }
+          }
+        }
+        
+        vv.addEventListener('resize', handleResize);
+        window.addEventListener('scroll', handleResize, { passive: true });
+      }
+      
+      // Handle focus/blur for mobile
+      document.addEventListener('focusin', (e) => {
+        if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT') {
+          setTimeout(() => {
+            e.target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }, 300);
+        }
+      });
+    })();
 
     function handleError(data) {
-      currentError = data;
-      $('error-message').textContent = data.message || 'An error occurred';
-      $('error-details').textContent = data.details || data.stack || '';
-      $('error-overlay').classList.add('show');
-      
-      // Add error to chat as a note so user sees it in context
-      addNote(`Error: ${data.message}`);
+      // Just log errors to console and show a subtle note in chat
+      // Agent will fix them in the background - no modal needed
+      console.warn('[Error]', data);
+      addNote(`⚠️ ${data.message || 'Error occurred'}`);
     }
 
     window.closeErrorModal = function() {
@@ -4067,8 +4435,11 @@ Please fix this error and then confirm what changes you made.`;
       const panel = $('code-view-content');
       const projects = state.projects || [];
 
-      let h = `<h1>Projects</h1>
-        <p class="code-view-subtitle">Sessions grouped by the directory where you ran <code>kai</code></p>`;
+      let h = `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+        <h1>Projects</h1>
+        <button class="btn btn-primary" onclick="showCreateProject()">+ New Project</button>
+      </div>
+      <p class="code-view-subtitle">Sessions grouped by the directory where you ran <code>kai</code></p>`;
 
       if (projects.length === 0) {
         h += '<div style="padding:40px 0;text-align:center;color:var(--text-muted)">No projects yet. Start a chat from any directory to see it here.</div>';
@@ -4287,7 +4658,13 @@ Please fix this error and then confirm what changes you made.`;
         if (state.sessionId === streamSessionId) finalize();
         state.sessions = await api.get('/api/sessions');
         renderNav();
-      } catch { if (state.sessionId === streamSessionId) addNote('Connection lost. Please try again.'); }
+      } catch { 
+        if (state.sessionId === streamSessionId) {
+          addNote('⚠️ Connection interrupted. Will retry when connection restored.');
+          // Mark as disconnected in footer
+          $('footer').innerHTML = '<span class="status-dot off"></span> Connection lost';
+        }
+      }
       finally { state.streamingSessions.delete(streamSessionId); updateBtn(); renderNav(); }
     };
 
@@ -4329,17 +4706,12 @@ Please fix this error and then confirm what changes you made.`;
               card.after(wrapper);
             }
           }
-          // Show error popup for significant tool errors
-          if (data.error && isSignificantError(data.result)) {
-            handleError({
-              message: `Tool "${data.name}" failed`,
-              details: data.result,
-              tool: data.name,
-              type: 'tool_error'
-            });
+          // Don't popup for errors - just log them for agent to fix
+          if (data.error) {
+            console.warn('[Tool error]', data.name, data.result);
           }
           showThinking();
-          scroll();
+          scroll;
           break;
         }
         case 'recap': showRecap(data); break;
@@ -4768,13 +5140,9 @@ Please fix this error and then confirm what changes you made.`;
 
         html += `<div class="settings-form">
           <div class="settings-form-title">Add MCP Server</div>
-          <div class="settings-form-row">
-            <input id="mcp-name" placeholder="Server name (e.g. filesystem)" />
-            <input id="mcp-command" placeholder="Command (e.g. npx)" />
-          </div>
-          <div class="settings-form-row">
-            <input id="mcp-args" placeholder="Arguments (e.g. -y @modelcontextprotocol/server-filesystem /tmp)" />
-            <button class="settings-add-btn" onclick="addMcpServer()">Add Server</button>
+          <div class="settings-form-row" style="flex-direction:column;gap:8px;">
+            <textarea id="mcp-config" rows="4" style="width:100%;font-family:var(--font-mono);font-size:13px;resize:vertical;" placeholder="name: filesystem\ncommand: npx\nargs: -y @modelcontextprotocol/server-filesystem /tmp"></textarea>
+            <button class="settings-add-btn" onclick="addMcpServer()" style="align-self:flex-end;">Add Server</button>
           </div>
         </div>`;
         html += '</div>';
@@ -4869,10 +5237,24 @@ Please fix this error and then confirm what changes you made.`;
     }
 
     window.addMcpServer = async function() {
-      const name = $('mcp-name').value.trim();
-      const command = $('mcp-command').value.trim();
-      const argsStr = $('mcp-args').value.trim();
-      if (!name || !command) return;
+      const raw = $('mcp-config').value.trim();
+      if (!raw) return;
+      // Parse key: value lines from the textarea
+      const fields = {};
+      for (const line of raw.split('\n')) {
+        const idx = line.indexOf(':');
+        if (idx === -1) continue;
+        const key = line.substring(0, idx).trim().toLowerCase();
+        const val = line.substring(idx + 1).trim();
+        if (key && val) fields[key] = val;
+      }
+      const name = fields.name;
+      const command = fields.command;
+      const argsStr = fields.args || '';
+      if (!name || !command) {
+        showToast('Error', 'Must include "name" and "command" fields');
+        return;
+      }
       const args = argsStr ? argsStr.split(/\s+/) : [];
       try {
         await api.post('/api/settings/mcp', { name, command, args });
@@ -5079,6 +5461,7 @@ Please fix this error and then confirm what changes you made.`;
                 </div>
               </div>
               <div class="skill-editor-footer">
+                <div id="skill-editor-info" class="skill-editor-info"></div>
                 <button class="skill-editor-btn skill-editor-btn-secondary" id="skill-delete-btn" onclick="deleteSkillFromEditor()" style="color:var(--red);">Delete Skill</button>
                 <div class="skill-editor-actions">
                   <button class="skill-editor-btn skill-editor-btn-secondary" onclick="closeSkillEditor()">Cancel</button>

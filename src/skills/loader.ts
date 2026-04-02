@@ -88,15 +88,17 @@ export async function loadSkill(skillPath: string): Promise<LoadedSkill> {
   }
 
   // Resolve config from environment variables
+  // Check order: field.env → bare key (e.g. SMTP_HOST) → default
   const config: Record<string, any> = {};
   if (manifest.config_schema) {
     for (const [key, field] of Object.entries(manifest.config_schema)) {
-      if (field.env && process.env[field.env]) {
-        config[key] = process.env[field.env];
+      const value = (field.env && process.env[field.env]) || process.env[key];
+      if (value !== undefined) {
+        config[key] = value;
       } else if (field.default !== undefined) {
         config[key] = field.default;
       } else if (field.required) {
-        console.warn(chalk.yellow(`  Skill "${manifest.id}": missing required config "${key}" (set ${field.env || key})`));
+        console.warn(chalk.yellow(`  Skill "${manifest.id}": missing required config "${key}" (set ${key})`));
       }
     }
   }

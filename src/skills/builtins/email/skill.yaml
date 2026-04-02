@@ -1,0 +1,103 @@
+id: email
+name: Email
+version: 1.0.0
+description: Send and read emails via SMTP/IMAP using Nodemailer. Supports any SMTP provider (Gmail, Outlook, custom servers).
+author: kai
+config_schema:
+  SMTP_HOST:
+    type: string
+    description: SMTP server hostname (e.g. smtp.gmail.com)
+  SMTP_PORT:
+    type: number
+    description: SMTP server port (465 for SSL, 587 for TLS)
+    default: 587
+  SMTP_USER:
+    type: string
+    description: SMTP username / email address
+  SMTP_PASS:
+    type: string
+    description: SMTP password or app password
+  SMTP_SECURE:
+    type: boolean
+    description: Use SSL/TLS (true for port 465, false for STARTTLS on 587)
+    default: false
+  IMAP_HOST:
+    type: string
+    description: IMAP server hostname for reading email (e.g. imap.gmail.com)
+  IMAP_PORT:
+    type: number
+    description: IMAP server port (993 for SSL)
+    default: 993
+  IMAP_USER:
+    type: string
+    description: IMAP username (defaults to SMTP_USER if not set)
+  IMAP_PASS:
+    type: string
+    description: IMAP password (defaults to SMTP_PASS if not set)
+tools:
+  - name: send
+    description: Send an email to one or more recipients. Supports plain text and HTML bodies, CC, BCC, and reply-to.
+    parameters:
+      to:
+        type: string
+        required: true
+        description: Recipient email address(es), comma-separated for multiple
+      subject:
+        type: string
+        required: true
+        description: Email subject line
+      body:
+        type: string
+        required: true
+        description: Email body (plain text)
+      html:
+        type: string
+        description: HTML email body (optional, sent alongside plain text)
+      cc:
+        type: string
+        description: CC recipients, comma-separated
+      bcc:
+        type: string
+        description: BCC recipients, comma-separated
+      reply_to:
+        type: string
+        description: Reply-To address
+      from_name:
+        type: string
+        description: Display name for the sender (optional)
+  - name: read
+    description: Read recent emails from the inbox via IMAP. Returns subject, from, date, and a text preview of each message.
+    parameters:
+      folder:
+        type: string
+        description: "Mailbox folder to read from (default: INBOX)"
+      limit:
+        type: number
+        description: "Number of recent emails to fetch (default: 10, max: 50)"
+      unseen_only:
+        type: boolean
+        description: "Only fetch unread/unseen emails (default: false)"
+  - name: search
+    description: Search emails by criteria (from, subject, date range, etc.) via IMAP.
+    parameters:
+      from:
+        type: string
+        description: Filter by sender address or name
+      subject:
+        type: string
+        description: Filter by subject line (substring match)
+      since:
+        type: string
+        description: "Emails since this date (format: YYYY-MM-DD)"
+      before:
+        type: string
+        description: "Emails before this date (format: YYYY-MM-DD)"
+      unseen_only:
+        type: boolean
+        description: Only return unread emails
+      limit:
+        type: number
+        description: "Max results to return (default: 10)"
+  - name: verify
+    description: Test the SMTP connection to verify credentials are working
+    parameters: {}
