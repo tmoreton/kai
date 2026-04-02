@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { Plus, Users, List, ChevronRight, Edit, AlertCircle, RefreshCw } from "lucide-react";
@@ -426,6 +427,3 @@ function PersonaDetail({ personaId }: { personaId: string }) {
     </div>
   );
 }
-
-// Add missing imports
-import { useState, useEffect } from "react";

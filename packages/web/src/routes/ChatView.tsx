@@ -606,10 +606,16 @@ function MessageBubble({
         {isUser ? 'U' : 'K'}
       </div>
       <div className={`flex-1 min-w-0 ${isUser ? 'items-end' : ''}`}>
-        <div className={`prose prose-slate max-w-none ${isUser ? 'text-right' : ''}`}>
-          {message.content && (
-            <MarkdownRenderer content={typeof message.content === 'string' ? message.content : JSON.stringify(message.content)} onImageClick={onImageClick} />
-          )}
+        <div className={`inline-block max-w-[85%] px-4 py-3 rounded-2xl ${
+          isUser 
+            ? 'bg-primary text-white rounded-tr-sm' 
+            : 'bg-card border border-border rounded-tl-sm'
+        }`}>
+          <div className={`prose prose-slate max-w-none ${isUser ? 'text-white' : ''}`}>
+            {message.content && (
+              <MarkdownRenderer content={typeof message.content === 'string' ? message.content : JSON.stringify(message.content)} onImageClick={onImageClick} />
+            )}
+          </div>
         </div>
         {message.toolCalls && message.toolCalls.length > 0 && (
           <div className="mt-4 space-y-2">

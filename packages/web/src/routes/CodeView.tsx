@@ -1,14 +1,39 @@
 import { useState } from "react";
-import { useSuspenseQuery } from "@tanstack/react-query";
+import { useSuspenseQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, Folder, MessageSquare, Clock } from "lucide-react";
 import { projectsQueries } from "../api/queries";
+import { api } from "../api/client";
 import { timeAgo } from "../lib/utils";
+import { toast } from "../components/Toast";
 import type { Project } from "../types/api";
 
 export function CodeView() {
+  const queryClient = useQueryClient();
   const { data: projects } = useSuspenseQuery(projectsQueries.list());
   const [showCreate, setShowCreate] = useState(false);
   const [newPath, setNewPath] = useState("");
+
+  const createMutation = useMutation({
+    mutationFn: api.projects.create,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: projectsQueries.all() });
+      setShowCreate(false);
+      setNewPath("");
+      toast.success("Project created successfully");
+    },
+    onError: (err) => {
+      const message = err instanceof Error ? err.message : "Failed to create project";
+      toast.error("Error", message);
+    },
+  });
+
+  const handleCreate = () => {
+    if (!newPath.trim()) {
+      toast.error("Error", "Please enter a project path");
+      return;
+    }
+    createMutation.mutate(newPath.trim());
+  };
 
   return (
     <div className="h-full overflow-y-auto p-6">
@@ -34,12 +59,14 @@ export function CodeView() {
                 onChange={(e) => setNewPath(e.target.value)}
                 placeholder="/path/to/project"
                 className="flex-1 px-3 py-2 bg-secondary border border-border rounded-lg text-sm outline-none focus:border-primary"
+                onKeyDown={(e) => e.key === "Enter" && handleCreate()}
               />
               <button
-                onClick={() => {}}
-                className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 text-sm font-medium"
+                onClick={handleCreate}
+                disabled={createMutation.isPending}
+                className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 disabled:opacity-50 text-sm font-medium"
               >
-                Create
+                {createMutation.isPending ? "Creating..." : "Create"}
               </button>
               <button
                 onClick={() => setShowCreate(false)}
