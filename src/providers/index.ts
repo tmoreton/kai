@@ -3,6 +3,7 @@ import chalk from "chalk";
 import { getConfig } from "../config.js";
 import {
   DEFAULT_FIREWORKS_MODEL,
+  DEFAULT_OPENROUTER_MODEL,
   DEFAULT_IMAGE_MODEL,
   DEFAULT_FIREWORKS_BASE_URL,
   DEFAULT_OPENROUTER_BASE_URL,
@@ -90,6 +91,55 @@ export function resolveProvider(): ResolvedProvider {
     model,
     providerName: "fireworks",
   };
+}
+
+/**
+ * Build an OpenRouter fallback provider using Kimi K2.5.
+ */
+function buildOpenRouterFallback(): ResolvedProvider {
+  const config = getConfig();
+  return {
+    client: new OpenAI({
+      apiKey: getOpenRouterKey(),
+      baseURL: config.openrouterBaseUrl || DEFAULT_OPENROUTER_BASE_URL,
+    }),
+    model: DEFAULT_OPENROUTER_MODEL,
+    providerName: "openrouter",
+  };
+}
+
+/**
+ * Resolve provider with automatic fallback.
+ * If the primary provider is Fireworks, pings it first; on failure falls back
+ * to OpenRouter with Kimi K2.5 (requires OPENROUTER_API_KEY).
+ */
+export async function resolveProviderWithFallback(): Promise<ResolvedProvider> {
+  const primary = resolveProvider();
+
+  // Only attempt fallback when the primary is Fireworks
+  if (primary.providerName !== "fireworks") return primary;
+
+  try {
+    const res = await fetch(`${DEFAULT_FIREWORKS_BASE_URL}/models`, {
+      method: "GET",
+      headers: { Authorization: `Bearer ${process.env.FIREWORKS_API_KEY || ""}` },
+      signal: AbortSignal.timeout(5000),
+    });
+    if (res.ok) return primary;
+  } catch {
+    // Network error or timeout — fall through
+  }
+
+  // Fireworks is down — try OpenRouter fallback
+  const orKey = process.env.OPENROUTER_API_KEY;
+  if (!orKey) {
+    console.error(chalk.yellow("\n  ⚠ Fireworks API is unreachable and OPENROUTER_API_KEY is not set."));
+    console.error(chalk.yellow("  Continuing with Fireworks (requests may fail).\n"));
+    return primary;
+  }
+
+  console.error(chalk.yellow("  ⚠ Fireworks API is unreachable — falling back to OpenRouter (Kimi K2.5)\n"));
+  return buildOpenRouterFallback();
 }
 
 /**

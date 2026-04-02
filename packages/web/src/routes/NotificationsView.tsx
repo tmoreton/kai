@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { useSuspenseQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Bell, Trash2, MailOpen, AlertCircle, RefreshCw } from "lucide-react";
+import { Bell, Trash2, MailOpen, AlertCircle, RefreshCw, FileText, Image, File } from "lucide-react";
 import { notificationsQueries } from "../api/queries";
 import { api, NetworkError, TimeoutError } from "../api/client";
 import { timeAgo, cn } from "../lib/utils";
 import { toast } from "../components/Toast";
-import type { Notification } from "../types/api";
+import { MarkdownRenderer } from "../components/MarkdownRenderer";
+import type { Notification, NotificationAttachment } from "../types/api";
 
 interface ErrorState {
   message: string;
@@ -228,27 +229,21 @@ export function NotificationsView() {
                 <div className="flex-1 min-w-0">
                   <h3 className="font-semibold text-foreground mb-1">{notification.title}</h3>
                   {expandedId === notification.id ? (
-                    <div className="text-muted-foreground leading-relaxed">
-                      {notification.message}
+                    <div>
+                      <MarkdownRenderer
+                        content={notification.message}
+                        className="text-muted-foreground"
+                      />
                       {notification.attachments && Array.isArray(notification.attachments) && notification.attachments.length > 0 && (
                         <div className="flex flex-wrap gap-2 mt-4">
-                          {notification.attachments.map((att, i) => (
-                            <a
-                              key={i}
-                              href={`/api/attachments?path=${encodeURIComponent(att.path)}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="px-3 py-2 bg-background border border-border rounded-lg text-sm hover:border-primary"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              {att.type === 'image' ? '🖼️' : '📄'} {att.name}
-                            </a>
+                          {notification.attachments.map((att: NotificationAttachment, i: number) => (
+                            <AttachmentChip key={i} attachment={att} />
                           ))}
                         </div>
                       )}
                     </div>
                   ) : (
-                    <p className="text-muted-foreground truncate">{notification.message}</p>
+                    <p className="text-muted-foreground truncate">{notification.message.replace(/[#*_`|~\[\]]/g, '').substring(0, 200)}</p>
                   )}
                   <div className="flex items-center gap-4 mt-3">
                     <span className="text-xs text-muted-foreground">{timeAgo(notification.createdAt)}</span>
@@ -278,5 +273,28 @@ export function NotificationsView() {
         </div>
       </div>
     </div>
+  );
+}
+
+function AttachmentChip({ attachment }: { attachment: NotificationAttachment }) {
+  const name = attachment.name || attachment.path?.split('/').pop() || 'file';
+  const ext = name.split('.').pop()?.toLowerCase() || '';
+  const isImage = attachment.type === 'image' || ['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(ext);
+  const isMd = attachment.type === 'markdown' || ext === 'md';
+
+  const IconComponent = isImage ? Image : isMd ? FileText : File;
+  const label = name.length > 30 ? name.substring(0, 27) + '...' : name;
+
+  return (
+    <a
+      href={`/api/attachments?path=${encodeURIComponent(attachment.path)}`}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="inline-flex items-center gap-2 px-3 py-2 bg-background border border-border rounded-lg text-sm hover:border-primary hover:bg-accent/10 transition-colors"
+      onClick={(e) => e.stopPropagation()}
+    >
+      <IconComponent className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+      <span className="truncate">{label}</span>
+    </a>
   );
 }

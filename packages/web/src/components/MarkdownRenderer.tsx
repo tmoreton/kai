@@ -145,7 +145,7 @@ export function MarkdownRenderer({ content, className, onImageClick }: MarkdownR
     .replace(/functions\.[a-z_]+/g, "");
 
   return (
-    <div className={cn("prose prose-sm max-w-none", className)}>
+    <div className={cn("prose prose-sm max-w-none overflow-hidden break-words", className)}>
       <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
         {cleanedContent}
       </ReactMarkdown>

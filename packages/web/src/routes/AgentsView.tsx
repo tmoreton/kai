@@ -1,12 +1,11 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useSuspenseQuery } from "@tanstack/react-query";
-import { Plus, Users, List, ChevronRight, Edit, AlertCircle, RefreshCw } from "lucide-react";
+import { Plus, Users, ChevronRight, Edit, AlertCircle, RefreshCw } from "lucide-react";
 import { agentsQueries } from "../api/queries";
 import { NetworkError, TimeoutError } from "../api/client";
-import { useAppStore } from "../stores/appStore";
-import { cn } from "../lib/utils";
 import { toast } from "../components/Toast";
+import { cn } from "../lib/utils";
 import type { Agent, Persona } from "../types/api";
 
 interface ErrorState {
@@ -18,7 +17,6 @@ interface ErrorState {
 export function AgentsView() {
   const { personaId } = useParams();
   const navigate = useNavigate();
-  const { agentsViewMode, setAgentsViewMode } = useAppStore();
   const [error, setError] = useState<ErrorState | null>(null);
   const [retryCount, setRetryCount] = useState(0);
 
@@ -120,7 +118,7 @@ export function AgentsView() {
     );
   }
 
-  const { agents, personas } = data || { agents: [], personas: [] };
+  const { personas } = data || { personas: [] };
 
   if (personaId) {
     return <PersonaDetail personaId={personaId} />;
@@ -135,32 +133,6 @@ export function AgentsView() {
             <p className="text-muted-foreground mt-1">Manage personas and automated workflows</p>
           </div>
           <div className="flex items-center gap-3">
-            <div className="flex items-center gap-1 bg-card border border-border rounded-lg p-1">
-              <button
-                onClick={() => setAgentsViewMode('grouped')}
-                className={cn(
-                  "px-3 py-1.5 rounded-md text-sm font-medium transition-colors",
-                  agentsViewMode === 'grouped'
-                    ? "bg-kai-teal text-white"
-                    : "text-muted-foreground hover:text-kai-text"
-                )}
-              >
-                <Users className="w-4 h-4 inline mr-1" />
-                By Persona
-              </button>
-              <button
-                onClick={() => setAgentsViewMode('all')}
-                className={cn(
-                  "px-3 py-1.5 rounded-md text-sm font-medium transition-colors",
-                  agentsViewMode === 'all'
-                    ? "bg-kai-teal text-white"
-                    : "text-muted-foreground hover:text-kai-text"
-                )}
-              >
-                <List className="w-4 h-4 inline mr-1" />
-                All Agents
-              </button>
-            </div>
             <button
               onClick={() => navigate('/agents/persona/new')}
               className="flex items-center gap-2 px-4 py-2 bg-kai-text text-white rounded-lg hover:bg-primary/90 text-sm font-medium"
@@ -190,39 +162,21 @@ export function AgentsView() {
           </div>
         )}
 
-        {agentsViewMode === 'grouped' ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {personas.map((persona: Persona) => {
-              const personaAgents = agents.filter((a: Agent) => a.personaId === persona.id);
-              return (
-                <PersonaCard
-                  key={persona.id}
-                  persona={persona}
-                  agents={personaAgents}
-                  onClick={() => navigate(`/agents/${persona.id}`)}
-                />
-              );
-            })}
-            {personas.length === 0 && (
-              <div className="col-span-full text-center py-12 text-muted-foreground">
-                <Users className="w-12 h-12 mx-auto mb-3 text-muted-foreground" />
-                <p>No personas yet. Create your first one!</p>
-              </div>
-            )}
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {agents.map((agent: Agent) => (
-              <AgentRow key={agent.id} agent={agent} />
-            ))}
-            {agents.length === 0 && (
-              <div className="text-center py-12 text-muted-foreground">
-                <List className="w-12 h-12 mx-auto mb-3 text-muted-foreground" />
-                <p>No agents yet.</p>
-              </div>
-            )}
-          </div>
-        )}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {personas.map((persona: Persona) => (
+            <PersonaCard
+              key={persona.id}
+              persona={persona}
+              onClick={() => navigate(`/agents/${persona.id}`)}
+            />
+          ))}
+          {personas.length === 0 && (
+            <div className="col-span-full text-center py-12 text-muted-foreground">
+              <Users className="w-12 h-12 mx-auto mb-3 text-muted-foreground" />
+              <p>No personas yet. Create your first one!</p>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -230,11 +184,9 @@ export function AgentsView() {
 
 function PersonaCard({
   persona,
-  agents,
   onClick,
 }: {
   persona: Persona;
-  agents: Agent[];
   onClick: () => void;
 }) {
   return (
@@ -254,47 +206,10 @@ function PersonaCard({
       <p className="text-sm text-muted-foreground line-clamp-2 mb-4">
         {persona.personality?.slice(0, 120)}...
       </p>
-      <div className="flex items-center justify-between text-sm">
-        <span className="text-muted-foreground">{agents.length} tasks</span>
+      <div className="flex items-center justify-end text-sm">
         <ChevronRight className="w-4 h-4 text-muted-foreground" />
       </div>
     </button>
-  );
-}
-
-function AgentRow({ agent }: { agent: Agent }) {
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'completed': return 'bg-green-500';
-      case 'failed': return 'bg-red-500';
-      case 'running': return 'bg-kai-teal animate-pulse';
-      default: return 'bg-kai-text-muted';
-    }
-  };
-
-  return (
-    <div className="flex items-center gap-3 p-3 bg-card border border-border rounded-lg hover:border-primary transition-colors">
-      <div className={cn("w-2.5 h-2.5 rounded-full", getStatusColor(agent.lastRun?.status || 'never'))} />
-      <div className="flex-1 min-w-0">
-        <div className="font-medium text-kai-text">{agent.name}</div>
-        <div className="text-sm text-muted-foreground truncate">{agent.description}</div>
-      </div>
-      {agent.schedule && (
-        <span className="text-xs text-muted-foreground bg-accent/10 px-2 py-1 rounded">
-          {agent.schedule}
-        </span>
-      )}
-      <span
-        className={cn(
-          "text-xs px-2 py-1 rounded font-medium",
-          agent.enabled
-            ? "bg-green-100 text-green-700"
-            : "bg-red-100 text-red-700"
-        )}
-      >
-        {agent.enabled ? 'Enabled' : 'Disabled'}
-      </span>
-    </div>
   );
 }
 
@@ -399,29 +314,45 @@ function PersonaDetail({ personaId }: { personaId: string }) {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div className="bg-card border border-border rounded-xl p-5">
             <h3 className="font-semibold text-kai-text mb-3">Personality</h3>
-            <p className="text-sm text-muted-foreground leading-relaxed">
-              {persona.personality || "No personality defined"}
-            </p>
+            <p className="text-sm text-muted-foreground whitespace-pre-wrap">{persona.personality}</p>
           </div>
 
           <div className="bg-card border border-border rounded-xl p-5">
             <h3 className="font-semibold text-kai-text mb-3">Goals</h3>
-            <p className="text-sm text-muted-foreground leading-relaxed">
-              {persona.goals || "No goals defined"}
-            </p>
+            <p className="text-sm text-muted-foreground whitespace-pre-wrap">{persona.goals || 'No goals set'}</p>
           </div>
         </div>
 
         <div className="mt-6">
-          <h3 className="font-semibold text-kai-text mb-3">Tasks ({agents.length})</h3>
-          <div className="space-y-2">
-            {agents.map((agent: Agent) => (
-              <AgentRow key={agent.id} agent={agent} />
-            ))}
-            {agents.length === 0 && (
-              <p className="text-muted-foreground">No tasks for this persona yet.</p>
-            )}
-          </div>
+          <h3 className="font-semibold text-kai-text mb-4">
+            Agents ({agents.length})
+          </h3>
+          {agents.length === 0 ? (
+            <p className="text-muted-foreground">No agents assigned to this persona.</p>
+          ) : (
+            <div className="space-y-2">
+              {agents.map((agent: Agent) => (
+                <div
+                  key={agent.id}
+                  className="flex items-center gap-3 p-3 bg-card border border-border rounded-lg"
+                >
+                  <div className={cn(
+                    "w-2.5 h-2.5 rounded-full",
+                    agent.enabled ? "bg-green-500" : "bg-kai-text-muted"
+                  )} />
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium text-kai-text">{agent.name}</div>
+                    <div className="text-sm text-muted-foreground truncate">{agent.description}</div>
+                  </div>
+                  {agent.schedule && (
+                    <span className="text-xs text-muted-foreground bg-accent/10 px-2 py-1 rounded">
+                      {agent.schedule}
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>

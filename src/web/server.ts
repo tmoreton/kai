@@ -7,7 +7,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 
 // Kai modules
-import { getModelId, getProviderName } from "../client.js";
+import { getModelId, getProviderName, initProvider } from "../client.js";
 import { DEFAULT_FIREWORKS_MODEL } from "../constants.js";
 import { getConfig } from "../config.js";
 import { getCwd } from "../tools/bash.js";
@@ -58,8 +58,8 @@ export async function startServer(options: ServerOptions): Promise<void> {
   // Auto-approve tools in web mode (no readline available)
   setPermissionMode("auto");
 
-  // Initialize MCP servers and skills before any interaction
-  await Promise.allSettled([initMcpServers(), loadAllSkills()]);
+  // Initialize provider (with fallback check), MCP servers, and skills before any interaction
+  await Promise.allSettled([initProvider(), initMcpServers(), loadAllSkills()]);
 
   // Start agent daemon in-process if requested
   if (agents) {

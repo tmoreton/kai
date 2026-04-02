@@ -20,7 +20,7 @@ import {
   RETRY_MAX_ATTEMPTS,
 } from "./constants.js";
 import { backoffDelay, sleep } from "./utils.js";
-import { resolveProvider, type ResolvedProvider } from "./providers/index.js";
+import { resolveProvider, resolveProviderWithFallback, type ResolvedProvider } from "./providers/index.js";
 import { getLastDiff } from "./tools/files.js";
 import { renderColorDiff } from "./diff.js";
 import { isToolAllowedInPlanMode } from "./plan-mode.js";
@@ -70,6 +70,14 @@ function getResolved(): ResolvedProvider {
   return _resolved;
 }
 
+/**
+ * Initialize the provider with automatic fallback (async).
+ * Call once at startup before the first chat request.
+ */
+export async function initProvider(): Promise<void> {
+  _resolved = await resolveProviderWithFallback();
+}
+
 export function createClient(): OpenAI {
   return getResolved().client;
 }
@@ -79,7 +87,7 @@ export function getModelId(): string {
 }
 
 export function getProviderName(): string {
-  return "fireworks";
+  return getResolved().providerName;
 }
 
 export async function chat(

@@ -41,6 +41,10 @@ export default {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
+        "kai-teal": {
+          DEFAULT: "#0D9488",
+          light: "#CCFBF1",
+        },
       },
       borderRadius: {
         lg: "var(--radius)",

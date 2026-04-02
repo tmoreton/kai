@@ -54,6 +54,7 @@ export const EXCLUDED_DIRS = ["node_modules", ".git", "dist", ".next", ".cache"]
 
 // Model defaults (overridable via ~/.kai/settings.json)
 export const DEFAULT_FIREWORKS_MODEL = "accounts/fireworks/routers/kimi-k2p5-turbo";
+export const DEFAULT_OPENROUTER_MODEL = "moonshotai/kimi-k2.5";
 export const DEFAULT_IMAGE_MODEL = "google/gemini-2.5-flash-image";
 
 // Provider endpoint defaults

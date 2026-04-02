@@ -65,7 +65,7 @@ function SidebarSection({ title, icon, children, action, defaultCollapsed = true
           )}
         />
       </button>
-      {!collapsed && <div className="mt-1 space-y-0.5">{children}</div>}
+      {!collapsed && <div className="mt-1 ml-3 pl-3 border-l border-border space-y-0.5">{children}</div>}
     </div>
   );
 }
@@ -106,9 +106,9 @@ function SidebarItem({ to, onClick, icon, label, active, meta, onDelete }: Sideb
   );
 
   const className = cn(
-    "flex items-center gap-2 px-2 py-1.5 text-sm rounded-lg transition-colors group",
+    "flex items-center gap-2 px-2 py-1.5 text-[13px] rounded-lg transition-colors group",
     active
-      ? "bg-secondary text-foreground font-medium"
+      ? "bg-accent/80 text-foreground font-medium"
       : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
   );
 
@@ -168,7 +168,7 @@ export function Sidebar() {
   };
 
   const handleNewAgent = () => {
-    navigate('/agents', { state: { create: true } });
+    navigate('/agents/persona/new');
     setMobileOpen(false);
   };
 
@@ -207,6 +207,7 @@ export function Sidebar() {
     <>
       {/* Header */}
       <div className="flex items-center justify-between p-4">
+        <div className="flex-1" />
         <div className="flex items-center gap-2 font-bold text-lg text-foreground">
           <svg
             viewBox="0 0 32 32"
@@ -230,13 +231,15 @@ export function Sidebar() {
           </svg>
           Kai
         </div>
-        <button
-          onClick={() => isMobile ? setMobileOpen(false) : toggleSidebar()}
-          className="p-1.5 rounded hover:bg-accent/50 text-muted-foreground hover:text-foreground"
-          title={isMobile ? "Close menu" : "Collapse sidebar"}
-        >
-          {isMobile ? <X className="w-5 h-5" /> : <PanelLeftClose className="w-5 h-5" />}
-        </button>
+        <div className="flex-1 flex justify-end">
+          <button
+            onClick={() => isMobile ? setMobileOpen(false) : toggleSidebar()}
+            className="p-1.5 rounded hover:bg-accent/50 text-muted-foreground hover:text-foreground"
+            title={isMobile ? "Close menu" : "Collapse sidebar"}
+          >
+            {isMobile ? <X className="w-5 h-5" /> : <PanelLeftClose className="w-5 h-5" />}
+          </button>
+        </div>
       </div>
 
       {/* Sections */}
@@ -259,11 +262,6 @@ export function Sidebar() {
               <SidebarItem
                 key={session.id}
                 to={`/chat/${session.id}`}
-                icon={sessionId === session.id ? (
-                  <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
-                ) : (
-                  <MessageSquare className="w-4 h-4" />
-                )}
                 label={session.preview || session.name || 'New chat'}
                 active={sessionId === session.id}
                 meta={formatShortDate(session.updatedAt)}
@@ -273,24 +271,23 @@ export function Sidebar() {
           )}
         </SidebarSection>
 
-        {/* Agents Section */}
+        {/* Personas Section */}
         <SidebarSection
-          title="Agents"
+          title="Personas"
           icon={<Bot className="w-4 h-4" />}
           action={{
             icon: <Plus className="w-4 h-4" />,
             onClick: handleNewAgent,
-            title: "New Agent",
+            title: "New Persona",
           }}
         >
           {personas.length === 0 ? (
-            <div className="px-2 py-3 text-sm text-muted-foreground">No agents yet</div>
+            <div className="px-2 py-3 text-sm text-muted-foreground">No personas yet</div>
           ) : (
             personas.map((persona: Persona) => (
               <SidebarItem
                 key={persona.id}
                 to={`/agents/${persona.id}`}
-                icon={<Bot className="w-4 h-4" />}
                 label={persona.name}
                 active={personaId === persona.id}
               />

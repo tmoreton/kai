@@ -1,13 +1,13 @@
 import { useState } from "react";
 import { useSuspenseQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Settings as SettingsIcon, Server, Puzzle, Key, Brain, FileText, Save, RotateCcw, Plus, Trash2, AlertCircle } from "lucide-react";
+import { Server, Puzzle, Key, Brain, FileText, Save, RotateCcw, Plus, Trash2, AlertCircle } from "lucide-react";
 import { settingsQueries } from "../api/queries";
 import { api, ApiError, NetworkError, TimeoutError } from "../api/client";
 import { cn } from "../lib/utils";
 import { toast } from "../components/Toast";
-import type { McpServer, Skill, Settings as SettingsType } from "../types/api";
+import type { McpServer, Skill } from "../types/api";
 
-type TabType = 'general' | 'mcp' | 'skills' | 'env' | 'soul' | 'context';
+type TabType = 'mcp' | 'skills' | 'env' | 'soul' | 'context';
 
 interface ErrorState {
   message: string;
@@ -15,10 +15,10 @@ interface ErrorState {
 }
 
 export function SettingsView() {
-  const [activeTab, setActiveTab] = useState<TabType>('general');
+  const [activeTab, setActiveTab] = useState<TabType>('mcp');
   const [error, setError] = useState<ErrorState | null>(null);
 
-  const { data: settings, isError, error: queryError, refetch } = useSuspenseQuery({
+  const { isError, error: queryError, refetch } = useSuspenseQuery({
     ...settingsQueries.list(),
     retry: 2,
   });
@@ -75,9 +75,6 @@ export function SettingsView() {
         )}
 
         <div className="flex gap-1 border-b border-border mb-6 overflow-x-auto">
-          <TabButton active={activeTab === 'general'} onClick={() => setActiveTab('general')} icon={<SettingsIcon className="w-4 h-4" />}>
-            General
-          </TabButton>
           <TabButton active={activeTab === 'mcp'} onClick={() => setActiveTab('mcp')} icon={<Server className="w-4 h-4" />}>
             MCP Servers
           </TabButton>
@@ -96,7 +93,6 @@ export function SettingsView() {
         </div>
 
         <div className="bg-card border border-border rounded-xl p-6">
-          {activeTab === 'general' && <GeneralSettings settings={settings} />}
           {activeTab === 'mcp' && <McpSettings />}
           {activeTab === 'skills' && <SkillsSettings />}
           {activeTab === 'env' && <EnvSettings />}
@@ -135,36 +131,32 @@ function TabButton({
   );
 }
 
-function GeneralSettings({ settings }: { settings: SettingsType }) {
-  return (
-    <div className="space-y-4">
-      <div>
-        <label className="block text-sm font-medium text-kai-text mb-2">Configuration</label>
-        <pre className="bg-kai-bg p-3 rounded-lg text-sm text-muted-foreground overflow-auto">
-          {JSON.stringify(settings.config, null, 2)}
-        </pre>
-      </div>
-    </div>
-  );
+const MCP_EXAMPLE_JSON = `{
+  "name": "filesystem",
+  "command": "npx",
+  "args": ["-y", "@modelcontextprotocol/server-filesystem", "/Users/yourname/Documents"]
 }
+
+// Other examples:
+// GitHub: { "name": "github", "command": "npx", "args": ["-y", "@modelcontextprotocol/server-github"] }
+// Puppeteer: { "name": "puppeteer", "command": "npx", "args": ["-y", "@modelcontextprotocol/server-puppeteer"] }
+// Fetch: { "name": "fetch", "command": "uvx", "args": ["mcp-server-fetch"] }`;
 
 function McpSettings() {
   const { data: settings } = useSuspenseQuery(settingsQueries.list());
   const queryClient = useQueryClient();
   const [showAdd, setShowAdd] = useState(false);
-  const [newServer, setNewServer] = useState({ name: '', command: '', args: '' });
+  const [jsonInput, setJsonInput] = useState(MCP_EXAMPLE_JSON);
+  const [jsonError, setJsonError] = useState<string | null>(null);
 
   const addMutation = useMutation({
-    mutationFn: (server: { name: string; command: string; args: string }) =>
-      api.settings.addMcpServer({
-        name: server.name,
-        command: server.command,
-        args: server.args.split(',').map(s => s.trim()).filter(Boolean),
-      }),
+    mutationFn: (server: { name: string; command: string; args: string[] }) =>
+      api.settings.addMcpServer(server),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: settingsQueries.all() });
       setShowAdd(false);
-      setNewServer({ name: '', command: '', args: '' });
+      setJsonInput(MCP_EXAMPLE_JSON);
+      setJsonError(null);
       toast.success('MCP Server added', 'Server configuration saved successfully');
     },
     onError: (err) => {
@@ -185,55 +177,81 @@ function McpSettings() {
     },
   });
 
+  const handleAdd = () => {
+    try {
+      // Extract just the first JSON object (ignore comments)
+      const jsonMatch = jsonInput.match(/\{[\s\S]*?\}/);
+      if (!jsonMatch) {
+        setJsonError('No valid JSON object found');
+        return;
+      }
+      const parsed = JSON.parse(jsonMatch[0]);
+      
+      if (!parsed.name || !parsed.command) {
+        setJsonError('JSON must include "name" and "command" fields');
+        return;
+      }
+      
+      setJsonError(null);
+      addMutation.mutate({
+        name: parsed.name,
+        command: parsed.command,
+        args: parsed.args || [],
+      });
+    } catch (e) {
+      setJsonError(e instanceof Error ? e.message : 'Invalid JSON');
+    }
+  };
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h3 className="font-semibold text-kai-text">MCP Servers</h3>
+        <div>
+          <h3 className="font-semibold text-kai-text">MCP Servers</h3>
+          <p className="text-sm text-muted-foreground">Add Model Context Protocol servers to extend capabilities</p>
+        </div>
         <button
-          onClick={() => setShowAdd(true)}
+          onClick={() => setShowAdd(!showAdd)}
           className="flex items-center gap-2 px-3 py-1.5 bg-kai-teal text-white rounded-lg text-sm hover:bg-primary/90"
         >
           <Plus className="w-4 h-4" />
-          Add Server
+          {showAdd ? 'Cancel' : 'Add Server'}
         </button>
       </div>
 
       {showAdd && (
         <div className="p-4 bg-kai-bg rounded-lg space-y-3">
-          <input
-            type="text"
-            placeholder="Server name"
-            value={newServer.name}
-            onChange={(e) => setNewServer({ ...newServer, name: e.target.value })}
-            className="w-full px-3 py-2 bg-card border border-border rounded-lg text-sm"
+          <div className="flex items-center justify-between">
+            <label className="font-medium text-kai-text">Server Configuration (JSON)</label>
+            <a 
+              href="https://github.com/modelcontextprotocol/servers" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="text-xs text-primary hover:underline"
+            >
+              Browse official servers →
+            </a>
+          </div>
+          <textarea
+            value={jsonInput}
+            onChange={(e) => setJsonInput(e.target.value)}
+            className="w-full h-48 px-3 py-2 bg-card border border-border rounded-lg text-sm font-mono resize-none focus:border-primary outline-none"
+            placeholder='{ "name": "server-name", "command": "npx", "args": ["..."] }'
+            spellCheck={false}
           />
-          <input
-            type="text"
-            placeholder="Command (e.g., npx)"
-            value={newServer.command}
-            onChange={(e) => setNewServer({ ...newServer, command: e.target.value })}
-            className="w-full px-3 py-2 bg-card border border-border rounded-lg text-sm"
-          />
-          <input
-            type="text"
-            placeholder="Arguments (comma-separated)"
-            value={newServer.args}
-            onChange={(e) => setNewServer({ ...newServer, args: e.target.value })}
-            className="w-full px-3 py-2 bg-card border border-border rounded-lg text-sm"
-          />
+          {jsonError && (
+            <div className="flex items-center gap-2 text-sm text-destructive">
+              <AlertCircle className="w-4 h-4" />
+              {jsonError}
+            </div>
+          )}
           <div className="flex gap-2">
             <button
-              onClick={() => addMutation.mutate(newServer)}
+              onClick={handleAdd}
               disabled={addMutation.isPending}
               className="px-4 py-2 bg-kai-teal text-white rounded-lg text-sm hover:bg-primary/90 disabled:opacity-50"
             >
-              {addMutation.isPending ? 'Adding...' : 'Add'}
-            </button>
-            <button
-              onClick={() => setShowAdd(false)}
-              className="px-4 py-2 border border-border rounded-lg text-sm hover:bg-accent/10"
-            >
-              Cancel
+              {addMutation.isPending ? 'Adding...' : 'Add Server'}
             </button>
           </div>
         </div>
@@ -241,17 +259,22 @@ function McpSettings() {
 
       <div className="space-y-2">
         {settings.mcp.servers.map((server: McpServer) => (
-          <div key={server.name} className="flex items-center justify-between p-3 bg-kai-bg rounded-lg">
-            <div>
-              <div className="font-medium text-kai-text">{server.name}</div>
-              <div className="text-sm text-muted-foreground">
-                {server.config.command} {server.config.args?.join(' ')}
-              </div>
-              <div className="flex items-center gap-2 mt-1">
-                <span className={cn("w-2 h-2 rounded-full", server.ready ? "bg-kai-green" : "bg-kai-red")} />
-                <span className="text-xs text-muted-foreground">
-                  {server.ready ? 'Ready' : 'Not ready'} • {server.tools.length} tools
-                </span>
+          <div key={server.name} className="flex items-center justify-between p-4 bg-kai-bg rounded-lg border border-border/50">
+            <div className="flex items-start gap-3">
+              <div className={cn("w-2 h-2 rounded-full mt-2", server.ready ? "bg-kai-green" : "bg-kai-red")} />
+              <div>
+                <div className="font-medium text-kai-text">{server.name}</div>
+                <div className="text-sm text-muted-foreground font-mono mt-0.5">
+                  {server.config.command} {server.config.args?.join(' ')}
+                </div>
+                <div className="flex items-center gap-2 mt-2">
+                  <span className={cn("text-xs px-2 py-0.5 rounded-full", server.ready ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700")}>
+                    {server.ready ? 'Ready' : 'Not ready'}
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    {server.tools.length} tools
+                  </span>
+                </div>
               </div>
             </div>
             <button
@@ -264,9 +287,9 @@ function McpSettings() {
           </div>
         ))}
         {settings.mcp.servers.length === 0 && (
-          <div className="text-muted-foreground text-center py-8">
-            <Server className="w-12 h-12 mx-auto mb-3 text-muted-foreground" />
-            <p>No MCP servers configured</p>
+          <div className="text-center py-12 border border-dashed border-border rounded-lg">
+            <Server className="w-12 h-12 mx-auto mb-3 text-muted-foreground/50" />
+            <p className="text-muted-foreground font-medium">No MCP servers configured</p>
             <p className="text-sm text-muted-foreground mt-1">Add a server to extend Kai's capabilities</p>
           </div>
         )}
@@ -275,10 +298,16 @@ function McpSettings() {
   );
 }
 
+const SKILL_EXAMPLES = [
+  'github:tmoreton/kai-skill-example',
+  'npm:@kai-tools/skill-example',
+];
+
 function SkillsSettings() {
   const { data: settings } = useSuspenseQuery(settingsQueries.list());
   const queryClient = useQueryClient();
   const [installSource, setInstallSource] = useState("");
+  const [showExamples, setShowExamples] = useState(false);
 
   const installMutation = useMutation({
     mutationFn: api.settings.installSkill,
@@ -324,7 +353,10 @@ function SkillsSettings() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h3 className="font-semibold text-kai-text">Installed Skills</h3>
+        <div>
+          <h3 className="font-semibold text-kai-text">Installed Skills</h3>
+          <p className="text-sm text-muted-foreground">Skills add custom tools and capabilities</p>
+        </div>
         <button
           onClick={() => reloadMutation.mutate()}
           disabled={reloadMutation.isPending}
@@ -335,21 +367,48 @@ function SkillsSettings() {
         </button>
       </div>
 
-      <div className="flex gap-2">
-        <input
-          type="text"
-          placeholder="GitHub URL or npm package to install..."
-          value={installSource}
-          onChange={(e) => setInstallSource(e.target.value)}
-          className="flex-1 px-3 py-2 bg-kai-bg border border-border rounded-lg text-sm"
-        />
-        <button
-          onClick={() => installMutation.mutate(installSource)}
-          disabled={!installSource || installMutation.isPending}
-          className="px-4 py-2 bg-kai-teal text-white rounded-lg text-sm hover:bg-primary/90 disabled:opacity-50"
-        >
-          {installMutation.isPending ? 'Installing...' : 'Install'}
-        </button>
+      <div className="p-3 bg-kai-bg rounded-lg">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-sm text-muted-foreground">Install from GitHub or npm</span>
+          <button
+            onClick={() => setShowExamples(!showExamples)}
+            className="text-sm text-primary hover:underline"
+          >
+            {showExamples ? 'Hide examples' : 'Show examples'}
+          </button>
+        </div>
+        
+        {showExamples && (
+          <div className="mb-3 space-y-1">
+            <p className="text-xs text-muted-foreground mb-2">Click to use:</p>
+            {SKILL_EXAMPLES.map((ex) => (
+              <button
+                key={ex}
+                onClick={() => setInstallSource(ex)}
+                className="block w-full text-left px-2 py-1.5 text-sm text-muted-foreground hover:text-kai-text hover:bg-accent/20 rounded"
+              >
+                {ex}
+              </button>
+            ))}
+          </div>
+        )}
+
+        <div className="flex gap-2">
+          <input
+            type="text"
+            placeholder="GitHub repo or npm package..."
+            value={installSource}
+            onChange={(e) => setInstallSource(e.target.value)}
+            className="flex-1 px-3 py-2 bg-card border border-border rounded-lg text-sm"
+          />
+          <button
+            onClick={() => installMutation.mutate(installSource)}
+            disabled={!installSource || installMutation.isPending}
+            className="px-4 py-2 bg-kai-teal text-white rounded-lg text-sm hover:bg-primary/90 disabled:opacity-50"
+          >
+            {installMutation.isPending ? 'Installing...' : 'Install'}
+          </button>
+        </div>
       </div>
 
       <div className="space-y-2">
@@ -383,11 +442,18 @@ function SkillsSettings() {
   );
 }
 
+const ENV_EXAMPLES = [
+  { key: 'ANTHROPIC_API_KEY', value: 'sk-ant-...', description: 'Claude API access' },
+  { key: 'OPENAI_API_KEY', value: 'sk-...', description: 'OpenAI API access' },
+  { key: 'GITHUB_PERSONAL_ACCESS_TOKEN', value: 'ghp_...', description: 'GitHub MCP server' },
+];
+
 function EnvSettings() {
   const { data } = useSuspenseQuery(settingsQueries.env());
   const queryClient = useQueryClient();
   const [newKey, setNewKey] = useState("");
   const [newValue, setNewValue] = useState("");
+  const [showExamples, setShowExamples] = useState(false);
 
   const setMutation = useMutation({
     mutationFn: ({ key, value }: { key: string; value: string }) => api.settings.setEnv(key, value),
@@ -419,7 +485,40 @@ function EnvSettings() {
 
   return (
     <div className="space-y-4">
-      <h3 className="font-semibold text-kai-text">Environment Variables</h3>
+      <div>
+        <h3 className="font-semibold text-kai-text">Environment Variables</h3>
+        <p className="text-sm text-muted-foreground">Store API keys and configuration secrets</p>
+      </div>
+
+      <div className="flex items-center justify-between">
+        <span className="text-sm text-muted-foreground">Store API keys and configuration secrets</span>
+        <button
+          onClick={() => setShowExamples(!showExamples)}
+          className="text-sm text-primary hover:underline"
+        >
+          {showExamples ? 'Hide examples' : 'Show examples'}
+        </button>
+      </div>
+
+      {showExamples && (
+        <div className="p-3 bg-kai-bg rounded-lg space-y-2">
+          <p className="text-xs text-muted-foreground">Common examples (click to use):</p>
+          {ENV_EXAMPLES.map((ex) => (
+            <button
+              key={ex.key}
+              onClick={() => {
+                setNewKey(ex.key);
+                setNewValue(ex.value);
+                setShowExamples(false);
+              }}
+              className="block w-full text-left px-2 py-1.5 text-sm hover:bg-accent/20 rounded"
+            >
+              <span className="font-mono text-primary">{ex.key}</span>
+              <span className="text-muted-foreground ml-2">— {ex.description}</span>
+            </button>
+          ))}
+        </div>
+      )}
 
       <div className="flex gap-2">
         <input

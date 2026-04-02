@@ -108,8 +108,12 @@ export function ChatView() {
     if (session?.messages) {
       setMessages(session.messages.filter((m) => m.role !== 'system'));
       setError(null); // Clear error on successful load
+    } else if (!sessionId || sessionId === 'new') {
+      // Clear messages for new chat
+      setMessages([]);
+      setError(null);
     }
-  }, [session]);
+  }, [session, sessionId]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -406,7 +410,22 @@ export function ChatView() {
   return (
     <div className="flex flex-col h-full bg-background">
       {/* Header */}
-      <div className="flex items-center justify-end px-4 py-2 border-b border-border bg-background">
+      <div className="flex items-center px-4 py-2 border-b border-border bg-background">
+        <div className="flex-1" />
+        <div className="flex items-center gap-2 font-semibold text-foreground">
+          <svg viewBox="0 0 32 32" className="w-6 h-6">
+            <defs>
+              <linearGradient id="kai-header" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0%" stopColor="#0D9488" />
+                <stop offset="100%" stopColor="#115E59" />
+              </linearGradient>
+            </defs>
+            <rect width="32" height="32" rx="8" fill="url(#kai-header)" />
+            <path d="M9 8v16M9 16l8-8M9 16l8 8" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+          </svg>
+          Kai
+        </div>
+        <div className="flex-1 flex justify-end">
         <div className="relative" ref={menuRef}>
           <button
             onClick={() => setShowMenu(!showMenu)}
@@ -433,6 +452,7 @@ export function ChatView() {
             </div>
           )}
         </div>
+        </div>
       </div>
 
       {/* Error Banner */}
@@ -456,8 +476,8 @@ export function ChatView() {
       )}
 
       {/* Messages Area */}
-      <div className="flex-1 overflow-y-auto">
-        <div className="max-w-3xl mx-auto px-4 py-6">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden">
+        <div className="max-w-3xl mx-auto px-4 py-6 overflow-hidden">
           {messages.length === 0 ? (
             <WelcomeScreen onSelect={(text) => setInput(text)} />
           ) : (
@@ -614,7 +634,7 @@ function MessageBubble({
             ? 'bg-primary text-white rounded-tr-sm' 
             : 'bg-card border border-border rounded-tl-sm'
         }`}>
-          <div className={`prose prose-slate max-w-none ${isUser ? 'text-white' : ''}`}>
+          <div className={`prose prose-slate max-w-none overflow-hidden break-words ${isUser ? 'text-white' : ''}`}>
             {message.content && (
               <MarkdownRenderer content={typeof message.content === 'string' ? message.content : JSON.stringify(message.content)} onImageClick={onImageClick} />
             )}
