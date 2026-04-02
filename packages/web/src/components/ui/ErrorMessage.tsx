@@ -14,7 +14,7 @@ const ErrorMessage = React.forwardRef<HTMLDivElement, ErrorMessageProps>(
         id={id}
         role="alert"
         className={cn(
-          "flex items-center gap-1.5 text-sm text-kai-red",
+          "flex items-center gap-1.5 text-sm text-destructive",
           className
         )}
         {...props}

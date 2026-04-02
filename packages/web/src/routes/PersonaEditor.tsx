@@ -327,7 +327,7 @@ export function PersonaEditor() {
           <div className="flex items-center gap-4">
             <button
               onClick={handleBack}
-              className="flex items-center gap-2 text-kai-text-secondary hover:text-kai-teal transition-colors"
+              className="flex items-center gap-2 text-muted-foreground hover:text-primary transition-colors"
             >
               <ArrowLeft className="w-5 h-5" />
               <span className="text-sm font-medium">Back to Agents</span>
@@ -344,7 +344,7 @@ export function PersonaEditor() {
 
           <div className="flex items-center gap-3">
             {/* Tab switcher for mobile */}
-            <div className="flex items-center gap-1 bg-kai-bg-surface border border-kai-border rounded-lg p-1 sm:hidden">
+            <div className="flex items-center gap-1 bg-card border border-border rounded-lg p-1 sm:hidden">
               <TabButton
                 active={activeTab === 'edit'}
                 onClick={() => setActiveTab('edit')}
@@ -365,7 +365,7 @@ export function PersonaEditor() {
               <button
                 onClick={handleDelete}
                 disabled={deleteMutation.isPending}
-                className="flex items-center gap-2 px-4 py-2 text-kai-red border border-kai-red rounded-lg text-sm font-medium hover:bg-kai-red-light transition-colors disabled:opacity-50"
+                className="flex items-center gap-2 px-4 py-2 text-destructive border border-kai-red rounded-lg text-sm font-medium hover:bg-destructive/10 transition-colors disabled:opacity-50"
               >
                 <Trash2 className="w-4 h-4" />
                 <span className="hidden sm:inline">Delete</span>
@@ -374,7 +374,7 @@ export function PersonaEditor() {
             <button
               onClick={handleSave}
               disabled={!isDirty || saveMutation.isPending}
-              className="flex items-center gap-2 px-4 py-2 bg-kai-teal text-white rounded-lg text-sm font-medium hover:bg-opacity-90 transition-colors disabled:opacity-50"
+              className="flex items-center gap-2 px-4 py-2 bg-kai-teal text-white rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
             >
               <Save className="w-4 h-4" />
               {saveMutation.isPending ? 'Saving...' : 'Save'}
@@ -407,9 +407,9 @@ export function PersonaEditor() {
           {/* Left column - Main fields */}
           <div className={`lg:col-span-2 space-y-6 ${activeTab === 'preview' ? 'hidden lg:block' : ''}`}>
             {/* Basic Info Card */}
-            <div className="bg-kai-bg-surface border border-kai-border rounded-xl p-6 space-y-4">
+            <div className="bg-card border border-border rounded-xl p-6 space-y-4">
               <div className="flex items-center gap-2 mb-4">
-                <Bot className="w-5 h-5 text-kai-teal" />
+                <Bot className="w-5 h-5 text-primary" />
                 <h2 className="font-semibold text-kai-text">Basic Information</h2>
               </div>
 
@@ -418,14 +418,14 @@ export function PersonaEditor() {
                 <div>
                   <label className="block text-sm font-medium text-kai-text mb-2">
                     Persona ID
-                    <span className="text-kai-text-muted font-normal ml-1">(unique identifier)</span>
+                    <span className="text-muted-foreground font-normal ml-1">(unique identifier)</span>
                   </label>
                   <input
                     type="text"
                     value={formData.id}
                     onChange={(e) => updateField('id', e.target.value)}
                     placeholder="e.g., code-assistant"
-                    className="w-full px-3 py-2 bg-kai-bg border border-kai-border rounded-lg text-sm focus:border-kai-teal outline-none transition-colors"
+                    className="w-full px-3 py-2 bg-kai-bg border border-border rounded-lg text-sm focus:border-primary outline-none transition-colors"
                   />
                 </div>
               )}
@@ -441,8 +441,8 @@ export function PersonaEditor() {
                   onChange={(e) => updateField('name', e.target.value)}
                   placeholder="e.g., Code Assistant"
                   className={cn(
-                    "w-full px-3 py-2 bg-kai-bg border rounded-lg text-sm focus:border-kai-teal outline-none transition-colors",
-                    error?.field === 'name' ? 'border-red-500 focus:border-red-500' : 'border-kai-border'
+                    "w-full px-3 py-2 bg-kai-bg border rounded-lg text-sm focus:border-primary outline-none transition-colors",
+                    error?.field === 'name' ? 'border-red-500 focus:border-red-500' : 'border-border'
                   )}
                 />
                 {error?.field === 'name' && (
@@ -454,7 +454,7 @@ export function PersonaEditor() {
               <div>
                 <label className="block text-sm font-medium text-kai-text mb-2">
                   Role <span className="text-red-500">*</span>
-                  <span className="text-kai-text-muted font-normal ml-1">(brief description)</span>
+                  <span className="text-muted-foreground font-normal ml-1">(brief description)</span>
                 </label>
                 <input
                   type="text"
@@ -462,8 +462,8 @@ export function PersonaEditor() {
                   onChange={(e) => updateField('role', e.target.value)}
                   placeholder="e.g., Helps with coding tasks and code review"
                   className={cn(
-                    "w-full px-3 py-2 bg-kai-bg border rounded-lg text-sm focus:border-kai-teal outline-none transition-colors",
-                    error?.field === 'role' ? 'border-red-500 focus:border-red-500' : 'border-kai-border'
+                    "w-full px-3 py-2 bg-kai-bg border rounded-lg text-sm focus:border-primary outline-none transition-colors",
+                    error?.field === 'role' ? 'border-red-500 focus:border-red-500' : 'border-border'
                   )}
                 />
                 {error?.field === 'role' && (
@@ -473,11 +473,11 @@ export function PersonaEditor() {
             </div>
 
             {/* Personality Card */}
-            <div className="bg-kai-bg-surface border border-kai-border rounded-xl p-6 space-y-4">
+            <div className="bg-card border border-border rounded-xl p-6 space-y-4">
               <div className="flex items-center gap-2 mb-4">
-                <Sparkles className="w-5 h-5 text-kai-teal" />
+                <Sparkles className="w-5 h-5 text-primary" />
                 <h2 className="font-semibold text-kai-text">Personality</h2>
-                <span className="text-xs text-kai-text-muted ml-auto">
+                <span className="text-xs text-muted-foreground ml-auto">
                   {formData.personality?.length || 0} chars
                 </span>
               </div>
@@ -485,20 +485,20 @@ export function PersonaEditor() {
                 value={formData.personality}
                 onChange={(e) => updateField('personality', e.target.value)}
                 placeholder="Describe the persona's personality, communication style, expertise areas, and how they should behave..."
-                className="w-full h-48 px-3 py-2 bg-kai-bg border border-kai-border rounded-lg text-sm resize-none focus:border-kai-teal outline-none transition-colors leading-relaxed"
+                className="w-full h-48 px-3 py-2 bg-kai-bg border border-border rounded-lg text-sm resize-none focus:border-primary outline-none transition-colors leading-relaxed"
                 spellCheck={false}
               />
-              <p className="text-xs text-kai-text-muted">
+              <p className="text-xs text-muted-foreground">
                 Define how this persona communicates, their expertise, tone, and behavioral traits.
               </p>
             </div>
 
             {/* Goals Card */}
-            <div className="bg-kai-bg-surface border border-kai-border rounded-xl p-6 space-y-4">
+            <div className="bg-card border border-border rounded-xl p-6 space-y-4">
               <div className="flex items-center gap-2 mb-4">
-                <Target className="w-5 h-5 text-kai-teal" />
+                <Target className="w-5 h-5 text-primary" />
                 <h2 className="font-semibold text-kai-text">Goals</h2>
-                <span className="text-xs text-kai-text-muted ml-auto">
+                <span className="text-xs text-muted-foreground ml-auto">
                   {formData.goals?.length || 0} chars
                 </span>
               </div>
@@ -506,17 +506,17 @@ export function PersonaEditor() {
                 value={formData.goals}
                 onChange={(e) => updateField('goals', e.target.value)}
                 placeholder="Describe the persona's primary objectives, what they should help achieve, and key outcomes..."
-                className="w-full h-32 px-3 py-2 bg-kai-bg border border-kai-border rounded-lg text-sm resize-none focus:border-kai-teal outline-none transition-colors leading-relaxed"
+                className="w-full h-32 px-3 py-2 bg-kai-bg border border-border rounded-lg text-sm resize-none focus:border-primary outline-none transition-colors leading-relaxed"
                 spellCheck={false}
               />
             </div>
 
             {/* Scratchpad Card */}
-            <div className="bg-kai-bg-surface border border-kai-border rounded-xl p-6 space-y-4">
+            <div className="bg-card border border-border rounded-xl p-6 space-y-4">
               <div className="flex items-center gap-2 mb-4">
-                <StickyNote className="w-5 h-5 text-kai-teal" />
+                <StickyNote className="w-5 h-5 text-primary" />
                 <h2 className="font-semibold text-kai-text">Scratchpad</h2>
-                <span className="text-xs text-kai-text-muted ml-auto">
+                <span className="text-xs text-muted-foreground ml-auto">
                   {formData.scratchpad?.length || 0} chars
                 </span>
               </div>
@@ -524,7 +524,7 @@ export function PersonaEditor() {
                 value={formData.scratchpad}
                 onChange={(e) => updateField('scratchpad', e.target.value)}
                 placeholder="Working notes, context to remember, temporary information..."
-                className="w-full h-32 px-3 py-2 bg-kai-bg border border-kai-border rounded-lg text-sm resize-none focus:border-kai-teal outline-none transition-colors leading-relaxed"
+                className="w-full h-32 px-3 py-2 bg-kai-bg border border-border rounded-lg text-sm resize-none focus:border-primary outline-none transition-colors leading-relaxed"
                 spellCheck={false}
               />
             </div>
@@ -533,11 +533,11 @@ export function PersonaEditor() {
           {/* Right column - Tools & Files */}
           <div className={`space-y-6 ${activeTab === 'edit' ? 'hidden lg:block' : ''}`}>
             {/* Tools Card */}
-            <div className="bg-kai-bg-surface border border-kai-border rounded-xl p-6">
+            <div className="bg-card border border-border rounded-xl p-6">
               <div className="flex items-center gap-2 mb-4">
-                <Wrench className="w-5 h-5 text-kai-teal" />
+                <Wrench className="w-5 h-5 text-primary" />
                 <h2 className="font-semibold text-kai-text">Tools</h2>
-                <span className="text-xs text-kai-text-muted ml-auto">
+                <span className="text-xs text-muted-foreground ml-auto">
                   {formData.tools.length} selected
                 </span>
               </div>
@@ -552,19 +552,19 @@ export function PersonaEditor() {
                       type="checkbox"
                       checked={formData.tools.includes(tool.name)}
                       onChange={() => handleToolToggle(tool.name)}
-                      className="mt-0.5 w-4 h-4 rounded border-kai-border text-kai-teal focus:ring-kai-teal"
+                      className="mt-0.5 w-4 h-4 rounded border-border text-primary focus:ring-kai-teal"
                     />
                     <div className="flex-1 min-w-0">
                       <div className="text-sm font-medium text-kai-text">{tool.name}</div>
-                      <div className="text-xs text-kai-text-muted">{tool.source}</div>
+                      <div className="text-xs text-muted-foreground">{tool.source}</div>
                       {tool.description && (
-                        <div className="text-xs text-kai-text-secondary mt-0.5">{tool.description}</div>
+                        <div className="text-xs text-muted-foreground mt-0.5">{tool.description}</div>
                       )}
                     </div>
                   </label>
                 ))}
                 {availableTools.length === 0 && (
-                  <p className="text-sm text-kai-text-secondary text-center py-4">
+                  <p className="text-sm text-muted-foreground text-center py-4">
                     No tools available. Add MCP servers or skills in Settings.
                   </p>
                 )}
@@ -572,11 +572,11 @@ export function PersonaEditor() {
             </div>
 
             {/* Files Card */}
-            <div className="bg-kai-bg-surface border border-kai-border rounded-xl p-6">
+            <div className="bg-card border border-border rounded-xl p-6">
               <div className="flex items-center gap-2 mb-4">
-                <Paperclip className="w-5 h-5 text-kai-teal" />
+                <Paperclip className="w-5 h-5 text-primary" />
                 <h2 className="font-semibold text-kai-text">Files</h2>
-                <span className="text-xs text-kai-text-muted ml-auto">
+                <span className="text-xs text-muted-foreground ml-auto">
                   {formData.files.length}
                 </span>
               </div>
@@ -594,8 +594,8 @@ export function PersonaEditor() {
                   className={cn(
                     "flex items-center justify-center gap-2 w-full px-4 py-3 border-2 border-dashed rounded-lg text-sm cursor-pointer transition-colors",
                     uploadMutation.isPending
-                      ? "border-kai-teal bg-kai-teal-light text-kai-teal"
-                      : "border-kai-border text-kai-text-secondary hover:border-kai-teal hover:text-kai-teal"
+                      ? "border-primary bg-kai-teal-light text-primary"
+                      : "border-border text-muted-foreground hover:border-primary hover:text-primary"
                   )}
                 >
                   {uploadMutation.isPending ? (
@@ -614,7 +614,7 @@ export function PersonaEditor() {
                   <p className="mt-2 text-sm text-red-500">{uploadError}</p>
                 )}
                 {!personaId && (
-                  <p className="mt-2 text-xs text-kai-text-muted">
+                  <p className="mt-2 text-xs text-muted-foreground">
                     Save the persona first to upload files
                   </p>
                 )}
@@ -627,24 +627,24 @@ export function PersonaEditor() {
                     key={file.storedName}
                     className="flex items-center gap-2 p-2 bg-kai-bg rounded-lg group"
                   >
-                    <FileText className="w-4 h-4 text-kai-teal flex-shrink-0" />
+                    <FileText className="w-4 h-4 text-primary flex-shrink-0" />
                     <div className="flex-1 min-w-0">
                       <div className="text-sm truncate">{file.originalName}</div>
-                      <div className="text-xs text-kai-text-muted">
+                      <div className="text-xs text-muted-foreground">
                         {formatFileSize(file.size)} • {file.mimeType}
                       </div>
                     </div>
                     <button
                       onClick={() => deleteFileMutation.mutate(file.storedName)}
                       disabled={deleteFileMutation.isPending}
-                      className="p-1 rounded text-kai-text-muted hover:text-kai-red hover:bg-kai-red-light opacity-0 group-hover:opacity-100 transition-all disabled:opacity-50"
+                      className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 opacity-0 group-hover:opacity-100 transition-all disabled:opacity-50"
                     >
                       <X className="w-4 h-4" />
                     </button>
                   </div>
                 ))}
                 {formData.files.length === 0 && (
-                  <p className="text-sm text-kai-text-secondary text-center py-4">
+                  <p className="text-sm text-muted-foreground text-center py-4">
                     No files attached
                   </p>
                 )}
@@ -675,7 +675,7 @@ function TabButton({
         "flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors",
         active
           ? "bg-kai-teal text-white"
-          : "text-kai-text-secondary hover:text-kai-text"
+          : "text-muted-foreground hover:text-kai-text"
       )}
     >
       {icon}

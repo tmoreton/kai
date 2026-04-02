@@ -53,7 +53,7 @@ export function SettingsView() {
     <div className="h-full overflow-y-auto p-6">
       <div className="max-w-4xl mx-auto">
         <h1 className="text-2xl font-semibold text-kai-text mb-2">Settings</h1>
-        <p className="text-kai-text-secondary mb-6">
+        <p className="text-muted-foreground mb-6">
           Configure MCP servers, manage skills, and adjust preferences.
         </p>
 
@@ -74,7 +74,7 @@ export function SettingsView() {
           </div>
         )}
 
-        <div className="flex gap-1 border-b border-kai-border mb-6 overflow-x-auto">
+        <div className="flex gap-1 border-b border-border mb-6 overflow-x-auto">
           <TabButton active={activeTab === 'general'} onClick={() => setActiveTab('general')} icon={<SettingsIcon className="w-4 h-4" />}>
             General
           </TabButton>
@@ -95,7 +95,7 @@ export function SettingsView() {
           </TabButton>
         </div>
 
-        <div className="bg-kai-bg-surface border border-kai-border rounded-xl p-6">
+        <div className="bg-card border border-border rounded-xl p-6">
           {activeTab === 'general' && <GeneralSettings settings={settings} />}
           {activeTab === 'mcp' && <McpSettings />}
           {activeTab === 'skills' && <SkillsSettings />}
@@ -125,8 +125,8 @@ function TabButton({
       className={cn(
         "flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap",
         active
-          ? "border-kai-teal text-kai-teal"
-          : "border-transparent text-kai-text-secondary hover:text-kai-text hover:border-kai-border"
+          ? "border-primary text-primary"
+          : "border-transparent text-muted-foreground hover:text-kai-text hover:border-border"
       )}
     >
       {icon}
@@ -140,7 +140,7 @@ function GeneralSettings({ settings }: { settings: SettingsType }) {
     <div className="space-y-4">
       <div>
         <label className="block text-sm font-medium text-kai-text mb-2">Configuration</label>
-        <pre className="bg-kai-bg p-3 rounded-lg text-sm text-kai-text-secondary overflow-auto">
+        <pre className="bg-kai-bg p-3 rounded-lg text-sm text-muted-foreground overflow-auto">
           {JSON.stringify(settings.config, null, 2)}
         </pre>
       </div>
@@ -191,7 +191,7 @@ function McpSettings() {
         <h3 className="font-semibold text-kai-text">MCP Servers</h3>
         <button
           onClick={() => setShowAdd(true)}
-          className="flex items-center gap-2 px-3 py-1.5 bg-kai-teal text-white rounded-lg text-sm hover:bg-opacity-90"
+          className="flex items-center gap-2 px-3 py-1.5 bg-kai-teal text-white rounded-lg text-sm hover:bg-primary/90"
         >
           <Plus className="w-4 h-4" />
           Add Server
@@ -205,33 +205,33 @@ function McpSettings() {
             placeholder="Server name"
             value={newServer.name}
             onChange={(e) => setNewServer({ ...newServer, name: e.target.value })}
-            className="w-full px-3 py-2 bg-kai-bg-surface border border-kai-border rounded-lg text-sm"
+            className="w-full px-3 py-2 bg-card border border-border rounded-lg text-sm"
           />
           <input
             type="text"
             placeholder="Command (e.g., npx)"
             value={newServer.command}
             onChange={(e) => setNewServer({ ...newServer, command: e.target.value })}
-            className="w-full px-3 py-2 bg-kai-bg-surface border border-kai-border rounded-lg text-sm"
+            className="w-full px-3 py-2 bg-card border border-border rounded-lg text-sm"
           />
           <input
             type="text"
             placeholder="Arguments (comma-separated)"
             value={newServer.args}
             onChange={(e) => setNewServer({ ...newServer, args: e.target.value })}
-            className="w-full px-3 py-2 bg-kai-bg-surface border border-kai-border rounded-lg text-sm"
+            className="w-full px-3 py-2 bg-card border border-border rounded-lg text-sm"
           />
           <div className="flex gap-2">
             <button
               onClick={() => addMutation.mutate(newServer)}
               disabled={addMutation.isPending}
-              className="px-4 py-2 bg-kai-teal text-white rounded-lg text-sm hover:bg-opacity-90 disabled:opacity-50"
+              className="px-4 py-2 bg-kai-teal text-white rounded-lg text-sm hover:bg-primary/90 disabled:opacity-50"
             >
               {addMutation.isPending ? 'Adding...' : 'Add'}
             </button>
             <button
               onClick={() => setShowAdd(false)}
-              className="px-4 py-2 border border-kai-border rounded-lg text-sm hover:bg-kai-bg-hover"
+              className="px-4 py-2 border border-border rounded-lg text-sm hover:bg-accent/10"
             >
               Cancel
             </button>
@@ -244,12 +244,12 @@ function McpSettings() {
           <div key={server.name} className="flex items-center justify-between p-3 bg-kai-bg rounded-lg">
             <div>
               <div className="font-medium text-kai-text">{server.name}</div>
-              <div className="text-sm text-kai-text-secondary">
+              <div className="text-sm text-muted-foreground">
                 {server.config.command} {server.config.args?.join(' ')}
               </div>
               <div className="flex items-center gap-2 mt-1">
                 <span className={cn("w-2 h-2 rounded-full", server.ready ? "bg-kai-green" : "bg-kai-red")} />
-                <span className="text-xs text-kai-text-muted">
+                <span className="text-xs text-muted-foreground">
                   {server.ready ? 'Ready' : 'Not ready'} • {server.tools.length} tools
                 </span>
               </div>
@@ -257,17 +257,17 @@ function McpSettings() {
             <button
               onClick={() => removeMutation.mutate(server.name)}
               disabled={removeMutation.isPending}
-              className="p-2 text-kai-text-muted hover:text-kai-red rounded-lg hover:bg-kai-red-light"
+              className="p-2 text-muted-foreground hover:text-destructive rounded-lg hover:bg-destructive/10"
             >
               <Trash2 className="w-4 h-4" />
             </button>
           </div>
         ))}
         {settings.mcp.servers.length === 0 && (
-          <div className="text-kai-text-secondary text-center py-8">
-            <Server className="w-12 h-12 mx-auto mb-3 text-kai-text-muted" />
+          <div className="text-muted-foreground text-center py-8">
+            <Server className="w-12 h-12 mx-auto mb-3 text-muted-foreground" />
             <p>No MCP servers configured</p>
-            <p className="text-sm text-kai-text-muted mt-1">Add a server to extend Kai's capabilities</p>
+            <p className="text-sm text-muted-foreground mt-1">Add a server to extend Kai's capabilities</p>
           </div>
         )}
       </div>
@@ -328,7 +328,7 @@ function SkillsSettings() {
         <button
           onClick={() => reloadMutation.mutate()}
           disabled={reloadMutation.isPending}
-          className="flex items-center gap-2 px-3 py-1.5 border border-kai-border rounded-lg text-sm hover:bg-kai-bg-hover"
+          className="flex items-center gap-2 px-3 py-1.5 border border-border rounded-lg text-sm hover:bg-accent/10"
         >
           <RotateCcw className={cn("w-4 h-4", reloadMutation.isPending && "animate-spin")} />
           Reload
@@ -341,12 +341,12 @@ function SkillsSettings() {
           placeholder="GitHub URL or npm package to install..."
           value={installSource}
           onChange={(e) => setInstallSource(e.target.value)}
-          className="flex-1 px-3 py-2 bg-kai-bg border border-kai-border rounded-lg text-sm"
+          className="flex-1 px-3 py-2 bg-kai-bg border border-border rounded-lg text-sm"
         />
         <button
           onClick={() => installMutation.mutate(installSource)}
           disabled={!installSource || installMutation.isPending}
-          className="px-4 py-2 bg-kai-teal text-white rounded-lg text-sm hover:bg-opacity-90 disabled:opacity-50"
+          className="px-4 py-2 bg-kai-teal text-white rounded-lg text-sm hover:bg-primary/90 disabled:opacity-50"
         >
           {installMutation.isPending ? 'Installing...' : 'Install'}
         </button>
@@ -357,25 +357,25 @@ function SkillsSettings() {
           <div key={skill.id} className="flex items-center justify-between p-3 bg-kai-bg rounded-lg">
             <div>
               <div className="font-medium text-kai-text">{skill.name}</div>
-              <div className="text-sm text-kai-text-secondary">{skill.description}</div>
-              <div className="text-xs text-kai-text-muted mt-1">
+              <div className="text-sm text-muted-foreground">{skill.description}</div>
+              <div className="text-xs text-muted-foreground mt-1">
                 v{skill.version} • {skill.tools.length} tools • {skill.path}
               </div>
             </div>
             <button
               onClick={() => uninstallMutation.mutate(skill.id)}
               disabled={uninstallMutation.isPending}
-              className="p-2 text-kai-text-muted hover:text-kai-red rounded-lg hover:bg-kai-red-light disabled:opacity-50"
+              className="p-2 text-muted-foreground hover:text-destructive rounded-lg hover:bg-destructive/10 disabled:opacity-50"
             >
               <Trash2 className="w-4 h-4" />
             </button>
           </div>
         ))}
         {settings.skills.length === 0 && (
-          <div className="text-kai-text-secondary text-center py-8">
-            <Puzzle className="w-12 h-12 mx-auto mb-3 text-kai-text-muted" />
+          <div className="text-muted-foreground text-center py-8">
+            <Puzzle className="w-12 h-12 mx-auto mb-3 text-muted-foreground" />
             <p>No skills installed</p>
-            <p className="text-sm text-kai-text-muted mt-1">Install skills to add new tools and capabilities</p>
+            <p className="text-sm text-muted-foreground mt-1">Install skills to add new tools and capabilities</p>
           </div>
         )}
       </div>
@@ -427,19 +427,19 @@ function EnvSettings() {
           placeholder="KEY"
           value={newKey}
           onChange={(e) => setNewKey(e.target.value)}
-          className="px-3 py-2 bg-kai-bg border border-kai-border rounded-lg text-sm font-mono"
+          className="px-3 py-2 bg-kai-bg border border-border rounded-lg text-sm font-mono"
         />
         <input
           type="text"
           placeholder="value"
           value={newValue}
           onChange={(e) => setNewValue(e.target.value)}
-          className="flex-1 px-3 py-2 bg-kai-bg border border-kai-border rounded-lg text-sm font-mono"
+          className="flex-1 px-3 py-2 bg-kai-bg border border-border rounded-lg text-sm font-mono"
         />
         <button
           onClick={() => setMutation.mutate({ key: newKey, value: newValue })}
           disabled={!newKey || setMutation.isPending}
-          className="px-4 py-2 bg-kai-teal text-white rounded-lg text-sm hover:bg-opacity-90 disabled:opacity-50"
+          className="px-4 py-2 bg-kai-teal text-white rounded-lg text-sm hover:bg-primary/90 disabled:opacity-50"
         >
           <Plus className="w-4 h-4" />
         </button>
@@ -449,22 +449,22 @@ function EnvSettings() {
         {entries.map(([key, value]) => (
           <div key={key} className="flex items-center justify-between p-2 bg-kai-bg rounded-lg">
             <div className="flex items-center gap-2 font-mono text-sm">
-              <span className="text-kai-teal font-medium">{key}</span>
-              <span className="text-kai-text-muted">=</span>
-              <span className="text-kai-text-secondary">{value}</span>
+              <span className="text-primary font-medium">{key}</span>
+              <span className="text-muted-foreground">=</span>
+              <span className="text-muted-foreground">{value}</span>
             </div>
             <button
               onClick={() => removeMutation.mutate(key)}
               disabled={removeMutation.isPending}
-              className="p-1.5 text-kai-text-muted hover:text-kai-red rounded hover:bg-kai-red-light disabled:opacity-50"
+              className="p-1.5 text-muted-foreground hover:text-destructive rounded hover:bg-destructive/10 disabled:opacity-50"
             >
               <Trash2 className="w-4 h-4" />
             </button>
           </div>
         ))}
         {entries.length === 0 && (
-          <div className="text-kai-text-secondary text-center py-8">
-            <Key className="w-12 h-12 mx-auto mb-3 text-kai-text-muted" />
+          <div className="text-muted-foreground text-center py-8">
+            <Key className="w-12 h-12 mx-auto mb-3 text-muted-foreground" />
             <p>No environment variables set</p>
           </div>
         )}
@@ -495,12 +495,12 @@ function SoulSettings() {
       <div className="flex items-center justify-between">
         <div>
           <h3 className="font-semibold text-kai-text">Soul Identity</h3>
-          <p className="text-sm text-kai-text-secondary">Edit the AI's identity, personality, and knowledge about you</p>
+          <p className="text-sm text-muted-foreground">Edit the AI's identity, personality, and knowledge about you</p>
         </div>
         <button
           onClick={() => updateMutation.mutate(content)}
           disabled={updateMutation.isPending}
-          className="flex items-center gap-2 px-4 py-2 bg-kai-teal text-white rounded-lg text-sm font-medium hover:bg-opacity-90 disabled:opacity-50"
+          className="flex items-center gap-2 px-4 py-2 bg-kai-teal text-white rounded-lg text-sm font-medium hover:bg-primary/90 disabled:opacity-50"
         >
           <Save className="w-4 h-4" />
           {updateMutation.isPending ? 'Saving...' : 'Save'}
@@ -509,7 +509,7 @@ function SoulSettings() {
       <textarea
         value={content}
         onChange={(e) => setContent(e.target.value)}
-        className="w-full h-96 px-3 py-2 bg-kai-bg border border-kai-border rounded-lg text-sm font-mono resize-none focus:border-kai-teal outline-none"
+        className="w-full h-96 px-3 py-2 bg-kai-bg border border-border rounded-lg text-sm font-mono resize-none focus:border-primary outline-none"
         placeholder="# Soul Identity..."
       />
     </div>
@@ -539,7 +539,7 @@ function ContextSettings() {
       <div className="flex items-center justify-between">
         <div>
           <h3 className="font-semibold text-kai-text">Context (Goals/Scratchpad)</h3>
-          <p className="text-sm text-kai-text-secondary">
+          <p className="text-sm text-muted-foreground">
             Global: {data.globalPath}
             {data.hasProjectContext && <span className="block mt-1">Project: {data.projectPath}</span>}
           </p>
@@ -549,7 +549,7 @@ function ContextSettings() {
             <select
               value={scope}
               onChange={(e) => setScope(e.target.value as 'global' | 'project')}
-              className="px-3 py-2 bg-kai-bg border border-kai-border rounded-lg text-sm"
+              className="px-3 py-2 bg-kai-bg border border-border rounded-lg text-sm"
             >
               <option value="global">Global</option>
               <option value="project">Project</option>
@@ -558,7 +558,7 @@ function ContextSettings() {
           <button
             onClick={() => updateMutation.mutate()}
             disabled={updateMutation.isPending}
-            className="flex items-center gap-2 px-4 py-2 bg-kai-teal text-white rounded-lg text-sm font-medium hover:bg-opacity-90 disabled:opacity-50"
+            className="flex items-center gap-2 px-4 py-2 bg-kai-teal text-white rounded-lg text-sm font-medium hover:bg-primary/90 disabled:opacity-50"
           >
             <Save className="w-4 h-4" />
             {updateMutation.isPending ? 'Saving...' : 'Save'}
@@ -568,7 +568,7 @@ function ContextSettings() {
       <textarea
         value={content}
         onChange={(e) => setContent(e.target.value)}
-        className="w-full h-96 px-3 py-2 bg-kai-bg border border-kai-border rounded-lg text-sm font-mono resize-none focus:border-kai-teal outline-none"
+        className="w-full h-96 px-3 py-2 bg-kai-bg border border-border rounded-lg text-sm font-mono resize-none focus:border-primary outline-none"
         placeholder="# Context..."
       />
     </div>

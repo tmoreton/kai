@@ -15,12 +15,12 @@ export interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
 
 const variantMap = {
   default: "bg-kai-text text-white",
-  secondary: "bg-kai-bg-hover text-kai-text-secondary",
-  success: "bg-kai-green-light text-kai-green",
+  secondary: "bg-accent/10 text-muted-foreground",
+  success: "bg-kai-green-light text-green-500",
   warning: "bg-amber-100 text-amber-700",
-  error: "bg-kai-red-light text-kai-red",
-  info: "bg-kai-teal-light text-kai-teal",
-  outline: "border border-kai-border bg-transparent text-kai-text-secondary",
+  error: "bg-destructive/10 text-destructive",
+  info: "bg-kai-teal-light text-primary",
+  outline: "border border-border bg-transparent text-muted-foreground",
 };
 
 const sizeMap = {

@@ -164,22 +164,22 @@ ${error.stack || 'N/A'}
     const isChunkError = error && this.isCriticalError(error);
 
     return (
-      <div className="min-h-screen w-full flex items-center justify-center bg-kai-bg p-6">
-        <div className="max-w-lg w-full bg-kai-bg-surface border border-kai-border rounded-xl p-8 text-center shadow-lg">
+      <div className="min-h-screen w-full flex items-center justify-center bg-background p-6">
+        <div className="max-w-lg w-full bg-card border border-border rounded-xl p-8 text-center shadow-lg">
           {/* Icon */}
           <div className="flex justify-center mb-4">
-            <div className="w-16 h-16 rounded-full bg-kai-red-light flex items-center justify-center">
-              <AlertTriangle className="w-8 h-8 text-kai-red" />
+            <div className="w-16 h-16 rounded-full bg-red-100 dark:bg-red-900/20 flex items-center justify-center">
+              <AlertTriangle className="w-8 h-8 text-red-600 dark:text-red-400" />
             </div>
           </div>
 
           {/* Title */}
-          <h1 className="text-xl font-semibold text-kai-text mb-2">
+          <h1 className="text-xl font-semibold text-foreground mb-2">
             {isChunkError ? 'Update Available' : 'Something went wrong'}
           </h1>
 
           {/* Description */}
-          <p className="text-kai-text-secondary mb-6">
+          <p className="text-muted-foreground mb-6">
             {isChunkError
               ? 'A new version of the app is available. Please refresh to get the latest updates.'
               : 'We\'re sorry, but something unexpected happened. The error has been logged.'}
@@ -189,21 +189,21 @@ ${error.stack || 'N/A'}
           {error && (
             <div className="mb-6">
               <details className="group">
-                <summary className="flex items-center justify-between p-3 bg-kai-bg rounded-lg cursor-pointer text-sm text-kai-text-secondary hover:bg-kai-bg-hover transition-colors">
+                <summary className="flex items-center justify-between p-3 bg-kai-bg rounded-lg cursor-pointer text-sm text-muted-foreground hover:bg-accent/10 transition-colors">
                   <span>Error Details</span>
                   <span className="transition-transform group-open:rotate-180">▼</span>
                 </summary>
                 <div className="mt-2 p-3 bg-kai-bg rounded-lg text-left">
-                  <p className="text-sm font-mono text-kai-red mb-2">
+                  <p className="text-sm font-mono text-red-600 dark:text-red-400 mb-2">
                     {error.name}: {error.message}
                   </p>
                   {errorInfo && (
-                    <pre className="text-xs font-mono text-kai-text-muted overflow-auto max-h-48 whitespace-pre-wrap">
+                    <pre className="text-xs font-mono text-muted-foreground overflow-auto max-h-48 whitespace-pre-wrap">
                       {errorInfo.componentStack}
                     </pre>
                   )}
                   {error.stack && (
-                    <pre className="text-xs font-mono text-kai-text-muted overflow-auto max-h-48 mt-2 whitespace-pre-wrap">
+                    <pre className="text-xs font-mono text-muted-foreground overflow-auto max-h-48 mt-2 whitespace-pre-wrap">
                       {error.stack}
                     </pre>
                   )}
@@ -217,7 +217,7 @@ ${error.stack || 'N/A'}
             {isChunkError ? (
               <button
                 onClick={this.handleReload}
-                className="flex items-center gap-2 px-4 py-2 bg-kai-teal text-white rounded-lg text-sm font-medium hover:bg-opacity-90 transition-colors"
+                className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
               >
                 <RefreshCw className="w-4 h-4" />
                 Refresh Page
@@ -226,7 +226,7 @@ ${error.stack || 'N/A'}
               <>
                 <button
                   onClick={this.handleGoBack}
-                  className="flex items-center gap-2 px-4 py-2 bg-kai-bg-hover border border-kai-border rounded-lg text-sm font-medium hover:bg-kai-border transition-colors"
+                  className="flex items-center gap-2 px-4 py-2 bg-accent/10 border border-border rounded-lg text-sm font-medium hover:bg-accent/20 transition-colors"
                 >
                   <ArrowLeft className="w-4 h-4" />
                   Go Back
@@ -234,7 +234,7 @@ ${error.stack || 'N/A'}
 
                 <button
                   onClick={this.resetErrorBoundary}
-                  className="flex items-center gap-2 px-4 py-2 bg-kai-teal text-white rounded-lg text-sm font-medium hover:bg-opacity-90 transition-colors"
+                  className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
                 >
                   <RefreshCw className="w-4 h-4" />
                   Try Again
@@ -242,7 +242,7 @@ ${error.stack || 'N/A'}
 
                 <button
                   onClick={this.handleGoHome}
-                  className="flex items-center gap-2 px-4 py-2 bg-kai-bg-hover border border-kai-border rounded-lg text-sm font-medium hover:bg-kai-border transition-colors"
+                  className="flex items-center gap-2 px-4 py-2 bg-accent/10 border border-border rounded-lg text-sm font-medium hover:bg-accent/20 transition-colors"
                 >
                   <Home className="w-4 h-4" />
                   Go Home
@@ -251,7 +251,7 @@ ${error.stack || 'N/A'}
                 {error && (
                   <button
                     onClick={this.handleCopyError}
-                    className="flex items-center gap-2 px-4 py-2 text-kai-text-muted hover:text-kai-text transition-colors text-sm"
+                    className="flex items-center gap-2 px-4 py-2 text-muted-foreground hover:text-foreground transition-colors text-sm"
                   >
                     {copied ? (
                       <>
@@ -271,7 +271,7 @@ ${error.stack || 'N/A'}
           </div>
 
           {/* Footer */}
-          <p className="mt-6 text-xs text-kai-text-muted">
+          <p className="mt-6 text-xs text-muted-foreground">
             If this problem persists, please try clearing your browser cache or contact support.
           </p>
         </div>

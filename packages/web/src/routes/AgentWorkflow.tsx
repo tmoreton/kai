@@ -638,7 +638,7 @@ export function AgentWorkflow() {
   return (
     <div className="flex flex-col h-full bg-kai-bg overflow-hidden">
       {/* Header */}
-      <header className="flex items-center justify-between px-4 py-3 bg-kai-bg-surface border-b border-kai-border">
+      <header className="flex items-center justify-between px-4 py-3 bg-card border-b border-border">
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
             <BotIcon />
@@ -663,7 +663,7 @@ export function AgentWorkflow() {
               variant="outline"
               size="sm"
               onClick={clearWorkflow}
-              className="text-kai-red hover:text-kai-red"
+              className="text-destructive hover:text-destructive"
             >
               <Trash2 className="w-4 h-4 mr-1" />
               Clear
@@ -720,8 +720,8 @@ export function AgentWorkflow() {
 
       {/* Template Selector Dropdown */}
       {showTemplates && (
-        <div className="absolute top-14 left-4 z-50 w-80 bg-kai-bg-surface border border-kai-border rounded-xl shadow-lg">
-          <div className="p-3 border-b border-kai-border">
+        <div className="absolute top-14 left-4 z-50 w-80 bg-card border border-border rounded-xl shadow-lg">
+          <div className="p-3 border-b border-border">
             <h3 className="font-semibold text-kai-text">Choose Template</h3>
           </div>
           <div className="p-2 space-y-1">
@@ -729,14 +729,14 @@ export function AgentWorkflow() {
               <button
                 key={template.id}
                 onClick={() => loadTemplate(template)}
-                className="w-full flex items-start gap-3 p-3 rounded-lg hover:bg-kai-bg-hover text-left transition-colors"
+                className="w-full flex items-start gap-3 p-3 rounded-lg hover:bg-accent/10 text-left transition-colors"
               >
-                <div className="p-2 bg-kai-bg-hover rounded-lg text-kai-teal">
+                <div className="p-2 bg-accent/10 rounded-lg text-primary">
                   {template.icon}
                 </div>
                 <div>
                   <div className="font-medium text-kai-text">{template.name}</div>
-                  <div className="text-sm text-kai-text-secondary">{template.description}</div>
+                  <div className="text-sm text-muted-foreground">{template.description}</div>
                 </div>
               </button>
             ))}
@@ -746,8 +746,8 @@ export function AgentWorkflow() {
 
       {/* Error/Success Messages */}
       {(loadError || saveError) && (
-        <div className="px-4 py-2 bg-kai-red-light border-b border-kai-red/20">
-          <div className="flex items-center gap-2 text-kai-red text-sm">
+        <div className="px-4 py-2 bg-destructive/10 border-b border-kai-red/20">
+          <div className="flex items-center gap-2 text-destructive text-sm">
             <AlertCircle className="w-4 h-4" />
             {loadError || saveError}
           </div>
@@ -755,7 +755,7 @@ export function AgentWorkflow() {
       )}
       {saveSuccess && !saveError && (
         <div className="px-4 py-2 bg-kai-green-light border-b border-kai-green/20">
-          <div className="flex items-center gap-2 text-kai-green text-sm">
+          <div className="flex items-center gap-2 text-green-500 text-sm">
             <Check className="w-4 h-4" />
             Workflow saved successfully
           </div>
@@ -765,7 +765,7 @@ export function AgentWorkflow() {
       {/* Loading Overlay */}
       {isLoading && (
         <div className="absolute inset-0 z-50 bg-kai-bg/80 flex items-center justify-center">
-          <div className="flex items-center gap-3 text-kai-text-secondary">
+          <div className="flex items-center gap-3 text-muted-foreground">
             <Loader2 className="w-6 h-6 animate-spin" />
             <span>Loading workflow...</span>
           </div>
@@ -775,10 +775,10 @@ export function AgentWorkflow() {
       {/* Main Content */}
       <div className="flex flex-1 overflow-hidden">
         {/* Left Sidebar - Node Palette */}
-        <aside className="w-64 flex-shrink-0 bg-kai-bg-surface border-r border-kai-border flex flex-col">
-          <div className="p-3 border-b border-kai-border">
+        <aside className="w-64 flex-shrink-0 bg-card border-r border-border flex flex-col">
+          <div className="p-3 border-b border-border">
             <h3 className="font-semibold text-kai-text text-sm">Node Palette</h3>
-            <p className="text-xs text-kai-text-secondary mt-1">Drag nodes to canvas</p>
+            <p className="text-xs text-muted-foreground mt-1">Drag nodes to canvas</p>
           </div>
           <div className="p-3 space-y-2 overflow-y-auto">
             {(Object.entries(NODE_TYPE_CONFIG) as [NodeType, typeof NODE_TYPE_CONFIG['trigger']][]).map(
@@ -786,7 +786,7 @@ export function AgentWorkflow() {
                 <button
                   key={type}
                   onClick={() => addNode(type)}
-                  className="w-full flex items-start gap-3 p-3 rounded-lg border border-kai-border hover:border-kai-teal hover:bg-kai-bg-hover transition-all text-left group"
+                  className="w-full flex items-start gap-3 p-3 rounded-lg border border-border hover:border-primary hover:bg-accent/10 transition-all text-left group"
                 >
                   <div
                     className="p-2 rounded-lg flex-shrink-0"
@@ -796,19 +796,19 @@ export function AgentWorkflow() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="font-medium text-kai-text text-sm">{config.label}</div>
-                    <div className="text-xs text-kai-text-secondary mt-0.5 line-clamp-2">
+                    <div className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
                       {config.description}
                     </div>
                   </div>
-                  <Plus className="w-4 h-4 text-kai-text-muted opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
+                  <Plus className="w-4 h-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
                 </button>
               )
             )}
           </div>
 
           {/* Help Section */}
-          <div className="mt-auto p-3 border-t border-kai-border">
-            <div className="text-xs text-kai-text-secondary space-y-1">
+          <div className="mt-auto p-3 border-t border-border">
+            <div className="text-xs text-muted-foreground space-y-1">
               <p>• Click to add nodes</p>
               <p>• Drag to reposition</p>
               <p>• Connect ports to link</p>
@@ -819,14 +819,14 @@ export function AgentWorkflow() {
         {/* Center - Canvas */}
         <main className="flex-1 flex flex-col min-w-0">
           {/* Tabs */}
-          <div className="flex items-center gap-1 px-4 py-2 bg-kai-bg-surface border-b border-kai-border">
+          <div className="flex items-center gap-1 px-4 py-2 bg-card border-b border-border">
             <button
               onClick={() => setActiveTab('editor')}
               className={cn(
                 "px-3 py-1.5 text-sm font-medium rounded-lg transition-colors",
                 activeTab === 'editor'
-                  ? "bg-kai-bg-active text-kai-text"
-                  : "text-kai-text-secondary hover:text-kai-text hover:bg-kai-bg-hover"
+                  ? "bg-accent/20 text-kai-text"
+                  : "text-muted-foreground hover:text-kai-text hover:bg-accent/10"
               )}
             >
               Editor
@@ -836,8 +836,8 @@ export function AgentWorkflow() {
               className={cn(
                 "px-3 py-1.5 text-sm font-medium rounded-lg transition-colors flex items-center gap-2",
                 activeTab === 'logs'
-                  ? "bg-kai-bg-active text-kai-text"
-                  : "text-kai-text-secondary hover:text-kai-text hover:bg-kai-bg-hover"
+                  ? "bg-accent/20 text-kai-text"
+                  : "text-muted-foreground hover:text-kai-text hover:bg-accent/10"
               )}
             >
               Execution History
@@ -877,13 +877,13 @@ export function AgentWorkflow() {
         {/* Right Sidebar - Properties */}
         <aside
           className={cn(
-            "w-80 flex-shrink-0 bg-kai-bg-surface border-l border-kai-border flex flex-col transition-all duration-300",
+            "w-80 flex-shrink-0 bg-card border-l border-border flex flex-col transition-all duration-300",
             !selectedNode && "w-0 overflow-hidden opacity-0"
           )}
         >
           {selectedNode && (
             <>
-              <div className="flex items-center justify-between p-3 border-b border-kai-border">
+              <div className="flex items-center justify-between p-3 border-b border-border">
                 <div className="flex items-center gap-2">
                   <div
                     className="p-1.5 rounded"
@@ -900,7 +900,7 @@ export function AgentWorkflow() {
                 </div>
                 <button
                   onClick={() => setSelectedNodeId(null)}
-                  className="p-1.5 rounded hover:bg-kai-bg-hover text-kai-text-muted"
+                  className="p-1.5 rounded hover:bg-accent/10 text-muted-foreground"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -909,7 +909,7 @@ export function AgentWorkflow() {
               <div className="flex-1 overflow-y-auto p-4 space-y-4">
                 {/* Node Label */}
                 <div className="space-y-2">
-                  <label className="text-xs font-medium text-kai-text-secondary uppercase tracking-wide">
+                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
                     Label
                   </label>
                   <Input
@@ -946,7 +946,7 @@ export function AgentWorkflow() {
                 )}
 
                 {/* Divider */}
-                <div className="border-t border-kai-border" />
+                <div className="border-t border-border" />
 
                 {/* Delete Button */}
                 <Button
@@ -994,13 +994,13 @@ function TriggerConfig({
   return (
     <div className="space-y-4">
       <div className="space-y-2">
-        <label className="text-xs font-medium text-kai-text-secondary uppercase tracking-wide">
+        <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
           Trigger Type
         </label>
         <select
           value={config.triggerType || 'manual'}
           onChange={(e) => onChange({ triggerType: e.target.value as TriggerType })}
-          className="w-full h-9 px-3 rounded-lg border border-kai-border bg-kai-bg-surface text-sm focus:outline-none focus:ring-1 focus:ring-kai-teal"
+          className="w-full h-9 px-3 rounded-lg border border-border bg-card text-sm focus:outline-none focus:ring-1 focus:ring-kai-teal"
         >
           {TRIGGER_TYPES.map((t) => (
             <option key={t.value} value={t.value}>
@@ -1008,14 +1008,14 @@ function TriggerConfig({
             </option>
           ))}
         </select>
-        <p className="text-xs text-kai-text-muted">
+        <p className="text-xs text-muted-foreground">
           {TRIGGER_TYPES.find((t) => t.value === config.triggerType)?.description}
         </p>
       </div>
 
       {config.triggerType === 'schedule' && (
         <div className="space-y-2">
-          <label className="text-xs font-medium text-kai-text-secondary uppercase tracking-wide">
+          <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
             Cron Schedule
           </label>
           <Input
@@ -1023,7 +1023,7 @@ function TriggerConfig({
             onChange={(e) => onChange({ schedule: e.target.value })}
             placeholder="0 9 * * *"
           />
-          <p className="text-xs text-kai-text-muted">
+          <p className="text-xs text-muted-foreground">
             Cron expression (e.g., 0 9 * * * for daily at 9am)
           </p>
         </div>
@@ -1031,7 +1031,7 @@ function TriggerConfig({
 
       {config.triggerType === 'webhook' && (
         <div className="space-y-2">
-          <label className="text-xs font-medium text-kai-text-secondary uppercase tracking-wide">
+          <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
             Webhook URL
           </label>
           <Input
@@ -1044,7 +1044,7 @@ function TriggerConfig({
 
       {config.triggerType === 'event' && (
         <div className="space-y-2">
-          <label className="text-xs font-medium text-kai-text-secondary uppercase tracking-wide">
+          <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
             Event Name
           </label>
           <Input
@@ -1068,13 +1068,13 @@ function ActionConfig({
   return (
     <div className="space-y-4">
       <div className="space-y-2">
-        <label className="text-xs font-medium text-kai-text-secondary uppercase tracking-wide">
+        <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
           Action Type
         </label>
         <select
           value={config.actionType || 'run_tool'}
           onChange={(e) => onChange({ actionType: e.target.value as ActionType })}
-          className="w-full h-9 px-3 rounded-lg border border-kai-border bg-kai-bg-surface text-sm focus:outline-none focus:ring-1 focus:ring-kai-teal"
+          className="w-full h-9 px-3 rounded-lg border border-border bg-card text-sm focus:outline-none focus:ring-1 focus:ring-kai-teal"
         >
           {ACTION_TYPES.map((t) => (
             <option key={t.value} value={t.value}>
@@ -1086,7 +1086,7 @@ function ActionConfig({
 
       {config.actionType === 'run_tool' && (
         <div className="space-y-2">
-          <label className="text-xs font-medium text-kai-text-secondary uppercase tracking-wide">
+          <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
             Tool Name
           </label>
           <Input
@@ -1099,7 +1099,7 @@ function ActionConfig({
 
       {config.actionType === 'call_api' && (
         <div className="space-y-2">
-          <label className="text-xs font-medium text-kai-text-secondary uppercase tracking-wide">
+          <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
             API Endpoint
           </label>
           <Input
@@ -1113,7 +1113,7 @@ function ActionConfig({
       {config.actionType === 'send_email' && (
         <>
           <div className="space-y-2">
-            <label className="text-xs font-medium text-kai-text-secondary uppercase tracking-wide">
+            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
               To
             </label>
             <Input
@@ -1123,7 +1123,7 @@ function ActionConfig({
             />
           </div>
           <div className="space-y-2">
-            <label className="text-xs font-medium text-kai-text-secondary uppercase tracking-wide">
+            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
               Subject
             </label>
             <Input
@@ -1137,14 +1137,14 @@ function ActionConfig({
 
       {config.actionType === 'execute_code' && (
         <div className="space-y-2">
-          <label className="text-xs font-medium text-kai-text-secondary uppercase tracking-wide">
+          <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
             Code
           </label>
           <textarea
             value={config.code || ''}
             onChange={(e) => onChange({ code: e.target.value })}
             placeholder="// Enter your code here"
-            className="w-full h-32 px-3 py-2 rounded-lg border border-kai-border bg-kai-bg-surface text-sm font-mono focus:outline-none focus:ring-1 focus:ring-kai-teal resize-none"
+            className="w-full h-32 px-3 py-2 rounded-lg border border-border bg-card text-sm font-mono focus:outline-none focus:ring-1 focus:ring-kai-teal resize-none"
           />
         </div>
       )}
@@ -1162,7 +1162,7 @@ function ConditionConfig({
   return (
     <div className="space-y-4">
       <div className="space-y-2">
-        <label className="text-xs font-medium text-kai-text-secondary uppercase tracking-wide">
+        <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
           Condition Expression
         </label>
         <Input
@@ -1170,16 +1170,16 @@ function ConditionConfig({
           onChange={(e) => onChange({ condition: e.target.value })}
           placeholder="value > 0"
         />
-        <p className="text-xs text-kai-text-muted">
+        <p className="text-xs text-muted-foreground">
           JavaScript expression that evaluates to true or false
         </p>
       </div>
 
-      <div className="p-3 bg-kai-bg-hover rounded-lg">
-        <p className="text-xs text-kai-text-secondary">
+      <div className="p-3 bg-accent/10 rounded-lg">
+        <p className="text-xs text-muted-foreground">
           <strong>True</strong> branch executes if condition is true
         </p>
-        <p className="text-xs text-kai-text-secondary mt-1">
+        <p className="text-xs text-muted-foreground mt-1">
           <strong>False</strong> branch executes if condition is false
         </p>
       </div>
@@ -1198,7 +1198,7 @@ function DelayConfig({
     <div className="space-y-4">
       <div className="flex gap-3">
         <div className="flex-1 space-y-2">
-          <label className="text-xs font-medium text-kai-text-secondary uppercase tracking-wide">
+          <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
             Duration
           </label>
           <Input
@@ -1209,13 +1209,13 @@ function DelayConfig({
           />
         </div>
         <div className="w-28 space-y-2">
-          <label className="text-xs font-medium text-kai-text-secondary uppercase tracking-wide">
+          <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
             Unit
           </label>
           <select
             value={config.unit || 'minutes'}
             onChange={(e) => onChange({ unit: e.target.value as NodeConfig['unit'] })}
-            className="w-full h-9 px-2 rounded-lg border border-kai-border bg-kai-bg-surface text-sm focus:outline-none focus:ring-1 focus:ring-kai-teal"
+            className="w-full h-9 px-2 rounded-lg border border-border bg-card text-sm focus:outline-none focus:ring-1 focus:ring-kai-teal"
           >
             <option value="seconds">Seconds</option>
             <option value="minutes">Minutes</option>
@@ -1242,8 +1242,8 @@ function ExecutionLogsPanel({
   return (
     <div className="flex h-full">
       {/* Logs List */}
-      <div className="w-80 flex-shrink-0 border-r border-kai-border bg-kai-bg-surface overflow-y-auto">
-        <div className="p-3 border-b border-kai-border">
+      <div className="w-80 flex-shrink-0 border-r border-border bg-card overflow-y-auto">
+        <div className="p-3 border-b border-border">
           <h3 className="font-semibold text-kai-text text-sm flex items-center gap-2">
             <History className="w-4 h-4" />
             Execution History
@@ -1252,8 +1252,8 @@ function ExecutionLogsPanel({
         
         {logs.length === 0 ? (
           <div className="p-6 text-center">
-            <p className="text-sm text-kai-text-secondary">No executions yet</p>
-            <p className="text-xs text-kai-text-muted mt-1">Run your workflow to see logs</p>
+            <p className="text-sm text-muted-foreground">No executions yet</p>
+            <p className="text-xs text-muted-foreground mt-1">Run your workflow to see logs</p>
           </div>
         ) : (
           <div className="divide-y divide-kai-border">
@@ -1262,8 +1262,8 @@ function ExecutionLogsPanel({
                 key={log.id}
                 onClick={() => onSelectLog(log.id)}
                 className={cn(
-                  "w-full p-3 text-left hover:bg-kai-bg-hover transition-colors",
-                  selectedLogId === log.id && "bg-kai-bg-active"
+                  "w-full p-3 text-left hover:bg-accent/10 transition-colors",
+                  selectedLogId === log.id && "bg-accent/20"
                 )}
               >
                 <div className="flex items-center gap-2">
@@ -1273,17 +1273,17 @@ function ExecutionLogsPanel({
                   </span>
                 </div>
                 <div className="flex items-center gap-2 mt-1">
-                  <span className="text-xs text-kai-text-muted">
+                  <span className="text-xs text-muted-foreground">
                     {new Date(log.startedAt).toLocaleString()}
                   </span>
                   {log.steps.length > 0 && (
-                    <span className="text-xs text-kai-text-muted">
+                    <span className="text-xs text-muted-foreground">
                       • {log.steps.length} steps
                     </span>
                   )}
                 </div>
                 {log.error && (
-                  <p className="text-xs text-kai-red mt-1 truncate">{log.error}</p>
+                  <p className="text-xs text-destructive mt-1 truncate">{log.error}</p>
                 )}
               </button>
             ))}
@@ -1300,7 +1300,7 @@ function ExecutionLogsPanel({
                 <h2 className="text-lg font-semibold text-kai-text">
                   Execution Run #{selectedLog.id.slice(-6)}
                 </h2>
-                <p className="text-sm text-kai-text-secondary">
+                <p className="text-sm text-muted-foreground">
                   {new Date(selectedLog.startedAt).toLocaleString()}
                 </p>
               </div>
@@ -1321,10 +1321,10 @@ function ExecutionLogsPanel({
                           className={cn(
                             "w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium",
                             step.status === 'completed'
-                              ? "bg-kai-green-light text-kai-green"
+                              ? "bg-kai-green-light text-green-500"
                               : step.status === 'failed'
-                              ? "bg-kai-red-light text-kai-red"
-                              : "bg-kai-bg-hover text-kai-text-muted"
+                              ? "bg-destructive/10 text-destructive"
+                              : "bg-accent/10 text-muted-foreground"
                           )}
                         >
                           {index + 1}
@@ -1338,14 +1338,14 @@ function ExecutionLogsPanel({
                           <span className="font-medium text-kai-text">{step.nodeName}</span>
                           <ExecutionStatusBadge status={step.status} />
                         </div>
-                        <p className="text-sm text-kai-text-secondary mt-1">
+                        <p className="text-sm text-muted-foreground mt-1">
                           {step.output}
                         </p>
                         {step.error && (
-                          <p className="text-sm text-kai-red mt-1">{step.error}</p>
+                          <p className="text-sm text-destructive mt-1">{step.error}</p>
                         )}
                         {step.duration && (
-                          <p className="text-xs text-kai-text-muted mt-1">
+                          <p className="text-xs text-muted-foreground mt-1">
                             Duration: {(step.duration / 1000).toFixed(2)}s
                           </p>
                         )}
@@ -1364,19 +1364,19 @@ function ExecutionLogsPanel({
               <CardContent>
                 <div className="grid grid-cols-3 gap-4">
                   <div>
-                    <p className="text-xs text-kai-text-secondary uppercase">Status</p>
+                    <p className="text-xs text-muted-foreground uppercase">Status</p>
                     <p className="text-sm font-medium text-kai-text capitalize">
                       {selectedLog.status}
                     </p>
                   </div>
                   <div>
-                    <p className="text-xs text-kai-text-secondary uppercase">Trigger</p>
+                    <p className="text-xs text-muted-foreground uppercase">Trigger</p>
                     <p className="text-sm font-medium text-kai-text capitalize">
                       {selectedLog.triggerSource}
                     </p>
                   </div>
                   <div>
-                    <p className="text-xs text-kai-text-secondary uppercase">Steps</p>
+                    <p className="text-xs text-muted-foreground uppercase">Steps</p>
                     <p className="text-sm font-medium text-kai-text">
                       {selectedLog.steps.length}
                     </p>
@@ -1388,8 +1388,8 @@ function ExecutionLogsPanel({
         ) : (
           <div className="h-full flex items-center justify-center">
             <div className="text-center">
-              <History className="w-12 h-12 text-kai-text-muted mx-auto mb-3" />
-              <p className="text-kai-text-secondary">Select a log to view details</p>
+              <History className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
+              <p className="text-muted-foreground">Select a log to view details</p>
             </div>
           </div>
         )}

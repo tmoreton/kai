@@ -114,21 +114,21 @@ export function NotificationsView() {
         <div className="max-w-3xl mx-auto px-6 py-6">
           <h1 className="text-2xl font-semibold text-kai-text mb-6">Notifications</h1>
           
-          <div className="flex flex-col items-center justify-center py-16 px-6 bg-kai-bg-surface border border-kai-border rounded-xl">
-            <div className="w-16 h-16 rounded-full bg-kai-red-light flex items-center justify-center mb-4">
-              <AlertCircle className="w-8 h-8 text-kai-red" />
+          <div className="flex flex-col items-center justify-center py-16 px-6 bg-card border border-border rounded-xl">
+            <div className="w-16 h-16 rounded-full bg-destructive/10 flex items-center justify-center mb-4">
+              <AlertCircle className="w-8 h-8 text-destructive" />
             </div>
             <h2 className="text-xl font-semibold text-kai-text mb-2">
               {error.type === 'network' ? 'Connection Error' : 
                error.type === 'timeout' ? 'Request Timeout' : 'Failed to Load'}
             </h2>
-            <p className="text-kai-text-secondary mb-6 max-w-md text-center">
+            <p className="text-muted-foreground mb-6 max-w-md text-center">
               {error.message}
             </p>
             {error.recoverable && (
               <button
                 onClick={handleRetry}
-                className="flex items-center gap-2 px-4 py-2 bg-kai-teal text-white rounded-lg text-sm font-medium hover:bg-opacity-90 transition-colors"
+                className="flex items-center gap-2 px-4 py-2 bg-kai-teal text-white rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
               >
                 <RefreshCw className="w-4 h-4" />
                 Try Again
@@ -156,7 +156,7 @@ export function NotificationsView() {
             {error && error.recoverable && (
               <button
                 onClick={handleRetry}
-                className="flex items-center gap-2 px-3 py-2 border border-kai-border rounded-lg text-sm hover:bg-kai-bg-hover"
+                className="flex items-center gap-2 px-3 py-2 border border-border rounded-lg text-sm hover:bg-accent/10"
               >
                 <RefreshCw className="w-4 h-4" />
                 Retry
@@ -165,7 +165,7 @@ export function NotificationsView() {
             <button
               onClick={() => markAllReadMutation.mutate()}
               disabled={unreadCount === 0 || markAllReadMutation.isPending}
-              className="flex items-center gap-2 px-3 py-2 border border-kai-border rounded-lg text-sm hover:bg-kai-bg-hover disabled:opacity-50"
+              className="flex items-center gap-2 px-3 py-2 border border-border rounded-lg text-sm hover:bg-accent/10 disabled:opacity-50"
             >
               <MailOpen className="w-4 h-4" />
               Mark all read
@@ -173,7 +173,7 @@ export function NotificationsView() {
             <button
               onClick={() => deleteAllMutation.mutate()}
               disabled={notifications.length === 0 || deleteAllMutation.isPending}
-              className="flex items-center gap-2 px-3 py-2 border border-kai-border rounded-lg text-sm hover:bg-kai-red-light hover:text-kai-red hover:border-kai-red disabled:opacity-50"
+              className="flex items-center gap-2 px-3 py-2 border border-border rounded-lg text-sm hover:bg-destructive/10 hover:text-destructive hover:border-kai-red disabled:opacity-50"
             >
               <Trash2 className="w-4 h-4" />
               Clear all
@@ -211,10 +211,10 @@ export function NotificationsView() {
                 }
               }}
               className={cn(
-                "p-5 bg-kai-bg-surface border rounded-xl cursor-pointer transition-all",
+                "p-5 bg-card border rounded-xl cursor-pointer transition-all",
                 notification.read
-                  ? "border-kai-border"
-                  : "border-kai-teal shadow-sm ring-1 ring-kai-teal/20",
+                  ? "border-border"
+                  : "border-primary shadow-sm ring-1 ring-kai-teal/20",
                 expandedId === notification.id && "cursor-default"
               )}
             >
@@ -228,7 +228,7 @@ export function NotificationsView() {
                 <div className="flex-1 min-w-0">
                   <h3 className="font-semibold text-kai-text mb-1">{notification.title}</h3>
                   {expandedId === notification.id ? (
-                    <div className="text-kai-text-secondary leading-relaxed">
+                    <div className="text-muted-foreground leading-relaxed">
                       {notification.message}
                       {notification.attachments && notification.attachments.length > 0 && (
                         <div className="flex flex-wrap gap-2 mt-4">
@@ -238,7 +238,7 @@ export function NotificationsView() {
                               href={`/api/attachments?path=${encodeURIComponent(att.path)}`}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="px-3 py-2 bg-kai-bg border border-kai-border rounded-lg text-sm hover:border-kai-teal"
+                              className="px-3 py-2 bg-kai-bg border border-border rounded-lg text-sm hover:border-primary"
                               onClick={(e) => e.stopPropagation()}
                             >
                               {att.type === 'image' ? '🖼️' : '📄'} {att.name}
@@ -248,17 +248,17 @@ export function NotificationsView() {
                       )}
                     </div>
                   ) : (
-                    <p className="text-kai-text-secondary truncate">{notification.message}</p>
+                    <p className="text-muted-foreground truncate">{notification.message}</p>
                   )}
                   <div className="flex items-center gap-4 mt-3">
-                    <span className="text-xs text-kai-text-muted">{timeAgo(notification.createdAt)}</span>
+                    <span className="text-xs text-muted-foreground">{timeAgo(notification.createdAt)}</span>
                     {expandedId === notification.id && (
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
                           deleteMutation.mutate(notification.id);
                         }}
-                        className="text-xs text-kai-text-muted hover:text-kai-red"
+                        className="text-xs text-muted-foreground hover:text-destructive"
                       >
                         Delete
                       </button>
@@ -271,8 +271,8 @@ export function NotificationsView() {
 
           {notifications.length === 0 && (
             <div className="text-center py-16">
-              <Bell className="w-12 h-12 mx-auto mb-3 text-kai-text-muted" />
-              <p className="text-kai-text-secondary">No notifications yet</p>
+              <Bell className="w-12 h-12 mx-auto mb-3 text-muted-foreground" />
+              <p className="text-muted-foreground">No notifications yet</p>
             </div>
           )}
         </div>

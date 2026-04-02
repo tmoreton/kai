@@ -16,7 +16,7 @@ const sizeMap = {
 const variantMap = {
   default: "border-kai-text/20 border-t-kai-text",
   secondary: "border-kai-text-muted/30 border-t-kai-text-secondary",
-  primary: "border-kai-teal/20 border-t-kai-teal",
+  primary: "border-primary/20 border-t-kai-teal",
 };
 
 const Loading = React.forwardRef<HTMLDivElement, LoadingProps>(
@@ -37,7 +37,7 @@ const Loading = React.forwardRef<HTMLDivElement, LoadingProps>(
           )}
         />
         {label && (
-          <span className="text-sm text-kai-text-secondary">{label}</span>
+          <span className="text-sm text-muted-foreground">{label}</span>
         )}
       </div>
     );

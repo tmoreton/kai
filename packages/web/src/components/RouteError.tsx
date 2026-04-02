@@ -79,11 +79,11 @@ export function RouteError() {
       case 'timeout':
         return 'bg-amber-100';
       case 'server':
-        return isSessionError ? 'bg-kai-teal-light' : 'bg-kai-red-light';
+        return isSessionError ? 'bg-kai-teal-light' : 'bg-destructive/10';
       case 'client':
         return 'bg-blue-100';
       default:
-        return 'bg-kai-red-light';
+        return 'bg-destructive/10';
     }
   };
 
@@ -94,17 +94,17 @@ export function RouteError() {
       case 'timeout':
         return 'text-amber-500';
       case 'server':
-        return isSessionError ? 'text-kai-teal' : 'text-kai-red';
+        return isSessionError ? 'text-primary' : 'text-destructive';
       case 'client':
         return 'text-blue-500';
       default:
-        return 'text-kai-red';
+        return 'text-destructive';
     }
   };
 
   return (
     <div className="h-full w-full flex items-center justify-center bg-kai-bg p-6">
-      <div className="max-w-md w-full bg-kai-bg-surface border border-kai-border rounded-xl p-8 text-center shadow-lg">
+      <div className="max-w-md w-full bg-card border border-border rounded-xl p-8 text-center shadow-lg">
         {/* Icon */}
         <div className="flex justify-center mb-4">
           <div className={`w-16 h-16 rounded-full flex items-center justify-center ${getIconBgClass()}`}>
@@ -131,21 +131,21 @@ export function RouteError() {
         </h1>
 
         {/* Message */}
-        <p className="text-kai-text-secondary mb-6">{message}</p>
+        <p className="text-muted-foreground mb-6">{message}</p>
 
         {/* Additional guidance based on error type */}
         {errorType === 'network' && (
-          <p className="text-sm text-kai-text-muted mb-6">
+          <p className="text-sm text-muted-foreground mb-6">
             Please check your internet connection and try again.
           </p>
         )}
         {errorType === 'timeout' && (
-          <p className="text-sm text-kai-text-muted mb-6">
+          <p className="text-sm text-muted-foreground mb-6">
             The server may be experiencing high load. Please wait a moment and try again.
           </p>
         )}
         {errorType === 'client' && (
-          <p className="text-sm text-kai-text-muted mb-6">
+          <p className="text-sm text-muted-foreground mb-6">
             An update is available. Refresh the page to get the latest version.
           </p>
         )}
@@ -156,14 +156,14 @@ export function RouteError() {
             <>
               <button
                 onClick={() => navigate('/chat')}
-                className="flex items-center gap-2 px-4 py-2 bg-kai-teal text-white rounded-lg text-sm font-medium hover:bg-opacity-90 transition-colors"
+                className="flex items-center gap-2 px-4 py-2 bg-kai-teal text-white rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
               >
                 <MessageSquare className="w-4 h-4" />
                 New Chat
               </button>
               <button
                 onClick={() => navigate('/chat')}
-                className="flex items-center gap-2 px-4 py-2 bg-kai-bg-hover border border-kai-border rounded-lg text-sm font-medium hover:bg-kai-border transition-colors"
+                className="flex items-center gap-2 px-4 py-2 bg-accent/10 border border-border rounded-lg text-sm font-medium hover:bg-accent/20 transition-colors"
               >
                 <Home className="w-4 h-4" />
                 Go Home
@@ -175,7 +175,7 @@ export function RouteError() {
               {isRetryable && (
                 <button
                   onClick={() => window.location.reload()}
-                  className="flex items-center gap-2 px-4 py-2 bg-kai-teal text-white rounded-lg text-sm font-medium hover:bg-opacity-90 transition-colors"
+                  className="flex items-center gap-2 px-4 py-2 bg-kai-teal text-white rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
                 >
                   <RefreshCw className="w-4 h-4" />
                   Retry
@@ -186,7 +186,7 @@ export function RouteError() {
               {window.history.length > 1 && (
                 <button
                   onClick={() => navigate(-1)}
-                  className="flex items-center gap-2 px-4 py-2 bg-kai-bg-hover border border-kai-border rounded-lg text-sm font-medium hover:bg-kai-border transition-colors"
+                  className="flex items-center gap-2 px-4 py-2 bg-accent/10 border border-border rounded-lg text-sm font-medium hover:bg-accent/20 transition-colors"
                 >
                   <ArrowLeft className="w-4 h-4" />
                   Go Back
@@ -196,7 +196,7 @@ export function RouteError() {
               {/* Home button */}
               <Link
                 to="/"
-                className="flex items-center gap-2 px-4 py-2 bg-kai-bg-hover border border-kai-border rounded-lg text-sm font-medium hover:bg-kai-border transition-colors"
+                className="flex items-center gap-2 px-4 py-2 bg-accent/10 border border-border rounded-lg text-sm font-medium hover:bg-accent/20 transition-colors"
               >
                 <Home className="w-4 h-4" />
                 Go Home
@@ -206,7 +206,7 @@ export function RouteError() {
         </div>
 
         {/* Footer help text */}
-        <p className="mt-6 text-xs text-kai-text-muted">
+        <p className="mt-6 text-xs text-muted-foreground">
           If this problem persists, please try clearing your browser cache or contact support.
         </p>
       </div>

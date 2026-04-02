@@ -450,10 +450,10 @@ export function AgentChatView({ personaId: propPersonaId }: AgentChatViewProps =
     return (
       <div className="flex flex-col h-full bg-kai-bg">
         <div className="flex-1 flex items-center justify-center p-6">
-          <div className="max-w-md w-full bg-kai-bg-surface border border-kai-border rounded-xl p-8 text-center">
+          <div className="max-w-md w-full bg-card border border-border rounded-xl p-8 text-center">
             <div className="flex justify-center mb-4">
-              <div className="w-16 h-16 rounded-full bg-kai-red-light flex items-center justify-center">
-                <AlertCircle className="w-8 h-8 text-kai-red" />
+              <div className="w-16 h-16 rounded-full bg-destructive/10 flex items-center justify-center">
+                <AlertCircle className="w-8 h-8 text-destructive" />
               </div>
             </div>
             <h1 className="text-xl font-semibold text-kai-text mb-2">
@@ -461,12 +461,12 @@ export function AgentChatView({ personaId: propPersonaId }: AgentChatViewProps =
                displayError?.type === 'timeout' ? 'Request Timeout' : 
                displayError?.type === 'server' ? 'Session Not Found' : 'Something went wrong'}
             </h1>
-            <p className="text-kai-text-secondary mb-6">{displayError?.message}</p>
+            <p className="text-muted-foreground mb-6">{displayError?.message}</p>
             <div className="flex items-center justify-center gap-3">
               {displayError?.recoverable && (
                 <button
                   onClick={handleRetry}
-                  className="flex items-center gap-2 px-4 py-2 bg-kai-teal text-white rounded-lg text-sm font-medium hover:bg-opacity-90 transition-colors"
+                  className="flex items-center gap-2 px-4 py-2 bg-kai-teal text-white rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
                 >
                   <RefreshCw className="w-4 h-4" />
                   Try Again
@@ -474,7 +474,7 @@ export function AgentChatView({ personaId: propPersonaId }: AgentChatViewProps =
               )}
               <a
                 href="/agents"
-                className="flex items-center gap-2 px-4 py-2 bg-kai-bg-hover border border-kai-border rounded-lg text-sm font-medium hover:bg-kai-border transition-colors"
+                className="flex items-center gap-2 px-4 py-2 bg-accent/10 border border-border rounded-lg text-sm font-medium hover:bg-accent/20 transition-colors"
               >
                 Back to Agents
               </a>
@@ -488,14 +488,14 @@ export function AgentChatView({ personaId: propPersonaId }: AgentChatViewProps =
   return (
     <div className="flex flex-col h-full bg-kai-bg">
       {/* Header with Persona Info */}
-      <div className="flex items-center justify-between px-4 py-2 border-b border-kai-border bg-kai-bg">
+      <div className="flex items-center justify-between px-4 py-2 border-b border-border bg-kai-bg">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-full bg-gradient-to-br from-kai-purple to-violet-700 flex items-center justify-center flex-shrink-0 text-white text-sm font-bold">
             {personaInitial}
           </div>
           <div>
             <div className="font-medium text-kai-text text-sm">{personaName}</div>
-            <div className="text-xs text-kai-text-muted">{personaRole}</div>
+            <div className="text-xs text-muted-foreground">{personaRole}</div>
           </div>
           <div className="h-4 w-px bg-kai-border mx-2" />
           <ModelPicker value={selectedModel} onChange={setSelectedModel} />
@@ -503,22 +503,22 @@ export function AgentChatView({ personaId: propPersonaId }: AgentChatViewProps =
         <div className="relative" ref={menuRef}>
           <button
             onClick={() => setShowMenu(!showMenu)}
-            className="p-2 rounded-lg hover:bg-kai-bg-hover text-kai-text-muted hover:text-kai-text"
+            className="p-2 rounded-lg hover:bg-accent/10 text-muted-foreground hover:text-kai-text"
           >
             <MoreVertical className="w-5 h-5" />
           </button>
           {showMenu && (
-            <div className="absolute right-0 top-full mt-1 w-48 bg-kai-bg-surface border border-kai-border rounded-lg shadow-lg py-1 z-50">
+            <div className="absolute right-0 top-full mt-1 w-48 bg-card border border-border rounded-lg shadow-lg py-1 z-50">
               <button
                 onClick={handleExport}
-                className="flex items-center gap-2 w-full px-4 py-2 text-sm text-kai-text hover:bg-kai-bg-hover"
+                className="flex items-center gap-2 w-full px-4 py-2 text-sm text-kai-text hover:bg-accent/10"
               >
                 <Download className="w-4 h-4" />
                 Export as Markdown
               </button>
               <button
                 onClick={handleClear}
-                className="flex items-center gap-2 w-full px-4 py-2 text-sm text-kai-red hover:bg-kai-bg-hover"
+                className="flex items-center gap-2 w-full px-4 py-2 text-sm text-destructive hover:bg-accent/10"
               >
                 <Trash2 className="w-4 h-4" />
                 Clear Chat
@@ -530,15 +530,15 @@ export function AgentChatView({ personaId: propPersonaId }: AgentChatViewProps =
 
       {/* Error Banner */}
       {(error || personaError) && messages.length > 0 && (
-        <div className="px-4 py-2 bg-kai-red-light border-b border-kai-red">
+        <div className="px-4 py-2 bg-destructive/10 border-b border-kai-red">
           <div className="flex items-center justify-between max-w-3xl mx-auto">
-            <div className="flex items-center gap-2 text-kai-red text-sm">
+            <div className="flex items-center gap-2 text-destructive text-sm">
               <AlertCircle className="w-4 h-4" />
               <span>{(error || personaError)?.message}</span>
             </div>
             <button
               onClick={handleRetry}
-              className="text-sm text-kai-teal hover:underline"
+              className="text-sm text-primary hover:underline"
             >
               Retry
             </button>
@@ -582,7 +582,7 @@ export function AgentChatView({ personaId: propPersonaId }: AgentChatViewProps =
       </div>
 
       {/* Input Area */}
-      <div className="border-t border-kai-border bg-kai-bg p-4">
+      <div className="border-t border-border bg-kai-bg p-4">
         <div className="max-w-3xl mx-auto">
           {/* Attachments */}
           {attachments.length > 0 && (
@@ -597,7 +597,7 @@ export function AgentChatView({ personaId: propPersonaId }: AgentChatViewProps =
             </div>
           )}
 
-          <div className="relative flex items-end gap-2 bg-kai-bg-surface border border-kai-border rounded-2xl p-2">
+          <div className="relative flex items-end gap-2 bg-card border border-border rounded-2xl p-2">
             <input
               type="file"
               multiple
@@ -608,7 +608,7 @@ export function AgentChatView({ personaId: propPersonaId }: AgentChatViewProps =
             />
             <label
               htmlFor="file-upload"
-              className="p-2 rounded-full hover:bg-kai-bg-hover text-kai-text-muted hover:text-kai-text cursor-pointer flex-shrink-0"
+              className="p-2 rounded-full hover:bg-accent/10 text-muted-foreground hover:text-kai-text cursor-pointer flex-shrink-0"
             >
               <Paperclip className="w-5 h-5" />
             </label>
@@ -620,7 +620,7 @@ export function AgentChatView({ personaId: propPersonaId }: AgentChatViewProps =
               onKeyDown={handleKeyDown}
               placeholder={(error || personaError) ? "Connection issues - messages may not send" : `Message ${personaName}...`}
               rows={1}
-              className="flex-1 min-h-[44px] max-h-[200px] py-2.5 px-1 bg-transparent border-none outline-none resize-none text-kai-text placeholder:text-kai-text-muted"
+              className="flex-1 min-h-[44px] max-h-[200px] py-2.5 px-1 bg-transparent border-none outline-none resize-none text-kai-text placeholder:text-muted-foreground"
               style={{ lineHeight: "1.5" }}
               disabled={!!(error || personaError) && !(error?.recoverable || personaError?.recoverable)}
             />
@@ -633,7 +633,7 @@ export function AgentChatView({ personaId: propPersonaId }: AgentChatViewProps =
             {streaming ? (
               <button
                 onClick={handleStop}
-                className="p-2 rounded-full bg-kai-red text-white hover:bg-opacity-90 flex-shrink-0 animate-pulse"
+                className="p-2 rounded-full bg-kai-red text-white hover:bg-primary/90 flex-shrink-0 animate-pulse"
               >
                 <Square className="w-5 h-5" fill="currentColor" />
               </button>
@@ -641,7 +641,7 @@ export function AgentChatView({ personaId: propPersonaId }: AgentChatViewProps =
               <button
                 onClick={handleSend}
                 disabled={(!input.trim() && attachments.length === 0) || (!!(error || personaError) && !(error?.recoverable || personaError?.recoverable))}
-                className="p-2 rounded-full bg-kai-text text-white hover:bg-opacity-90 disabled:opacity-40 flex-shrink-0"
+                className="p-2 rounded-full bg-kai-text text-white hover:bg-primary/90 disabled:opacity-40 flex-shrink-0"
               >
                 <Send className="w-5 h-5" />
               </button>
@@ -665,9 +665,9 @@ function AttachmentPreview({ attachment, onRemove }: { attachment: Attachment; o
   const isImage = attachment.type === 'image';
   
   return (
-    <div className="flex items-center gap-2 px-3 py-1.5 bg-kai-bg-surface border border-kai-border rounded-lg text-sm group flex-shrink-0">
+    <div className="flex items-center gap-2 px-3 py-1.5 bg-card border border-border rounded-lg text-sm group flex-shrink-0">
       {isImage ? (
-        <div className="w-8 h-8 rounded bg-kai-bg-hover overflow-hidden">
+        <div className="w-8 h-8 rounded bg-accent/10 overflow-hidden">
           <img 
             src={`data:${attachment.mimeType};base64,${attachment.data}`}
             alt={attachment.name}
@@ -675,12 +675,12 @@ function AttachmentPreview({ attachment, onRemove }: { attachment: Attachment; o
           />
         </div>
       ) : (
-        <FileText className="w-4 h-4 text-kai-teal" />
+        <FileText className="w-4 h-4 text-primary" />
       )}
       <span className="truncate max-w-[120px]">{attachment.name}</span>
       <button
         onClick={onRemove}
-        className="p-1 rounded hover:bg-kai-bg-hover text-kai-text-muted hover:text-kai-red"
+        className="p-1 rounded hover:bg-accent/10 text-muted-foreground hover:text-destructive"
       >
         <Trash2 className="w-3 h-3" />
       </button>
@@ -711,7 +711,7 @@ function AgentMessageBubble({
         {isUser ? 'U' : personaInitial}
       </div>
       <div className={`flex-1 min-w-0 ${isUser ? 'text-right' : ''}`}>
-        <div className={`text-xs text-kai-text-muted mb-1 ${isUser ? 'text-right' : ''}`}>
+        <div className={`text-xs text-muted-foreground mb-1 ${isUser ? 'text-right' : ''}`}>
           {isUser ? 'You' : personaName}
         </div>
         <div className={`prose prose-slate max-w-none ${isUser ? 'text-right' : ''}`}>
@@ -737,7 +737,7 @@ function ThinkingIndicator({ personaName }: { personaName: string }) {
       <div className="w-8 h-8 rounded-full bg-gradient-to-br from-kai-purple to-violet-700 text-white flex items-center justify-center flex-shrink-0 text-sm font-bold">
         {personaName.charAt(0).toUpperCase()}
       </div>
-      <div className="flex-1 flex items-center gap-1 text-kai-text-muted">
+      <div className="flex-1 flex items-center gap-1 text-muted-foreground">
         <span className="w-2 h-2 rounded-full bg-kai-teal animate-bounce" style={{ animationDelay: '0ms' }} />
         <span className="w-2 h-2 rounded-full bg-kai-teal animate-bounce" style={{ animationDelay: '150ms' }} />
         <span className="w-2 h-2 rounded-full bg-kai-teal animate-bounce" style={{ animationDelay: '300ms' }} />
@@ -769,13 +769,13 @@ function WelcomeScreen({
         {personaName.charAt(0).toUpperCase()}
       </div>
       <h2 className="text-2xl font-semibold text-kai-text mb-2">{personaName}</h2>
-      <p className="text-kai-text-secondary mb-8">{personaRole}</p>
+      <p className="text-muted-foreground mb-8">{personaRole}</p>
       <div className="grid gap-3 max-w-md mx-auto">
         {suggestions.map((suggestion, i) => (
           <button
             key={i}
             onClick={() => onSelect(suggestion)}
-            className="p-3 bg-kai-bg-surface border border-kai-border rounded-lg text-left text-sm text-kai-text-secondary hover:border-kai-teal hover:text-kai-text transition-colors"
+            className="p-3 bg-card border border-border rounded-lg text-left text-sm text-muted-foreground hover:border-primary hover:text-kai-text transition-colors"
           >
             {suggestion}
           </button>

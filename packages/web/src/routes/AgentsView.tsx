@@ -88,26 +88,26 @@ export function AgentsView() {
           <div className="flex items-center justify-between mb-6">
             <div>
               <h1 className="text-2xl font-semibold text-kai-text">Agents</h1>
-              <p className="text-kai-text-secondary mt-1">Manage personas and automated workflows</p>
+              <p className="text-muted-foreground mt-1">Manage personas and automated workflows</p>
             </div>
           </div>
 
-          <div className="flex flex-col items-center justify-center py-16 px-6 bg-kai-bg-surface border border-kai-border rounded-xl">
-            <div className="w-16 h-16 rounded-full bg-kai-red-light flex items-center justify-center mb-4">
-              <AlertCircle className="w-8 h-8 text-kai-red" />
+          <div className="flex flex-col items-center justify-center py-16 px-6 bg-card border border-border rounded-xl">
+            <div className="w-16 h-16 rounded-full bg-destructive/10 flex items-center justify-center mb-4">
+              <AlertCircle className="w-8 h-8 text-destructive" />
             </div>
             <h2 className="text-xl font-semibold text-kai-text mb-2">
               {error.type === 'network' ? 'Connection Error' : 
                error.type === 'timeout' ? 'Request Timeout' : 'Failed to Load'}
             </h2>
-            <p className="text-kai-text-secondary mb-6 max-w-md text-center">
+            <p className="text-muted-foreground mb-6 max-w-md text-center">
               {error.message}
             </p>
             {error.recoverable && (
               <button
                 onClick={handleRetry}
                 disabled={retryCount > 3}
-                className="flex items-center gap-2 px-4 py-2 bg-kai-teal text-white rounded-lg text-sm font-medium hover:bg-opacity-90 transition-colors disabled:opacity-50"
+                className="flex items-center gap-2 px-4 py-2 bg-kai-teal text-white rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
               >
                 <RefreshCw className={`w-4 h-4 ${retryCount > 0 ? 'animate-spin' : ''}`} />
                 {retryCount > 0 ? 'Retrying...' : 'Try Again'}
@@ -131,17 +131,17 @@ export function AgentsView() {
         <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="text-2xl font-semibold text-kai-text">Agents</h1>
-            <p className="text-kai-text-secondary mt-1">Manage personas and automated workflows</p>
+            <p className="text-muted-foreground mt-1">Manage personas and automated workflows</p>
           </div>
           <div className="flex items-center gap-3">
-            <div className="flex items-center gap-1 bg-kai-bg-surface border border-kai-border rounded-lg p-1">
+            <div className="flex items-center gap-1 bg-card border border-border rounded-lg p-1">
               <button
                 onClick={() => setAgentsViewMode('grouped')}
                 className={cn(
                   "px-3 py-1.5 rounded-md text-sm font-medium transition-colors",
                   agentsViewMode === 'grouped'
                     ? "bg-kai-teal text-white"
-                    : "text-kai-text-secondary hover:text-kai-text"
+                    : "text-muted-foreground hover:text-kai-text"
                 )}
               >
                 <Users className="w-4 h-4 inline mr-1" />
@@ -153,7 +153,7 @@ export function AgentsView() {
                   "px-3 py-1.5 rounded-md text-sm font-medium transition-colors",
                   agentsViewMode === 'all'
                     ? "bg-kai-teal text-white"
-                    : "text-kai-text-secondary hover:text-kai-text"
+                    : "text-muted-foreground hover:text-kai-text"
                 )}
               >
                 <List className="w-4 h-4 inline mr-1" />
@@ -162,7 +162,7 @@ export function AgentsView() {
             </div>
             <button
               onClick={() => navigate('/agents/persona/new')}
-              className="flex items-center gap-2 px-4 py-2 bg-kai-text text-white rounded-lg hover:bg-opacity-90 text-sm font-medium"
+              className="flex items-center gap-2 px-4 py-2 bg-kai-text text-white rounded-lg hover:bg-primary/90 text-sm font-medium"
             >
               <Plus className="w-4 h-4" />
               New Persona
@@ -203,8 +203,8 @@ export function AgentsView() {
               );
             })}
             {personas.length === 0 && (
-              <div className="col-span-full text-center py-12 text-kai-text-secondary">
-                <Users className="w-12 h-12 mx-auto mb-3 text-kai-text-muted" />
+              <div className="col-span-full text-center py-12 text-muted-foreground">
+                <Users className="w-12 h-12 mx-auto mb-3 text-muted-foreground" />
                 <p>No personas yet. Create your first one!</p>
               </div>
             )}
@@ -215,8 +215,8 @@ export function AgentsView() {
               <AgentRow key={agent.id} agent={agent} />
             ))}
             {agents.length === 0 && (
-              <div className="text-center py-12 text-kai-text-secondary">
-                <List className="w-12 h-12 mx-auto mb-3 text-kai-text-muted" />
+              <div className="text-center py-12 text-muted-foreground">
+                <List className="w-12 h-12 mx-auto mb-3 text-muted-foreground" />
                 <p>No agents yet.</p>
               </div>
             )}
@@ -239,23 +239,23 @@ function PersonaCard({
   return (
     <button
       onClick={onClick}
-      className="text-left bg-kai-bg-surface border border-kai-border rounded-xl p-5 hover:border-kai-teal hover:shadow-sm transition-all"
+      className="text-left bg-card border border-border rounded-xl p-5 hover:border-primary hover:shadow-sm transition-all"
     >
       <div className="flex items-start gap-3 mb-3">
-        <div className="w-11 h-11 rounded-full bg-kai-teal-light flex items-center justify-center text-kai-teal text-xl font-semibold flex-shrink-0">
+        <div className="w-11 h-11 rounded-full bg-kai-teal-light flex items-center justify-center text-primary text-xl font-semibold flex-shrink-0">
           {persona.name.charAt(0).toUpperCase()}
         </div>
         <div className="flex-1 min-w-0">
           <h3 className="font-semibold text-kai-text truncate">{persona.name}</h3>
-          <p className="text-sm text-kai-text-secondary truncate">{persona.role}</p>
+          <p className="text-sm text-muted-foreground truncate">{persona.role}</p>
         </div>
       </div>
-      <p className="text-sm text-kai-text-secondary line-clamp-2 mb-4">
+      <p className="text-sm text-muted-foreground line-clamp-2 mb-4">
         {persona.personality?.slice(0, 120)}...
       </p>
       <div className="flex items-center justify-between text-sm">
-        <span className="text-kai-text-muted">{agents.length} tasks</span>
-        <ChevronRight className="w-4 h-4 text-kai-text-muted" />
+        <span className="text-muted-foreground">{agents.length} tasks</span>
+        <ChevronRight className="w-4 h-4 text-muted-foreground" />
       </div>
     </button>
   );
@@ -272,14 +272,14 @@ function AgentRow({ agent }: { agent: Agent }) {
   };
 
   return (
-    <div className="flex items-center gap-3 p-3 bg-kai-bg-surface border border-kai-border rounded-lg hover:border-kai-teal transition-colors">
+    <div className="flex items-center gap-3 p-3 bg-card border border-border rounded-lg hover:border-primary transition-colors">
       <div className={cn("w-2.5 h-2.5 rounded-full", getStatusColor(agent.lastRun?.status || 'never'))} />
       <div className="flex-1 min-w-0">
         <div className="font-medium text-kai-text">{agent.name}</div>
-        <div className="text-sm text-kai-text-secondary truncate">{agent.description}</div>
+        <div className="text-sm text-muted-foreground truncate">{agent.description}</div>
       </div>
       {agent.schedule && (
-        <span className="text-xs text-kai-text-muted bg-kai-bg-hover px-2 py-1 rounded">
+        <span className="text-xs text-muted-foreground bg-accent/10 px-2 py-1 rounded">
           {agent.schedule}
         </span>
       )}
@@ -325,11 +325,11 @@ function PersonaDetail({ personaId }: { personaId: string }) {
     return (
       <div className="h-full flex items-center justify-center">
         <div className="text-center">
-          <AlertCircle className="w-12 h-12 mx-auto mb-3 text-kai-text-muted" />
-          <p className="text-kai-text-secondary mb-4">Persona not found</p>
+          <AlertCircle className="w-12 h-12 mx-auto mb-3 text-muted-foreground" />
+          <p className="text-muted-foreground mb-4">Persona not found</p>
           <button
             onClick={() => navigate('/agents')}
-            className="px-4 py-2 bg-kai-teal text-white rounded-lg text-sm font-medium hover:bg-opacity-90"
+            className="px-4 py-2 bg-kai-teal text-white rounded-lg text-sm font-medium hover:bg-primary/90"
           >
             Back to Agents
           </button>
@@ -354,7 +354,7 @@ function PersonaDetail({ personaId }: { personaId: string }) {
       <div className="max-w-4xl mx-auto p-6">
         <button
           onClick={() => navigate('/agents')}
-          className="text-sm text-kai-text-secondary hover:text-kai-teal mb-4"
+          className="text-sm text-muted-foreground hover:text-primary mb-4"
         >
           ← Back to Agents
         </button>
@@ -379,16 +379,16 @@ function PersonaDetail({ personaId }: { personaId: string }) {
         )}
 
         <div className="flex items-start gap-4 mb-6">
-          <div className="w-16 h-16 rounded-full bg-kai-teal-light flex items-center justify-center text-kai-teal text-2xl font-semibold">
+          <div className="w-16 h-16 rounded-full bg-kai-teal-light flex items-center justify-center text-primary text-2xl font-semibold">
             {persona.name.charAt(0).toUpperCase()}
           </div>
           <div className="flex-1">
             <h1 className="text-2xl font-semibold text-kai-text">{persona.name}</h1>
-            <p className="text-kai-text-secondary">{persona.role}</p>
+            <p className="text-muted-foreground">{persona.role}</p>
           </div>
           <button
             onClick={() => navigate(`/agents/persona/edit/${personaId}`)}
-            className="flex items-center gap-2 px-4 py-2 bg-kai-teal text-white rounded-lg text-sm font-medium hover:bg-opacity-90 transition-colors"
+            className="flex items-center gap-2 px-4 py-2 bg-kai-teal text-white rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
           >
             <Edit className="w-4 h-4" />
             Edit
@@ -396,16 +396,16 @@ function PersonaDetail({ personaId }: { personaId: string }) {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="bg-kai-bg-surface border border-kai-border rounded-xl p-5">
+          <div className="bg-card border border-border rounded-xl p-5">
             <h3 className="font-semibold text-kai-text mb-3">Personality</h3>
-            <p className="text-sm text-kai-text-secondary leading-relaxed">
+            <p className="text-sm text-muted-foreground leading-relaxed">
               {persona.personality || "No personality defined"}
             </p>
           </div>
 
-          <div className="bg-kai-bg-surface border border-kai-border rounded-xl p-5">
+          <div className="bg-card border border-border rounded-xl p-5">
             <h3 className="font-semibold text-kai-text mb-3">Goals</h3>
-            <p className="text-sm text-kai-text-secondary leading-relaxed">
+            <p className="text-sm text-muted-foreground leading-relaxed">
               {persona.goals || "No goals defined"}
             </p>
           </div>
@@ -418,7 +418,7 @@ function PersonaDetail({ personaId }: { personaId: string }) {
               <AgentRow key={agent.id} agent={agent} />
             ))}
             {agents.length === 0 && (
-              <p className="text-kai-text-secondary">No tasks for this persona yet.</p>
+              <p className="text-muted-foreground">No tasks for this persona yet.</p>
             )}
           </div>
         </div>
