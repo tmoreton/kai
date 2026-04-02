@@ -1,7 +1,26 @@
 import { execSync } from "child_process";
 import { getCwd } from "./tools/bash.js";
 
+// Cache for frequently called git commands (avoid repeated subprocess spawns)
+const GIT_CACHE_TTL = 3000; // 3 seconds
+let _gitCache: { branch: string; status: string; isRepo: boolean; cachedAt: number; cwd: string } = {
+  branch: "", status: "", isRepo: false, cachedAt: 0, cwd: "",
+};
+
+function gitCacheValid(): boolean {
+  return (
+    Date.now() - _gitCache.cachedAt < GIT_CACHE_TTL &&
+    _gitCache.cwd === getCwd()
+  );
+}
+
+/** Invalidate git cache (call after git operations) */
+export function invalidateGitCache(): void {
+  _gitCache.cachedAt = 0;
+}
+
 export function isGitRepo(): boolean {
+  if (gitCacheValid()) return _gitCache.isRepo;
   try {
     execSync("git rev-parse --is-inside-work-tree", {
       cwd: getCwd(),
@@ -14,8 +33,9 @@ export function isGitRepo(): boolean {
 }
 
 export function gitBranch(): string {
+  if (gitCacheValid() && _gitCache.branch) return _gitCache.branch;
   try {
-    return execSync("git branch --show-current", {
+    return execSync("git --no-optional-locks branch --show-current", {
       cwd: getCwd(),
       encoding: "utf-8",
       stdio: "pipe",
@@ -26,8 +46,9 @@ export function gitBranch(): string {
 }
 
 export function gitStatus(): string {
+  if (gitCacheValid() && _gitCache.status !== undefined) return _gitCache.status;
   try {
-    return execSync("git status --short", {
+    return execSync("git --no-optional-locks status --short", {
       cwd: getCwd(),
       encoding: "utf-8",
       stdio: "pipe",
@@ -40,7 +61,7 @@ export function gitStatus(): string {
 export function gitDiff(staged = false): string {
   try {
     const flag = staged ? "--cached" : "";
-    return execSync(`git diff ${flag}`, {
+    return execSync(`git --no-optional-locks diff ${flag}`, {
       cwd: getCwd(),
       encoding: "utf-8",
       stdio: "pipe",
@@ -54,7 +75,7 @@ export function gitDiff(staged = false): string {
 export function gitLog(count = 10): string {
   try {
     return execSync(
-      `git log --oneline -${count}`,
+      `git --no-optional-locks log --oneline -${count}`,
       {
         cwd: getCwd(),
         encoding: "utf-8",
@@ -67,18 +88,27 @@ export function gitLog(count = 10): string {
 }
 
 export function gitInfo(): string {
-  if (!isGitRepo()) return "";
+  // Use cache to avoid 3 execSync calls on every system prompt build
+  if (gitCacheValid()) {
+    let info = `Git branch: ${_gitCache.branch}`;
+    const changedFiles = _gitCache.status ? _gitCache.status.split("\n").length : 0;
+    if (changedFiles > 0) info += ` (${changedFiles} changed files)`;
+    return info;
+  }
+
+  const isRepo = isGitRepo();
+  if (!isRepo) {
+    _gitCache = { branch: "", status: "", isRepo: false, cachedAt: Date.now(), cwd: getCwd() };
+    return "";
+  }
 
   const branch = gitBranch();
   const status = gitStatus();
-  const changedFiles = status
-    ? status.split("\n").length
-    : 0;
+  _gitCache = { branch, status, isRepo: true, cachedAt: Date.now(), cwd: getCwd() };
 
+  const changedFiles = status ? status.split("\n").length : 0;
   let info = `Git branch: ${branch}`;
-  if (changedFiles > 0) {
-    info += ` (${changedFiles} changed files)`;
-  }
+  if (changedFiles > 0) info += ` (${changedFiles} changed files)`;
   return info;
 }
 

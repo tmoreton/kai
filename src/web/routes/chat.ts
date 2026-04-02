@@ -393,6 +393,15 @@ async function chatForWeb(
         args: summarizeArgs(toolName, args),
       });
 
+      // Plan mode check — block write operations before truncation check
+      const { isToolAllowedInPlanMode } = await import("../../plan-mode.js");
+      if (!isToolAllowedInPlanMode(toolName)) {
+        const msg = `Blocked: "${toolName}" is not allowed in plan mode. Only read-only tools are available. Present your plan to the user and ask them to approve it before making changes.`;
+        updatedMessages.push({ role: "tool", tool_call_id: tc.id, content: msg });
+        await emit("tool_result", { id: tc.id, name: toolName, result: msg, error: true });
+        continue;
+      }
+
       if (parseError) {
         const errorMsg = `Error: Tool call truncated — arguments were cut off.`;
         updatedMessages.push({ role: "tool", tool_call_id: tc.id, content: errorMsg });

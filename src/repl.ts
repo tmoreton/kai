@@ -1,7 +1,7 @@
 import * as readline from "readline";
 import type { ChatCompletionMessageParam } from "openai/resources/chat/completions";
 import chalk from "chalk";
-import { createClient, chat, getModelId, getProviderName, signalUserTyping } from "./client.js";
+import { createClient, chat, signalUserTyping } from "./client.js";
 import { buildSystemPrompt } from "./system-prompt.js";
 import { getCwd, cleanupBackgroundProcesses } from "./tools/bash.js";
 import { estimateContextSize, compactMessages } from "./context.js";
@@ -10,6 +10,7 @@ import { getTasksForDisplay } from "./tools/tasks.js";
 import {
   generateSessionId,
   saveSession,
+  saveSessionSync,
   loadSession,
   getMostRecentSession,
   cleanupSessions,
@@ -114,9 +115,12 @@ export async function startRepl(options: ReplOptions = {}, initialPrompt?: strin
   // Welcome banner
   console.log(
     chalk.bold.cyan("\n  ⚡ Kai") +
-      chalk.dim(` — AI coding assistant (${getProviderName()}/${getModelId()})\n`)
+      chalk.dim(` — AI coding assistant\n`)
   );
   const project = getCurrentProject();
+  const { getConfig: getKaiConfig } = await import("./config.js");
+  const kaiConfig = getKaiConfig();
+
   console.log(chalk.dim(`  cwd:         ${getCwd()}`));
   if (project) {
     console.log(chalk.dim(`  project:     ${project.name}`));
@@ -127,6 +131,18 @@ export async function startRepl(options: ReplOptions = {}, initialPrompt?: strin
   if (gitSummary) console.log(chalk.dim(`  git:         ${gitSummary}`));
   console.log(chalk.dim(`  session:     ${session.name || session.id}`));
   console.log(chalk.dim(`  permissions: ${getPermissionMode()}`));
+  if ((kaiConfig as any).budgetTokens) {
+    console.log(chalk.dim(`  budget:      ${((kaiConfig as any).budgetTokens as number).toLocaleString()} tokens`));
+  }
+  // Show MCP server count if any are configured
+  try {
+    const { getMcpToolDefinitions } = await import("./tools/index.js");
+    const mcpTools = getMcpToolDefinitions();
+    if (mcpTools.length > 0) {
+      const serverNames = new Set(mcpTools.map((t: any) => t.function?.name?.split("__")[1]).filter(Boolean));
+      console.log(chalk.dim(`  mcp:         ${serverNames.size} server${serverNames.size !== 1 ? "s" : ""} (${mcpTools.length} tools)`));
+    }
+  } catch {}
   console.log("");
 
   // Show notification digest in REPL startup
@@ -136,11 +152,7 @@ export async function startRepl(options: ReplOptions = {}, initialPrompt?: strin
     console.log(digest);
   }
 
-  console.log(chalk.dim("  Tips:"));
-  console.log(chalk.dim("    • Ask me to build, debug, or refactor code"));
-  console.log(chalk.dim("    • I can read/write files, run commands, and search the web"));
-  console.log(chalk.dim("    • Run " + chalk.cyan("kai") + " from any project directory to work in that folder"));
-  console.log(chalk.dim("    • Type /help for all commands\n"));
+  console.log(chalk.dim("  Tips: Ask me to build/debug/refactor • Type /help for commands\n"));
 
   // Startup warnings
   if (!process.env.TAVILY_API_KEY) {
@@ -280,7 +292,7 @@ export async function startRepl(options: ReplOptions = {}, initialPrompt?: strin
         messages.push({ role: "user", content: routeHint });
       }
 
-      let streamBuffer = "";
+      const streamTokens: string[] = [];
       let streamLineCount = 0;
       let firstResponseToken = true;
 
@@ -290,7 +302,7 @@ export async function startRepl(options: ReplOptions = {}, initialPrompt?: strin
           process.stdout.write(chalk.cyan("⏺ "));
           firstResponseToken = false;
         }
-        streamBuffer += token;
+        streamTokens.push(token);
         process.stdout.write(token);
         // Track newlines for re-render
         for (const ch of token) {
@@ -381,7 +393,7 @@ export async function startRepl(options: ReplOptions = {}, initialPrompt?: strin
       }
       cleanupBackgroundProcesses();
       session.messages = messages;
-      saveSession(session);
+      saveSessionSync(session);
       console.log(chalk.dim("\n  Session saved. Goodbye!\n"));
       rl.close();
       process.exit(0);
@@ -415,7 +427,7 @@ export async function startRepl(options: ReplOptions = {}, initialPrompt?: strin
       if (sigintCount >= 2) {
         cleanupBackgroundProcesses();
         session.messages = messages;
-        saveSession(session);
+        saveSessionSync(session);
         console.log(chalk.dim("  Session saved. Goodbye!\n"));
         process.exit(0);
       }
@@ -426,7 +438,7 @@ export async function startRepl(options: ReplOptions = {}, initialPrompt?: strin
     } else {
       cleanupBackgroundProcesses();
       session.messages = messages;
-      saveSession(session);
+      saveSessionSync(session);
       console.log(chalk.dim("\n  Session saved. Goodbye!\n"));
       process.exit(0);
     }
@@ -434,7 +446,7 @@ export async function startRepl(options: ReplOptions = {}, initialPrompt?: strin
 
   rl.on("close", () => {
     session.messages = messages;
-    saveSession(session);
+    saveSessionSync(session);
     process.exit(0);
   });
 

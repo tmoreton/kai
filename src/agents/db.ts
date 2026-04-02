@@ -82,6 +82,7 @@ export function getDb(): Database.Database {
     CREATE INDEX IF NOT EXISTS idx_steps_run ON steps(run_id);
     CREATE INDEX IF NOT EXISTS idx_logs_agent ON logs(agent_id);
     CREATE INDEX IF NOT EXISTS idx_notifications_read ON notifications(read);
+    CREATE INDEX IF NOT EXISTS idx_notifications_agent_type ON notifications(agent_id, type, created_at);
 
     -- Pending approvals table for human-in-the-loop
     CREATE TABLE IF NOT EXISTS approvals (
@@ -507,4 +508,17 @@ export function markNotificationRead(id: number): void {
 
 export function markAllNotificationsRead(): void {
   getDb().prepare("UPDATE notifications SET read = 1 WHERE read = 0").run();
+}
+
+/**
+ * Check if a similar notification already exists (unread, same type/title pattern, recent).
+ * Used to prevent duplicate notifications for the same issue.
+ */
+export function hasRecentNotification(agentId: string, type: string, hours = 24): boolean {
+  const db = getDb();
+  const cutoff = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
+  const row = db.prepare(
+    "SELECT COUNT(*) as count FROM notifications WHERE agent_id = ? AND type = ? AND created_at > ? AND read = 0"
+  ).get(agentId, type, cutoff) as any;
+  return (row?.count || 0) > 0;
 }

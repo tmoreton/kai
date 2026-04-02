@@ -4,7 +4,8 @@ import { chat, createClient } from "./client.js";
 import { toolDefinitions } from "./tools/index.js";
 import { getCwd } from "./tools/bash.js";
 import { loadPersona, buildAgentSystemPrompt, updatePersonaField, listPersonas } from "./agent-persona.js";
-import { BUILT_IN_AGENT_CONFIGS } from "./constants.js";
+import { BUILT_IN_AGENT_CONFIGS, AGENT_BLOCKED_TOOLS } from "./constants.js";
+import { getScratchpadToolDefs, getActiveScratchpad } from "./swarm.js";
 import chalk from "chalk";
 
 export interface SubagentConfig {
@@ -13,6 +14,7 @@ export interface SubagentConfig {
   systemPrompt: string;
   tools?: string[]; // Subset of tools to allow
   maxTurns?: number;
+  injectScratchpad?: boolean; // Inject swarm scratchpad tools
 }
 
 const BUILT_IN_AGENT_NAMES = Object.keys(BUILT_IN_AGENT_CONFIGS) as (keyof typeof BUILT_IN_AGENT_CONFIGS)[];
@@ -94,13 +96,24 @@ export async function runSubagent(
     { role: "user", content: task },
   ];
 
-  // Filter tools if the subagent config specifies a subset
+  // Filter tools: enforce allowlist AND block recursive agent spawning
   let filteredTools: ChatCompletionTool[] | undefined;
   if (config.tools && config.tools.length > 0) {
     const allowed = new Set(config.tools);
+    filteredTools = (toolDefinitions as ChatCompletionTool[]).filter((t) => {
+      const name = (t as any).function?.name;
+      return allowed.has(name) && !AGENT_BLOCKED_TOOLS.has(name);
+    });
+  } else {
+    // "All tools" mode (worker) — still block recursive spawning
     filteredTools = (toolDefinitions as ChatCompletionTool[]).filter(
-      (t) => allowed.has((t as any).function?.name)
+      (t) => !AGENT_BLOCKED_TOOLS.has((t as any).function?.name)
     );
+  }
+
+  // Inject scratchpad tools when running inside a swarm
+  if (config.injectScratchpad && getActiveScratchpad()) {
+    filteredTools = [...filteredTools, ...getScratchpadToolDefs() as ChatCompletionTool[]];
   }
 
   console.log(
@@ -137,7 +150,8 @@ export async function runSubagent(
 export async function runPersonaAgent(
   agentId: string,
   task: string,
-  onToken?: (token: string) => void
+  onToken?: (token: string) => void,
+  options?: { injectScratchpad?: boolean }
 ): Promise<string> {
   const persona = loadPersona(agentId);
   if (!persona) {
@@ -155,19 +169,31 @@ export async function runPersonaAgent(
   ];
 
   // Build tool set: persona's allowed tools (or all) + agent memory tools
+  // Always block recursive agent spawning tools
   const agentMemoryTools = getAgentMemoryTools(agentId);
   let agentTools: ChatCompletionTool[];
 
   if (persona.tools.length > 0) {
     const allowed = new Set(persona.tools);
     agentTools = [
-      ...(toolDefinitions as ChatCompletionTool[]).filter(
-        (t) => allowed.has((t as any).function?.name)
-      ),
+      ...(toolDefinitions as ChatCompletionTool[]).filter((t) => {
+        const name = (t as any).function?.name;
+        return allowed.has(name) && !AGENT_BLOCKED_TOOLS.has(name);
+      }),
       ...agentMemoryTools,
     ];
   } else {
-    agentTools = [...(toolDefinitions as ChatCompletionTool[]), ...agentMemoryTools];
+    agentTools = [
+      ...(toolDefinitions as ChatCompletionTool[]).filter(
+        (t) => !AGENT_BLOCKED_TOOLS.has((t as any).function?.name)
+      ),
+      ...agentMemoryTools,
+    ];
+  }
+
+  // Inject scratchpad tools when running inside a swarm
+  if (options?.injectScratchpad && getActiveScratchpad()) {
+    agentTools = [...agentTools, ...getScratchpadToolDefs() as ChatCompletionTool[]];
   }
 
   console.log(

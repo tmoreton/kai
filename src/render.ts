@@ -2,10 +2,45 @@ import { Marked } from "marked";
 import { markedTerminal } from "marked-terminal";
 import chalk from "chalk";
 
+/**
+ * Syntax highlighting for code blocks using cli-highlight.
+ * Falls back to plain bgGray if highlighting fails.
+ */
+let highlightFn: ((code: string, lang?: string) => string) | null = null;
+try {
+  const { highlight } = await import("cli-highlight");
+  highlightFn = (code: string, lang?: string) => {
+    try {
+      return highlight(code, {
+        language: lang || undefined,
+        ignoreIllegals: true,
+      });
+    } catch {
+      return code;
+    }
+  };
+} catch {
+  // cli-highlight not available, will fall back
+}
+
+function highlightCode(code: string, lang?: string): string {
+  if (highlightFn) {
+    return highlightFn(code, lang);
+  }
+  return chalk.bgGray(code);
+}
+
 const marked = new Marked(
   markedTerminal({
-    // Code block styling
-    code: chalk.bgGray,
+    // Code block styling — use syntax highlighting
+    code: (code: string, lang?: string) => {
+      const langLabel = lang ? chalk.dim(` ${lang}`) : "";
+      const highlighted = highlightCode(code, lang);
+      return `\n${chalk.dim("  ┌──")}${langLabel}\n${highlighted
+        .split("\n")
+        .map((l: string) => `${chalk.dim("  │")} ${l}`)
+        .join("\n")}\n${chalk.dim("  └──")}\n`;
+    },
     codespan: chalk.cyan,
     // Headers
     firstHeading: chalk.bold.white,

@@ -6,7 +6,7 @@ import type {
 import { toolDefinitions, getMcpToolDefinitions } from "./tools/index.js";
 import { getSkillToolDefinitions, getCoreSkillToolDefinitions } from "./skills/index.js";
 import { executeTool } from "./tools/executor.js";
-import { trackUsage, shouldCompact, compactMessages, checkBudget } from "./context.js";
+import { trackUsage, shouldCompact, compactMessages, checkBudget, invalidateContextCache, trackToolMetadata } from "./context.js";
 import {
   MAX_TOKENS,
   MAX_TOOL_TURNS,
@@ -23,9 +23,30 @@ import { backoffDelay, sleep } from "./utils.js";
 import { resolveProvider, type ResolvedProvider } from "./providers/index.js";
 import { getLastDiff } from "./tools/files.js";
 import { renderColorDiff } from "./diff.js";
+import { isToolAllowedInPlanMode } from "./plan-mode.js";
 import chalk from "chalk";
 
 let _resolved: ResolvedProvider | null = null;
+
+// Pre-compiled regex patterns for Kimi K2.5 token cleanup (hot path — called per chunk)
+const KIMI_TOKEN_PATTERN = /<\|(?:tool_calls?_(?:section_)?(?:begin|end)|tool_call_argument_(?:begin|end))\|>/g;
+
+// Cached tool definitions — rebuilt only when invalidated
+let _cachedToolDefs: ChatCompletionTool[] | null = null;
+
+function getCachedToolDefinitions(): ChatCompletionTool[] {
+  if (_cachedToolDefs) return _cachedToolDefs;
+  const coreSkillTools = getCoreSkillToolDefinitions();
+  const mcpTools = getMcpToolDefinitions();
+  const userSkillTools = getSkillToolDefinitions();
+  _cachedToolDefs = [...coreSkillTools, ...toolDefinitions, ...mcpTools, ...userSkillTools] as ChatCompletionTool[];
+  return _cachedToolDefs;
+}
+
+/** Invalidate tool definition cache (call after skill reload or MCP change) */
+export function invalidateToolCache(): void {
+  _cachedToolDefs = null;
+}
 
 // When true, the spinner and streaming output pause to let the user type.
 // Set by the REPL when keypress activity is detected.
@@ -66,12 +87,7 @@ export async function chat(
   onToken?: (token: string) => void,
   options?: { tools?: ChatCompletionTool[]; maxTurns?: number; signal?: AbortSignal }
 ): Promise<ChatCompletionMessageParam[]> {
-  // Merge: core skills (bundled) + built-in tools + MCP servers + user skills
-  const coreSkillTools = getCoreSkillToolDefinitions();
-  const mcpTools = getMcpToolDefinitions();
-  const userSkillTools = getSkillToolDefinitions();
-  const allTools = [...coreSkillTools, ...toolDefinitions, ...mcpTools, ...userSkillTools] as ChatCompletionTool[];
-  const activeTools = options?.tools ?? allTools;
+  const activeTools = options?.tools ?? getCachedToolDefinitions();
   const maxTurns = options?.maxTurns ?? MAX_TOOL_TURNS;
   const updatedMessages = [...messages];
 
@@ -80,6 +96,7 @@ export async function chat(
     const compacted = compactMessages(updatedMessages);
     updatedMessages.length = 0;
     updatedMessages.push(...compacted);
+    invalidateContextCache();
     console.log(chalk.dim("  📦 Context auto-compacted to save tokens.\n"));
   }
 
@@ -197,12 +214,8 @@ export async function chat(
         let text = delta.content;
         if (text) {
           // Filter out Kimi K2.5 internal formatting tokens that leak on truncation
-          text = text.replace(/<\|tool_calls_section_begin\|>/g, "")
-            .replace(/<\|tool_calls_section_end\|>/g, "")
-            .replace(/<\|tool_call_begin\|>/g, "")
-            .replace(/<\|tool_call_end\|>/g, "")
-            .replace(/<\|tool_call_argument_begin\|>/g, "")
-            .replace(/<\|tool_call_argument_end\|>/g, "");
+          KIMI_TOKEN_PATTERN.lastIndex = 0;
+          text = text.replace(KIMI_TOKEN_PATTERN, "");
           if (!text) continue;
 
           if (!firstToken) {
@@ -389,6 +402,7 @@ export async function chat(
       const compacted = compactMessages(updatedMessages);
       updatedMessages.length = 0;
       updatedMessages.push(...compacted);
+      invalidateContextCache();
       console.log(chalk.dim("  📦 Context auto-compacted to save tokens.\n"));
     }
 
@@ -456,6 +470,9 @@ export async function chat(
             chalk.dim(")")
         );
       }
+
+      // Track metadata for compaction before executing
+      for (const p of deduped) trackToolMetadata(p.toolName, p.args);
 
       const dedupedResults = await Promise.allSettled(
         deduped.map((p) => executeTool(p.toolName, p.args))
@@ -525,6 +542,18 @@ export async function chat(
             chalk.dim(")")
         );
 
+        // Plan mode check — block write operations before truncation check
+        if (!isToolAllowedInPlanMode(p.toolName)) {
+          const msg = `Blocked: "${p.toolName}" is not allowed in plan mode. Only read-only tools are available. Present your plan to the user and ask them to approve it before making changes. They can type /plan to exit plan mode.`;
+          console.log(chalk.yellow(`    ⎿  Blocked by plan mode`));
+          updatedMessages.push({
+            role: "tool",
+            tool_call_id: p.tc.id,
+            content: msg,
+          });
+          continue;
+        }
+
         // If JSON was truncated/malformed, don't execute — tell model to retry
         if (p.parseError || (p.toolName === "write_file" && !p.args.file_path)) {
           const truncLen = p.tc.function.arguments.length;
@@ -562,6 +591,7 @@ export async function chat(
           }, 100);
         }
 
+        trackToolMetadata(p.toolName, p.args);
         const resultStr: string = await executeTool(p.toolName, p.args);
 
         if (toolSpinner) {

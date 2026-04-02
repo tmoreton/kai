@@ -69,10 +69,20 @@ export function getPermissionMode() {
   return permissionMode;
 }
 
+// Cached merged rules — avoid rebuilding array on every tool call
+let _cachedRules: PermissionRule[] | null = null;
+
 export function getPermissionRules(): PermissionRule[] {
+  if (_cachedRules) return _cachedRules;
   const config = getConfig();
   const customRules = config.permissions || [];
-  return [...customRules, ...DEFAULT_RULES];
+  _cachedRules = [...customRules, ...DEFAULT_RULES];
+  return _cachedRules;
+}
+
+/** Invalidate permission rule cache (call after config change) */
+export function invalidatePermissionCache(): void {
+  _cachedRules = null;
 }
 
 function matchRule(

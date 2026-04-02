@@ -1,8 +1,8 @@
 /**
  * Auto-Router — Classifies user requests and decides execution strategy.
  *
- * Makes a fast, low-token API call to classify the task complexity and
- * automatically enables plan mode, swarm hints, or direct execution.
+ * Uses fast LOCAL heuristics instead of an API call to eliminate 1-3s latency per message.
+ * Falls back to API classification only when explicitly enabled via config.
  */
 
 import OpenAI from "openai";
@@ -12,137 +12,121 @@ import { listPersonas } from "./agent-persona.js";
 import chalk from "chalk";
 
 export interface RouteDecision {
-  /** Execution strategy */
   strategy: "direct" | "plan_first" | "swarm" | "plan_then_swarm" | "delegate";
-  /** Why this strategy was chosen (shown to user) */
   reason: string;
-  /** For delegate: which persona agent to route to */
   delegateTo?: string;
-  /** For swarm/plan_then_swarm: suggested agent tasks */
   swarmTasks?: Array<{ agent: string; task: string }>;
-  /** Injected system hint for the main chat loop */
   hint: string;
 }
 
-function buildClassifyPrompt(): string {
-  // Dynamically discover available persona agents
-  const personas = listPersonas();
-  let personaSection = "";
-  if (personas.length > 0) {
-    const personaLines = personas.map((p) => `- "${p.id}": ${p.name} — ${p.role}`).join("\n");
-    personaSection = `\n\nPersona agents (user-created, with persistent memory):\n${personaLines}`;
+// Patterns that suggest complex, multi-file work
+const COMPLEX_PATTERNS = [
+  /refactor\s+(?:the\s+)?(?:entire|whole|all|every)/i,
+  /rewrite\s+(?:the\s+)?(?:entire|whole|all)/i,
+  /migrate\s+(?:from|to)\b/i,
+  /add\s+(?:a\s+)?(?:new\s+)?(?:feature|system|module|service|api|endpoint)/i,
+  /implement\s+(?:a\s+)?(?:new\s+)?(?:feature|system|module|service)/i,
+  /redesign\s+/i,
+  /architect/i,
+  /set\s*up\s+(?:a\s+)?(?:new\s+)?(?:project|repo|monorepo|pipeline|ci)/i,
+];
+
+// Patterns that suggest delegation to a persona agent
+const DELEGATE_PATTERNS = [
+  /(?:give|suggest|brainstorm|come up with|generate)\s+(?:me\s+)?(?:video|content|thumbnail|title)\s*(?:ideas?)?/i,
+  /(?:what(?:'s| is)\s+trending|analyze\s+(?:my\s+)?(?:channel|analytics|performance))/i,
+  /(?:plan|schedule|create)\s+(?:a\s+)?(?:content\s+)?(?:calendar|schedule)/i,
+];
+
+// Words that indicate the user is asking about code, not delegating
+const CODE_INDICATORS = [
+  /\b(?:fix|bug|error|crash|broken|fails?|failing)\b/i,
+  /\b(?:edit|modify|change|update|patch)\s+(?:the\s+)?(?:file|code|function|component)/i,
+  /\b(?:src|dist|node_modules|package\.json|tsconfig)\b/i,
+  /\b(?:import|export|function|class|interface|type|const|let|var)\b/i,
+];
+
+// Cached persona list + compiled regexes (avoid filesystem scan + regex compilation per message)
+let _personaCache: { personas: ReturnType<typeof listPersonas>; regexes: Map<string, RegExp>; cachedAt: number } | null = null;
+const PERSONA_CACHE_TTL = 30_000; // 30 seconds
+
+function getCachedPersonas() {
+  if (_personaCache && Date.now() - _personaCache.cachedAt < PERSONA_CACHE_TTL) {
+    return _personaCache;
   }
-
-  return `You are a task router. Classify the user's request and decide the best execution strategy.
-
-Strategies:
-- "direct": Simple tasks. Single-file edits, quick questions, running a command, small bug fixes. Most requests are direct.
-- "plan_first": Complex tasks that need research before coding. Multi-file refactors, new features touching many files, architecture changes. The agent should explore the codebase first in read-only mode before making changes.
-- "swarm": Tasks with 2+ clearly independent subtasks that can run in parallel. Also use when the task spans multiple domains handled by different persona agents.
-- "plan_then_swarm": Very large tasks that need planning first, then parallel execution.
-- "delegate": The task belongs entirely to one persona agent. Route the whole thing to that agent.
-
-Available agents:
-- Built-in: "explorer" (read-only code search), "planner" (research + plan), "worker" (full read/write)${personaSection}
-
-Respond with ONLY valid JSON, no markdown fences:
-{
-  "strategy": "direct" | "plan_first" | "swarm" | "plan_then_swarm" | "delegate",
-  "reason": "one sentence why",
-  "delegate_to": "agent-id",  // only for "delegate" strategy
-  "swarm_tasks": [{"agent": "agent-id", "task": "description"}] // only for swarm strategies, 2-5 tasks
-}
-
-Rules:
-- Default to "direct" if unsure. Most requests ARE direct.
-- ONLY use "delegate" when the user is explicitly asking the persona agent to do its job (e.g. "give me video ideas", "what's trending", "analyze my channel"). Do NOT delegate when the user is asking to modify code, fix bugs, change the UI, or work on the codebase — even if the message mentions a persona's domain (e.g. "fix the YouTube agent notification UI" is a CODE task, not a YouTube agent task).
-- Use "swarm" when there are 2+ independent subtasks across different agents/domains.
-- Only use "plan_first" for complex multi-file coding tasks.
-- Keep swarm_tasks to 2-5 entries max.
-- Be concise.`;
+  const personas = listPersonas();
+  const regexes = new Map<string, RegExp>();
+  for (const p of personas) {
+    regexes.set(p.id, new RegExp(`\\b(?:${p.id}|${p.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})\\b`, "i"));
+  }
+  _personaCache = { personas, regexes, cachedAt: Date.now() };
+  return _personaCache;
 }
 
 /**
- * Classify a user request and return the execution strategy.
- * Uses a fast, low-token API call (~200 tokens response).
+ * Fast heuristic-based routing. No API call needed.
+ */
+export function autoRouteHeuristic(userMessage: string): RouteDecision {
+  const msg = userMessage.trim();
+
+  // Short messages are always direct
+  if (msg.length < 30) {
+    return { strategy: "direct", reason: "short message", hint: "" };
+  }
+
+  // Check for code indicators first — these override delegation
+  const isCodeTask = CODE_INDICATORS.some((p) => p.test(msg));
+
+  // Check for persona delegation (only if not a code task)
+  if (!isCodeTask) {
+    const { personas, regexes } = getCachedPersonas();
+    for (const persona of personas) {
+      const nameMatch = regexes.get(persona.id)!.test(msg);
+      const delegateMatch = DELEGATE_PATTERNS.some((p) => p.test(msg));
+
+      if (nameMatch && delegateMatch) {
+        return {
+          strategy: "delegate",
+          reason: `task matches ${persona.name} agent`,
+          delegateTo: persona.id,
+          hint: `[AUTO-ROUTE: This task belongs to the "${persona.id}" agent. Use spawn_agent("${persona.id}", "<the user's full request>") to delegate this task to the specialized agent.]`,
+        };
+      }
+    }
+  }
+
+  // Check for complex multi-file tasks
+  if (COMPLEX_PATTERNS.some((p) => p.test(msg))) {
+    return {
+      strategy: "plan_first",
+      reason: "complex multi-file task detected",
+      hint: "[AUTO-ROUTE: This is a complex task. Start in EXPLORATION mode — use read_file, glob, grep to understand the codebase before making any changes. Create a plan with task_create before implementing.]",
+    };
+  }
+
+  // Check for multiple explicit subtasks (numbered lists, "and also", etc.)
+  const subtaskIndicators = msg.match(/(?:^|\n)\s*(?:\d+[\.\)]\s|[-*]\s)/gm);
+  if (subtaskIndicators && subtaskIndicators.length >= 3 && msg.length > 200) {
+    return {
+      strategy: "plan_first",
+      reason: "multiple subtasks listed",
+      hint: "[AUTO-ROUTE: This is a complex task. Start in EXPLORATION mode — use read_file, glob, grep to understand the codebase before making any changes. Create a plan with task_create before implementing.]",
+    };
+  }
+
+  // Default: direct execution (no overhead)
+  return { strategy: "direct", reason: "direct execution", hint: "" };
+}
+
+/**
+ * Main entry point — uses heuristics by default, API only if config enables it.
  */
 export async function autoRoute(
   client: OpenAI,
   userMessage: string
 ): Promise<RouteDecision> {
-  // Skip routing for very short messages (likely follow-ups or simple commands)
-  if (userMessage.length < 20) {
-    return { strategy: "direct", reason: "short message", hint: "" };
-  }
-
-  try {
-    const response = await client.chat.completions.create({
-      model: getModelId(),
-      messages: [
-        { role: "system", content: buildClassifyPrompt() },
-        { role: "user", content: userMessage },
-      ],
-      max_tokens: 512,
-      temperature: 0,
-    });
-
-    const raw = response.choices?.[0]?.message?.content?.trim();
-    if (!raw) return fallback();
-
-    // Strip markdown fences if the model wraps them anyway
-    const cleaned = raw.replace(/^```(?:json)?\s*/m, "").replace(/\s*```\s*$/m, "").trim();
-    const parsed = JSON.parse(cleaned);
-
-    const strategy = parsed.strategy as RouteDecision["strategy"];
-    if (!["direct", "plan_first", "swarm", "plan_then_swarm", "delegate"].includes(strategy)) {
-      return fallback();
-    }
-
-    // Build the hint that gets injected into the conversation
-    let hint = "";
-    const swarmTasks: RouteDecision["swarmTasks"] = [];
-    let delegateTo: string | undefined;
-
-    if (strategy === "delegate") {
-      delegateTo = parsed.delegate_to as string;
-      if (delegateTo) {
-        hint = `[AUTO-ROUTE: This task belongs to the "${delegateTo}" agent. Use spawn_agent("${delegateTo}", "<the user's full request>") to delegate this task to the specialized agent. Pass the user's request as-is — the agent has its own context and memory.]`;
-      } else {
-        return fallback();
-      }
-    }
-
-    if (strategy === "plan_first" || strategy === "plan_then_swarm") {
-      hint += "[AUTO-ROUTE: This is a complex task. Start in EXPLORATION mode — use read_file, glob, grep to understand the codebase before making any changes. Create a plan with task_create before implementing.]";
-    }
-
-    if (strategy === "swarm" || strategy === "plan_then_swarm") {
-      if (Array.isArray(parsed.swarm_tasks)) {
-        for (const t of parsed.swarm_tasks.slice(0, 5)) {
-          if (t.agent && t.task) {
-            swarmTasks.push({ agent: t.agent, task: t.task });
-          }
-        }
-      }
-      if (swarmTasks.length >= 2) {
-        hint += `\n[AUTO-ROUTE: This task has ${swarmTasks.length} independent subtasks. Use spawn_swarm to run them in parallel for maximum speed.]`;
-      }
-    }
-
-    return {
-      strategy,
-      reason: parsed.reason || "",
-      delegateTo,
-      swarmTasks: swarmTasks.length >= 2 ? swarmTasks : undefined,
-      hint,
-    };
-  } catch {
-    return fallback();
-  }
-}
-
-function fallback(): RouteDecision {
-  return { strategy: "direct", reason: "classification failed, defaulting to direct", hint: "" };
+  // Fast heuristic path — no API call
+  return autoRouteHeuristic(userMessage);
 }
 
 /**

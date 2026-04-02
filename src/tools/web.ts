@@ -89,15 +89,16 @@ export async function webFetch(args: {
   }
 }
 
+// Pre-compiled single-pass pattern for HTML stripping + entity decoding
+const HTML_STRIP_PATTERN = /<[^>]*>|&amp;|&lt;|&gt;|&quot;|&#x27;|&nbsp;/g;
+const ENTITY_MAP: Record<string, string> = {
+  "&amp;": "&", "&lt;": "<", "&gt;": ">",
+  "&quot;": '"', "&#x27;": "'", "&nbsp;": " ",
+};
+
 function stripHtml(html: string): string {
   return html
-    .replace(/<[^>]*>/g, "")
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&#x27;/g, "'")
-    .replace(/&nbsp;/g, " ")
+    .replace(HTML_STRIP_PATTERN, (match) => ENTITY_MAP[match] ?? "")
     .replace(/\s+/g, " ")
     .trim();
 }

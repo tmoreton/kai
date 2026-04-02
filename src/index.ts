@@ -36,9 +36,8 @@ program
       pipedInput = await readStdin();
     }
 
-    // Initialize MCP servers and skills before any interaction
-    await initMcpServers();
-    await loadAllSkills();
+    // Initialize MCP servers and skills in parallel (not sequential)
+    await Promise.allSettled([initMcpServers(), loadAllSkills()]);
 
     const initialPrompt = [pipedInput, promptArg].filter(Boolean).join("\n\n") || undefined;
 

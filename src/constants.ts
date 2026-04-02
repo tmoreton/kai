@@ -63,6 +63,11 @@ export const DEFAULT_OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
 export const DEFAULT_TAVILY_BASE_URL = "https://api.tavily.com/search";
 export const DEFAULT_YOUTUBE_BASE_URL = "https://www.googleapis.com/youtube/v3";
 
+// Tools that sub-agents are never allowed to use (prevents recursive spawning, swarm bombs)
+export const AGENT_BLOCKED_TOOLS = new Set([
+  "spawn_agent", "spawn_swarm", "agent_create",
+]);
+
 // Built-in agent types shared between subagent.ts and swarm.ts
 export const BUILT_IN_AGENT_CONFIGS = {
   explorer: {
@@ -85,7 +90,8 @@ Return a clear, actionable plan with file paths and specific changes needed.`,
     description: "General-purpose agent that can read, write, and execute code for complex multi-step tasks.",
     systemPromptTemplate: `You are a worker agent. Complete the assigned task autonomously.
 You have full access to the filesystem and shell.
-Work step by step: understand → implement → verify.`,
+Work step by step: understand → implement → verify.
+You do NOT have access to spawn other agents or swarms.`,
     tools: undefined as string[] | undefined,
     maxTurns: 25,
   },

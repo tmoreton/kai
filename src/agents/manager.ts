@@ -302,14 +302,28 @@ export function formatNotificationDigest(hours = 24): string {
     return "";
   }
 
+  // Deduplicate: only show the most recent notification per agent per type
+  // (prevents spam from repeated "3 consecutive failures" notifications)
+  const seen = new Map<string, NotificationRecord>();
+  for (const n of notifications) {
+    const key = `${n.agent_id}-${n.type}`;
+    // Keep the most recent (notifications are already sorted DESC by created_at)
+    if (!seen.has(key)) {
+      seen.set(key, n);
+    }
+  }
+  const deduped = Array.from(seen.values()).sort((a, b) => 
+    new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+  );
+
   const lines: string[] = [
     chalk.bold.cyan("\n  📬 Agent Digest"),
     chalk.dim(`     (last ${hours}h)\n`),
   ];
 
-  for (const n of notifications.slice(0, 10)) {
-    const icon = n.type === "agent_failed" ? chalk.red("✗")
-      : n.type === "agent_completed" ? chalk.green("✓")
+  for (const n of deduped.slice(0, 10)) {
+    const icon = n.type === "agent_failed" || n.type === "agent_error" ? chalk.red("✗")
+      : n.type === "agent_completed" || n.type === "agent_recovery" ? chalk.green("✓")
       : chalk.blue("•");
     const title = n.read ? chalk.dim(n.title) : chalk.bold(n.title);
     const time = chalk.dim(new Date(n.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
@@ -320,8 +334,8 @@ export function formatNotificationDigest(hours = 24): string {
     }
   }
 
-  if (notifications.length > 10) {
-    lines.push(chalk.dim(`\n  ... and ${notifications.length - 10} more`));
+  if (deduped.length > 10) {
+    lines.push(chalk.dim(`\n  ... and ${deduped.length - 10} more`));
   }
 
   lines.push("");

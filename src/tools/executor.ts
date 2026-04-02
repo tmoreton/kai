@@ -5,10 +5,10 @@ import { webFetch, webSearch } from "./web.js";
 import { generateImageTool } from "./image.js";
 import { createTask, updateTask, listTasks } from "./tasks.js";
 import { spawnAgent } from "../subagent.js";
-import { runSwarm } from "../swarm.js";
+import { runSwarm, handleScratchpadTool } from "../swarm.js";
 import { loadPersona, updatePersonaField, listPersonas, createPersona } from "../agent-persona.js";
 import { checkPermission } from "../permissions.js";
-import { runHooks } from "../hooks.js";
+import { runBeforeHooks, runAfterHooks } from "../hooks.js";
 import { updateCoreMemory, readCoreMemory } from "../soul.js";
 import { searchRecall } from "../recall.js";
 import { archivalInsert, archivalSearch } from "../archival.js";
@@ -43,7 +43,11 @@ export async function executeTool(
     return `Permission denied for ${name}. The user blocked this action.`;
   }
 
-  await runHooks("before", name, args);
+  // Run before-hooks — can deny execution
+  const beforeHook = await runBeforeHooks(name, args);
+  if (!beforeHook.allowed) {
+    return `Hook denied ${name}: ${beforeHook.reason || "blocked by before-hook"}`;
+  }
 
   let result: string;
 
@@ -153,6 +157,13 @@ export async function executeTool(
         }
         break;
       }
+      // Swarm scratchpad tools
+      case "swarm_scratchpad_read":
+      case "swarm_scratchpad_write": {
+        const scratchResult = handleScratchpadTool(name, args as Record<string, any>);
+        result = scratchResult ?? `Scratchpad tool "${name}" returned no result.`;
+        break;
+      }
       case "generate_image":
         result = await generateImageTool(args as { prompt: string; reference_image?: string; width?: number; height?: number; output_dir?: string }); break;
       case "take_screenshot":
@@ -186,7 +197,11 @@ export async function executeTool(
     result = `Tool "${name}" failed: ${msg}`;
   }
 
-  await runHooks("after", name, args);
+  // Run after-hooks — can override output
+  const afterHook = await runAfterHooks(name, args, result);
+  if (afterHook.overrideOutput) {
+    result = afterHook.overrideOutput;
+  }
 
   return result;
 }

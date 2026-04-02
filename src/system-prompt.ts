@@ -6,9 +6,13 @@ import { getCwd } from "./tools/bash.js";
 
 /**
  * Build the full system prompt with all context (profile, archival, git).
- * Use this instead of assembling the prompt manually in each entry point.
+ * Cached per session — call invalidateSystemPromptCache() to rebuild.
  */
+let _cachedSystemPrompt: string | null = null;
+
 export function buildSystemPrompt(): string {
+  if (_cachedSystemPrompt) return _cachedSystemPrompt;
+
   let systemContent = getSystemPrompt(getCwd());
   const profileCtx = getProfileContext();
   if (profileCtx) systemContent += `\n\n${profileCtx}`;
@@ -18,7 +22,14 @@ export function buildSystemPrompt(): string {
   }
   const git = gitInfo();
   if (git) systemContent += `\n\n# Git\n${git}`;
+
+  _cachedSystemPrompt = systemContent;
   return systemContent;
+}
+
+/** Invalidate cached system prompt (call after memory updates, cd, etc.) */
+export function invalidateSystemPromptCache(): void {
+  _cachedSystemPrompt = null;
 }
 
 export function getSystemPrompt(cwd: string): string {

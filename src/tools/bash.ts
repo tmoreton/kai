@@ -54,18 +54,21 @@ export async function bashTool(args: {
       env: { ...process.env, FORCE_COLOR: "0" },
     });
 
-    let stdout = "";
-    let stderr = "";
+    const stdoutChunks: Buffer[] = [];
+    const stderrChunks: Buffer[] = [];
 
-    child.stdout?.on("data", (data) => {
-      stdout += data;
+    child.stdout?.on("data", (data: string | Buffer) => {
+      stdoutChunks.push(Buffer.isBuffer(data) ? data : Buffer.from(data));
     });
 
-    child.stderr?.on("data", (data) => {
-      stderr += data;
+    child.stderr?.on("data", (data: string | Buffer) => {
+      stderrChunks.push(Buffer.isBuffer(data) ? data : Buffer.from(data));
     });
 
     child.on("close", (code) => {
+      let stdout = Buffer.concat(stdoutChunks).toString("utf-8");
+      const stderr = Buffer.concat(stderrChunks).toString("utf-8");
+
       // Extract new cwd from wrapped command output
       if (hasCd && code === 0 && stdout.includes(marker)) {
         const parts = stdout.split(marker);
@@ -112,15 +115,15 @@ export async function bashBackgroundTool(args: {
       env: { ...process.env, FORCE_COLOR: "0" },
     });
 
-    let output = "";
+    const outputChunks: Buffer[] = [];
     const pid = child.pid;
 
-    child.stdout?.on("data", (data) => {
-      output += data.toString();
+    child.stdout?.on("data", (data: Buffer) => {
+      outputChunks.push(data);
     });
 
-    child.stderr?.on("data", (data) => {
-      output += data.toString();
+    child.stderr?.on("data", (data: Buffer) => {
+      outputChunks.push(data);
     });
 
     // Unref so it doesn't block process exit
@@ -132,7 +135,8 @@ export async function bashBackgroundTool(args: {
 
     // Wait a bit for initial output (e.g., "Server ready on port 5173")
     setTimeout(() => {
-      const result = output.trim() || "(started in background)";
+      const output = Buffer.concat(outputChunks).toString("utf-8").trim();
+      const result = output || "(started in background)";
       resolve(
         `Background process started (PID: ${pid})\n${result}`
       );

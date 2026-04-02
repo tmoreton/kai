@@ -24,6 +24,7 @@ import {
   markAllStuckRunsFailed,
   addLog,
   createNotification,
+  hasRecentNotification,
   type AgentRecord,
 } from "./db.js";
 import { evaluateConditions, type HeartbeatConfig } from "./conditions.js";
@@ -211,8 +212,32 @@ async function checkAndRetryFailedRuns(): Promise<void> {
     // Check consecutive failure count to avoid retry loops
     const failCount = getConsecutiveFailCount(run.agent_id);
     if (failCount >= MAX_AUTO_RETRIES) {
-      // Only notify once (on the exact threshold, not every check)
-      if (failCount === MAX_AUTO_RETRIES) {
+      // Try auto-fix before giving up
+      const fixed = await attemptAutoFix(agent, run);
+      if (fixed) {
+        console.log(chalk.green(`  ✓ Auto-fix succeeded for ${agent.name}, retrying...`));
+        // Retry after fix
+        try {
+          const result = await runAgent(run.agent_id);
+          if (result.success) {
+            addLog(run.agent_id, "info", `Auto-retry succeeded after auto-fix`);
+            console.log(chalk.green(`  ✓ Auto-retry succeeded: ${agent.name}`));
+            createNotification({
+              type: "agent_recovery",
+              title: `${agent.name}: recovered after auto-fix`,
+              body: `Agent was auto-fixed and completed successfully`,
+              agentId: run.agent_id,
+            });
+          }
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : String(err);
+          addLog(run.agent_id, "error", `Auto-retry after fix failed: ${msg}`);
+        }
+        continue;
+      }
+
+      // Only notify once per 24h for the same agent/type (prevent spam)
+      if (!hasRecentNotification(run.agent_id, "agent_error", 24)) {
         addLog(run.agent_id, "error", `Auto-retry disabled: ${failCount} consecutive failures. Manual intervention required.`);
         createNotification({
           type: "agent_error",
@@ -247,6 +272,69 @@ async function checkAndRetryFailedRuns(): Promise<void> {
       addLog(run.agent_id, "error", `Auto-retry failed: ${msg}`);
     }
   }
+}
+
+/**
+ * Attempt to auto-fix common agent failure issues.
+ * Returns true if a fix was applied (caller should retry).
+ */
+async function attemptAutoFix(
+  agent: AgentRecord,
+  run: { status: string; error: string | null }
+): Promise<boolean> {
+  const error = (run.error || "").toLowerCase();
+  let fixed = false;
+
+  // Fix 1: Workflow file missing or moved — check if file exists
+  if (!fs.existsSync(agent.workflow_path)) {
+    // Check common locations
+    const kaiDir = ensureKaiDir();
+    const workflowsDir = path.join(kaiDir, "workflows");
+    const agentFile = path.basename(agent.workflow_path);
+    const possiblePaths = [
+      path.join(workflowsDir, agentFile),
+      path.join(kaiDir, agentFile),
+      path.join(process.cwd(), agentFile),
+    ];
+
+    for (const p of possiblePaths) {
+      if (fs.existsSync(p)) {
+        // Update the agent's workflow path
+        const { saveAgent } = await import("./db.js");
+        saveAgent({ ...agent, workflow_path: p });
+        addLog(agent.id, "info", `Auto-fixed: updated workflow path to ${p}`);
+        fixed = true;
+        break;
+      }
+    }
+  }
+
+  // Fix 2: Parse workflow file errors — validate and report
+  if (!fixed && error.includes("workflow") && error.includes("parse")) {
+    try {
+      parseWorkflow(agent.workflow_path);
+    } catch (parseErr: any) {
+      addLog(agent.id, "warn", `Workflow parse error persists: ${parseErr.message}`);
+    }
+  }
+
+  // Fix 3: Comment out empty/malformed env var section in workflow that causes YAML parse errors
+  if (!fixed && (error.includes("yaml") || error.includes("parse"))) {
+    try {
+      const content = fs.readFileSync(agent.workflow_path, "utf-8");
+      // Check for empty env: block which breaks YAML parser
+      if (/^env:\s*$/m.test(content) && !/^env:\s*\S/m.test(content)) {
+        const fixedContent = content.replace(/^env:\s*$/m, "# env:");
+        fs.writeFileSync(agent.workflow_path, fixedContent);
+        addLog(agent.id, "info", "Auto-fixed: commented out empty env block in workflow");
+        fixed = true;
+      }
+    } catch (e: any) {
+      addLog(agent.id, "debug", `Auto-fix env block failed: ${e.message}`);
+    }
+  }
+
+  return fixed;
 }
 
 function scheduleAgent(agent: AgentRecord): void {

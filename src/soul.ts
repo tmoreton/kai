@@ -66,42 +66,61 @@ function projectContextPath(projectId?: string): string {
   return path.join(dir, "context.json");
 }
 
+// --- In-memory caches to avoid repeated blocking file reads ---
+let _cachedIdentity: Identity | null = null;
+let _cachedProjectCtx: { ctx: ProjectContext; projectId: string | undefined } | null = null;
+
 // --- Load/Save ---
 
 export function loadIdentity(): Identity {
+  if (_cachedIdentity) return _cachedIdentity;
+
   try {
     const p = identityPath();
     if (fs.existsSync(p)) {
       const data = JSON.parse(fs.readFileSync(p, "utf-8"));
-      return {
+      _cachedIdentity = {
         persona: { ...DEFAULT_IDENTITY.persona, ...data.persona },
         human: { ...DEFAULT_IDENTITY.human, ...data.human },
       };
+      return _cachedIdentity;
     }
   } catch {}
 
-  return { ...DEFAULT_IDENTITY };
+  _cachedIdentity = { ...DEFAULT_IDENTITY };
+  return _cachedIdentity;
 }
 
 function saveIdentity(identity: Identity): void {
+  _cachedIdentity = identity;
   fs.writeFileSync(identityPath(), JSON.stringify(identity, null, 2), "utf-8");
 }
 
 export function loadProjectContext(projectId?: string): ProjectContext {
+  if (_cachedProjectCtx && _cachedProjectCtx.projectId === projectId) {
+    return _cachedProjectCtx.ctx;
+  }
+
   try {
     const p = projectContextPath(projectId);
     if (fs.existsSync(p)) {
       const data = JSON.parse(fs.readFileSync(p, "utf-8"));
-      return {
+      const ctx = {
         goals: { ...DEFAULT_CONTEXT.goals, ...data.goals },
         scratchpad: { ...DEFAULT_CONTEXT.scratchpad, ...data.scratchpad },
       };
+      _cachedProjectCtx = { ctx, projectId };
+      return ctx;
     }
   } catch {}
-  return { ...DEFAULT_CONTEXT };
+
+  const ctx = { ...DEFAULT_CONTEXT };
+  _cachedProjectCtx = { ctx, projectId };
+  return ctx;
 }
 
 function saveProjectContext(ctx: ProjectContext, projectId?: string): void {
+  _cachedProjectCtx = { ctx, projectId };
   fs.writeFileSync(
     projectContextPath(projectId),
     JSON.stringify(ctx, null, 2),

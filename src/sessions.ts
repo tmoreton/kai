@@ -47,7 +47,36 @@ export function generateSessionId(): string {
   return `${projectKey()}-${Date.now().toString(36)}-${crypto.randomBytes(3).toString("hex")}`;
 }
 
+/**
+ * Save session asynchronously (non-blocking).
+ * Debounced: multiple rapid saves coalesce into one write.
+ */
+let _saveTimer: ReturnType<typeof setTimeout> | null = null;
+let _pendingSave: Session | null = null;
+
 export function saveSession(session: Session): void {
+  session.updatedAt = new Date().toISOString();
+  _pendingSave = session;
+
+  // Debounce: wait 1s before writing. If another save comes in, reset the timer.
+  if (_saveTimer) clearTimeout(_saveTimer);
+  _saveTimer = setTimeout(() => {
+    if (_pendingSave) {
+      const filePath = path.join(sessionsDir(), `${_pendingSave.id}.json`);
+      fs.promises.writeFile(filePath, JSON.stringify(_pendingSave, null, 2), "utf-8")
+        .catch(() => {}); // Silently handle write errors
+      _pendingSave = null;
+    }
+    _saveTimer = null;
+  }, 1000);
+}
+
+/**
+ * Force an immediate synchronous save (used on exit).
+ */
+export function saveSessionSync(session: Session): void {
+  if (_saveTimer) clearTimeout(_saveTimer);
+  _pendingSave = null;
   session.updatedAt = new Date().toISOString();
   const filePath = path.join(sessionsDir(), `${session.id}.json`);
   fs.writeFileSync(filePath, JSON.stringify(session, null, 2), "utf-8");

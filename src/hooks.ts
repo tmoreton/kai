@@ -19,10 +19,23 @@ import chalk from "chalk";
  * }
  *
  * Supports {{arg_name}} interpolation from tool arguments.
+ *
+ * Hook behavior:
+ * - before hooks: if the command exits non-zero, the tool call is DENIED
+ * - after hooks: stdout is captured and can override the tool result
+ *   Use the "override:" prefix in settings to enable output override:
+ *   "after:write_file:override": "cat {{file_path}} | wc -l"
  */
 
 export interface HookConfig {
   [trigger: string]: string; // "before:tool_name" or "after:tool_name" → shell command
+}
+
+export interface HookResult {
+  allowed: boolean;      // false = tool call should be denied
+  reason?: string;       // denial reason (from before hooks)
+  output?: string;       // captured stdout (from after hooks)
+  overrideOutput?: string; // if set, replaces the tool result
 }
 
 function getHooks(): HookConfig {
@@ -37,43 +50,111 @@ function interpolateHook(template: string, args: Record<string, unknown>): strin
   });
 }
 
+function runShellHook(command: string): Promise<{ exitCode: number; stdout: string; stderr: string }> {
+  return new Promise((resolve) => {
+    exec(command, {
+      cwd: getCwd(),
+      timeout: 10000,
+      maxBuffer: 1024 * 1024,
+    }, (err, stdout, stderr) => {
+      resolve({
+        exitCode: err ? (err as any).code || 1 : 0,
+        stdout: stdout?.trim() || "",
+        stderr: stderr?.trim() || "",
+      });
+    });
+  });
+}
+
 /**
- * Run hooks for a given trigger point.
- * Returns true if all hooks succeeded, false if any failed.
+ * Run before-hooks for a tool call.
+ * Returns { allowed: false, reason } if the hook denies execution.
+ */
+export async function runBeforeHooks(
+  toolName: string,
+  args: Record<string, unknown>
+): Promise<HookResult> {
+  const hooks = getHooks();
+  const key = `before:${toolName}`;
+  const command = hooks[key];
+
+  if (!command) return { allowed: true };
+
+  const resolved = interpolateHook(command, args);
+  const result = await runShellHook(resolved);
+
+  if (result.exitCode !== 0) {
+    const reason = result.stderr || result.stdout || `Hook "${key}" denied execution (exit code ${result.exitCode})`;
+    console.log(chalk.yellow(`  hook ${key}: DENIED — ${reason.substring(0, 100)}`));
+    return { allowed: false, reason };
+  }
+
+  if (result.stdout) {
+    console.log(chalk.dim(`  hook ${key}: ${result.stdout.substring(0, 100)}`));
+  }
+
+  return { allowed: true, output: result.stdout || undefined };
+}
+
+/**
+ * Run after-hooks for a tool call.
+ * Returns { overrideOutput } if the hook provides output override.
+ */
+export async function runAfterHooks(
+  toolName: string,
+  args: Record<string, unknown>,
+  toolResult: string
+): Promise<HookResult> {
+  const hooks = getHooks();
+  const key = `after:${toolName}`;
+  const overrideKey = `after:${toolName}:override`;
+  const command = hooks[key];
+  const overrideCommand = hooks[overrideKey];
+
+  const result: HookResult = { allowed: true };
+
+  // Run regular after hook (side-effect only)
+  if (command) {
+    const resolved = interpolateHook(command, { ...args, _result: toolResult });
+    const hookResult = await runShellHook(resolved);
+
+    if (hookResult.stdout) {
+      console.log(chalk.dim(`  hook ${key}: ${hookResult.stdout.substring(0, 100)}`));
+      result.output = hookResult.stdout;
+    }
+    if (hookResult.exitCode !== 0 && hookResult.stderr) {
+      console.log(chalk.yellow(`  hook ${key}: ${hookResult.stderr.substring(0, 100)}`));
+    }
+  }
+
+  // Run override hook — its stdout replaces the tool result
+  if (overrideCommand) {
+    const resolved = interpolateHook(overrideCommand, { ...args, _result: toolResult });
+    const hookResult = await runShellHook(resolved);
+
+    if (hookResult.exitCode === 0 && hookResult.stdout) {
+      result.overrideOutput = hookResult.stdout;
+      console.log(chalk.dim(`  hook ${overrideKey}: output overridden`));
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Legacy compatibility — runs hooks without deny/override semantics.
+ * Used by code that hasn't been updated to the new hook flow.
  */
 export async function runHooks(
   trigger: "before" | "after",
   toolName: string,
   args: Record<string, unknown>
 ): Promise<boolean> {
-  const hooks = getHooks();
-  const key = `${trigger}:${toolName}`;
-  const command = hooks[key];
-
-  if (!command) return true;
-
-  const resolved = interpolateHook(command, args);
-
-  try {
-    await new Promise<void>((resolve, reject) => {
-      exec(resolved, {
-        cwd: getCwd(),
-        timeout: 10000,
-        maxBuffer: 1024 * 1024,
-      }, (err, stdout, stderr) => {
-        if (err) {
-          console.log(chalk.yellow(`  hook ${key}: ${err.message}`));
-          reject(err);
-        } else {
-          if (stdout.trim()) {
-            console.log(chalk.dim(`  hook ${key}: ${stdout.trim().substring(0, 100)}`));
-          }
-          resolve();
-        }
-      });
-    });
+  if (trigger === "before") {
+    const result = await runBeforeHooks(toolName, args);
+    return result.allowed;
+  } else {
+    await runAfterHooks(toolName, args, "");
     return true;
-  } catch {
-    return false;
   }
 }

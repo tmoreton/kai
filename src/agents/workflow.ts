@@ -53,7 +53,7 @@ function getSharedModel(): string {
 
 export interface WorkflowStep {
   name: string;
-  type: "llm" | "integration" | "shell" | "notify" | "review" | "approval";
+  type: "llm" | "integration" | "shell" | "notify" | "review" | "approval" | "parallel";
   integration?: string;
   action?: string;
   prompt?: string;
@@ -64,6 +64,7 @@ export interface WorkflowStep {
   stream?: boolean;
   max_tokens?: number;
   auto_approve?: boolean; // for approval steps
+  steps?: WorkflowStep[]; // nested steps for parallel execution
 }
 
 export interface ReviewConfig {
@@ -127,7 +128,8 @@ export function parseWorkflow(filePath: string): WorkflowDefinition {
     if (!step.name) throw new Error("Each step must have a 'name'");
     if (!step.type) {
       // Infer type
-      if (step.prompt) step.type = "llm";
+      if (step.steps && Array.isArray(step.steps)) step.type = "parallel";
+      else if (step.prompt) step.type = "llm";
       else if (step.integration) step.type = "integration";
       else if (step.command) step.type = "shell";
       else step.type = "llm";
@@ -272,6 +274,9 @@ export async function executeWorkflow(
             // Review steps are handled by the post-workflow review loop.
             // If used inline, treat as an LLM step with review-focused prompt.
             result = await executeLlmStep(step, ctx);
+            break;
+          case "parallel":
+            result = await executeParallelStep(step, ctx, agentId, runId, onProgress);
             break;
           case "approval":
             result = await executeApprovalStep(step, ctx, stepId);
@@ -685,6 +690,89 @@ async function executeApprovalStep(step: WorkflowStep, ctx: WorkflowContext, ste
   completeStep(stepId, "pending", "Awaiting approval");
 
   return "__PENDING_APPROVAL__";
+}
+
+/**
+ * Execute nested steps in parallel via Promise.allSettled.
+ * Each sub-step runs independently; results are stored as a combined object.
+ */
+async function executeParallelStep(
+  step: WorkflowStep,
+  ctx: WorkflowContext,
+  agentId: string,
+  runId: string,
+  onProgress?: (step: string, status: string) => void
+): Promise<Record<string, any>> {
+  if (!step.steps || step.steps.length === 0) {
+    throw new Error("Parallel step requires a 'steps' array with nested steps");
+  }
+
+  onProgress?.(step.name, `running ${step.steps.length} steps in parallel`);
+
+  const promises = step.steps.map(async (subStep) => {
+    const subStepId = createStep(runId, `${step.name}/${subStep.name}`, 0);
+    onProgress?.(`${step.name}/${subStep.name}`, "running");
+
+    try {
+      let result: any;
+      switch (subStep.type) {
+        case "llm":
+          result = await executeLlmStep(subStep, ctx);
+          break;
+        case "integration":
+          result = await executeIntegrationStep(subStep, ctx);
+          break;
+        case "shell":
+          result = await executeShellStep(subStep, ctx);
+          break;
+        case "notify":
+          result = await executeNotifyStep(subStep, ctx);
+          break;
+        default:
+          throw new Error(`Unsupported step type in parallel block: ${subStep.type}`);
+      }
+
+      const outputStr = typeof result === "string" ? result : JSON.stringify(result);
+      completeStep(subStepId, "completed", outputStr.substring(0, WORKFLOW_STEP_OUTPUT_LIMIT));
+      addLog(agentId, "info", `Parallel sub-step "${subStep.name}" completed`, runId);
+      onProgress?.(`${step.name}/${subStep.name}`, "completed");
+
+      return { name: subStep.name, status: "fulfilled" as const, result };
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      completeStep(subStepId, "failed", undefined, msg);
+      addLog(agentId, "error", `Parallel sub-step "${subStep.name}" failed: ${msg}`, runId);
+      onProgress?.(`${step.name}/${subStep.name}`, `failed: ${msg}`);
+
+      return { name: subStep.name, status: "rejected" as const, error: msg };
+    }
+  });
+
+  const results = await Promise.allSettled(promises);
+
+  // Unpack results and store each sub-step's output in ctx.vars
+  const combined: Record<string, any> = {};
+  for (const settled of results) {
+    if (settled.status === "fulfilled") {
+      const { name, result, status, error } = settled.value;
+      const varName = step.steps?.find((s) => s.name === name)?.output_var || name;
+      if (status === "fulfilled") {
+        ctx.vars[varName] = result;
+        combined[varName] = result;
+      } else {
+        combined[varName] = `[FAILED] ${error}`;
+      }
+    }
+  }
+
+  const succeeded = results.filter(
+    (r) => r.status === "fulfilled" && r.value.status === "fulfilled"
+  ).length;
+  const failed = step.steps.length - succeeded;
+
+  onProgress?.(step.name, `parallel complete: ${succeeded} succeeded, ${failed} failed`);
+
+  return combined;
 }
 
 async function executeNotifyStep(step: WorkflowStep, ctx: WorkflowContext): Promise<string> {
