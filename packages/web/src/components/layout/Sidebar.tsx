@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, useParams, useLocation, Link } from "react-router-dom";
 import { useSuspenseQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -11,12 +11,14 @@ import {
   ChevronDown,
   PanelLeftClose,
   PanelLeft,
+  X,
 } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { sessionsQueries, agentsQueries } from "../../api/queries";
 import { api } from "../../api/client";
 import { useAppStore } from "../../stores/appStore";
 import { formatShortDate } from "../../lib/utils";
+import { useMobile } from "../../hooks/useMobile";
 import type { Session, Persona } from "../../types/api";
 
 interface SidebarSectionProps {
@@ -131,6 +133,24 @@ export function Sidebar() {
   const queryClient = useQueryClient();
   const { sessionId, personaId } = useParams();
   const { sidebarCollapsed, toggleSidebar } = useAppStore();
+  const isMobile = useMobile();
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  // Close mobile sidebar on navigation
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [location.pathname]);
+
+  // Close on escape key
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMobileOpen(false);
+    };
+    if (mobileOpen) {
+      document.addEventListener('keydown', handleEscape);
+      return () => document.removeEventListener('keydown', handleEscape);
+    }
+  }, [mobileOpen]);
 
   // Fetch data
   const { data: sessions } = useSuspenseQuery(sessionsQueries.list());
@@ -140,20 +160,21 @@ export function Sidebar() {
   const chatSessions = sessions.filter((s: Session) => s.type === 'chat');
   const { personas } = agentsData;
 
-  const [notifications] = useState({ unread: 0 }); // Will be fetched later
-
   const isActive = (path: string) => location.pathname.startsWith(path);
 
   const handleNewChat = () => {
     navigate('/chat');
+    setMobileOpen(false);
   };
 
   const handleNewAgent = () => {
     navigate('/agents', { state: { create: true } });
+    setMobileOpen(false);
   };
 
   const handleNewProject = () => {
     navigate('/code', { state: { create: true } });
+    setMobileOpen(false);
   };
 
   const handleDeleteSession = async (id: string) => {
@@ -169,22 +190,21 @@ export function Sidebar() {
     }
   };
 
-  if (sidebarCollapsed) {
+  // Mobile collapsed state - just show hamburger
+  if (isMobile && !mobileOpen) {
     return (
-      <>
-        <button
-          onClick={toggleSidebar}
-          className="fixed top-3 left-3 z-50 p-2 rounded-lg border border-border bg-card shadow-sm hover:bg-accent/50"
-          title="Expand sidebar"
-        >
-          <PanelLeft className="w-5 h-5 text-muted-foreground" />
-        </button>
-      </>
+      <button
+        onClick={() => setMobileOpen(true)}
+        className="fixed top-3 left-3 z-50 p-2 rounded-lg border border-border bg-card shadow-sm hover:bg-accent/50"
+        title="Open menu"
+      >
+        <PanelLeft className="w-5 h-5 text-muted-foreground" />
+      </button>
     );
   }
 
-  return (
-    <aside className="w-64 flex-shrink-0 flex flex-col bg-secondary border-r border-border">
+  const sidebarContent = (
+    <>
       {/* Header */}
       <div className="flex items-center justify-between p-4">
         <div className="flex items-center gap-2 font-bold text-lg text-foreground">
@@ -211,11 +231,11 @@ export function Sidebar() {
           Kai
         </div>
         <button
-          onClick={toggleSidebar}
+          onClick={() => isMobile ? setMobileOpen(false) : toggleSidebar()}
           className="p-1.5 rounded hover:bg-accent/50 text-muted-foreground hover:text-foreground"
-          title="Collapse sidebar"
+          title={isMobile ? "Close menu" : "Collapse sidebar"}
         >
-          <PanelLeftClose className="w-5 h-5" />
+          {isMobile ? <X className="w-5 h-5" /> : <PanelLeftClose className="w-5 h-5" />}
         </button>
       </div>
 
@@ -349,22 +369,53 @@ export function Sidebar() {
           <Link
             to="/notifications"
             className={cn(
-              "flex items-center gap-2 flex-1 px-2 py-1.5 rounded-lg text-sm transition-colors",
+              "flex items-center justify-center w-10 h-10 rounded-lg transition-colors",
               isActive('/notifications')
-                ? "bg-secondary text-foreground"
+                ? "bg-primary text-primary-foreground"
                 : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
             )}
           >
-            <Bell className="w-4 h-4" />
-            <span className="flex-1">Notifications</span>
-            {notifications.unread > 0 && (
-              <span className="min-w-[18px] h-[18px] px-1.5 rounded-full bg-destructive text-white text-xs font-semibold flex items-center justify-center">
-                {notifications.unread > 99 ? '99+' : notifications.unread}
-              </span>
-            )}
+            <Bell className="w-5 h-5" />
           </Link>
         </div>
       </div>
+    </>
+  );
+
+  // Mobile overlay sidebar
+  if (isMobile && mobileOpen) {
+    return (
+      <>
+        {/* Backdrop */}
+        <div 
+          className="fixed inset-0 bg-black/50 z-40"
+          onClick={() => setMobileOpen(false)}
+        />
+        {/* Mobile Sidebar */}
+        <aside className="fixed top-0 left-0 bottom-0 w-64 z-50 flex flex-col bg-secondary border-r border-border shadow-xl">
+          {sidebarContent}
+        </aside>
+      </>
+    );
+  }
+
+  // Desktop sidebar collapsed
+  if (sidebarCollapsed) {
+    return (
+      <button
+        onClick={toggleSidebar}
+        className="fixed top-3 left-3 z-50 p-2 rounded-lg border border-border bg-card shadow-sm hover:bg-accent/50"
+        title="Expand sidebar"
+      >
+        <PanelLeft className="w-5 h-5 text-muted-foreground" />
+      </button>
+    );
+  }
+
+  // Desktop sidebar expanded
+  return (
+    <aside className="w-64 flex-shrink-0 flex flex-col bg-secondary border-r border-border">
+      {sidebarContent}
     </aside>
   );
 }
