@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useParams } from "react-router-dom";
-import { useSuspenseQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Paperclip, Send, Square, MoreVertical, FileText, Trash2, AlertCircle, RefreshCw, Home } from "lucide-react";
 import { sessionsQueries } from "../api/queries";
 import { api, NetworkError, TimeoutError } from "../api/client";
@@ -49,9 +49,11 @@ export function ChatView() {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  const { data: session, isError: isSessionError, error: sessionError } = useSuspenseQuery({
-    ...sessionsQueries.detail(sessionId || 'new'),
+  // Only fetch session if we have a sessionId, otherwise it's a new chat
+  const { data: session, isError: isSessionError, error: sessionError } = useQuery({
+    ...sessionsQueries.detail(sessionId || ''),
     retry: 3,
+    enabled: !!sessionId, // Only fetch if we have a sessionId
   });
 
   // Handle session loading errors
