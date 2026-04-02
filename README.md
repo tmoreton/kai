@@ -219,9 +219,6 @@ Kai's LLM has access to these tools:
 | `recall_search` | Search past conversation history |
 | `archival_insert` | Store long-term knowledge |
 | `archival_search` | Search long-term knowledge |
-| `task_create` | Create tasks for multi-step tracking |
-| `task_update` | Update task status |
-| `task_list` | List all tasks |
 | `spawn_agent` | Spawn subagents (explorer/planner/worker) |
 | `mcp__*` | Dynamic tools from configured MCP servers |
 

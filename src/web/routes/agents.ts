@@ -13,6 +13,8 @@ import {
   unreadNotificationCount,
   markNotificationRead,
   markAllNotificationsRead,
+  deleteNotification,
+  deleteAllNotifications,
 } from "../../agents/db.js";
 import { runAgent } from "../../agents/daemon.js";
 import { listPersonas, loadPersona, createPersona, updatePersonaField, addFileReference, removeFileReference, getFilePath } from "../../agent-persona.js";
@@ -297,6 +299,40 @@ export function registerAgentRoutes(app: Hono) {
     return c.json({ deleted: true });
   });
 
+  // --- Workflow YAML ---
+  app.get("/api/agents/:id/workflow", (c) => {
+    const agent = getAgent(c.req.param("id"));
+    if (!agent) return c.json({ error: "Agent not found" }, 404);
+    if (!agent.workflow_path || !fs.existsSync(agent.workflow_path)) {
+      return c.json({ error: "Workflow file not found" }, 404);
+    }
+    const yaml = fs.readFileSync(agent.workflow_path, "utf-8");
+    return c.json({ yaml, path: agent.workflow_path });
+  });
+
+  app.put("/api/agents/:id/workflow", async (c) => {
+    const agent = getAgent(c.req.param("id"));
+    if (!agent) return c.json({ error: "Agent not found" }, 404);
+    if (!agent.workflow_path) return c.json({ error: "No workflow path configured" }, 400);
+
+    const body = await c.req.json().catch(() => ({}));
+    const { yaml: yamlContent } = body as { yaml?: string };
+    if (!yamlContent || typeof yamlContent !== "string") {
+      return c.json({ error: "yaml field is required" }, 400);
+    }
+
+    // Validate YAML parses correctly
+    try {
+      const YAML = await import("yaml");
+      YAML.parse(yamlContent);
+    } catch (e) {
+      return c.json({ error: `Invalid YAML: ${e instanceof Error ? e.message : String(e)}` }, 400);
+    }
+
+    fs.writeFileSync(agent.workflow_path, yamlContent, "utf-8");
+    return c.json({ ok: true });
+  });
+
   // --- Get steps for a specific run ---
   app.get("/api/agents/:id/runs/:runId", (c) => {
     const agent = getAgent(c.req.param("id"));
@@ -351,6 +387,46 @@ export function registerAgentRoutes(app: Hono) {
   app.post("/api/notifications/read-all", (c) => {
     markAllNotificationsRead();
     return c.json({ ok: true });
+  });
+
+  app.delete("/api/notifications/:id", (c) => {
+    const id = parseInt(c.req.param("id"));
+    deleteNotification(id);
+    return c.json({ ok: true });
+  });
+
+  app.delete("/api/notifications", (c) => {
+    deleteAllNotifications();
+    return c.json({ ok: true });
+  });
+
+  // --- Serve notification attachment files ---
+  app.get("/api/attachments", (c) => {
+    const filePath = c.req.query("path");
+    if (!filePath) return c.json({ error: "Missing path" }, 400);
+
+    // Resolve ~ to home directory
+    const resolved = filePath.startsWith("~")
+      ? path.join(process.env.HOME || "", filePath.slice(1))
+      : filePath;
+
+    if (!fs.existsSync(resolved)) return c.json({ error: "File not found" }, 404);
+
+    const ext = path.extname(resolved).toLowerCase();
+    const mimeTypes: Record<string, string> = {
+      ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+      ".gif": "image/gif", ".webp": "image/webp", ".svg": "image/svg+xml",
+      ".md": "text/markdown", ".txt": "text/plain", ".json": "application/json",
+      ".pdf": "application/pdf",
+    };
+    const contentType = mimeTypes[ext] || "application/octet-stream";
+    const data = fs.readFileSync(resolved);
+    return new Response(data, {
+      headers: {
+        "Content-Type": contentType,
+        "Content-Disposition": `inline; filename="${path.basename(resolved)}"`,
+      },
+    });
   });
 
   // --- Persona Chat: Get or create persistent session ---

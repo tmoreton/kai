@@ -199,67 +199,7 @@ export const toolDefinitions = [
       },
     },
   },
-  {
-    type: "function" as const,
-    function: {
-      name: "task_create",
-      description:
-        "Create a task to track progress on multi-step work. Use for complex tasks requiring multiple steps.",
-      parameters: {
-        type: "object",
-        properties: {
-          subject: {
-            type: "string",
-            description: "Brief title for the task",
-          },
-          description: {
-            type: "string",
-            description: "What needs to be done",
-          },
-        },
-        required: ["subject", "description"],
-      },
-    },
-  },
-  {
-    type: "function" as const,
-    function: {
-      name: "task_update",
-      description:
-        "Update a task's status or details. Use to mark tasks as in_progress or completed.",
-      parameters: {
-        type: "object",
-        properties: {
-          task_id: {
-            type: "number",
-            description: "The task ID",
-          },
-          status: {
-            type: "string",
-            enum: ["pending", "in_progress", "completed"],
-            description: "New status",
-          },
-          subject: {
-            type: "string",
-            description: "Updated subject",
-          },
-        },
-        required: ["task_id"],
-      },
-    },
-  },
-  {
-    type: "function" as const,
-    function: {
-      name: "task_list",
-      description: "List all tasks and their status.",
-      parameters: {
-        type: "object",
-        properties: {},
-      },
-    },
-  },
-  {
+{
     type: "function" as const,
     function: {
       name: "spawn_agent",

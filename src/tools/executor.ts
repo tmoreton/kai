@@ -3,7 +3,7 @@ import { readFile, writeFile, editFile } from "./files.js";
 import { globTool, grepTool } from "./search.js";
 import { webFetch, webSearch } from "./web.js";
 import { generateImageTool } from "./image.js";
-import { createTask, updateTask, listTasks } from "./tasks.js";
+
 import { spawnAgent } from "../subagent.js";
 import { runSwarm, handleScratchpadTool } from "../swarm.js";
 import { loadPersona, updatePersonaField, listPersonas, createPersona } from "../agent-persona.js";
@@ -72,13 +72,7 @@ export async function executeTool(
         result = await webFetch(args as { url: string; method?: string; headers?: Record<string, string> }); break;
       case "web_search":
         result = await webSearch(args as { query: string; max_results?: number }); break;
-      case "task_create":
-        result = createTask(args as { subject: string; description: string }); break;
-      case "task_update":
-        result = updateTask(args as { task_id: number; status?: "pending" | "in_progress" | "completed"; subject?: string; description?: string }); break;
-      case "task_list":
-        result = listTasks(); break;
-      case "core_memory_read":
+case "core_memory_read":
         result = readCoreMemory((args as { block?: "persona" | "human" | "goals" | "scratchpad" }).block); break;
       case "core_memory_update":
         result = updateCoreMemory(

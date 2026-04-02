@@ -69,17 +69,6 @@ export const webSearchSchema = z.object({
   max_results: z.number().int().min(1).max(20).optional(),
 });
 
-export const taskCreateSchema = z.object({
-  subject: z.string().min(1, "subject is required"),
-  description: z.string().optional().default(""),
-});
-
-export const taskUpdateSchema = z.object({
-  task_id: z.number().int(),
-  status: z.enum(["pending", "in_progress", "completed"]).optional(),
-  subject: z.string().optional(),
-  description: z.string().optional(),
-});
 
 export const spawnAgentSchema = z.object({
   agent: z.string().min(1, "agent type or persona ID is required"),
@@ -180,10 +169,7 @@ export const toolSchemas: Record<string, z.ZodType> = {
   grep: grepSchema,
   web_fetch: webFetchSchema,
   web_search: webSearchSchema,
-  task_create: taskCreateSchema,
-  task_update: taskUpdateSchema,
-  task_list: z.object({}),
-  spawn_agent: spawnAgentSchema,
+spawn_agent: spawnAgentSchema,
   spawn_swarm: spawnSwarmSchema,
   generate_image: generateImageSchema,
   core_memory_read: coreMemoryReadSchema,

@@ -18,10 +18,7 @@ const READ_ONLY_TOOLS = new Set([
   "recall_search",
   "archival_search",
   "archival_insert",
-  "task_create",
-  "task_update",
-  "task_list",
-  "spawn_agent", // explorer/planner agents are allowed
+"spawn_agent", // explorer/planner agents are allowed
   "spawn_swarm", // swarm of read-only agents allowed
   "git_log",
   "git_diff_session",

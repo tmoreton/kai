@@ -552,6 +552,14 @@ export function markAllNotificationsRead(): void {
   getDb().prepare("UPDATE notifications SET read = 1 WHERE read = 0").run();
 }
 
+export function deleteNotification(id: number): void {
+  getDb().prepare("DELETE FROM notifications WHERE id = ?").run(id);
+}
+
+export function deleteAllNotifications(): void {
+  getDb().prepare("DELETE FROM notifications").run();
+}
+
 /**
  * Check if a similar notification already exists (unread, same type/title pattern, recent).
  * Used to prevent duplicate notifications for the same issue.

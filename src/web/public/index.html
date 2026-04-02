@@ -1634,6 +1634,54 @@
       font-size: 12px;
       color: var(--text-muted);
     }
+    .notif-attachments {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 12px;
+    }
+    .notif-attachment {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+      background: var(--bg);
+    }
+    .notif-attachment img {
+      max-width: 280px;
+      max-height: 200px;
+      display: block;
+      cursor: pointer;
+    }
+    .notif-attachment img:hover {
+      opacity: 0.85;
+    }
+    .notif-attachment-file {
+      padding: 8px 12px;
+      font-size: 12px;
+      color: var(--text-secondary);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+      text-decoration: none;
+    }
+    .notif-attachment-file:hover {
+      background: var(--bg-hover);
+      color: var(--text);
+    }
+    .notif-attachment-md {
+      padding: 12px;
+      font-size: 13px;
+      line-height: 1.6;
+      max-height: 300px;
+      overflow-y: auto;
+      max-width: 100%;
+      width: 100%;
+    }
+    .notif-attachment-md pre {
+      margin: 8px 0;
+      overflow-x: auto;
+    }
     .notif-list-full .notif-empty {
       padding: 60px 20px;
       text-align: center;
@@ -2170,6 +2218,7 @@ npm run dev</code></pre>
           </div>
           <div class="notif-view-actions">
             <button class="notif-mark-all-btn" onclick="markAllRead()">Mark all as read</button>
+            <button class="notif-mark-all-btn" onclick="clearAllNotifications()" style="color:var(--red)">Clear all</button>
           </div>
         </div>
         <div class="notif-view-content">
@@ -2964,11 +3013,11 @@ npm run dev</code></pre>
       let html = '<div class="agents-home">';
       html += '<div class="agents-home-header">';
       html += '<div><div class="agents-home-title">Agents</div>';
-      html += `<div class="agents-home-subtitle">${state.personas.length} agent${state.personas.length !== 1 ? 's' : ''} &middot; ${state.agents.length} task${state.agents.length !== 1 ? 's' : ''}</div></div>`;
+      html += `<div class="agents-home-subtitle">${state.personas.length} agent${state.personas.length !== 1 ? 's' : ''} &middot; ${state.agents.length} workflow${state.agents.length !== 1 ? 's' : ''}</div></div>`;
       html += '<div style="display:flex;gap:8px;align-items:center">';
       html += `<div class="view-toggle" style="display:flex;border:1px solid var(--border);border-radius:6px;overflow:hidden">
         <button class="btn btn-sm${viewMode === 'grouped' ? ' btn-primary' : ''}" style="border:none;border-radius:0;padding:4px 10px;font-size:12px" onclick="setAgentsViewMode('grouped')">By Agent</button>
-        <button class="btn btn-sm${viewMode === 'all' ? ' btn-primary' : ''}" style="border:none;border-radius:0;padding:4px 10px;font-size:12px" onclick="setAgentsViewMode('all')">All Tasks</button>
+        <button class="btn btn-sm${viewMode === 'all' ? ' btn-primary' : ''}" style="border:none;border-radius:0;padding:4px 10px;font-size:12px" onclick="setAgentsViewMode('all')">All Workflows</button>
       </div>`;
       html += '<button class="btn btn-primary" onclick="showCreatePersona()">+ New Agent</button>';
       html += '</div></div>';
@@ -3049,8 +3098,8 @@ npm run dev</code></pre>
                   ${tasksHtml}
                 </div>
                 <div class="persona-card-footer">
-                  <span class="persona-task-count">${agents.length} task${agents.length !== 1 ? 's' : ''}</span>
-                  <button class="btn btn-sm" onclick="event.stopPropagation();showCreateAgentForPersona('${persona.id}')">+ Add Task</button>
+                  <span class="persona-task-count">${agents.length} workflow${agents.length !== 1 ? 's' : ''}</span>
+                  <button class="btn btn-sm" onclick="event.stopPropagation();showCreateAgentForPersona('${persona.id}')">+ Add Workflow</button>
                 </div>
               </div>
             `;
@@ -3143,7 +3192,7 @@ npm run dev</code></pre>
 
           <div class="persona-tabs">
             <button class="persona-tab active" data-ptab="overview" onclick="switchPersonaTab('overview')">Overview</button>
-            <button class="persona-tab" data-ptab="tasks" onclick="switchPersonaTab('tasks')">Tasks (${subagents.length})</button>
+            <button class="persona-tab" data-ptab="tasks" onclick="switchPersonaTab('tasks')">Workflows (${subagents.length})</button>
             <button class="persona-tab" data-ptab="chat" onclick="switchPersonaTab('chat');startPersonaChat('${persona.id}')">Chat</button>
           </div>
 
@@ -3179,11 +3228,11 @@ npm run dev</code></pre>
 
           <div class="persona-tab-content" id="ptab-tasks">
             <div class="persona-tasks-header">
-              <h3>Scheduled Tasks</h3>
-              <button class="btn btn-primary" onclick="showCreateAgentForPersona('${persona.id}')">+ Add Task</button>
+              <h3>Workflows</h3>
+              <button class="btn btn-primary" onclick="showCreateAgentForPersona('${persona.id}')">+ Add Workflow</button>
             </div>
             <div class="persona-tasks-list">
-              ${subagents.length === 0 ? '<div class="persona-empty">No tasks yet. Add a scheduled workflow for this persona.</div>' : renderSubagentList(subagents)}
+              ${subagents.length === 0 ? '<div class="persona-empty">No workflows yet. Create one to automate tasks for this persona.</div>' : renderSubagentList(subagents)}
             </div>
           </div>
 
@@ -3554,7 +3603,7 @@ npm run dev</code></pre>
     };
 
     window.confirmDeletePersona = function(id, name) {
-      showConfirm(`Delete "${name}"?`, `This will delete the persona and all its ${state.agents.filter(a => a.personaId === id).length} tasks. This cannot be undone.`, () => deletePersona(id));
+      showConfirm(`Delete "${name}"?`, `This will delete the persona and all its ${state.agents.filter(a => a.personaId === id).length} tasks. This cannot be undone.`, 'Delete', () => deletePersona(id));
     };
 
     window.deletePersona = async function(id) {
@@ -3692,6 +3741,7 @@ npm run dev</code></pre>
             <button class="agent-tab active" data-atab="overview" onclick="switchAgentTab('overview')">Overview</button>
             <button class="agent-tab" data-atab="runs" onclick="switchAgentTab('runs')">Runs (${agent.runs?.length || 0})</button>
             <button class="agent-tab" data-atab="logs" onclick="switchAgentTab('logs')">Logs</button>
+            <button class="agent-tab" data-atab="workflow" onclick="switchAgentTab('workflow')">Workflow</button>
           </div>
 
           <div class="agent-tab-content active" id="atab-overview">
@@ -3705,6 +3755,10 @@ npm run dev</code></pre>
 
           <div class="agent-tab-content" id="atab-logs">
             <div id="agent-logs-container"><div class="spinner" style="margin:20px auto;display:block"></div></div>
+          </div>
+
+          <div class="agent-tab-content" id="atab-workflow">
+            <div id="agent-workflow-container"><div class="spinner" style="margin:20px auto;display:block"></div></div>
           </div>
         </div>
       `;
@@ -3859,6 +3913,10 @@ npm run dev</code></pre>
       if (tab === 'logs' && state.selectedAgentId) {
         loadAgentLogs(state.selectedAgentId);
       }
+      // Lazy-load workflow YAML
+      if (tab === 'workflow' && state.selectedAgentId) {
+        loadAgentWorkflow(state.selectedAgentId);
+      }
     };
 
     async function loadAgentLogs(agentId) {
@@ -3881,6 +3939,65 @@ npm run dev</code></pre>
         container.innerHTML = '<div style="color:var(--red);font-size:13px">Failed to load logs.</div>';
       }
     }
+
+    async function loadAgentWorkflow(agentId) {
+      const container = $('agent-workflow-container');
+      container.innerHTML = '<div class="spinner" style="margin:12px 0"></div>';
+      try {
+        const data = await api.get(`/api/agents/${agentId}/workflow`);
+        const isEditing = container.dataset.editing === 'true';
+        container.innerHTML = `
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+            <div style="font-size:13px;color:var(--text-muted)">${esc(data.path)}</div>
+            <div style="display:flex;gap:8px">
+              <button class="btn btn-sm" id="workflow-edit-btn" onclick="toggleWorkflowEdit('${agentId}')">${isEditing ? 'Cancel' : 'Edit'}</button>
+              <button class="btn btn-sm btn-primary" id="workflow-save-btn" onclick="saveWorkflow('${agentId}')" style="display:none">Save</button>
+            </div>
+          </div>
+          <pre id="workflow-display" style="background:var(--bg-hover);padding:16px;border-radius:8px;font-size:13px;line-height:1.5;overflow-x:auto;white-space:pre-wrap;border:1px solid var(--border)">${esc(data.yaml)}</pre>
+          <textarea id="workflow-editor" style="display:none;width:100%;min-height:400px;background:var(--bg-hover);color:var(--text);padding:16px;border-radius:8px;font-size:13px;line-height:1.5;border:1px solid var(--border);font-family:monospace;resize:vertical">${esc(data.yaml)}</textarea>
+          <div id="workflow-error" style="display:none;color:var(--red);font-size:13px;margin-top:8px"></div>
+        `;
+      } catch {
+        container.innerHTML = '<div style="color:var(--text-muted);font-size:13px">No workflow file found.</div>';
+      }
+    }
+
+    window.toggleWorkflowEdit = function(agentId) {
+      const display = $('workflow-display');
+      const editor = $('workflow-editor');
+      const editBtn = $('workflow-edit-btn');
+      const saveBtn = $('workflow-save-btn');
+      const container = $('agent-workflow-container');
+      const isEditing = display.style.display !== 'none';
+      if (isEditing) {
+        display.style.display = 'none';
+        editor.style.display = 'block';
+        editBtn.textContent = 'Cancel';
+        saveBtn.style.display = 'inline-flex';
+        container.dataset.editing = 'true';
+      } else {
+        display.style.display = 'block';
+        editor.style.display = 'none';
+        editBtn.textContent = 'Edit';
+        saveBtn.style.display = 'none';
+        container.dataset.editing = 'false';
+        $('workflow-error').style.display = 'none';
+      }
+    };
+
+    window.saveWorkflow = async function(agentId) {
+      const yaml = $('workflow-editor').value;
+      const errorEl = $('workflow-error');
+      try {
+        await api.put(`/api/agents/${agentId}/workflow`, { yaml });
+        errorEl.style.display = 'none';
+        loadAgentWorkflow(agentId);
+      } catch (e) {
+        errorEl.textContent = e.message || 'Failed to save workflow';
+        errorEl.style.display = 'block';
+      }
+    };
 
     window.toggleAgent = async function(id, enabled) {
       try {
@@ -4309,15 +4426,22 @@ Please fix this error and then confirm what changes you made.`;
 
     window.editAgent = async function(id) {
       const agent = await api.get(`/api/agents/${id}`);
-      const fn = friendlyName(agent.name);
       const panel = $('agents-detail-panel');
+
+      // Load workflow YAML
+      let yamlContent = '';
+      try {
+        const wf = await api.get(`/api/agents/${id}/workflow`);
+        yamlContent = wf.yaml || '';
+      } catch {}
+
       panel.innerHTML = `
         <div class="agent-detail">
           <button class="run-detail-back" onclick="selectAgent('${id}')">
             <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 2L4 8l6 6"/></svg>
             Back
           </button>
-          <h2 style="font-size:20px;font-weight:600;margin-bottom:20px">Edit Agent</h2>
+          <h2 style="font-size:20px;font-weight:600;margin-bottom:20px">Edit Workflow</h2>
           <div class="edit-form">
             <div class="edit-field">
               <label class="edit-label">Name</label>
@@ -4332,6 +4456,12 @@ Please fix this error and then confirm what changes you made.`;
               <input class="edit-input" id="edit-schedule" value="${esc(agent.schedule || '')}" placeholder="e.g. 0 9 * * * for daily at 9am" />
               ${agent.schedule ? `<div style="font-size:11px;color:var(--text-muted);margin-top:4px">Currently: ${cronToWords(agent.schedule)}</div>` : ''}
             </div>
+            <div class="edit-field">
+              <label class="edit-label">Workflow YAML</label>
+              <p style="font-size:11px;color:var(--text-muted);margin-bottom:6px">Define the workflow steps. Each step can be an LLM prompt, shell command, integration, or approval gate.</p>
+              <textarea class="edit-textarea" id="edit-yaml" rows="16" style="font-family:var(--mono);font-size:13px;min-height:300px;resize:vertical;white-space:pre;overflow-wrap:normal;overflow-x:auto">${esc(yamlContent)}</textarea>
+              <div id="edit-yaml-error" style="color:var(--red);font-size:13px;margin-top:4px;display:none"></div>
+            </div>
             <div class="edit-actions">
               <button class="btn btn-primary" onclick="saveAgentEdit('${id}')">Save Changes</button>
               <button class="btn btn-ghost" onclick="selectAgent('${id}')">Cancel</button>
@@ -4345,14 +4475,27 @@ Please fix this error and then confirm what changes you made.`;
       const name = $('edit-name').value.trim();
       const description = $('edit-desc').value.trim();
       const schedule = $('edit-schedule').value.trim();
+      const yaml = $('edit-yaml').value;
       if (!name) return;
+      const errorEl = $('edit-yaml-error');
       try {
         await api.patch(`/api/agents/${id}`, { name, description, schedule });
+        if (yaml) {
+          const result = await api.put(`/api/agents/${id}/workflow`, { yaml });
+          if (result.error) {
+            errorEl.textContent = result.error;
+            errorEl.style.display = 'block';
+            return;
+          }
+        }
         await refreshAgents();
         renderNav();
         renderAgentsList();
         await selectAgent(id);
-      } catch {}
+      } catch (e) {
+        errorEl.textContent = e.message || 'Failed to save';
+        errorEl.style.display = 'block';
+      }
     };
 
     // ==============================
@@ -4382,7 +4525,7 @@ Please fix this error and then confirm what changes you made.`;
       const personaId = state.creatingAgentForPersona;
       const persona = personaId ? state.personas.find(p => p.id === personaId) : null;
       const backAction = persona ? `selectPersona('${persona.id}')` : `switchView('agents');renderAgentsList()`;
-      const title = persona ? `New Task for ${persona.name}` : 'New Agent';
+      const title = persona ? `New Workflow for ${persona.name}` : 'New Workflow';
 
       panel.innerHTML = `
         <div class="agent-detail">
@@ -4391,7 +4534,7 @@ Please fix this error and then confirm what changes you made.`;
             ${persona ? 'Back to Persona' : 'All Personas'}
           </button>
           <h2 style="font-size:20px;font-weight:600;margin-bottom:4px">${esc(title)}</h2>
-          <p style="font-size:13px;color:var(--text-muted);margin-bottom:20px">${persona ? 'Create a scheduled task that this persona will run.' : 'Create a simple agent that runs an LLM prompt on a schedule.'}</p>
+          <p style="font-size:13px;color:var(--text-muted);margin-bottom:20px">${persona ? 'Create a scheduled workflow for this persona.' : 'Create a workflow that runs an LLM prompt on a schedule.'}</p>
           <div class="edit-form">
             <div class="edit-field">
               <label class="edit-label">Name</label>
@@ -4416,8 +4559,23 @@ Please fix this error and then confirm what changes you made.`;
               <p style="font-size:11px;color:var(--text-muted);margin-bottom:6px">Tell the agent what to do in plain English. This runs as a single LLM step.</p>
               <textarea class="edit-textarea" id="create-agent-prompt" placeholder="e.g. Search for the latest news about AI coding tools and summarize the top 5 stories." rows="6" style="font-family:var(--mono);font-size:13px"></textarea>
             </div>
+            <div style="margin-bottom:16px">
+              <button class="btn btn-sm btn-ghost" onclick="toggleAdvancedYaml()" id="advanced-yaml-toggle" style="font-size:12px;color:var(--text-muted)">▶ Advanced: Edit YAML directly</button>
+              <div id="advanced-yaml-section" style="display:none;margin-top:8px">
+                <p style="font-size:11px;color:var(--text-muted);margin-bottom:6px">Override the generated YAML with a custom multi-step workflow. If provided, this replaces the prompt above.</p>
+                <textarea class="edit-textarea" id="create-agent-yaml" rows="12" style="font-family:var(--mono);font-size:13px;min-height:200px;resize:vertical;white-space:pre;overflow-wrap:normal;overflow-x:auto" placeholder='name: "My Workflow"
+steps:
+  - name: step1
+    type: llm
+    prompt: |
+      Your prompt here
+  - name: step2
+    type: shell
+    command: echo "done"'></textarea>
+              </div>
+            </div>
             <div class="edit-actions">
-              <button class="btn btn-primary" onclick="submitCreateAgent()">Create Agent</button>
+              <button class="btn btn-primary" onclick="submitCreateAgent()">Create Workflow</button>
               <button class="btn btn-ghost" onclick="${backAction}">Cancel</button>
             </div>
             <div id="create-agent-error" style="color:var(--red);font-size:13px;margin-top:8px;display:none"></div>
@@ -4453,21 +4611,43 @@ Please fix this error and then confirm what changes you made.`;
       }
     }
 
+    window.toggleAdvancedYaml = function() {
+      const section = $('advanced-yaml-section');
+      const toggle = $('advanced-yaml-toggle');
+      const isHidden = section.style.display === 'none';
+      section.style.display = isHidden ? 'block' : 'none';
+      toggle.textContent = (isHidden ? '▼' : '▶') + ' Advanced: Edit YAML directly';
+    };
+
     window.submitCreateAgent = async function() {
       const name = $('create-agent-name').value.trim();
       const description = $('create-agent-desc').value.trim();
       const prompt = $('create-agent-prompt').value.trim();
+      const customYaml = $('create-agent-yaml')?.value?.trim() || '';
       const schedule = getSelectedSchedule();
       const errEl = $('create-agent-error');
       const personaId = state.creatingAgentForPersona;
       errEl.style.display = 'none';
 
       if (!name) { errEl.textContent = 'Name is required'; errEl.style.display = 'block'; return; }
-      if (!prompt) { errEl.textContent = 'Prompt is required'; errEl.style.display = 'block'; return; }
+      if (!prompt && !customYaml) { errEl.textContent = 'Prompt or YAML is required'; errEl.style.display = 'block'; return; }
 
       try {
-        const result = await api.post('/api/agents', { name, description, prompt, schedule, personaId });
+        // Create the agent with prompt (generates default YAML)
+        const effectivePrompt = prompt || 'placeholder';
+        const result = await api.post('/api/agents', { name, description, prompt: effectivePrompt, schedule, personaId });
         if (result.error) { errEl.textContent = result.error; errEl.style.display = 'block'; return; }
+
+        // If custom YAML was provided, overwrite the generated YAML
+        if (customYaml) {
+          const yamlResult = await api.put(`/api/agents/${result.id}/workflow`, { yaml: customYaml });
+          if (yamlResult.error) {
+            errEl.textContent = 'Agent created but YAML invalid: ' + yamlResult.error;
+            errEl.style.display = 'block';
+            return;
+          }
+        }
+
         await refreshAgents();
         renderNav();
         state.creatingAgentForPersona = null;
@@ -4477,7 +4657,7 @@ Please fix this error and then confirm what changes you made.`;
           await selectAgent(result.id);
         }
       } catch (e) {
-        errEl.textContent = 'Failed to create agent'; errEl.style.display = 'block';
+        errEl.textContent = 'Failed to create workflow'; errEl.style.display = 'block';
       }
     };
 
@@ -5103,6 +5283,53 @@ Please fix this error and then confirm what changes you made.`;
       }
     }
 
+    function renderNotifAttachments(attachments, notifIdx) {
+      if (!attachments || attachments.length === 0) return '';
+      const imageExts = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg'];
+      const mdExts = ['.md', '.txt'];
+      const items = attachments.map((filePath, i) => {
+        const ext = filePath.substring(filePath.lastIndexOf('.')).toLowerCase();
+        const name = filePath.substring(filePath.lastIndexOf('/') + 1);
+        const encodedPath = encodeURIComponent(filePath);
+        if (imageExts.includes(ext)) {
+          return `<div class="notif-attachment">
+            <img src="/api/attachments?path=${encodedPath}" alt="${esc(name)}" title="${esc(name)}" onclick="window.open('/api/attachments?path=${encodedPath}', '_blank')" />
+            <div style="padding:4px 8px;font-size:11px;color:var(--text-muted)">${esc(name)}</div>
+          </div>`;
+        } else if (mdExts.includes(ext)) {
+          return `<div class="notif-attachment" style="width:100%">
+            <div style="padding:6px 12px;font-size:12px;font-weight:600;border-bottom:1px solid var(--border);color:var(--text-secondary)">📄 ${esc(name)}</div>
+            <div class="notif-attachment-md" id="notif-md-${notifIdx}-${i}" data-path="${encodedPath}">
+              <span style="color:var(--text-muted)">Loading...</span>
+            </div>
+          </div>`;
+        } else {
+          return `<div class="notif-attachment">
+            <a class="notif-attachment-file" href="/api/attachments?path=${encodedPath}" target="_blank">📎 ${esc(name)}</a>
+          </div>`;
+        }
+      });
+      return `<div class="notif-attachments">${items.join('')}</div>`;
+    }
+
+    async function loadMarkdownAttachments() {
+      const mdEls = document.querySelectorAll('[id^="notif-md-"]');
+      for (const el of mdEls) {
+        const pathStr = decodeURIComponent(el.dataset.path);
+        try {
+          const resp = await fetch(`/api/attachments?path=${el.dataset.path}`);
+          if (resp.ok) {
+            const text = await resp.text();
+            el.innerHTML = renderMd(text);
+          } else {
+            el.innerHTML = `<span style="color:var(--text-muted)">Could not load file</span>`;
+          }
+        } catch {
+          el.innerHTML = `<span style="color:var(--text-muted)">Could not load file</span>`;
+        }
+      }
+    }
+
     function renderNotifList() {
       const list = $('notif-list-full');
       if (state.notifications.length === 0) {
@@ -5113,6 +5340,8 @@ Please fix this error and then confirm what changes you made.`;
         const isSuccess = n.type === 'agent_completed';
         const dotClass = isSuccess ? 'success' : 'error';
         const body = n.body || '';
+        const attachments = n.attachments ? (typeof n.attachments === 'string' ? JSON.parse(n.attachments) : n.attachments) : [];
+        const attachHtml = renderNotifAttachments(attachments, idx);
         return `
           <div class="notif-item ${n.read ? '' : 'unread'} expanded" id="notif-item-${idx}">
             <div class="notif-item-title">
@@ -5121,14 +5350,19 @@ Please fix this error and then confirm what changes you made.`;
             </div>
             <div class="notif-item-content">
               <div class="msg-body">${renderMd(body)}</div>
+              ${attachHtml}
             </div>
             <div class="notif-item-actions">
               <button class="notif-item-btn primary" onclick="event.stopPropagation();notifGoToAgent('${n.agent_id || ''}', ${n.id}, ${idx})">Go to agent</button>
+              <button class="notif-item-btn" onclick="event.stopPropagation();deleteNotification(${n.id}, ${idx})" style="color:var(--red)">Delete</button>
             </div>
             <div class="notif-item-time">${timeAgo(n.created_at)}</div>
           </div>
         `;
       }).join('');
+
+      // Load markdown attachment contents
+      loadMarkdownAttachments();
     }
 
     window.toggleNotifExpand = function(idx) {
@@ -5189,6 +5423,26 @@ Please fix this error and then confirm what changes you made.`;
       await api.post('/api/notifications/read-all');
       state.unreadCount = 0;
       state.notifications.forEach(n => n.read = 1);
+      renderNotifBadge();
+      updateNotifCountBadge();
+      renderNotifList();
+    };
+
+    window.deleteNotification = async function(id, idx) {
+      await api.del(`/api/notifications/${id}`);
+      const n = state.notifications[idx];
+      if (n && !n.read) state.unreadCount = Math.max(0, state.unreadCount - 1);
+      state.notifications.splice(idx, 1);
+      renderNotifBadge();
+      updateNotifCountBadge();
+      renderNotifList();
+    };
+
+    window.clearAllNotifications = async function() {
+      if (!confirm('Delete all notifications?')) return;
+      await api.del('/api/notifications');
+      state.notifications = [];
+      state.unreadCount = 0;
       renderNotifBadge();
       updateNotifCountBadge();
       renderNotifList();

@@ -6,7 +6,7 @@ import { buildSystemPrompt } from "./system-prompt.js";
 import { getCwd, cleanupBackgroundProcesses } from "./tools/bash.js";
 import { estimateContextSize, compactMessages } from "./context.js";
 import { gitInfo, isGitRepo } from "./git.js";
-import { getTasksForDisplay } from "./tools/tasks.js";
+
 import {
   generateSessionId,
   saveSession,
@@ -385,10 +385,7 @@ export async function startRepl(options: ReplOptions = {}, initialPrompt?: strin
       const ctxColor = pct > 80 ? chalk.yellow : pct > 60 ? chalk.dim : chalk.dim;
       console.log(ctxColor(`  [${ctxK}k / ${maxK}k tokens · ${pct}%]`));
 
-      const taskDisplay = getTasksForDisplay();
-      if (taskDisplay) console.log(taskDisplay + "\n");
-
-      // Save to recall memory for future session search
+// Save to recall memory for future session search
       const newRecalls: RecallEntry[] = [];
       newRecalls.push({
         sessionId: session.id,

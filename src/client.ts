@@ -384,7 +384,7 @@ export async function chat(
     // Classify tools as parallelizable (read-only, no side effects) vs sequential
     const PARALLEL_SAFE_TOOLS = new Set([
       "read_file", "glob", "grep", "web_fetch", "web_search",
-      "core_memory_read", "recall_search", "archival_search", "task_list",
+      "core_memory_read", "recall_search", "archival_search",
     ]);
 
     // Parse all tool calls upfront
@@ -777,9 +777,7 @@ function formatToolLabel(toolName: string): string {
     web_fetch: "WebFetch",
     spawn_agent: "Agent",
     spawn_swarm: "Swarm",
-    task_create: "Task",
-    task_update: "Task",
-    generate_image: "Image",
+generate_image: "Image",
     git_log: "GitLog",
     git_diff_session: "GitDiff",
     git_undo: "GitUndo",
@@ -838,11 +836,7 @@ export function summarizeArgs(
       const tasks = args.tasks as Array<{ agent: string }> | undefined;
       return `${tasks?.length || 0} agents`;
     }
-    case "task_create":
-      return String(args.subject || "");
-    case "task_update":
-      return `#${args.task_id} → ${args.status || ""}`;
-    case "git_log":
+case "git_log":
       return `last ${args.count || 15} commits`;
     case "git_diff_session":
       return "session changes";

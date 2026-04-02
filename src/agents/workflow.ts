@@ -822,9 +822,14 @@ async function executeNotifyStep(step: WorkflowStep, ctx: WorkflowContext): Prom
   const fileVars = ["thumbnail", "thumbnail_path", "generated_images", "output_file", "script_file"];
   for (const varName of fileVars) {
     const val = ctx.vars[varName];
-    if (val && typeof val === "string" && !val.startsWith("${")) {
-      const paths = val.split(",").map(p => p.trim()).filter(p => p && !attachmentPaths.includes(p));
-      attachmentPaths.push(...paths);
+    if (!val || (typeof val === "string" && val.startsWith("${"))) continue;
+
+    // Extract file paths from the value (may be string, JSON string, or object)
+    const extracted = extractFilePathsFromResult(
+      typeof val === "string" ? tryParseJson(val) ?? val : val
+    );
+    for (const p of extracted) {
+      if (!attachmentPaths.includes(p)) attachmentPaths.push(p);
     }
   }
 
@@ -857,6 +862,10 @@ async function executeNotifyStep(step: WorkflowStep, ctx: WorkflowContext): Prom
  * Extract file paths from step results.
  * Handles various result formats from integrations like image_gen, data write, etc.
  */
+function tryParseJson(s: string): any | null {
+  try { return JSON.parse(s); } catch { return null; }
+}
+
 function extractFilePathsFromResult(result: any): string[] {
   const paths: string[] = [];
   

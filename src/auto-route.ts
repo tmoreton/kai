@@ -142,7 +142,7 @@ export function autoRouteHeuristic(userMessage: string): RouteDecision {
     return {
       strategy: "plan_first",
       reason: "complex multi-file task detected",
-      hint: "[AUTO-ROUTE: This is a complex task. Start in EXPLORATION mode — use read_file, glob, grep to understand the codebase before making any changes. Create a plan with task_create before implementing.]",
+      hint: "[AUTO-ROUTE: This is a complex task. Start in EXPLORATION mode — use read_file, glob, grep to understand the codebase before making any changes. Create a step-by-step plan before implementing.]",
     };
   }
 
@@ -152,7 +152,7 @@ export function autoRouteHeuristic(userMessage: string): RouteDecision {
     return {
       strategy: "plan_first",
       reason: "multiple subtasks listed",
-      hint: "[AUTO-ROUTE: This is a complex task. Start in EXPLORATION mode — use read_file, glob, grep to understand the codebase before making any changes. Create a plan with task_create before implementing.]",
+      hint: "[AUTO-ROUTE: This is a complex task. Start in EXPLORATION mode — use read_file, glob, grep to understand the codebase before making any changes. Create a step-by-step plan before implementing.]",
     };
   }
 
