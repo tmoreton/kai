@@ -989,10 +989,11 @@
       /* Code view mobile */
       .code-view { padding: 20px 16px; }
       .code-view h1 { font-size: 20px; }
-      .code-view .btn-primary { 
+      .code-view .btn-primary.new-project-btn { 
         padding: 8px 14px; 
         font-size: 13px; 
         white-space: nowrap;
+        display: none;
       }
       .project-card {
         max-width: 100%;
@@ -1009,6 +1010,7 @@
         text-overflow: ellipsis;
         white-space: nowrap;
       }
+    }
 
     /* ======================================= */
     /* ---- Docs view ---- */
@@ -4437,7 +4439,7 @@ Please fix this error and then confirm what changes you made.`;
 
       let h = `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
         <h1>Projects</h1>
-        <button class="btn btn-primary" onclick="showCreateProject()">+ New Project</button>
+        <button class="btn btn-primary new-project-btn" onclick="showCreateProject()">+ New Project</button>
       </div>
       <p class="code-view-subtitle">Sessions grouped by the directory where you ran <code>kai</code></p>`;
 
