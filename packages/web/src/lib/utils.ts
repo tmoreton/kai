@@ -12,29 +12,49 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 // Time formatting
-export function timeAgo(date: string | Date): string {
-  return formatDistanceToNow(new Date(date), { addSuffix: true });
+export function timeAgo(date: string | Date | undefined | null): string {
+  if (!date) return 'Unknown time';
+  try {
+    const d = new Date(date);
+    if (isNaN(d.getTime())) return 'Invalid date';
+    return formatDistanceToNow(d, { addSuffix: true });
+  } catch {
+    return 'Unknown time';
+  }
 }
 
-export function formatDate(date: string | Date, formatStr = 'MMM d, yyyy h:mm a'): string {
-  return format(new Date(date), formatStr);
+export function formatDate(date: string | Date | undefined | null, formatStr = 'MMM d, yyyy h:mm a'): string {
+  if (!date) return 'Unknown date';
+  try {
+    const d = new Date(date);
+    if (isNaN(d.getTime())) return 'Invalid date';
+    return format(d, formatStr);
+  } catch {
+    return 'Unknown date';
+  }
 }
 
-export function formatShortDate(date: string | Date): string {
-  const d = new Date(date);
-  const now = new Date();
-  const isToday = d.toDateString() === now.toDateString();
+export function formatShortDate(date: string | Date | undefined | null): string {
+  if (!date) return 'Unknown date';
+  try {
+    const d = new Date(date);
+    if (isNaN(d.getTime())) return 'Invalid date';
+    const now = new Date();
+    const isToday = d.toDateString() === now.toDateString();
 
-  if (isToday) {
-    return format(d, 'h:mm a');
+    if (isToday) {
+      return format(d, 'h:mm a');
+    }
+
+    const isThisYear = d.getFullYear() === now.getFullYear();
+    if (isThisYear) {
+      return format(d, 'MMM d');
+    }
+
+    return format(d, 'MMM d, yyyy');
+  } catch {
+    return 'Unknown date';
   }
-
-  const isThisYear = d.getFullYear() === now.getFullYear();
-  if (isThisYear) {
-    return format(d, 'MMM d');
-  }
-
-  return format(d, 'MMM d, yyyy');
 }
 
 // Text truncation

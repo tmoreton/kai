@@ -112,13 +112,13 @@ export function NotificationsView() {
     return (
       <div className="h-full overflow-y-auto">
         <div className="max-w-3xl mx-auto px-6 py-6">
-          <h1 className="text-2xl font-semibold text-kai-text mb-6">Notifications</h1>
+          <h1 className="text-2xl font-semibold text-foreground mb-6">Notifications</h1>
           
           <div className="flex flex-col items-center justify-center py-16 px-6 bg-card border border-border rounded-xl">
             <div className="w-16 h-16 rounded-full bg-destructive/10 flex items-center justify-center mb-4">
               <AlertCircle className="w-8 h-8 text-destructive" />
             </div>
-            <h2 className="text-xl font-semibold text-kai-text mb-2">
+            <h2 className="text-xl font-semibold text-foreground mb-2">
               {error.type === 'network' ? 'Connection Error' : 
                error.type === 'timeout' ? 'Request Timeout' : 'Failed to Load'}
             </h2>
@@ -128,7 +128,7 @@ export function NotificationsView() {
             {error.recoverable && (
               <button
                 onClick={handleRetry}
-                className="flex items-center gap-2 px-4 py-2 bg-kai-teal text-white rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
+                className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
               >
                 <RefreshCw className="w-4 h-4" />
                 Try Again
@@ -145,9 +145,9 @@ export function NotificationsView() {
       <div className="max-w-3xl mx-auto px-6 py-6">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-semibold text-kai-text">Notifications</h1>
+            <h1 className="text-2xl font-semibold text-foreground">Notifications</h1>
             {unreadCount > 0 && (
-              <span className="px-2.5 py-1 bg-kai-teal text-white text-sm font-medium rounded-full">
+              <span className="px-2.5 py-1 bg-primary text-white text-sm font-medium rounded-full">
                 {unreadCount}
               </span>
             )}
@@ -173,7 +173,7 @@ export function NotificationsView() {
             <button
               onClick={() => deleteAllMutation.mutate()}
               disabled={notifications.length === 0 || deleteAllMutation.isPending}
-              className="flex items-center gap-2 px-3 py-2 border border-border rounded-lg text-sm hover:bg-destructive/10 hover:text-destructive hover:border-kai-red disabled:opacity-50"
+              className="flex items-center gap-2 px-3 py-2 border border-border rounded-lg text-sm hover:bg-destructive/10 hover:text-destructive hover:border-destructive disabled:opacity-50"
             >
               <Trash2 className="w-4 h-4" />
               Clear all
@@ -214,7 +214,7 @@ export function NotificationsView() {
                 "p-5 bg-card border rounded-xl cursor-pointer transition-all",
                 notification.read
                   ? "border-border"
-                  : "border-primary shadow-sm ring-1 ring-kai-teal/20",
+                  : "border-primary shadow-sm ring-1 ring-primary/20",
                 expandedId === notification.id && "cursor-default"
               )}
             >
@@ -222,11 +222,11 @@ export function NotificationsView() {
                 <div
                   className={cn(
                     "w-2.5 h-2.5 rounded-full flex-shrink-0 mt-1.5",
-                    notification.read ? "bg-kai-text-muted" : "bg-kai-teal"
+                    notification.read ? "bg-muted-foreground" : "bg-primary"
                   )}
                 />
                 <div className="flex-1 min-w-0">
-                  <h3 className="font-semibold text-kai-text mb-1">{notification.title}</h3>
+                  <h3 className="font-semibold text-foreground mb-1">{notification.title}</h3>
                   {expandedId === notification.id ? (
                     <div className="text-muted-foreground leading-relaxed">
                       {notification.message}
@@ -238,7 +238,7 @@ export function NotificationsView() {
                               href={`/api/attachments?path=${encodeURIComponent(att.path)}`}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="px-3 py-2 bg-kai-bg border border-border rounded-lg text-sm hover:border-primary"
+                              className="px-3 py-2 bg-background border border-border rounded-lg text-sm hover:border-primary"
                               onClick={(e) => e.stopPropagation()}
                             >
                               {att.type === 'image' ? '🖼️' : '📄'} {att.name}
