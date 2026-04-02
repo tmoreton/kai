@@ -233,6 +233,9 @@ export async function executeWorkflow(
     },
   };
 
+  // Track all files created during this run
+  const createdFiles: string[] = [];
+
   addLog(agentId, "info", `Workflow "${workflow.name}" started (run: ${runId})`, runId);
   onProgress?.("start", `Running "${workflow.name}"`);
 
@@ -293,6 +296,16 @@ export async function executeWorkflow(
         // Store result
         const varName = step.output_var || step.name;
         ctx.vars[varName] = result;
+
+        // Track files created by integration steps (data write, image_gen, etc.)
+        if (step.type === "integration" || step.type === "shell") {
+          const extractedFiles = extractFilePathsFromResult(result);
+          for (const filePath of extractedFiles) {
+            if (!createdFiles.includes(filePath)) {
+              createdFiles.push(filePath);
+            }
+          }
+        }
 
         const outputStr = typeof result === "string" ? result : JSON.stringify(result);
         completeStep(stepId, "completed", outputStr.substring(0, WORKFLOW_STEP_OUTPUT_LIMIT));
@@ -375,8 +388,11 @@ export async function executeWorkflow(
     addLog(agentId, "info", `Workflow "${workflow.name}" completed successfully`, runId);
     onProgress?.("complete", "All steps done");
 
+    // Store created files in context for recap to access
+    ctx.vars.__createdFiles = createdFiles;
+
     // Generate and cache recap + create notification (non-blocking)
-    generateAndCacheRecap(runId, agentId, workflow.name).catch(() => {});
+    generateAndCacheRecap(runId, agentId, workflow.name, createdFiles).catch(() => {});
 
     return { success: true, results: ctx.vars };
   } catch (err: unknown) {
@@ -399,7 +415,7 @@ export async function executeWorkflow(
 /**
  * Generate an LLM recap of a completed run, cache it in the DB, and create a notification.
  */
-async function generateAndCacheRecap(runId: string, agentId: string, workflowName: string): Promise<void> {
+async function generateAndCacheRecap(runId: string, agentId: string, workflowName: string, createdFiles: string[] = []): Promise<void> {
   const steps = getSteps(runId);
   const completedSteps = steps.filter((s) => s.status === "completed" && s.output);
   if (completedSteps.length === 0) return;
@@ -407,6 +423,11 @@ async function generateAndCacheRecap(runId: string, agentId: string, workflowNam
   const keyOutputs = completedSteps.map((s) =>
     `## ${s.step_name}\n${(s.output || "").substring(0, 3000)}`
   );
+
+  // Build attachments summary for the recap
+  const attachmentsSummary = createdFiles.length > 0
+    ? `\n\n**Files Created (${createdFiles.length}):**\n${createdFiles.map(f => `- ${f}`).join("\n")}`
+    : "";
 
   try {
     const client = getSharedClient();
@@ -420,7 +441,7 @@ async function generateAndCacheRecap(runId: string, agentId: string, workflowNam
         },
         {
           role: "user",
-          content: `Present the end results from this "${workflowName}" agent run. Show the actual content produced, not a description of the agent:\n\n${keyOutputs.join("\n\n---\n\n")}`,
+          content: `Present the end results from this "${workflowName}" agent run. Show the actual content produced, not a description of the agent:\n\n${keyOutputs.join("\n\n---\n\n")}${attachmentsSummary}`,
         },
       ],
       max_tokens: 2048,
@@ -437,6 +458,7 @@ async function generateAndCacheRecap(runId: string, agentId: string, workflowNam
         body: recap,
         agentId,
         runId,
+        attachments: createdFiles.length > 0 ? createdFiles : undefined,
       });
     }
   } catch {
@@ -444,9 +466,10 @@ async function generateAndCacheRecap(runId: string, agentId: string, workflowNam
     createNotification({
       type: "agent_completed",
       title: `${workflowName} completed`,
-      body: "Run completed successfully.",
+      body: "Run completed successfully." + attachmentsSummary,
       agentId,
       runId,
+      attachments: createdFiles.length > 0 ? createdFiles : undefined,
     });
   }
 }
@@ -779,12 +802,116 @@ async function executeNotifyStep(step: WorkflowStep, ctx: WorkflowContext): Prom
   const title = step.params?.title ? interpolate(String(step.params.title), ctx) : "Kai Agent";
   const message = step.params?.message ? interpolate(String(step.params.message), ctx) : "Workflow step completed";
 
+  // Collect file attachments from workflow context
+  const attachmentPaths: string[] = [];
+  if (step.params?.attachments) {
+    const attachmentVar = String(step.params.attachments);
+    // Handle variable references like ${vars.thumbnail_path}
+    const interpolated = attachmentVar.startsWith("${") ? interpolate(attachmentVar, ctx) : attachmentVar;
+    
+    // Can be a single path or comma-separated paths
+    const paths = interpolated.split(",").map(p => p.trim()).filter(p => p);
+    for (const p of paths) {
+      if (p && !p.startsWith("${")) {
+        attachmentPaths.push(p);
+      }
+    }
+  }
+
+  // Also check for common file output variables in context
+  const fileVars = ["thumbnail", "thumbnail_path", "generated_images", "output_file", "script_file"];
+  for (const varName of fileVars) {
+    const val = ctx.vars[varName];
+    if (val && typeof val === "string" && !val.startsWith("${")) {
+      const paths = val.split(",").map(p => p.trim()).filter(p => p && !attachmentPaths.includes(p));
+      attachmentPaths.push(...paths);
+    }
+  }
+
+  // Create notification with attachments
+  createNotification({
+    type: "agent_run",
+    title,
+    body: message,
+    agentId: ctx.agent_id,
+    runId: ctx.run_id,
+    attachments: attachmentPaths.length > 0 ? attachmentPaths : undefined,
+  });
+
+  // Also show desktop notification
   try {
     const notifier = await import("node-notifier");
     notifier.default.notify({ title, message, sound: true });
   } catch {
     // node-notifier may not be available on all platforms — log but don't fail
     console.log(chalk.dim(`  [notify] ${title}: ${message}`));
+    if (attachmentPaths.length > 0) {
+      console.log(chalk.dim(`  [attachments] ${attachmentPaths.join(", ")}`));
+    }
   }
-  return `Notification sent: ${title} — ${message}`;
+  
+  return `Notification sent: ${title} — ${message}${attachmentPaths.length > 0 ? ` (${attachmentPaths.length} file(s) attached)` : ""}`;
+}
+
+/**
+ * Extract file paths from step results.
+ * Handles various result formats from integrations like image_gen, data write, etc.
+ */
+function extractFilePathsFromResult(result: any): string[] {
+  const paths: string[] = [];
+  
+  if (!result) return paths;
+  
+  // Handle string result (single path)
+  if (typeof result === "string") {
+    // Check if it looks like a path
+    if (result.startsWith("/") || result.startsWith("~") || result.startsWith("./")) {
+      paths.push(result);
+    }
+    return paths;
+  }
+  
+  // Handle object result
+  if (typeof result === "object") {
+    // Check for common file path keys
+    const fileKeys = ["written", "path", "appended", "archived", "images", "image", "file", "output_file"];
+    for (const key of fileKeys) {
+      const val = result[key];
+      if (val) {
+        if (typeof val === "string") {
+          paths.push(val);
+        } else if (Array.isArray(val)) {
+          // Handle arrays (e.g., images: ["/path/1.png", "/path/2.png"])
+          for (const item of val) {
+            if (typeof item === "string") {
+              paths.push(item);
+            }
+          }
+        }
+      }
+    }
+    
+    // Check for nested result structures
+    if (result.written && typeof result.written === "object" && result.written.path) {
+      paths.push(result.written.path);
+    }
+    
+    // Check for image generation results
+    if (result.images && Array.isArray(result.images)) {
+      for (const img of result.images) {
+        if (typeof img === "string") {
+          paths.push(img);
+        } else if (img && typeof img === "object" && img.path) {
+          paths.push(img.path);
+        }
+      }
+    }
+  }
+  
+  // Filter to only valid-looking paths
+  return paths.filter(p => 
+    p && 
+    typeof p === "string" && 
+    (p.startsWith("/") || p.startsWith("~") || p.startsWith("./"))
+  );
 }

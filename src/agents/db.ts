@@ -75,6 +75,7 @@ export function getDb(): Database.Database {
       body TEXT,
       agent_id TEXT,
       run_id TEXT,
+      attachments TEXT,  -- JSON array of file paths
       read INTEGER DEFAULT 0,
       created_at TEXT DEFAULT (datetime('now'))
     );
@@ -491,16 +492,18 @@ export interface NotificationRecord {
   body: string | null;
   agent_id: string | null;
   run_id: string | null;
+  attachments: string | null; // JSON array of file paths
   read: number;
   created_at: string;
 }
 
-export function createNotification(n: { type?: string; title: string; body?: string; agentId?: string; runId?: string }): number {
+export function createNotification(n: { type?: string; title: string; body?: string; agentId?: string; runId?: string; attachments?: string[] }): number {
   const type = n.type || "agent_run";
+  const attachmentsJson = n.attachments ? JSON.stringify(n.attachments) : null;
   const result = getDb().prepare(`
-    INSERT INTO notifications (type, title, body, agent_id, run_id)
-    VALUES (?, ?, ?, ?, ?)
-  `).run(type, n.title, n.body || null, n.agentId || null, n.runId || null);
+    INSERT INTO notifications (type, title, body, agent_id, run_id, attachments)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run(type, n.title, n.body || null, n.agentId || null, n.runId || null, attachmentsJson);
 
   // Only email error notifications
   if (type === "agent_error" || type === "agent_failed") {
