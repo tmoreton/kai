@@ -125,6 +125,7 @@ export function getDb(): Database.Database {
 
   // Migrations for existing databases
   try { db.exec("ALTER TABLE runs ADD COLUMN recap TEXT"); } catch {}
+  try { db.exec("ALTER TABLE notifications ADD COLUMN attachments TEXT"); } catch {}
   try { db.exec(`CREATE TABLE IF NOT EXISTS error_events (
     id INTEGER PRIMARY KEY AUTOINCREMENT, fingerprint TEXT NOT NULL, source TEXT NOT NULL,
     error_class TEXT, error_code TEXT, message TEXT NOT NULL, stack TEXT, context TEXT,
