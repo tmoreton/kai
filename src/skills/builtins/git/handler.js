@@ -214,9 +214,9 @@ export default {
     },
 
     git_branch_suggest: (params) => {
-      const { description, prefix = "feature/", max_length = 50 } = params;
+      const { context, prefix = "feature/", max_length = 50 } = params;
       
-      let baseDescription = description;
+      let baseDescription = context;
       
       if (!baseDescription) {
         const files = exec("git diff --name-only").trim().split("\n").filter(Boolean);

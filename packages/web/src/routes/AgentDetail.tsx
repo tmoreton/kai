@@ -24,10 +24,10 @@ import { cn } from '../lib/utils';
 import { toast } from '../components/Toast';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
-import type { Agent, ErrorState } from '../types/api';
+import type { Agent, ErrorState, Attachment } from '../types/api';
 import { WorkflowEditor } from '../components/WorkflowEditor';
 import { AIWorkflowCreator } from '../components/AIWorkflowCreator';
-import { ChatInput } from '../components/ChatInput';
+import { SmartChatInput } from '../components/SmartChatInput';
 
 export function AgentDetail() {
   const { agentId } = useParams<{ agentId: string }>();
@@ -443,7 +443,6 @@ interface ChatMessage {
 
 function AgentChat({ agent }: { agent: Agent }) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -472,21 +471,25 @@ function AgentChat({ agent }: { agent: Agent }) {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const sendMessage = async () => {
-    if (!input.trim() || isLoading) return;
+  const sendMessage = async (message: string, attachments: Attachment[]) => {
+    if (!message && attachments.length === 0) return;
+    if (isLoading) return;
+
+    const content = attachments.length > 0 
+      ? `${message}\n\n[Attached ${attachments.length} file(s): ${attachments.map(a => a.name).join(', ')}]`
+      : message;
 
     const userMessage: ChatMessage = {
       role: 'user',
-      content: input.trim(),
+      content: content,
       timestamp: Date.now(),
     };
 
     setMessages(prev => [...prev, userMessage]);
-    setInput('');
     setIsLoading(true);
 
     try {
-      const response = await agentsApi.chat(agent.id, userMessage.content);
+      const response = await agentsApi.chat(agent.id, content, attachments);
       
       const assistantMessage: ChatMessage = {
         role: 'assistant',
@@ -499,6 +502,8 @@ function AgentChat({ agent }: { agent: Agent }) {
       toast.error('Failed to get response from agent');
       // Remove the user message on error
       setMessages(prev => prev.slice(0, -1));
+      // Let SmartChatInput handle restoring input/attachments
+      throw err;
     } finally {
       setIsLoading(false);
     }
@@ -567,15 +572,13 @@ function AgentChat({ agent }: { agent: Agent }) {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input - Using ChatInput component */}
-      <ChatInput
-        input={input}
-        setInput={setInput}
+      {/* Input - Using SmartChatInput component */}
+      <SmartChatInput
         onSend={sendMessage}
         isLoading={isLoading}
         placeholder={`Ask ${agent.name} about its workflow, history, or capabilities...`}
         showVoiceInput={true}
-        showAttachments={false}
+        showAttachments={true}
       />
     </div>
   );

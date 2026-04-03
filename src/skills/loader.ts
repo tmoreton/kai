@@ -203,7 +203,7 @@ export function getSkillToolDefinitions(): ChatCompletionTool[] {
       const properties: Record<string, any> = {};
       const required: string[] = tool.required || [];
 
-      for (const [paramName, paramDef] of Object.entries(tool.parameters)) {
+      for (const [paramName, paramDef] of Object.entries(tool.parameters || {})) {
         properties[paramName] = {
           type: paramDef.type,
           description: paramDef.description || paramName,

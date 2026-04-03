@@ -536,10 +536,10 @@ export const agentsApi = {
     return fetchJson(`${API_BASE}/agents/${id}/recap`);
   },
 
-  chat: (id: string, message: string): Promise<{ response: string; sessionId: string }> => {
+  chat: (id: string, message: string, attachments?: Array<{type: 'image' | 'file'; name: string; mimeType: string; data: string}>): Promise<{ response: string; sessionId: string }> => {
     return fetchJson(`${API_BASE}/agents/${id}/chat`, {
       method: 'POST',
-      body: JSON.stringify({ message }),
+      body: JSON.stringify({ message, attachments }),
     });
   },
 };

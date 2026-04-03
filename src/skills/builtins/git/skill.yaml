@@ -68,9 +68,9 @@ tools:
   - name: git_branch_suggest
     description: Suggest branch name based on context (current changes or description)
     parameters:
-      description:
+      context:
         type: string
-        description: Description of the work being done
+        description: Brief description of the work being done (e.g., "add user auth", "fix login bug")
       prefix:
         type: string
         description: Branch prefix (feature/, fix/, hotfix/, etc.)

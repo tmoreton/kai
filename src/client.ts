@@ -491,8 +491,7 @@ export async function chat(
           // Hide bash output completely — just show completion
           console.log(chalk.gray(`    ⎿  done`));
         } else if (lines.length > TOOL_OUTPUT_MAX_LINES) {
-          console.log(chalk.gray(`    ⎿  ${formatToolLabel(p.toolName)}: ${lines.slice(0, TOOL_OUTPUT_PREVIEW_LINES).join("\n       ")}...`));
-          console.log(chalk.gray(`       (${lines.length} lines total — truncated)`));
+          console.log(chalk.gray(`    ⎿  ${lines.length} lines (showing lines 1-${TOOL_OUTPUT_PREVIEW_LINES} in context)`));
         } else if (resultStr.length > TOOL_OUTPUT_MAX_CHARS) {
           console.log(chalk.gray(`    ⎿  ${formatToolLabel(p.toolName)}: ${resultStr.substring(0, TOOL_OUTPUT_MAX_CHARS)}...`));
           console.log(chalk.gray(`       (${resultStr.length} chars total — truncated)`));
@@ -612,8 +611,7 @@ export async function chat(
         } else {
           const lines = resultStr.split("\n");
           if (lines.length > TOOL_OUTPUT_MAX_LINES) {
-            console.log(chalk.gray(`    ⎿  ${lines.slice(0, TOOL_OUTPUT_PREVIEW_LINES).join("\n       ")}...`));
-            console.log(chalk.gray(`       (${lines.length} lines total — truncated)`));
+            console.log(chalk.gray(`    ⎿  ${lines.length} lines (showing lines 1-${TOOL_OUTPUT_PREVIEW_LINES} in context)`));
           } else if (resultStr.length > TOOL_OUTPUT_MAX_CHARS) {
             console.log(chalk.gray(`    ⎿  ${resultStr.substring(0, TOOL_OUTPUT_MAX_CHARS)}...`));
             console.log(chalk.gray(`       (${resultStr.length} chars total — truncated)`));

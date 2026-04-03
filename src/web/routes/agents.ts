@@ -717,7 +717,8 @@ export function registerAgentRoutes(app: Hono) {
   // --- Agent Detail Chat (RESTful) ---
   app.post("/api/agents/:id/chat", async (c) => {
     const id = c.req.param("id");
-    const { message } = await c.req.json() as { message: string };
+    const body = await c.req.json() as { message: string; attachments?: Array<{type: 'image' | 'file'; name: string; mimeType: string; data: string}> };
+    const { message, attachments } = body;
     if (!message) return c.json({ error: "Missing message" }, 400);
 
     const agent = getAgent(id);
@@ -732,12 +733,38 @@ Current status: ${agent.enabled ? "Enabled" : "Disabled"}`;
 
     try {
       const client = createClient();
+      
+      // Build messages array
+      const messages: any[] = [
+        { role: "system", content: systemPrompt },
+      ];
+      
+      // If there are image attachments, add them as content array
+      if (attachments && attachments.length > 0) {
+        const imageAttachments = attachments.filter(a => a.type === 'image');
+        if (imageAttachments.length > 0) {
+          const content: any[] = [
+            { type: "text", text: message }
+          ];
+          for (const att of imageAttachments) {
+            content.push({
+              type: "image_url",
+              image_url: { url: `data:${att.mimeType};base64,${att.data}` }
+            });
+          }
+          messages.push({ role: "user", content });
+        } else {
+          // Non-image attachments just mention them in text
+          const filesList = attachments.map(a => a.name).join(', ');
+          messages.push({ role: "user", content: `${message}\n\n[Attached files: ${filesList}]` });
+        }
+      } else {
+        messages.push({ role: "user", content: message });
+      }
+      
       const response = await client.chat.completions.create({
         model: getModelId(),
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: message },
-        ],
+        messages,
         max_tokens: 4096,
       });
 
