@@ -163,7 +163,7 @@ pub fn run() {
                     std::thread::sleep(Duration::from_millis(500));
                     if let Some(window) = handle.get_webview_window("main") {
                         let url = format!("http://localhost:{}", port);
-                        let _ = window.navigate(url.parse().unwrap());
+                        let _ = window.navigate(url.parse::<url::Url>().unwrap());
                         let _ = window.show();
                         let _ = window.set_focus();
                     }

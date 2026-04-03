@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Paperclip, Send, Square, MoreVertical, FileText, Trash2, AlertCircle, RefreshCw, Home } from "lucide-react";
+import { MoreVertical, FileText, Trash2, AlertCircle, RefreshCw, Home } from "lucide-react";
 import { sessionsQueries } from "../api/queries";
 import { api, NetworkError, TimeoutError } from "../api/client";
 import { useAppStore } from "../stores/appStore";
@@ -9,10 +9,10 @@ import { streamChat } from "../api/client";
 import { MarkdownRenderer } from "../components/MarkdownRenderer";
 import { ToolCard } from "../components/ToolCard";
 import { ImageLightbox } from "../components/ImageLightbox";
-import { VoiceInputButton } from "../components/VoiceInputButton";
+import { ChatInput } from "../components/ChatInput";
 import { toast } from "../components/Toast";
 import { Button } from "../components/ui/button";
-import type { Message, Attachment, ToolCallWithStatus, ToolCallEvent, ToolResultEvent, ThinkingEvent, TokenEvent, ErrorState } from "../types/api";
+import type { Message, ToolCallWithStatus, ToolCallEvent, ToolResultEvent, ThinkingEvent, TokenEvent, ErrorState } from "../types/api";
 
 interface MessageWithTools extends Message {
   toolCalls?: ToolCallWithStatus[];
@@ -41,7 +41,6 @@ export function ChatView() {
   
   const abortControllerRef = useRef<AbortController | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
   // Only fetch session if we have a sessionId, otherwise it's a new chat
@@ -286,38 +285,6 @@ export function ChatView() {
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
-    }
-  };
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files) return;
-
-    Array.from(files).forEach((file) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        const base64 = (reader.result as string).split(',')[1];
-        addAttachment({
-          type: file.type.startsWith('image/') ? 'image' : 'file',
-          name: file.name,
-          mimeType: file.type,
-          data: base64,
-        });
-        toast.success('File attached', file.name, 3000);
-      };
-      reader.onerror = () => {
-        toast.error('Failed to read file', 'Please try a different file', 5000);
-      };
-      reader.readAsDataURL(file);
-    });
-
-    e.target.value = "";
-  };
-
   const handleRemoveAttachment = useCallback((index: number) => {
     removeAttachment(index);
   }, [removeAttachment]);
@@ -491,73 +458,20 @@ export function ChatView() {
       {/* Input Area */}
       <div className="sticky bottom-0 z-10 border-t border-border bg-background p-4 flex-shrink-0">
         <div className="max-w-3xl mx-auto">
-          {/* Attachments */}
-          {attachments.length > 0 && (
-            <div className="flex gap-2 mb-2 overflow-x-auto">
-              {attachments.map((att, i) => (
-                <AttachmentPreview
-                  key={i}
-                  attachment={att}
-                  onRemove={() => handleRemoveAttachment(i)}
-                />
-              ))}
-            </div>
-          )}
-
-          <div className="relative flex items-end gap-2 bg-card border border-border rounded-2xl p-2">
-            <input
-              type="file"
-              multiple
-              accept="image/*,.txt,.md,.json,.csv,.js,.ts,.py,.html,.css,.tsx,.jsx"
-              className="hidden"
-              id="file-upload"
-              onChange={handleFileChange}
-            />
-            <label
-              htmlFor="file-upload"
-              className="p-2 rounded-full hover:bg-accent/10 text-muted-foreground hover:text-foreground cursor-pointer flex-shrink-0"
-            >
-              <Paperclip className="w-5 h-5" />
-            </label>
-
-            <textarea
-              ref={textareaRef}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder={error ? "Connection issues - messages may not send" : "How can I help you today?"}
-              rows={1}
-              className="flex-1 min-h-[44px] max-h-[200px] py-2.5 px-1 bg-transparent border-none outline-none resize-none text-foreground placeholder:text-muted-foreground"
-              style={{ lineHeight: "1.5" }}
-              disabled={!!error && !error.recoverable}
-            />
-
-            <VoiceInputButton 
-              onTranscript={(text) => setInput(prev => prev + text)}
-              disabled={streaming}
-            />
-
-            {streaming ? (
-              <Button
-                onClick={handleStop}
-                variant="destructive"
-                size="icon"
-                className="rounded-full animate-pulse"
-              >
-                <Square className="w-5 h-5" fill="currentColor" />
-              </Button>
-            ) : (
-              <Button
-                onClick={handleSend}
-                disabled={(!input.trim() && attachments.length === 0) || (!!error && !error.recoverable)}
-                variant="default"
-                size="icon"
-                className="rounded-full"
-              >
-                <Send className="w-5 h-5" />
-              </Button>
-            )}
-          </div>
+          <ChatInput
+            input={input}
+            setInput={setInput}
+            onSend={handleSend}
+            isLoading={streaming}
+            attachments={attachments}
+            onAddAttachment={addAttachment}
+            onRemoveAttachment={handleRemoveAttachment}
+            placeholder={error ? "Connection issues - messages may not send" : "How can I help you today?"}
+            showVoiceInput={true}
+            showAttachments={true}
+            showStopButton={true}
+            onStop={handleStop}
+          />
         </div>
       </div>
 
@@ -568,36 +482,6 @@ export function ChatView() {
           onClose={() => setLightboxImage(null)} 
         />
       )}
-    </div>
-  );
-}
-
-// Missing imports from original file
-function AttachmentPreview({ attachment, onRemove }: { attachment: Attachment; onRemove: () => void }) {
-  const isImage = attachment.type === 'image';
-  
-  return (
-    <div className="flex items-center gap-2 px-3 py-1.5 bg-card border border-border rounded-lg text-sm group">
-      {isImage ? (
-        <div className="w-8 h-8 rounded bg-accent/10 overflow-hidden">
-          <img 
-            src={`data:${attachment.mimeType};base64,${attachment.data}`}
-            alt={attachment.name}
-            className="w-full h-full object-cover"
-          />
-        </div>
-      ) : (
-        <FileText className="w-4 h-4 text-primary" />
-      )}
-      <span className="truncate max-w-[120px]">{attachment.name}</span>
-      <Button
-        onClick={onRemove}
-        variant="ghost"
-        size="icon"
-        className="h-6 w-6"
-      >
-        <Trash2 className="w-3 h-3" />
-      </Button>
     </div>
   );
 }

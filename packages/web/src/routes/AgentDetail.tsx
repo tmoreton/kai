@@ -23,6 +23,7 @@ import { Button } from '../components/ui/button';
 import type { Agent, ErrorState } from '../types/api';
 import { WorkflowEditor } from '../components/WorkflowEditor';
 import { AIWorkflowCreator } from '../components/AIWorkflowCreator';
+import { ChatInput } from '../components/ChatInput';
 
 export function AgentDetail() {
   const { agentId } = useParams<{ agentId: string }>();
@@ -400,13 +401,6 @@ function AgentChat({ agent }: { agent: Agent }) {
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      sendMessage();
-    }
-  };
-
   const clearChat = () => {
     setMessages([{
       role: 'assistant',
@@ -470,26 +464,16 @@ function AgentChat({ agent }: { agent: Agent }) {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input */}
-      <div className="flex gap-2">
-        <textarea
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder="Ask me anything about my workflow..."
-          className="flex-1 min-h-[60px] max-h-[120px] px-3 py-2 bg-background border rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-ring"
-          disabled={isLoading}
-        />
-        <div className="flex flex-col gap-2">
-          <Button 
-            onClick={sendMessage} 
-            disabled={isLoading || !input.trim()}
-            className="h-[60px]"
-          >
-            {isLoading ? 'Sending...' : 'Send'}
-          </Button>
-        </div>
-      </div>
+      {/* Input - Using ChatInput component */}
+      <ChatInput
+        input={input}
+        setInput={setInput}
+        onSend={sendMessage}
+        isLoading={isLoading}
+        placeholder={`Ask ${agent.name} about its workflow, history, or capabilities...`}
+        showVoiceInput={true}
+        showAttachments={false}
+      />
     </div>
   );
 }
