@@ -50,6 +50,7 @@ import type { TriggerConfig } from "../agents/types.js";
 
 const scheduledJobs = new Map<string, ReturnType<typeof cron.schedule>>();
 let heartbeatInterval: ReturnType<typeof setInterval> | null = null;
+const inFlightRetries = new Set<string>(); // Track agents currently being retried
 
 const MAX_RESTARTS = 5;
 const RESTART_WINDOW_MS = 10 * 60 * 1000; // 10 minutes
@@ -216,8 +217,18 @@ async function checkAndRetryFailedRuns(): Promise<void> {
     if (seen.has(run.agent_id)) continue;
     seen.add(run.agent_id);
 
+    // Skip if already being retried (prevents duplicate attempts from rapid heartbeat cycles)
+    if (inFlightRetries.has(run.agent_id)) {
+      console.log(chalk.dim(`  ⏳ ${run.agent_id}: retry already in progress, skipping...`));
+      continue;
+    }
+    inFlightRetries.add(run.agent_id);
+
     const agent = getAgent(run.agent_id);
-    if (!agent || !agent.enabled) continue;
+    if (!agent || !agent.enabled) {
+      inFlightRetries.delete(run.agent_id);
+      continue;
+    }
 
     // Handle stuck runs — mark ALL stuck runs for this agent as failed so they don't keep retriggering
     if (run.status === "running") {
@@ -231,6 +242,7 @@ async function checkAndRetryFailedRuns(): Promise<void> {
     if (failCount >= MAX_AUTO_RETRIES) {
       // Already notified recently — skip entirely (don't keep retrying auto-fix)
       if (hasRecentNotification(run.agent_id, "agent_error", 24)) {
+        inFlightRetries.delete(run.agent_id);
         continue;
       }
 

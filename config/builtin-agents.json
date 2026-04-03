@@ -1,0 +1,46 @@
+{
+  "agents": [
+    {
+      "id": "agent-kai-backup",
+      "name": "Kai Backup",
+      "description": "Nightly git backup of ~/.kai — auto-commits changes so you can always revert",
+      "schedule": "0 23 * * *",
+      "workflowFile": "kai-backup.yaml",
+      "enabled": true,
+      "category": "maintenance"
+    },
+    {
+      "id": "agent-kai-memory-cleanup",
+      "name": "Kai Memory Cleanup",
+      "description": "Weekly maintenance — prunes old recall, deduplicates archival, reports memory usage",
+      "schedule": "0 4 * * 0",
+      "workflowFile": "kai-memory-cleanup.yaml",
+      "enabled": true,
+      "category": "maintenance"
+    },
+    {
+      "id": "agent-kai-self-diagnosis",
+      "name": "Kai Self-Diagnosis",
+      "description": "Daily error analysis — reviews accumulated errors and generates structured diagnoses for self-healing",
+      "schedule": "0 3 * * *",
+      "workflowFile": "kai-self-diagnosis.yaml",
+      "enabled": true,
+      "category": "self-healing"
+    },
+    {
+      "id": "agent-kai-self-heal",
+      "name": "Kai Self-Heal",
+      "description": "Applies high-confidence fixes from diagnosis reports on a git branch with build/test gates",
+      "schedule": "30 3 * * *",
+      "workflowFile": "kai-self-heal.yaml",
+      "enabled": true,
+      "category": "self-healing"
+    }
+  ],
+  "settings": {
+    "markerFile": ".builtin-agents-installed",
+    "workflowsDir": "builtin-workflows",
+    "skipIfInMarker": true,
+    "skipIfInDatabase": true
+  }
+}

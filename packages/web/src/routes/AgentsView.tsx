@@ -58,11 +58,11 @@ export function AgentsView() {
   };
 
   return (
-    <div className="h-full flex flex-col">
-      {/* Header */}
-      <div className="border-b border-border bg-card px-6 py-4">
-        <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-semibold">Agents</h1>
+    <div className="h-full overflow-y-auto p-4 sm:p-6">
+      <div className="max-w-4xl mx-auto">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-xl sm:text-2xl font-semibold text-foreground">Agents</h1>
           <Button
             onClick={() => navigate('/agents/new')}
             variant="default"
@@ -71,42 +71,38 @@ export function AgentsView() {
             New Agent
           </Button>
         </div>
-      </div>
 
-      {/* Error State */}
-      {error && (
-        <div className="p-4 bg-red-50 border-b border-red-200">
-          <div className="flex items-center gap-3">
-            <AlertCircle className="w-5 h-5 text-red-500" />
-            <p className="text-red-700">{error.message}</p>
-            {error.recoverable && (
-              <Button
-                onClick={() => { setError(null); refetch(); }}
-                variant="secondary"
-                size="sm"
-              >
-                <RefreshCw className="w-4 h-4" />
-                Retry
-              </Button>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Agents List */}
-      <div className="flex-1 overflow-auto p-6">
-        {agents.length === 0 ? (
-          <div className="h-full flex items-center justify-center">
-            <div className="text-center">
-              <FileCode2 className="w-12 h-12 mx-auto mb-3 text-muted-foreground" />
-              <p className="text-muted-foreground mb-4">No agents yet</p>
-              <Button
-                onClick={() => navigate('/agents/new')}
-                variant="default"
-              >
-                Create your first agent
-              </Button>
+        {/* Error State */}
+        {error && (
+          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+            <div className="flex items-center gap-3">
+              <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
+              <p className="text-red-700 flex-1">{error.message}</p>
+              {error.recoverable && (
+                <Button
+                  onClick={() => { setError(null); refetch(); }}
+                  variant="secondary"
+                  size="sm"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                  Retry
+                </Button>
+              )}
             </div>
+          </div>
+        )}
+
+        {/* Agents List */}
+        {agents.length === 0 ? (
+          <div className="text-center py-12">
+            <FileCode2 className="w-12 h-12 mx-auto mb-3 text-muted-foreground" />
+            <p className="text-muted-foreground mb-4">No agents yet</p>
+            <Button
+              onClick={() => navigate('/agents/new')}
+              variant="default"
+            >
+              Create your first agent
+            </Button>
           </div>
         ) : (
           <div className="grid gap-4">

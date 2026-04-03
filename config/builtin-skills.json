@@ -1,0 +1,51 @@
+{
+  "skills": [
+    {
+      "id": "browser",
+      "name": "Browser",
+      "description": "Web browsing and interaction tools - navigate pages, click elements, fill forms, take screenshots",
+      "sourceDir": "browser",
+      "targetPrefix": "builtin-"
+    },
+    {
+      "id": "email",
+      "name": "Email",
+      "description": "Email sending and reading tools - SMTP/IMAP integration",
+      "sourceDir": "email",
+      "targetPrefix": "builtin-"
+    },
+    {
+      "id": "git",
+      "name": "Git",
+      "description": "Advanced Git operations - smart commits, PR workflows, branch management, changelog generation",
+      "sourceDir": "git",
+      "targetPrefix": "builtin-"
+    },
+    {
+      "id": "testing",
+      "name": "Testing",
+      "description": "Test runner integration - auto-detect framework, run tests, parse results, coverage analysis",
+      "sourceDir": "testing",
+      "targetPrefix": "builtin-"
+    },
+    {
+      "id": "docker",
+      "name": "Docker",
+      "description": "Docker container management - build images, run containers, compose operations, logs",
+      "sourceDir": "docker",
+      "targetPrefix": "builtin-"
+    },
+    {
+      "id": "database",
+      "name": "Database",
+      "description": "Database operations - migrations (Prisma/TypeORM/Knex), SQL queries, schema inspection, backups",
+      "sourceDir": "database",
+      "targetPrefix": "builtin-"
+    }
+  ],
+  "settings": {
+    "autoBootstrap": true,
+    "skipIfExists": true,
+    "requireSkillYaml": true
+  }
+}

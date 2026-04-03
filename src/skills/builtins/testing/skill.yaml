@@ -1,0 +1,86 @@
+id: testing
+name: testing
+description: Test runner integration with result parsing and coverage analysis
+version: 1.0.0
+author: Kai
+
+tools:
+  - name: test_run
+    description: Run project tests with auto-detection of test framework
+    parameters:
+      type: object
+      properties:
+        command:
+          type: string
+          description: Override test command (auto-detected if not provided)
+        watch:
+          type: boolean
+          description: Run in watch mode
+          default: false
+        filter:
+          type: string
+          description: Filter tests by pattern
+        coverage:
+          type: boolean
+          description: Generate coverage report
+          default: false
+        fail_fast:
+          type: boolean
+          description: Stop on first failure
+          default: false
+      required: []
+
+  - name: test_analyze_results
+    description: Analyze test failure patterns and suggest fixes
+    parameters:
+      type: object
+      properties:
+        results:
+          type: string
+          description: Test output to analyze (uses last run if not provided)
+        format:
+          type: string
+          enum: [auto, jest, vitest, mocha, tap, pytest]
+          description: Test output format
+          default: auto
+      required: []
+
+  - name: test_coverage_report
+    description: Generate and analyze coverage report
+    parameters:
+      type: object
+      properties:
+        threshold:
+          type: number
+          description: Minimum coverage percentage threshold
+          default: 80
+        format:
+          type: string
+          enum: [text, html, json, lcov]
+          description: Coverage report format
+          default: text
+        show_uncovered:
+          type: boolean
+          description: Show files with low coverage
+          default: true
+      required: []
+
+  - name: test_watch_start
+    description: Start test watcher in background
+    parameters:
+      type: object
+      properties:
+        command:
+          type: string
+          description: Test command to run
+        filter:
+          type: string
+          description: Pattern to filter tests
+      required: []
+
+  - name: test_detect_framework
+    description: Detect which test framework the project uses
+    parameters:
+      type: object
+      properties: {}
+      required: []

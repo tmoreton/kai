@@ -1,0 +1,121 @@
+id: database
+name: database
+description: Database operations including migrations, queries, and connection management
+version: 1.0.0
+author: Kai
+
+tools:
+  - name: db_migrate_run
+    description: Run database migrations with auto-detection of framework
+    parameters:
+      type: object
+      properties:
+        framework:
+          type: string
+          enum: [auto, prisma, typeorm, sequelize, knex, alembic, flyway]
+          description: Migration framework to use
+          default: auto
+        direction:
+          type: string
+          enum: [up, down, latest]
+          description: Migration direction
+          default: latest
+        count:
+          type: number
+          description: Number of migrations to run (for down)
+        dry_run:
+          type: boolean
+          description: Preview migrations without applying
+          default: false
+      required: []
+
+  - name: db_migrate_status
+    description: Show migration status and pending migrations
+    parameters:
+      type: object
+      properties:
+        framework:
+          type: string
+          enum: [auto, prisma, typeorm, sequelize, knex, alembic]
+          default: auto
+      required: []
+
+  - name: db_query
+    description: Execute SQL query with result formatting
+    parameters:
+      type: object
+      properties:
+        query:
+          type: string
+          description: SQL query to execute
+        connection:
+          type: string
+          description: Database connection string (or use env var)
+        format:
+          type: string
+          enum: [table, json, csv]
+          description: Output format
+          default: table
+        max_rows:
+          type: number
+          description: Maximum rows to return
+          default: 100
+      required: [query]
+
+  - name: db_schema_inspect
+    description: Inspect database schema and generate types/docs
+    parameters:
+      type: object
+      properties:
+        tables:
+          type: array
+          items:
+            type: string
+          description: Specific tables to inspect (all if empty)
+        format:
+          type: string
+          enum: [markdown, json, typescript, prisma]
+          description: Output format
+          default: markdown
+        include_data:
+          type: boolean
+          description: Include sample data
+          default: false
+      required: []
+
+  - name: db_backup
+    description: Create database backup
+    parameters:
+      type: object
+      properties:
+        format:
+          type: string
+          enum: [sql, json, csv]
+          description: Backup format
+          default: sql
+        tables:
+          type: array
+          items:
+            type: string
+          description: Specific tables to backup (all if empty)
+        compress:
+          type: boolean
+          description: Compress backup file
+          default: true
+      required: []
+
+  - name: db_seed
+    description: Seed database with test data
+    parameters:
+      type: object
+      properties:
+        environment:
+          type: string
+          enum: [development, test, staging]
+          description: Environment to seed
+          default: development
+        reset:
+          type: boolean
+          description: Reset data before seeding
+          default: false
+      required: []

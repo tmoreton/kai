@@ -20,51 +20,50 @@ interface BuiltinAgent {
   name: string;
   description: string;
   schedule: string;
-  yamlFile: string; // Filename in builtin-workflows/
+  workflowFile: string;
+  enabled: boolean;
+  category: string;
 }
 
-const BUILTIN_AGENTS: BuiltinAgent[] = [
-  {
-    id: "agent-kai-backup",
-    name: "Kai Backup",
-    description: "Nightly git backup of ~/.kai — auto-commits changes so you can always revert",
-    schedule: "0 23 * * *",
-    yamlFile: "kai-backup.yaml",
-  },
-  {
-    id: "agent-kai-memory-cleanup",
-    name: "Kai Memory Cleanup",
-    description: "Weekly maintenance — prunes old recall, deduplicates archival, reports memory usage",
-    schedule: "0 4 * * 0",
-    yamlFile: "kai-memory-cleanup.yaml",
-  },
-  {
-    id: "agent-kai-self-diagnosis",
-    name: "Kai Self-Diagnosis",
-    description: "Daily error analysis — reviews accumulated errors and generates structured diagnoses for self-healing",
-    schedule: "0 3 * * *",
-    yamlFile: "kai-self-diagnosis.yaml",
-  },
-  {
-    id: "agent-kai-self-heal",
-    name: "Kai Self-Heal",
-    description: "Applies high-confidence fixes from diagnosis reports on a git branch with build/test gates",
-    schedule: "30 3 * * *",
-    yamlFile: "kai-self-heal.yaml",
-  },
-];
-
-/**
- * Marker file that tracks which built-in agents have been offered.
- * Once an agent ID appears here, it won't be re-created even if deleted.
- */
-function markerPath(): string {
-  return path.join(ensureKaiDir(), ".builtin-agents-installed");
+interface AgentsConfig {
+  agents: BuiltinAgent[];
+  settings: {
+    markerFile: string;
+    workflowsDir: string;
+    skipIfInMarker: boolean;
+    skipIfInDatabase: boolean;
+  };
 }
 
-function loadMarker(): Set<string> {
+function loadAgentsConfig(): AgentsConfig {
+  const configPath = path.join(process.cwd(), "config", "builtin-agents.json");
+  const defaultConfig: AgentsConfig = {
+    agents: [],
+    settings: {
+      markerFile: ".builtin-agents-installed",
+      workflowsDir: "builtin-workflows",
+      skipIfInMarker: true,
+      skipIfInDatabase: true
+    }
+  };
+  
   try {
-    const p = markerPath();
+    if (fs.existsSync(configPath)) {
+      return JSON.parse(fs.readFileSync(configPath, "utf-8"));
+    }
+  } catch {
+    console.warn("[agents] Could not load builtin-agents.json, using defaults");
+  }
+  return defaultConfig;
+}
+
+function markerPath(config: AgentsConfig): string {
+  return path.join(ensureKaiDir(), config.settings.markerFile);
+}
+
+function loadMarker(config: AgentsConfig): Set<string> {
+  try {
+    const p = markerPath(config);
     if (fs.existsSync(p)) {
       const ids = fs.readFileSync(p, "utf-8").trim().split("\n").filter(Boolean);
       return new Set(ids);
@@ -73,31 +72,31 @@ function loadMarker(): Set<string> {
   return new Set();
 }
 
-function saveMarker(installed: Set<string>): void {
-  fs.writeFileSync(markerPath(), [...installed].join("\n") + "\n", "utf-8");
+function saveMarker(config: AgentsConfig, installed: Set<string>): void {
+  fs.writeFileSync(markerPath(config), [...installed].join("\n") + "\n", "utf-8");
 }
 
-/**
- * Install any built-in agents that haven't been installed yet.
- * Call this once during startup. It's idempotent and fast.
- */
 export function bootstrapBuiltinAgents(): number {
-  const installed = loadMarker();
+  const config = loadAgentsConfig();
+  const installed = loadMarker(config);
   let count = 0;
 
-  for (const agent of BUILTIN_AGENTS) {
+  for (const agent of config.agents) {
     // Skip if already offered (even if user deleted it)
-    if (installed.has(agent.id)) continue;
+    if (config.settings.skipIfInMarker && installed.has(agent.id)) continue;
 
     // Skip if somehow already exists in DB
-    if (getAgent(agent.id)) {
+    if (config.settings.skipIfInDatabase && getAgent(agent.id)) {
       installed.add(agent.id);
       continue;
     }
 
     // Copy workflow YAML to ~/.kai/workflows/
-    const srcYaml = path.join(__dirname, "builtin-workflows", agent.yamlFile);
-    if (!fs.existsSync(srcYaml)) continue;
+    const srcYaml = path.join(__dirname, config.settings.workflowsDir, agent.workflowFile);
+    if (!fs.existsSync(srcYaml)) {
+      console.warn(`[agents] Workflow not found: ${srcYaml}`);
+      continue;
+    }
 
     const workflowsDir = path.join(ensureKaiDir(), "workflows");
     if (!fs.existsSync(workflowsDir)) {
@@ -114,14 +113,20 @@ export function bootstrapBuiltinAgents(): number {
       description: agent.description,
       workflow_path: destYaml,
       schedule: agent.schedule,
-      enabled: 1,
+      enabled: agent.enabled ? 1 : 0,
       config: "{}",
     });
 
     installed.add(agent.id);
     count++;
+    console.log(`[agents] Bootstrapped: ${agent.name}`);
   }
 
-  saveMarker(installed);
+  saveMarker(config, installed);
+  
+  if (count > 0) {
+    console.log(`[agents] Bootstrap complete: ${count} agents installed`);
+  }
+  
   return count;
 }
