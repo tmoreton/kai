@@ -184,62 +184,26 @@ export async function startRepl(options: ReplOptions = {}, initialPrompt?: strin
   let typingBuffer = "";
   let inputBoxActive = false;
 
-  // Render a fixed input box at the bottom of the terminal (3 rows: line, prompt, line)
+  // Show status line at bottom - simple stderr write
   function showInputBox() {
     if (!process.stdout.isTTY || inputBoxActive) return;
     inputBoxActive = true;
-    const rows = process.stdout.rows || 24;
-    const cols = process.stdout.columns || 80;
-    const hr = chalk.dim("─".repeat(cols));
-    const queueLabel = inputQueue.length > 0 ? chalk.yellow(` [${inputQueue.length} queued]`) : "";
-    const content = typingBuffer || "";
-    // Set scroll region to exclude bottom 3 rows
-    process.stderr.write(`\x1b[1;${rows - 3}r`);
-    // Draw the 3-row input box
-    process.stderr.write(`\x1b[${rows - 2};1H\x1b[2K${hr}`);
-    process.stderr.write(`\x1b[${rows - 1};1H\x1b[2K  ${chalk.bold("›")} ${content}${queueLabel}`);
-    process.stderr.write(`\x1b[${rows};1H\x1b[2K${hr}`);
-    // Move cursor back into scroll region
-    process.stderr.write(`\x1b[${rows - 3};1H`);
+    updateInputBox();
   }
 
   function updateInputBox() {
     if (!process.stdout.isTTY || !inputBoxActive) return;
-    const rows = process.stdout.rows || 24;
-    const queueLabel = inputQueue.length > 0 ? chalk.yellow(` [${inputQueue.length} queued]`) : "";
-    const content = typingBuffer || "";
-    // Only redraw the prompt row
-    process.stderr.write(`\x1b[s\x1b[${rows - 1};1H\x1b[2K  ${chalk.bold("›")} ${content}${queueLabel}\x1b[u`);
+    const queueLabel = inputQueue.length > 0 ? chalk.yellow(` [${inputQueue.length} in queue]`) : "";
+    // Show brackets around typing when processing
+    const content = typingBuffer ? chalk.cyan(`[${typingBuffer}]`) : "";
+    // Write to stderr (doesn't interfere with readline)
+    process.stderr.write(`\x1b[2K\r  ${chalk.bold("›")} ${content}${queueLabel}\r`);
   }
 
   function hideInputBox() {
     if (!process.stdout.isTTY || !inputBoxActive) return;
     inputBoxActive = false;
-    const rows = process.stdout.rows || 24;
-    // Reset scroll region to full terminal
-    process.stderr.write(`\x1b[1;${rows}r`);
-    // Clear the 3 rows
-    process.stderr.write(`\x1b[${rows - 2};1H\x1b[2K\x1b[${rows - 1};1H\x1b[2K\x1b[${rows};1H\x1b[2K`);
-    // Move cursor to where content ends
-    process.stderr.write(`\x1b[${rows - 2};1H`);
-  }
-
-  // Re-adjust on terminal resize
-  if (process.stdout.isTTY) {
-    process.stdout.on("resize", () => {
-      if (inputBoxActive && processing) {
-        const rows = process.stdout.rows || 24;
-        const cols = process.stdout.columns || 80;
-        process.stderr.write(`\x1b[1;${rows - 3}r`);
-        const hr = chalk.dim("─".repeat(cols));
-        const queueLabel = inputQueue.length > 0 ? chalk.yellow(` [${inputQueue.length} queued]`) : "";
-        const content = typingBuffer || "";
-        process.stderr.write(`\x1b[${rows - 2};1H\x1b[2K${hr}`);
-        process.stderr.write(`\x1b[${rows - 1};1H\x1b[2K  ${chalk.bold("›")} ${content}${queueLabel}`);
-        process.stderr.write(`\x1b[${rows};1H\x1b[2K${hr}`);
-        process.stderr.write(`\x1b[${rows - 3};1H`);
-      }
-    });
+    process.stderr.write("\x1b[2K\r"); // Clear line
   }
 
   // Multiline paste detection using bracketed paste mode

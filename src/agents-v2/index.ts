@@ -48,7 +48,10 @@ export { runAgent, loadWorkflow } from "./runner.js";
 export { 
   runDurable, 
   resumeRun, 
-  recoverInterruptedRuns 
+  recoverInterruptedRuns,
+  recoverAll,
+  findInterruptedRunsForDisplay,
+  getResumeStatus,
 } from "./runner-durable.js";
 
 export { 

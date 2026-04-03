@@ -46,6 +46,7 @@
   "homepage": "https://github.com/tmoreton/kai#readme",
   "dependencies": {
     "@hono/node-server": "^1.19.11",
+    "@types/react": "^19.2.14",
     "better-sqlite3": "^12.8.0",
     "chalk": "^5.6.2",
     "cli-highlight": "^2.1.11",
@@ -54,6 +55,7 @@
     "dotenv": "^17.3.1",
     "glob": "^13.0.6",
     "hono": "^4.12.9",
+    "ink": "^6.8.0",
     "mammoth": "^1.12.0",
     "marked": "^15.0.12",
     "marked-terminal": "^7.3.0",
@@ -62,6 +64,7 @@
     "nodemailer": "^8.0.4",
     "openai": "^6.33.0",
     "playwright": "^1.59.1",
+    "react": "^19.2.4",
     "xlsx": "^0.18.5",
     "yaml": "^2.8.3",
     "zod": "^4.3.6"

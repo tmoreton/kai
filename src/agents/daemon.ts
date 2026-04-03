@@ -27,7 +27,6 @@ import {
   hasRecentNotification,
   type AgentRecord,
 } from "./db.js";
-import { evaluateConditions, type HeartbeatConfig } from "./conditions.js";
 
 // V2 Event-driven imports
 import {
@@ -36,8 +35,8 @@ import {
   convertHeartbeatToTriggers,
   startEmailWatcher,
   unwatchAll,
+  recoverAll,
 } from "../agents-v2/index.js";
-import { recoverAll } from "./resume.js";
 import type { TriggerConfig } from "../agents-v2/types.js";
 
 /**
@@ -433,7 +432,6 @@ export function stopDaemon(): void {
   unwatchAll();
   
   import("../agents-v2/watchers/email.js").then(m => m.stopEmailWatcher()).catch(() => {});
-  import("./email-poller.js").then(m => m.stopEmailPoller()).catch(() => {});
 }
 
 export function getDaemonPidPath(): string {

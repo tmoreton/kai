@@ -1,4 +1,5 @@
 import fs from "fs";
+import path from "path";
 import crypto from "crypto";
 import YAML from "yaml";
 import chalk from "chalk";
@@ -20,7 +21,7 @@ import {
   hasPendingApprovals,
   type StepRecord,
 } from "./db.js";
-import { saveCheckpoint, cleanupCheckpoints } from "./checkpoint.js";
+import { saveCheckpoint, cleanupCheckpoints } from "../agents-v2/checkpoint.js";
 import { resolveProvider, resolveProviderWithFallback, type ResolvedProvider } from "../providers/index.js";
 import { backoffDelay, sleep } from "../utils.js";
 import {
@@ -274,7 +275,7 @@ export async function executeWorkflow(
   
   if (options?.resumeFrom) {
     // Attempt to resume from checkpoint
-    const { getLatestCheckpoint } = await import("./checkpoint.js");
+    const { getLatestCheckpoint } = await import("../agents-v2/checkpoint.js");
     const checkpoint = getLatestCheckpoint(options.resumeFrom);
     
     if (checkpoint) {
@@ -997,7 +998,7 @@ async function executeNotifyStep(step: WorkflowStep, ctx: WorkflowContext): Prom
   }
 
   // Also check for common file output variables in context
-  const fileVars = ["thumbnail", "thumbnail_path", "generated_images", "output_file", "script_file"];
+  const fileVars = ["thumbnail", "thumbnail_path", "generated_images", "output_file", "script_file", "output_dir", "save_path"];
   for (const varName of fileVars) {
     const val = ctx.vars[varName];
     if (!val || (typeof val === "string" && val.startsWith("${"))) continue;
@@ -1011,6 +1012,15 @@ async function executeNotifyStep(step: WorkflowStep, ctx: WorkflowContext): Prom
     }
   }
 
+  // Auto-detect file paths in the message content itself
+  const messagePaths = extractFilePathsFromText(message);
+  for (const p of messagePaths) {
+    if (!attachmentPaths.includes(p)) attachmentPaths.push(p);
+  }
+
+  // Convert ~/Desktop/YouTube-Content paths to ~/.kai/output
+  const normalizedAttachments = attachmentPaths.map(p => normalizeOutputPath(p));
+
   // Create notification with attachments
   createNotification({
     type: "agent_run",
@@ -1018,7 +1028,7 @@ async function executeNotifyStep(step: WorkflowStep, ctx: WorkflowContext): Prom
     body: message,
     agentId: ctx.agent_id,
     runId: ctx.run_id,
-    attachments: attachmentPaths.length > 0 ? attachmentPaths : undefined,
+    attachments: normalizedAttachments.length > 0 ? normalizedAttachments : undefined,
   });
 
   // Also show desktop notification
@@ -1101,4 +1111,73 @@ function extractFilePathsFromResult(result: any): string[] {
     typeof p === "string" && 
     (p.startsWith("/") || p.startsWith("~") || p.startsWith("./"))
   );
+}
+
+/**
+ * Extract file paths from arbitrary text content.
+ * Looks for common path patterns like ~/path, /absolute/path, ./relative/path
+ */
+function extractFilePathsFromText(text: string): string[] {
+  if (!text || typeof text !== "string") return [];
+  
+  const paths: string[] = [];
+  
+  // Pattern to match file paths:
+  // - ~/path (home directory)
+  // - /absolute/path
+  // - ./relative/path
+  // - ../relative/path
+  // Match until whitespace, quote, or common punctuation that ends a path
+  const pathRegex = /(?:~|\/|\.[\/])[^\s\n\r'"<>|&;{}]+\.[a-zA-Z0-9]+/g;
+  
+  let match;
+  while ((match = pathRegex.exec(text)) !== null) {
+    const path = match[0];
+    // Filter out false positives - require it looks like a real file path
+    if (looksLikeFilePath(path)) {
+      paths.push(path);
+    }
+  }
+  
+  return [...new Set(paths)]; // Remove duplicates
+}
+
+/**
+ * Check if a string looks like a valid file path
+ */
+function looksLikeFilePath(str: string): boolean {
+  // Must have an extension (file.txt, image.png, etc.)
+  const hasExtension = /\.[a-zA-Z0-9]+$/.test(str);
+  if (!hasExtension) return false;
+  
+  // Must start with ~, /, or ./
+  const hasValidPrefix = str.startsWith("~") || str.startsWith("/") || str.startsWith("./") || str.startsWith("../");
+  if (!hasValidPrefix) return false;
+  
+  // Should not contain characters that are unlikely in paths
+  const hasInvalidChars = /[<>|&;{}]|\$\{|\$\(|`/.test(str);
+  if (hasInvalidChars) return false;
+  
+  return true;
+}
+
+/**
+ * Normalize output paths to use ~/.kai/output instead of ~/Desktop/YouTube-Content
+ */
+function normalizeOutputPath(filePath: string): string {
+  if (!filePath || typeof filePath !== "string") return filePath;
+  
+  const homedir = process.env.HOME || "/tmp";
+  
+  // Replace ~/Desktop/YouTube-Content with ~/.kai/output
+  const oldPathPattern = path.join(homedir, "Desktop", "YouTube-Content");
+  if (filePath.startsWith(oldPathPattern) || filePath.includes("Desktop/YouTube-Content")) {
+    const newKaiOutput = path.join(homedir, ".kai", "output");
+    // If the old path exists as a file/dir, we should note the migration
+    // For now, just return the path converted to the new location
+    const relativePart = filePath.replace(/.*Desktop[/\\]YouTube-Content[/\\]?/, "");
+    return relativePart ? path.join(newKaiOutput, relativePart) : newKaiOutput;
+  }
+  
+  return filePath;
 }

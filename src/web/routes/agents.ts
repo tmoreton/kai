@@ -17,7 +17,7 @@ import {
   deleteAllNotifications,
 } from "../../agents/db.js";
 import { runAgent } from "../../agents/daemon.js";
-import { resumeRun, findInterruptedRunsForDisplay, getResumeStatus } from "../../agents/resume.js";
+import { resumeRun, findInterruptedRunsForDisplay, getResumeStatus } from "../../agents-v2/index.js";
 import { listPersonas, loadPersona, createPersona, updatePersonaField, addFileReference, removeFileReference, getFilePath } from "../../agent-persona.js";
 import { createClient, getModelId } from "../../client.js";
 import { buildSystemPrompt } from "../../system-prompt.js";
@@ -235,7 +235,7 @@ export function registerAgentRoutes(app: Hono) {
     return c.json({
       ...agent,
       config: JSON.parse(agent.config || "{}"),
-      runs: runs.map((r) => ({
+      runs: runs.map((r: any) => ({
         id: r.id,
         status: r.status,
         startedAt: r.started_at,
@@ -434,14 +434,14 @@ export function registerAgentRoutes(app: Hono) {
   });
 
   // --- List interrupted runs for an agent ---
-  app.get("/api/agents/:id/interrupted", (c) => {
+  app.get("/api/agents/:id/interrupted", async (c) => {
     const agent = getAgent(c.req.param("id"));
     if (!agent) return c.json({ error: "Agent not found" }, 404);
 
-    const interrupted = findInterruptedRunsForDisplay({ agentId: agent.id, limit: 10 });
+    const interrupted = await findInterruptedRunsForDisplay({ agentId: agent.id, limit: 10 });
     
     return c.json({
-      interruptedRuns: interrupted.map((r) => ({
+      interruptedRuns: interrupted.map((r: any) => ({
         id: r.id,
         agentId: r.agent_id,
         status: r.status,

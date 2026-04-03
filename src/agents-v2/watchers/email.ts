@@ -28,9 +28,9 @@ export async function startEmailWatcher(pollIntervalMs: number = 60000): Promise
 
   isRunning = true;
 
-  // Start polling using existing email poller
+  // Start polling using the unified email service
   try {
-    const { startEmailPoller } = await import("../../agents/email-poller.js");
+    const { startEmailPoller } = await import("../services/email.js");
     
     // Override the poller's callback to emit events
     // For now, we'll just start the existing poller

@@ -200,18 +200,17 @@ agent
   .action(async (runId) => {
     const chalk = (await import("chalk")).default;
     try {
-      const { resumeRun, getInterruptedRunDetails } = await import("./agents/resume.js");
+      const { resumeRun, getResumeStatus } = await import("./agents-v2/index.js");
       
       // Check if resumable
-      const details = getInterruptedRunDetails(runId);
+      const details = getResumeStatus(runId);
       if (!details.canResume) {
-        console.log(chalk.red(`  ✗ Cannot resume: ${details.reason}`));
+        console.log(chalk.red(`  ✗ Cannot resume: ${details.status}`));
         process.exit(1);
       }
 
       console.log(chalk.cyan(`  Resuming run ${runId}...`));
-      console.log(chalk.dim(`  Agent: ${details.run?.agent_id}`));
-      console.log(chalk.dim(`  Checkpoint step: ${details.checkpoint?.stepIndex ?? 0}`));
+      console.log(chalk.dim(`  Last checkpoint step: ${details.lastCheckpoint?.stepIndex ?? 0}`));
       console.log();
 
       const result = await resumeRun(runId);
@@ -236,9 +235,9 @@ agent
   .action(async (options) => {
     const chalk = (await import("chalk")).default;
     try {
-      const { findInterruptedRunsForDisplay } = await import("./agents/resume.js");
+      const { findInterruptedRunsForDisplay } = await import("./agents-v2/index.js");
       
-      const interrupted = findInterruptedRunsForDisplay({ 
+      const interrupted = await findInterruptedRunsForDisplay({ 
         agentId: options.agent,
         limit: 50 
       });

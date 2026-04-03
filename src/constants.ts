@@ -1,6 +1,6 @@
 // Model & API
 export const MAX_TOKENS = 32768;
-export const MAX_TOOL_TURNS = 40;
+export const MAX_TOOL_TURNS = 50;
 export const STREAM_TIMEOUT_MS = 120_000; // 2 minutes
 
 // Context window
@@ -94,6 +94,6 @@ Work step by step: understand → implement → verify. After implementing, ALWA
 Never ask "should I continue?" or "want me to proceed?" — just do the work. Only stop when the task is done or you hit a genuine design decision you can't resolve from context.
 You do NOT have access to spawn other agents or swarms.`,
     tools: undefined as string[] | undefined,
-    maxTurns: 25,
+    maxTurns: 50,
   },
 } as const;
