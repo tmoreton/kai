@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useSuspenseQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Bell, Trash2, MailOpen, AlertCircle, RefreshCw, FileText, Image, File } from "lucide-react";
+import { Bell, Trash2, MailOpen, AlertCircle, RefreshCw, FileText, Image as ImageIcon, File } from "lucide-react";
 import { notificationsQueries } from "../api/queries";
 import { api, NetworkError, TimeoutError } from "../api/client";
 import { timeAgo, cn } from "../lib/utils";
@@ -224,11 +224,11 @@ export function NotificationsView() {
                   <h3 className="font-semibold text-foreground mb-1">{notification.title}</h3>
                   {expandedId === notification.id ? (
                     <div>
-                      <MarkdownRenderer
+                      <NotificationMessage 
                         content={notification.message}
-                        className="text-muted-foreground"
+                        attachments={notification.attachments}
                       />
-                      {notification.attachments && Array.isArray(notification.attachments) && notification.attachments.length > 0 && (
+                      {notification.attachments && notification.attachments.length > 0 && (
                         <div className="flex flex-wrap gap-2 mt-4">
                           {notification.attachments.map((att: NotificationAttachment, i: number) => (
                             <AttachmentChip key={i} attachment={att} />
@@ -276,7 +276,7 @@ function AttachmentChip({ attachment }: { attachment: NotificationAttachment }) 
   const isImage = attachment.type === 'image' || ['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(ext);
   const isMd = attachment.type === 'markdown' || ext === 'md';
 
-  const IconComponent = isImage ? Image : isMd ? FileText : File;
+  const IconComponent = isImage ? ImageIcon : isMd ? FileText : File;
   const label = name.length > 30 ? name.substring(0, 27) + '...' : name;
 
   return (
@@ -290,5 +290,103 @@ function AttachmentChip({ attachment }: { attachment: NotificationAttachment }) 
       <IconComponent className="w-4 h-4 text-muted-foreground flex-shrink-0" />
       <span className="truncate">{label}</span>
     </a>
+  );
+}
+
+/**
+ * Renders notification message with inline images and file attachments.
+ * Converts file paths to proper links and renders images inline.
+ */
+function NotificationMessage({ 
+  content, 
+  attachments 
+}: { 
+  content: string; 
+  attachments?: NotificationAttachment[];
+}) {
+  // Build a map of attachment paths for quick lookup
+  const attachmentMap = new Map<string, NotificationAttachment>();
+  const imageAttachments: NotificationAttachment[] = [];
+  const fileAttachments: NotificationAttachment[] = [];
+  
+  attachments?.forEach(att => {
+    attachmentMap.set(att.path, att);
+    const ext = (att.name || att.path).split('.').pop()?.toLowerCase() || '';
+    const isImage = att.type === 'image' || ['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(ext);
+    if (isImage) {
+      imageAttachments.push(att);
+    } else {
+      fileAttachments.push(att);
+    }
+  });
+
+  // Pre-process content to convert file paths to markdown links/images
+  const processedContent = useMemo(() => {
+    let result = content;
+    
+    // Replace image file paths with inline markdown images
+    imageAttachments.forEach(att => {
+      const fileName = att.name || att.path.split('/').pop() || 'image';
+      const imageUrl = `/api/attachments?path=${encodeURIComponent(att.path)}`;
+      
+      // Match the path as a standalone line or within brackets/parens
+      const escapedPath = att.path.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      
+      // Replace bare paths with inline images (but only if not already in an image tag)
+      const barePathRegex = new RegExp(`(?<!!)\\b${escapedPath}\\b`, 'g');
+      result = result.replace(barePathRegex, `![${fileName}](${imageUrl})`);
+    });
+    
+    // Replace file paths with links
+    fileAttachments.forEach(att => {
+      const fileName = att.name || att.path.split('/').pop() || 'file';
+      const fileUrl = `/api/attachments?path=${encodeURIComponent(att.path)}`;
+      
+      const escapedPath = att.path.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const barePathRegex = new RegExp(`(?<!\\[)\\b${escapedPath}\\b(?!\\])`, 'g');
+      result = result.replace(barePathRegex, `[${fileName}](${fileUrl})`);
+    });
+    
+    return result;
+  }, [content, imageAttachments, fileAttachments]);
+
+  return (
+    <div className="space-y-4">
+      <MarkdownRenderer
+        content={processedContent}
+        className="text-muted-foreground"
+      />
+      
+      {/* Inline image gallery for image attachments */}
+      {imageAttachments.length > 0 && (
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mt-4">
+          {imageAttachments.map((att, i) => {
+            const fileName = att.name || att.path.split('/').pop() || 'image';
+            const imageUrl = `/api/attachments?path=${encodeURIComponent(att.path)}`;
+            return (
+              <a
+                key={i}
+                href={imageUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block group"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="relative aspect-video rounded-lg border border-border overflow-hidden bg-background">
+                  <img
+                    src={imageUrl}
+                    alt={fileName}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                    loading="lazy"
+                  />
+                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors" />
+                </div>
+                <p className="text-xs text-muted-foreground mt-1 truncate">{fileName}</p>
+              </a>
+            );
+          })}
+        </div>
+      )}
+    </div>
   );
 }

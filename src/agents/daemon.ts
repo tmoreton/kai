@@ -8,7 +8,7 @@ import { ensureKaiDir } from "../config.js";
 // Load env from multiple locations
 dotenvConfig({ path: path.resolve(ensureKaiDir(), ".env"), quiet: true } as any);
 dotenvConfig({ path: path.resolve(process.cwd(), ".env"), quiet: true } as any);
-import { registerAllIntegrations } from "./integrations/index.js";
+import { registerAllIntegrations, registerSkillsAsIntegrations } from "./integrations/index.js";
 import { loadAllSkills, getLoadedSkills } from "../skills/index.js";
 import { listMcpServers } from "../tools/index.js";
 import {
