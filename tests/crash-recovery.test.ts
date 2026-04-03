@@ -23,12 +23,7 @@ import {
   getRun,
   closeDb,
 } from "../src/agents/db.js";
-import {
-  saveCheckpoint,
-  getLatestCheckpoint,
-  getCheckpoints,
-  cleanupCheckpoints,
-} from "../src/agents-v2/checkpoint.js";
+import { saveCheckpoint, getLatestCheckpoint, getCheckpoints, cleanupCheckpoints } from "../src/agents-v2/checkpoint.js";
 import {
   runDurable,
   resumeRun,
