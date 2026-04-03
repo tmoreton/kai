@@ -918,3 +918,23 @@ export const api = {
 };
 
 // Error classes are already exported above
+
+// Stub API methods for agent actions
+export const toggleAgent = async (id: string, enabled: boolean) => {
+  return fetchJson(`${API_BASE}/agents/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ enabled }),
+  });
+};
+
+export const runAgent = async (id: string) => {
+  return fetchJson(`${API_BASE}/agents/${id}/run`, {
+    method: 'POST',
+  });
+};
+
+export const deleteAgent = async (id: string) => {
+  return fetchJson(`${API_BASE}/agents/${id}`, {
+    method: 'DELETE',
+  });
+};

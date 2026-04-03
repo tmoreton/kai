@@ -64,8 +64,6 @@ export interface Agent {
   description?: string;
   schedule?: string;
   enabled: boolean;
-  personaId: string | null;
-  personaName: string | null;
   workflow_path?: string;
   steps?: WorkflowStep[];
   lastRun: AgentRun | null;

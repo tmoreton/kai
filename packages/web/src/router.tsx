@@ -10,7 +10,7 @@ import { AgentsView } from "./routes/AgentsView";
 import { AgentDetail } from "./routes/AgentDetail";
 import { SettingsView } from "./routes/SettingsView";
 import { NotificationsView } from "./routes/NotificationsView";
-import { PersonaEditor } from "./routes/PersonaEditor";
+import { AgentEditor } from "./routes/AgentEditor";
 import { DocsView } from "./routes/DocsView";
 import { WorkflowView } from "./routes/WorkflowView";
 
@@ -31,11 +31,9 @@ export const router = createBrowserRouter([
       { path: "chat/:sessionId?", element: withErrorBoundary(ChatView), errorElement: <RouteError /> },
       { path: "code", element: withErrorBoundary(CodeView), errorElement: <RouteError /> },
       { path: "agents", element: withErrorBoundary(AgentsView), errorElement: <RouteError /> },
-      { path: "agents/:personaId", element: withErrorBoundary(AgentDetail), errorElement: <RouteError /> },
-      { path: "agents/persona/new", element: withErrorBoundary(PersonaEditor), errorElement: <RouteError /> },
-      { path: "agents/persona/edit/:personaId", element: withErrorBoundary(PersonaEditor), errorElement: <RouteError /> },
-      { path: "personas/new", element: withErrorBoundary(PersonaEditor), errorElement: <RouteError /> },
-      { path: "personas/:personaId/edit", element: withErrorBoundary(PersonaEditor), errorElement: <RouteError /> },
+      { path: "agents/:agentId", element: withErrorBoundary(AgentDetail), errorElement: <RouteError /> },
+      { path: "agents/new", element: withErrorBoundary(AgentEditor), errorElement: <RouteError /> },
+      { path: "agents/:agentId/edit", element: withErrorBoundary(AgentEditor), errorElement: <RouteError /> },
       { path: "settings", element: withErrorBoundary(SettingsView), errorElement: <RouteError /> },
       { path: "notifications", element: withErrorBoundary(NotificationsView), errorElement: <RouteError /> },
       { path: "docs", element: withErrorBoundary(DocsView), errorElement: <RouteError /> },

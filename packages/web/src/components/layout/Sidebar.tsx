@@ -20,7 +20,7 @@ import { api } from "../../api/client";
 import { useAppStore } from "../../stores/appStore";
 import { formatShortDate } from "../../lib/utils";
 import { useMobile } from "../../hooks/useMobile";
-import type { Session, Persona } from "../../types/api";
+import type { Session, Agent } from "../../types/api";
 
 interface SidebarSectionProps {
   title: string;
@@ -132,7 +132,7 @@ export function Sidebar() {
   const navigate = useNavigate();
   const location = useLocation();
   const queryClient = useQueryClient();
-  const { sessionId, personaId } = useParams();
+  const { sessionId, agentId } = useParams();
   const { sidebarCollapsed, toggleSidebar, sidebarOpen: mobileOpen, setSidebarOpen } = useAppStore();
   const isMobile = useMobile();
   const setMobileOpen = setSidebarOpen;
@@ -159,7 +159,7 @@ export function Sidebar() {
   const { data: projects } = useSuspenseQuery(sessionsQueries.list('code'));
 
   const chatSessions = sessions.filter((s: Session) => s.type === 'chat');
-  const { personas } = agentsData;
+  const { agents } = agentsData;
 
   const isActive = (path: string) => location.pathname.startsWith(path);
 
@@ -169,7 +169,7 @@ export function Sidebar() {
   };
 
   const handleNewAgent = () => {
-    navigate('/agents/persona/new');
+    navigate('/agents/new');
     setMobileOpen(false);
   };
 
@@ -265,25 +265,25 @@ export function Sidebar() {
           )}
         </SidebarSection>
 
-        {/* Personas Section */}
+        {/* Agents Section */}
         <SidebarSection
-          title="Personas"
+          title="Agents"
           icon={<Bot className="w-4 h-4" />}
           action={{
             icon: <Plus className="w-4 h-4" />,
             onClick: handleNewAgent,
-            title: "New Persona",
+            title: "New Agent",
           }}
         >
-          {personas.length === 0 ? (
-            <div className="px-2 py-3 text-sm text-muted-foreground">No personas yet</div>
+          {agents.length === 0 ? (
+            <div className="px-2 py-3 text-sm text-muted-foreground">No agents yet</div>
           ) : (
-            personas.map((persona: Persona) => (
+            agents.map((agent: Agent) => (
               <SidebarItem
-                key={persona.id}
-                to={`/agents/${persona.id}`}
-                label={persona.name}
-                active={personaId === persona.id}
+                key={agent.id}
+                to={`/agents/${agent.id}`}
+                label={agent.name}
+                active={agentId === agent.id}
               />
             ))
           )}

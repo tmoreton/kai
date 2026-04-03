@@ -79,7 +79,6 @@ export function registerAgentRoutes(app: Hono) {
   app.get("/api/agents", async (c) => {
     const agents = listAgents();
     const personas = listPersonas();
-    const personaMap = new Map(personas.map((p) => [p.id, p]));
 
     // Parse workflow files to get steps
     const YAML = await import("yaml");
@@ -88,9 +87,6 @@ export function registerAgentRoutes(app: Hono) {
       agents: agents.map((a) => {
         const runs = getLatestRuns(a.id, 1);
         const lastRun = runs[0];
-        const config = JSON.parse(a.config || "{}");
-        const personaId = config.personaId;
-        const persona = personaId ? personaMap.get(personaId) : null;
         
         // Parse workflow to get steps
         let steps = undefined;
@@ -125,8 +121,6 @@ export function registerAgentRoutes(app: Hono) {
           description: a.description,
           schedule: a.schedule,
           enabled: !!a.enabled,
-          personaId: persona?.id || null,
-          personaName: persona?.name || null,
           workflow_path: a.workflow_path,
           steps,
           lastRun: lastRun
