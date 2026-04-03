@@ -9,10 +9,10 @@ import { streamChat } from "../api/client";
 import { MarkdownRenderer } from "../components/MarkdownRenderer";
 import { ToolCard } from "../components/ToolCard";
 import { ImageLightbox } from "../components/ImageLightbox";
-import { ChatInput } from "../components/ChatInput";
+import { SmartChatInput } from "../components/SmartChatInput";
 import { toast } from "../components/Toast";
 import { Button } from "../components/ui/button";
-import type { Message, ToolCallWithStatus, ToolCallEvent, ToolResultEvent, ThinkingEvent, TokenEvent, ErrorState } from "../types/api";
+import type { Message, ToolCallWithStatus, ToolCallEvent, ToolResultEvent, ThinkingEvent, TokenEvent, ErrorState, Attachment } from "../types/api";
 
 interface MessageWithTools extends Message {
   toolCalls?: ToolCallWithStatus[];
@@ -22,16 +22,11 @@ export function ChatView() {
   const { sessionId } = useParams();
   const queryClient = useQueryClient();
   const { 
-    attachments, 
-    addAttachment, 
-    removeAttachment,
-    clearAttachments, 
     isStreaming, 
     startStreaming, 
     stopStreaming,
   } = useAppStore();
   const [messages, setMessages] = useState<MessageWithTools[]>([]);
-  const [input, setInput] = useState("");
   const [isThinking, setIsThinking] = useState(false);
   const [pendingToolCalls, setPendingToolCalls] = useState<Record<string, ToolCallWithStatus>>({});
   const [showMenu, setShowMenu] = useState(false);
@@ -42,6 +37,7 @@ export function ChatView() {
   const abortControllerRef = useRef<AbortController | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const smartInputRef = useRef<import('../components/SmartChatInput').SmartChatInputRef>(null);
 
   // Only fetch session if we have a sessionId, otherwise it's a new chat
   const { data: session, isError: isSessionError, error: sessionError } = useQuery({
@@ -132,8 +128,8 @@ export function ChatView() {
     }
   }, [queryClient]);
 
-  const handleSend = async () => {
-    if (!input.trim() && attachments.length === 0) return;
+  const handleSend = async (message: string, attachments: Attachment[]) => {
+    if (!message && attachments.length === 0) return;
     if (isStreaming(sessionId || 'new')) return;
 
     const currentSessionId = sessionId;
@@ -146,15 +142,14 @@ export function ChatView() {
     // Add user message immediately
     const userMessage: MessageWithTools = {
       role: "user",
-      content: input,
+      content: message,
     };
     setMessages((prev) => [...prev, userMessage]);
-    setInput("");
 
     try {
       const stream = streamChat({
         sessionId: currentSessionId,
-        message: input,
+        message: message,
         attachments,
       }, abortControllerRef.current.signal);
 
@@ -222,7 +217,6 @@ export function ChatView() {
           }
           case "done":
             setIsThinking(false);
-            clearAttachments();
             // Move pending tool calls to the last message
             const toolCalls = Object.values(pendingToolCalls);
             if (toolCalls.length > 0 || currentToolCall) {
@@ -278,16 +272,14 @@ export function ChatView() {
         
         setError(errorState);
       }
+      // Re-throw so SmartChatInput can restore input/attachments
+      throw err;
     } finally {
       stopStreaming(currentSessionId || 'new');
       setIsThinking(false);
       abortControllerRef.current = null;
     }
   };
-
-  const handleRemoveAttachment = useCallback((index: number) => {
-    removeAttachment(index);
-  }, [removeAttachment]);
 
   const handleExport = useCallback(async () => {
     if (!sessionId) return;
@@ -430,7 +422,7 @@ export function ChatView() {
       <div className="flex-1 overflow-y-auto overflow-x-hidden">
         <div className="max-w-3xl mx-auto px-4 py-6 overflow-hidden">
           {messages.length === 0 ? (
-            <WelcomeScreen onSelect={(text) => setInput(text)} />
+            <WelcomeScreen onSelect={(text) => smartInputRef.current?.setInput(text)} />
           ) : (
             <div className="space-y-6">
               {messages.map((message, i) => (
@@ -458,14 +450,10 @@ export function ChatView() {
       {/* Input Area */}
       <div className="sticky bottom-0 z-10 border-t border-border bg-background p-4 flex-shrink-0">
         <div className="max-w-3xl mx-auto">
-          <ChatInput
-            input={input}
-            setInput={setInput}
+          <SmartChatInput
+            ref={smartInputRef}
             onSend={handleSend}
             isLoading={streaming}
-            attachments={attachments}
-            onAddAttachment={addAttachment}
-            onRemoveAttachment={handleRemoveAttachment}
             placeholder={error ? "Connection issues - messages may not send" : "How can I help you today?"}
             showVoiceInput={true}
             showAttachments={true}

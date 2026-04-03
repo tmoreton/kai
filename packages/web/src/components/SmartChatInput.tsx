@@ -1,6 +1,10 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, forwardRef, useImperativeHandle } from 'react';
 import { ChatInput } from './ChatInput';
 import type { Attachment } from '../types/api';
+
+export interface SmartChatInputRef {
+  setInput: (value: string) => void;
+}
 
 interface SmartChatInputProps {
   onSend: (message: string, attachments: Attachment[]) => void | Promise<void>;
@@ -12,7 +16,7 @@ interface SmartChatInputProps {
   onStop?: () => void;
 }
 
-export function SmartChatInput({
+export const SmartChatInput = forwardRef<SmartChatInputRef, SmartChatInputProps>(function SmartChatInput({
   onSend,
   isLoading = false,
   placeholder = "Type a message...",
@@ -20,9 +24,13 @@ export function SmartChatInput({
   showAttachments = true,
   showStopButton = true,
   onStop,
-}: SmartChatInputProps) {
+}, ref) {
   const [input, setInput] = useState('');
   const [attachments, setAttachments] = useState<Attachment[]>([]);
+
+  useImperativeHandle(ref, () => ({
+    setInput: (value: string) => setInput(value),
+  }));
 
   const handleSend = useCallback(async () => {
     if (!input.trim() && attachments.length === 0) return;
@@ -68,4 +76,4 @@ export function SmartChatInput({
       onStop={onStop}
     />
   );
-}
+});

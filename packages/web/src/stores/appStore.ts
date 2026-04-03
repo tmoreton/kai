@@ -4,7 +4,6 @@
 
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
-import type { Attachment } from '../types/api';
 
 export interface ErrorData {
   message: string;
@@ -22,7 +21,6 @@ interface AppState {
   // Chat state
   currentSessionId: string | null;
   streamingSessions: Set<string>;
-  attachments: Attachment[];
   commandPaletteOpen: boolean;
   selectedModel: string;
 
@@ -49,9 +47,6 @@ interface AppState {
   setCommandPaletteOpen: (open: boolean) => void;
   toggleCommandPalette: () => void;
 
-  addAttachment: (attachment: Attachment) => void;
-  removeAttachment: (index: number) => void;
-  clearAttachments: () => void;
   setSelectedModel: (model: string) => void;
 
   selectPersona: (id: string | null) => void;
@@ -71,7 +66,6 @@ export const useAppStore = create<AppState>()(
       sidebarOpen: false,
       currentSessionId: null,
       streamingSessions: new Set(),
-      attachments: [],
       commandPaletteOpen: false,
       selectedModel: 'accounts/fireworks/models/deepseek-v3',
       selectedPersonaId: null,
@@ -117,19 +111,6 @@ export const useAppStore = create<AppState>()(
         set((state) => ({
           commandPaletteOpen: !state.commandPaletteOpen,
         })),
-
-      // Attachments
-      addAttachment: (attachment) =>
-        set((state) => ({
-          attachments: [...state.attachments, attachment],
-        })),
-
-      removeAttachment: (index) =>
-        set((state) => ({
-          attachments: state.attachments.filter((_, i) => i !== index),
-        })),
-
-      clearAttachments: () => set({ attachments: [] }),
 
       setSelectedModel: (model) => set({ selectedModel: model }),
 
