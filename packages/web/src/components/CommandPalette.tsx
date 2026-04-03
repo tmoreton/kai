@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useAppStore } from "../stores/appStore";
 import { cn } from "../lib/utils";
+import { Modal } from "./ui/modal";
 
 const SLASH_COMMANDS = [
   { cmd: "/help", desc: "Show all commands", category: "Session" },
@@ -103,18 +104,11 @@ export function CommandPalette() {
     setCommandPaletteOpen(false);
   };
 
-  if (!commandPaletteOpen) return null;
-
   let flatIndex = 0;
 
   return (
-    <div
-      className="fixed inset-0 bg-black/30 flex items-start justify-center pt-32 z-50"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) setCommandPaletteOpen(false);
-      }}
-    >
-      <div className="w-full max-w-lg bg-card border border-border rounded-xl shadow-2xl overflow-hidden">
+    <Modal isOpen={commandPaletteOpen} onClose={() => setCommandPaletteOpen(false)} position="top" backdrop="light" className="max-w-lg">
+      <div className="bg-card border border-border rounded-xl shadow-2xl overflow-hidden">
         <div className="p-3 border-b border-border">
           <input
             ref={inputRef}
@@ -169,6 +163,6 @@ export function CommandPalette() {
           <span className="ml-auto">⌘K to open</span>
         </div>
       </div>
-    </div>
+    </Modal>
   );
 }

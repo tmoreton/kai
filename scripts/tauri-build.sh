@@ -68,6 +68,21 @@ tar -xzf "$NODE_CACHE/$HEADERS_TARBALL" -C "$NODE_CACHE/node-headers" --strip-co
 cp -R "$ROOT/dist" "$RESOURCES/dist"
 cp "$ROOT/package.json" "$RESOURCES/package.json"
 
+# --- Copy web frontend build ---
+if [ -d "$ROOT/packages/web/dist" ]; then
+  echo "==> Bundling web frontend..."
+  mkdir -p "$RESOURCES/packages/web"
+  cp -R "$ROOT/packages/web/dist" "$RESOURCES/packages/web/dist"
+fi
+
+# --- Bundle .env (use project .env if present, else create empty) ---
+if [ -f "$ROOT/.env" ]; then
+  echo "==> Bundling .env file..."
+  cp "$ROOT/.env" "$RESOURCES/.env"
+else
+  touch "$RESOURCES/.env"
+fi
+
 # --- Install production-only dependencies ---
 echo "==> Installing production dependencies..."
 cd "$RESOURCES"

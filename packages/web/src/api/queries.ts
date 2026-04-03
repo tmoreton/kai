@@ -173,6 +173,14 @@ export const settingsQueries = {
       staleTime: STALE_TIMES.standard,
       ...defaultRetryConfig,
     }),
+
+  cli: () =>
+    queryOptions({
+      queryKey: [...settingsQueries.all(), 'cli'],
+      queryFn: () => api.settings.getCliStatus(),
+      staleTime: STALE_TIMES.standard,
+      ...defaultRetryConfig,
+    }),
 };
 
 // Core/Status

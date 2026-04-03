@@ -1,10 +1,42 @@
 import { Hono } from "hono";
 import fs from "fs";
 import path from "path";
+import { execSync } from "child_process";
 import { readUserConfig, saveUserConfig } from "../../config.js";
 import { listMcpServers, initMcpServers } from "../../tools/index.js";
 import { getLoadedSkills, getSkill, loadSkill, unloadSkill, reloadAllSkills, skillsDir } from "../../skills/index.js";
 import { installSkill, uninstallSkill } from "../../skills/installer.js";
+
+const CLI_SYMLINK_PATH = "/usr/local/bin/kai";
+
+function getCliSourcePath(): string {
+  // In Tauri app: the dist/index.js is inside the app bundle's Resources
+  // In dev/npm: it's the global npm package location
+  const entryScript = path.resolve(process.argv[1]);
+  const distIndex = path.resolve(path.dirname(entryScript), "index.js");
+  if (fs.existsSync(distIndex)) return distIndex;
+  return entryScript;
+}
+
+function getCliStatus(): { installed: boolean; path: string | null; source: string } {
+  const source = getCliSourcePath();
+  try {
+    const stat = fs.lstatSync(CLI_SYMLINK_PATH);
+    if (stat.isSymbolicLink()) {
+      const target = fs.readlinkSync(CLI_SYMLINK_PATH);
+      return { installed: true, path: CLI_SYMLINK_PATH, source: target };
+    }
+    // A real file exists at the path (e.g. npm global install)
+    return { installed: true, path: CLI_SYMLINK_PATH, source: CLI_SYMLINK_PATH };
+  } catch {
+    // Also check if `kai` is available on PATH via another method
+    try {
+      const which = execSync("which kai", { encoding: "utf-8" }).trim();
+      if (which) return { installed: true, path: which, source: which };
+    } catch {}
+    return { installed: false, path: null, source };
+  }
+}
 
 export function registerSettingsRoutes(app: Hono) {
   // --- Settings API ---
@@ -412,6 +444,60 @@ export default {
       return c.json({ ok: true, path: ctxPath });
     } catch (err: any) {
       return c.json({ error: err.message }, 400);
+    }
+  });
+
+  // --- CLI Installation ---
+  app.get("/api/settings/cli", (c) => {
+    return c.json(getCliStatus());
+  });
+
+  app.post("/api/settings/cli/install", async (c) => {
+    try {
+      const source = getCliSourcePath();
+      if (!fs.existsSync(source)) {
+        return c.json({ error: `CLI source not found: ${source}` }, 500);
+      }
+
+      // Create a wrapper script that invokes node with the correct entry point
+      const wrapper = `#!/bin/sh\nexec "${process.execPath}" "${source}" "$@"\n`;
+      const wrapperPath = path.resolve(process.env.HOME || "~", ".kai/bin/kai");
+      const wrapperDir = path.dirname(wrapperPath);
+      fs.mkdirSync(wrapperDir, { recursive: true });
+      fs.writeFileSync(wrapperPath, wrapper, { mode: 0o755 });
+
+      // Create symlink in /usr/local/bin
+      // Remove existing symlink/file if present
+      try { fs.unlinkSync(CLI_SYMLINK_PATH); } catch {}
+
+      fs.symlinkSync(wrapperPath, CLI_SYMLINK_PATH);
+
+      return c.json({ ok: true, path: CLI_SYMLINK_PATH });
+    } catch (err: any) {
+      if (err.code === "EACCES") {
+        return c.json({
+          error: "Permission denied. Try running: sudo ln -sf ~/.kai/bin/kai /usr/local/bin/kai",
+          needsSudo: true,
+        }, 403);
+      }
+      return c.json({ error: err.message }, 500);
+    }
+  });
+
+  app.post("/api/settings/cli/uninstall", async (c) => {
+    try {
+      try { fs.unlinkSync(CLI_SYMLINK_PATH); } catch {}
+      const wrapperPath = path.resolve(process.env.HOME || "~", ".kai/bin/kai");
+      try { fs.unlinkSync(wrapperPath); } catch {}
+      return c.json({ ok: true });
+    } catch (err: any) {
+      if (err.code === "EACCES") {
+        return c.json({
+          error: "Permission denied. Try running: sudo rm /usr/local/bin/kai",
+          needsSudo: true,
+        }, 403);
+      }
+      return c.json({ error: err.message }, 500);
     }
   });
 }

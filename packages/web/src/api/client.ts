@@ -778,6 +778,19 @@ export const settingsApi = {
       body: JSON.stringify({ content, scope }),
     });
   },
+
+  // CLI Installation
+  getCliStatus: (): Promise<{ installed: boolean; path: string | null; source: string }> => {
+    return fetchJson(`${API_BASE}/settings/cli`);
+  },
+
+  installCli: (): Promise<{ ok: boolean; path: string } | { error: string; needsSudo?: boolean }> => {
+    return fetchJson(`${API_BASE}/settings/cli/install`, { method: 'POST' });
+  },
+
+  uninstallCli: (): Promise<{ ok: boolean } | { error: string; needsSudo?: boolean }> => {
+    return fetchJson(`${API_BASE}/settings/cli/uninstall`, { method: 'POST' });
+  },
 };
 
 // ============================================

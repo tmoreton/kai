@@ -42,7 +42,9 @@
       "resources/node": "node",
       "resources/dist": "dist",
       "resources/node_modules": "node_modules",
-      "resources/package.json": "package.json"
+      "resources/package.json": "package.json",
+      "resources/.env": ".env",
+      "resources/packages": "packages"
     },
     "macOS": {
       "minimumSystemVersion": "10.15"

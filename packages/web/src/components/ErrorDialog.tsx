@@ -1,12 +1,12 @@
 import { useAppStore } from "../stores/appStore";
 import { X, Wrench, Copy, AlertTriangle } from "lucide-react";
+import { Modal } from "./ui/modal";
 
 export function ErrorDialog() {
   const { currentError, clearError } = useAppStore();
 
-  if (!currentError) return null;
-
   const handleCopy = () => {
+    if (!currentError) return;
     const text = currentError.details
       ? `${currentError.message}\n\n${currentError.details}`
       : currentError.message;
@@ -14,18 +14,14 @@ export function ErrorDialog() {
   };
 
   const handleFix = () => {
-    // Would trigger AI fix - placeholder for now
     console.log("Fix error:", currentError);
   };
 
+  if (!currentError) return null;
+
   return (
-    <div
-      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 backdrop-blur-sm"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) clearError();
-      }}
-    >
-      <div className="bg-card border border-destructive rounded-2xl max-w-lg w-[90%] shadow-2xl overflow-hidden">
+    <Modal isOpen onClose={clearError} backdrop="blur" className="max-w-lg mx-auto px-4">
+      <div className="bg-card border border-destructive rounded-2xl shadow-2xl overflow-hidden">
         <div className="flex items-center gap-3 p-4 bg-destructive/10 border-b border-destructive/20">
           <AlertTriangle className="w-6 h-6 text-destructive" />
           <h3 className="font-semibold text-destructive flex-1">Something went wrong</h3>
@@ -74,6 +70,6 @@ export function ErrorDialog() {
           </div>
         </div>
       </div>
-    </div>
+    </Modal>
   );
 }
