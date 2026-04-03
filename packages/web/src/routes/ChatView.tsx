@@ -402,30 +402,15 @@ export function ChatView() {
   }
 
   return (
-    <div className="flex flex-col h-full bg-background">
-      {/* Header */}
-      <div className="flex items-center px-4 py-2 border-b border-border bg-background">
-        <div className="flex-1" />
-        <div className="flex items-center gap-2 font-semibold text-foreground">
-          <svg viewBox="0 0 32 32" className="w-6 h-6">
-            <defs>
-              <linearGradient id="kai-header" x1="0" y1="0" x2="1" y2="1">
-                <stop offset="0%" stopColor="#0D9488" />
-                <stop offset="100%" stopColor="#115E59" />
-              </linearGradient>
-            </defs>
-            <rect width="32" height="32" rx="8" fill="url(#kai-header)" />
-            <path d="M9 8v16M9 16l8-8M9 16l8 8" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-          </svg>
-          Kai
-        </div>
-        <div className="flex-1 flex justify-end">
-        <div className="relative" ref={menuRef}>
+    <div className="relative flex flex-col h-full min-h-0 bg-background">
+      {/* Chat menu - floating top-right */}
+      {messages.length > 0 && (
+        <div className="absolute top-2 right-3 z-10" ref={menuRef}>
           <button
             onClick={() => setShowMenu(!showMenu)}
-            className="p-2 rounded-lg hover:bg-accent/10 text-muted-foreground hover:text-foreground"
+            className="p-2 rounded-lg bg-background/80 backdrop-blur-sm hover:bg-accent/10 text-muted-foreground hover:text-foreground border border-border/50"
           >
-            <MoreVertical className="w-5 h-5" />
+            <MoreVertical className="w-4 h-4" />
           </button>
           {showMenu && (
             <div className="absolute right-0 top-full mt-1 w-48 bg-card border border-border rounded-lg shadow-lg py-1 z-50">
@@ -446,8 +431,7 @@ export function ChatView() {
             </div>
           )}
         </div>
-        </div>
-      </div>
+      )}
 
       {/* Error Banner */}
       {error && messages.length > 0 && (
@@ -499,7 +483,7 @@ export function ChatView() {
       </div>
 
       {/* Input Area */}
-      <div className="border-t border-border bg-background p-4">
+      <div className="sticky bottom-0 z-10 border-t border-border bg-background p-4 flex-shrink-0">
         <div className="max-w-3xl mx-auto">
           {/* Attachments */}
           {attachments.length > 0 && (

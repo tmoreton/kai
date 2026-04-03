@@ -23,7 +23,7 @@ import {
   CheckCircle,
 } from "lucide-react";
 import { agentsQueries, settingsQueries } from "../api/queries";
-import { personasApi, ApiError, NetworkError, TimeoutError } from "../api/client";
+import { personasApi, ApiError, NetworkError, TimeoutError, streamChat } from "../api/client";
 import { cn, formatFileSize } from "../lib/utils";
 import { toast } from "../components/Toast";
 import type { Persona, FileRef, Skill, McpServer } from "../types/api";
@@ -116,6 +116,51 @@ export function PersonaEditor() {
   const [activeTab, setActiveTab] = useState<TabType>('edit');
   const [isDirty, setIsDirty] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [aiPrompt, setAiPrompt] = useState('');
+  const [isAiGenerating, setIsAiGenerating] = useState(false);
+
+  const handleAiGenerate = async () => {
+    if (!aiPrompt.trim() || isAiGenerating) return;
+    setIsAiGenerating(true);
+    try {
+      const abortController = new AbortController();
+      const stream = streamChat(
+        {
+          sessionId: `persona-gen-${Date.now()}`,
+          message: `Generate an AI persona based on this description. Return ONLY valid JSON with these fields: name, role, personality, goals. No markdown, no explanation, just the JSON object.\n\nDescription: ${aiPrompt}`,
+        },
+        abortController.signal
+      );
+      let result = '';
+      for await (const { event, data } of stream) {
+        if (event === 'token') {
+          result += (data as { text: string }).text;
+        }
+      }
+      // Strip markdown code fences if present
+      const cleaned = result.replace(/^```json?\n?/i, '').replace(/\n?```\s*$/, '').trim();
+      const parsed = JSON.parse(cleaned);
+      setFormData((prev) => ({
+        ...prev,
+        id: parsed.name?.toLowerCase().replace(/\s+/g, '-') || prev.id,
+        name: parsed.name || prev.name,
+        role: parsed.role || prev.role,
+        personality: parsed.personality || prev.personality,
+        goals: parsed.goals || prev.goals,
+      }));
+      setIsDirty(true);
+      setAiPrompt('');
+      toast.success('Persona generated', 'Review the fields and save when ready');
+    } catch (err) {
+      if (err instanceof SyntaxError) {
+        toast.error('Generation failed', 'AI returned invalid format. Try again with a clearer description.');
+      } else if (err instanceof Error && err.name !== 'AbortError') {
+        toast.error('Generation failed', err.message);
+      }
+    } finally {
+      setIsAiGenerating(false);
+    }
+  };
 
   // Mutations
   const saveMutation = useMutation({
@@ -408,6 +453,42 @@ export function PersonaEditor() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left column - Main fields */}
           <div className={`lg:col-span-2 space-y-6 ${activeTab === 'preview' ? 'hidden lg:block' : ''}`}>
+            {/* AI Generate Card */}
+            {!isEditMode && (
+              <div className="bg-kai-teal/5 border border-kai-teal/20 rounded-xl p-6 space-y-4">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="w-5 h-5 text-kai-teal" />
+                  <h2 className="font-semibold text-kai-text">Generate with AI</h2>
+                  <span className="text-xs text-muted-foreground ml-auto">or fill in manually below</span>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Describe the agent you want to create and AI will fill in the details for you.
+                </p>
+                <div className="flex gap-2">
+                  <input
+                    value={aiPrompt}
+                    onChange={(e) => setAiPrompt(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') handleAiGenerate(); }}
+                    placeholder="e.g., A research assistant that summarizes academic papers and finds related work"
+                    className="flex-1 px-3 py-2 bg-card border border-border rounded-lg text-sm focus:border-kai-teal outline-none transition-colors"
+                    disabled={isAiGenerating}
+                  />
+                  <button
+                    onClick={handleAiGenerate}
+                    disabled={!aiPrompt.trim() || isAiGenerating}
+                    className="flex items-center gap-2 px-4 py-2 bg-kai-teal text-white rounded-lg text-sm font-medium hover:bg-kai-teal/90 transition-colors disabled:opacity-50"
+                  >
+                    {isAiGenerating ? (
+                      <RotateCcw className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Sparkles className="w-4 h-4" />
+                    )}
+                    Generate
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Basic Info Card */}
             <div className="bg-card border border-border rounded-xl p-6 space-y-4">
               <div className="flex items-center gap-2 mb-4">

@@ -11,7 +11,6 @@ import {
   Plus,
   ChevronDown,
   PanelLeftClose,
-  PanelLeft,
   X,
 } from "lucide-react";
 import { cn } from "../../lib/utils";
@@ -396,48 +395,9 @@ export function Sidebar() {
     );
   }
 
-  // Desktop sidebar collapsed - slim rail
+  // Desktop sidebar collapsed - no rail, AppHeader handles expand
   if (sidebarCollapsed) {
-    return (
-      <div className="w-12 flex-shrink-0 flex flex-col items-center py-3 gap-3 bg-secondary border-r border-border">
-        <button
-          onClick={toggleSidebar}
-          className="p-2 rounded-lg hover:bg-accent/50 text-muted-foreground"
-          title="Expand sidebar"
-        >
-          <PanelLeft className="w-5 h-5" />
-        </button>
-        <button
-          onClick={handleNewChat}
-          className="p-2 rounded-lg hover:bg-accent/50 text-muted-foreground"
-          title="New Chat"
-        >
-          <Plus className="w-5 h-5" />
-        </button>
-        <div className="flex-1" />
-        <Link
-          to="/docs"
-          className="p-2 rounded-lg hover:bg-accent/50 text-muted-foreground"
-          title="Docs"
-        >
-          <BookOpen className="w-5 h-5" />
-        </Link>
-        <Link
-          to="/settings"
-          className="p-2 rounded-lg hover:bg-accent/50 text-muted-foreground"
-          title="Settings"
-        >
-          <Settings className="w-5 h-5" />
-        </Link>
-        <Link
-          to="/notifications"
-          className="p-2 rounded-lg hover:bg-accent/50 text-muted-foreground"
-          title="Notifications"
-        >
-          <Bell className="w-5 h-5" />
-        </Link>
-      </div>
-    );
+    return null;
   }
 
   // Desktop sidebar expanded

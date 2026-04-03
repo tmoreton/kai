@@ -253,9 +253,9 @@ function AgentChat({ persona }: { persona: Persona }) {
   };
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full flex flex-col min-h-0">
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-3 sm:px-6 py-4 space-y-4">
+      <div className="flex-1 overflow-y-auto min-h-0 px-3 sm:px-6 py-4 space-y-4">
         {messages.length === 0 ? (
           <div className="h-full flex items-center justify-center text-muted-foreground">
             <div className="text-center">
@@ -296,7 +296,7 @@ function AgentChat({ persona }: { persona: Persona }) {
       </div>
 
       {/* Input Area */}
-      <div className="border-t border-border bg-background p-4">
+      <div className="sticky bottom-0 z-10 border-t border-border bg-background p-4 flex-shrink-0">
         <div className="max-w-3xl mx-auto">
           <div className="relative flex items-end gap-2 bg-card border border-border rounded-2xl p-2">
             {/* File Attachment */}
