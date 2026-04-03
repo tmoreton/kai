@@ -254,7 +254,6 @@ export async function startRepl(options: ReplOptions = {}, initialPrompt?: strin
 
   // Mute stream to suppress readline echo while processing — input only shows in the fixed bar
   const muteStream = new Writable({ write(_chunk, _enc, cb) { cb(); } });
-  let rlOutput = process.stdout as Writable;
 
   const rl = readline.createInterface({
     input: process.stdin,
