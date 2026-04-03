@@ -438,7 +438,7 @@ ${diff.substring(0, 6000)}`;
 
   // === /errors — view tracked errors ===
   if (cmd === "/errors" || cmd.startsWith("/errors ")) {
-    const { getErrorSummary, getErrorTrends, getUnresolvedErrors } = await import("./agents/db.js");
+    const { getErrorSummary, getErrorTrends, getUnresolvedErrors } = await import("./agents-core/db.js");
 
     const arg = input.substring(7).trim();
     if (arg === "all") {
@@ -769,33 +769,33 @@ ${(gitDiff(false) || "(none)").substring(0, 2000)}`;
 
   // === /agent [list|run|output|info] ===
   if (cmd === "/agent" || cmd === "/agent list") {
-    const { formatAgentList, daemonStatus } = await import("./agents/manager.js");
+    const { formatAgentList, daemonStatus } = await import("./agents-core/manager.js");
     console.log(daemonStatus());
     console.log(formatAgentList());
     return "handled";
   }
   if (cmd.startsWith("/agent run ")) {
     const agentId = input.substring(11).trim();
-    const { runAgentCommand } = await import("./agents/manager.js");
+    const { runAgentCommand } = await import("./agents-core/manager.js");
     await runAgentCommand(agentId);
     return "handled";
   }
   if (cmd.startsWith("/agent output ")) {
     const parts = input.substring(14).trim().split(/\s+/);
-    const { formatAgentOutput } = await import("./agents/manager.js");
+    const { formatAgentOutput } = await import("./agents-core/manager.js");
     console.log(formatAgentOutput(parts[0], parts[1]));
     return "handled";
   }
   if (cmd.startsWith("/agent info ")) {
     const agentId = input.substring(12).trim();
-    const { formatAgentDetail } = await import("./agents/manager.js");
+    const { formatAgentDetail } = await import("./agents-core/manager.js");
     console.log(formatAgentDetail(agentId));
     return "handled";
   }
 
   // === /notify [options] ===
   if (cmd === "/notify" || cmd === "/notify --all") {
-    const { formatNotificationsList, formatNotificationDigest, markAllNotificationsAsRead } = await import("./agents/manager.js");
+    const { formatNotificationsList, formatNotificationDigest, markAllNotificationsAsRead } = await import("./agents-core/manager.js");
     if (cmd === "/notify --all") {
       console.log(formatNotificationsList());
     } else {
@@ -809,7 +809,7 @@ ${(gitDiff(false) || "(none)").substring(0, 2000)}`;
     return "handled";
   }
   if (cmd === "/notify --read") {
-    const { markAllNotificationsAsRead } = await import("./agents/manager.js");
+    const { markAllNotificationsAsRead } = await import("./agents-core/manager.js");
     console.log(chalk.green("\n  ✓ All notifications marked as read\n"));
     console.log(markAllNotificationsAsRead());
     return "handled";

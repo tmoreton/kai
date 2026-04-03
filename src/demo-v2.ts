@@ -14,7 +14,7 @@ import {
   spawnFromTemplate,
   runDurable,
   watchFile,
-} from "./agents-v2/index.js";
+} from "./agents/index.js";
 import { ensureKaiDir } from "./config.js";
 import path from "path";
 import os from "os";

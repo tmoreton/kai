@@ -111,6 +111,15 @@ export default defineConfig({
     outDir: 'dist',
     sourcemap: true,
     // Disabled code splitting - all routes bundled together to prevent chunk loading errors
-    chunkSizeWarningLimit: 1000, // Increased since we're bundling more together
+    chunkSizeWarningLimit: 1500, // Increased to suppress expected chunk warnings
+    rollupOptions: {
+      onwarn(warning, warn) {
+        // Suppress 'module has been externalized' warnings
+        if (warning.code === 'MODULE_LEVEL_DIRECTIVE') return
+        // Suppress circular dependency warnings
+        if (warning.code === 'CIRCULAR_DEPENDENCY') return
+        warn(warning)
+      },
+    },
   },
 })

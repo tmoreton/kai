@@ -67,6 +67,7 @@ export interface Agent {
   workflow_path?: string;
   steps?: WorkflowStep[];
   lastRun: AgentRun | null;
+  config?: Record<string, unknown>;
 }
 
 export interface WorkflowStep {

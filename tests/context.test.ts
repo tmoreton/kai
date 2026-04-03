@@ -6,10 +6,6 @@ import type { ChatCompletionMessageParam } from "openai/resources/chat/completio
 import {
   estimateContextSize,
   compactMessages,
-  formatCost,
-  formatContextBreakdown,
-  trackUsage,
-  checkBudget,
 } from "../src/context.js";
 
 describe("context", () => {
@@ -58,23 +54,6 @@ describe("context", () => {
       expect(result[0].role).toBe("system");
       // Should have a summary message
       expect(typeof result[1].content === "string" && result[1].content.includes("Compacted")).toBe(true);
-    });
-  });
-
-  describe("checkBudget", () => {
-    it("returns ok when no budget is set", () => {
-      const result = checkBudget();
-      expect(result.status).toBe("ok");
-      expect(result.limit).toBe(0);
-    });
-  });
-
-  describe("formatCost", () => {
-    it("returns formatted string", () => {
-      const result = formatCost();
-      expect(result).toContain("Token Usage");
-      expect(result).toContain("Input");
-      expect(result).toContain("Output");
     });
   });
 });

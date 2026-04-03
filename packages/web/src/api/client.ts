@@ -475,6 +475,7 @@ export const agentsApi = {
     name?: string;
     description?: string;
     schedule?: string;
+    config?: Record<string, unknown>;
   }): Promise<Agent> => {
     return fetchJson(`${API_BASE}/agents/${id}`, {
       method: 'PATCH',

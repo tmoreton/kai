@@ -13,6 +13,9 @@ import {
   Edit,
   MessageSquare,
   Sparkles,
+  Mail,
+  Copy,
+  Trash2,
 } from 'lucide-react';
 import { agentsQueries } from '../api/queries';
 import { agentsApi } from '../api/client';
@@ -20,6 +23,7 @@ import { NetworkError, TimeoutError } from '../api/client';
 import { cn } from '../lib/utils';
 import { toast } from '../components/Toast';
 import { Button } from '../components/ui/button';
+import { Input } from '../components/ui/input';
 import type { Agent, ErrorState } from '../types/api';
 import { WorkflowEditor } from '../components/WorkflowEditor';
 import { AIWorkflowCreator } from '../components/AIWorkflowCreator';
@@ -309,18 +313,113 @@ function AgentHistory({ agent }: { agent: Agent }) {
 }
 
 function AgentSettings({ agent }: { agent: Agent }) {
+  const [schedule, setSchedule] = useState(agent.schedule || '');
+  const [emailNotifications, setEmailNotifications] = useState(
+    (agent as any).config?.emailNotifications !== false // default true
+  );
+  const [isSaving, setIsSaving] = useState(false);
+
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+      await agentsApi.update(agent.id, { 
+        schedule: schedule || undefined,
+        config: { emailNotifications }
+      });
+      toast.success('Settings saved');
+    } catch (err) {
+      toast.error('Failed to save settings');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    toast.success('Copied to clipboard');
+  };
+
   return (
-    <div>
-      <h2 className="text-lg font-semibold mb-4">Settings</h2>
-      <div className="space-y-4">
-        <div>
-          <label className="text-sm font-medium">Schedule</label>
-          <p className="text-muted-foreground">{agent.schedule || 'No schedule'}</p>
+    <div className="space-y-6">
+      {/* Schedule */}
+      <div className="space-y-2">
+        <label className="text-sm font-medium flex items-center gap-2">
+          <Clock className="w-4 h-4" />
+          Schedule
+        </label>
+        <Input
+          value={schedule}
+          onChange={(e) => setSchedule(e.target.value)}
+          placeholder="e.g., 0 9 * * * (cron) or daily at 9am"
+          className="font-mono text-sm"
+        />
+        <p className="text-xs text-muted-foreground">
+          Cron expression or natural language (e.g., "daily at 9am", "every 30 minutes")
+        </p>
+      </div>
+
+      {/* Notifications */}
+      <div className="space-y-3 border-t pt-4">
+        <h3 className="text-sm font-medium flex items-center gap-2">
+          <Mail className="w-4 h-4" />
+          Notifications
+        </h3>
+        
+        <label className="flex items-center gap-3 p-3 border rounded-lg hover:bg-accent/50 cursor-pointer transition-colors">
+          <input
+            type="checkbox"
+            checked={emailNotifications}
+            onChange={(e) => setEmailNotifications(e.target.checked)}
+            className="w-4 h-4 rounded border-border"
+          />
+          <div className="flex-1">
+            <p className="text-sm font-medium">Email notifications</p>
+            <p className="text-xs text-muted-foreground">
+              Send email when this agent completes successfully
+            </p>
+          </div>
+        </label>
+      </div>
+
+      {/* Agent Info */}
+      <div className="space-y-3 border-t pt-4">
+        <h3 className="text-sm font-medium flex items-center gap-2">
+          <FileCode2 className="w-4 h-4" />
+          Agent Info
+        </h3>
+        
+        <div className="space-y-2">
+          <div className="flex items-center justify-between p-2 bg-muted rounded">
+            <span className="text-xs text-muted-foreground">Agent ID</span>
+            <div className="flex items-center gap-2">
+              <code className="text-xs font-mono">{agent.id}</code>
+              <button 
+                onClick={() => copyToClipboard(agent.id)}
+                className="p-1 hover:bg-accent rounded"
+              >
+                <Copy className="w-3 h-3" />
+              </button>
+            </div>
+          </div>
+          
+          {agent.workflow_path && (
+            <div className="flex items-center justify-between p-2 bg-muted rounded">
+              <span className="text-xs text-muted-foreground">Workflow Path</span>
+              <code className="text-xs font-mono truncate max-w-[200px]">{agent.workflow_path}</code>
+            </div>
+          )}
         </div>
-        <div>
-          <label className="text-sm font-medium">Workflow Path</label>
-          <p className="text-muted-foreground">{agent.workflow_path}</p>
-        </div>
+      </div>
+
+      {/* Actions */}
+      <div className="flex gap-2 pt-4 border-t">
+        <Button onClick={handleSave} disabled={isSaving}>
+          {isSaving ? 'Saving...' : 'Save Changes'}
+        </Button>
+        <Button variant="outline" onClick={() => agentsApi.delete(agent.id).then(() => window.location.href = '/agents')}>
+          <Trash2 className="w-4 h-4 mr-2" />
+          Delete Agent
+        </Button>
       </div>
     </div>
   );

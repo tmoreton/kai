@@ -14,8 +14,8 @@ import {
   listTemplates,
   eventBus,
   watchFile,
-} from "../agents-v2/index.js";
-import { getAgent, listAgents, getRun, getLatestRuns } from "../agents/db.js";
+} from "../agents/index.js";
+import { getAgent, listAgents, getRun, getLatestRuns } from "../agents-core/db.js";
 import { expandHome } from "../utils.js";
 
 export function addAgentV2Commands(program: Command): void {

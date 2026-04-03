@@ -15,9 +15,9 @@ import {
   markAllNotificationsRead,
   deleteNotification,
   deleteAllNotifications,
-} from "../../agents/db.js";
-import { runAgent } from "../../agents/daemon.js";
-import { resumeRun, findInterruptedRunsForDisplay, getResumeStatus } from "../../agents-v2/index.js";
+} from "../../agents-core/db.js";
+import { runAgent } from "../../agents-core/daemon.js";
+import { resumeRun, findInterruptedRunsForDisplay, getResumeStatus } from "../../agents/index.js";
 import { listPersonas, loadPersona, createPersona, updatePersonaField, addFileReference, removeFileReference, getFilePath } from "../../agent-persona.js";
 import { createClient, getModelId } from "../../client.js";
 import { buildSystemPrompt } from "../../system-prompt.js";
@@ -279,6 +279,13 @@ export function registerAgentRoutes(app: Hono) {
     if (typeof body.name === "string" && body.name.trim()) agent.name = body.name.trim();
     if (typeof body.description === "string") agent.description = body.description.trim();
     if (typeof body.schedule === "string") agent.schedule = body.schedule.trim();
+    
+    // Handle config updates (merge with existing)
+    if (body.config && typeof body.config === "object") {
+      const currentConfig = JSON.parse(agent.config || "{}");
+      agent.config = JSON.stringify({ ...currentConfig, ...body.config });
+    }
+    
     saveAgent(agent);
     return c.json({ id: agent.id, name: agent.name, description: agent.description, schedule: agent.schedule, enabled: !!agent.enabled });
   });

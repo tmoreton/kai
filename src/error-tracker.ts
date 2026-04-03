@@ -8,7 +8,7 @@
  */
 
 import crypto from "crypto";
-import { recordErrorEvent } from "./agents/db.js";
+import { recordErrorEvent } from "./agents-core/db.js";
 import { KaiError } from "./errors.js";
 
 export type ErrorSource = "repl" | "client" | "tool" | "daemon" | "uncaught";

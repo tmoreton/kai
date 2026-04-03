@@ -20,8 +20,8 @@ import {
   stopDaemon,
   writeDaemonPid,
   getDaemonPidPath,
-} from "../agents/daemon.js";
-import { closeDb } from "../agents/db.js";
+} from "../agents-core/daemon.js";
+import { closeDb } from "../agents-core/db.js";
 
 // Route modules
 import { registerSessionRoutes } from "./routes/sessions.js";

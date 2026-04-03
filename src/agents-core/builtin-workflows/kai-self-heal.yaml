@@ -1,0 +1,345 @@
+name: Kai Self-Heal
+description: Applies high-confidence fixes from diagnosis reports — creates git branch, applies edits, runs build/test gates, requests approval
+schedule: "30 3 * * *"
+
+config:
+  kai_dir: "~/.kai"
+  kai_src: "~/Code/kai"
+  min_confidence: 0.8
+  max_files: 3
+
+steps:
+  # === CHECK CONFIG: is auto-fix enabled? ===
+  - name: check_config
+    type: shell
+    command: |
+      # Check if selfHeal.autoFix is enabled in settings
+      CONFIG_FILE="${config.kai_dir}/settings.json"
+      if [ -f "$CONFIG_FILE" ]; then
+        ENABLED=$(python3 -c "
+      import json
+      try:
+          c = json.load(open('$CONFIG_FILE'))
+          print('true' if c.get('selfHeal', {}).get('autoFix', False) else 'false')
+      except:
+          print('false')
+      " 2>/dev/null)
+      else
+        ENABLED="false"
+      fi
+
+      if [ "$ENABLED" != "true" ]; then
+        echo "SKIP: selfHeal.autoFix is not enabled in settings.json"
+        echo "To enable: add { \"selfHeal\": { \"autoFix\": true } } to ${config.kai_dir}/settings.json"
+      else
+        echo "PROCEED"
+      fi
+    output_var: config_check
+
+  # === READ LATEST DIAGNOSIS ===
+  - name: read_diagnosis
+    type: shell
+    condition: "${vars.config_check} = PROCEED"
+    command: |
+      DIAGNOSIS_FILE="${config.kai_dir}/self-heal/latest-diagnosis.json"
+      if [ ! -f "$DIAGNOSIS_FILE" ]; then
+        echo "NO_DIAGNOSIS"
+        exit 0
+      fi
+
+      # Check if file is recent (less than 24h old)
+      if [ "$(find "$DIAGNOSIS_FILE" -mtime -1 2>/dev/null)" ]; then
+        # Filter to high-confidence, fixable items
+        python3 -c "
+      import json, sys
+      try:
+          data = json.load(open('$DIAGNOSIS_FILE'))
+          fixable = [d for d in data
+                     if d.get('confidence', 0) >= ${config.min_confidence}
+                     and not d.get('skip_auto_fix', False)
+                     and d.get('category') == 'bug']
+          # Enforce max files limit
+          all_files = set()
+          limited = []
+          for d in fixable:
+              new_files = set(d.get('files_involved', []))
+              if len(all_files | new_files) <= ${config.max_files}:
+                  all_files |= new_files
+                  limited.append(d)
+          if limited:
+              print(json.dumps(limited, indent=2))
+          else:
+              print('NO_FIXABLE')
+      except Exception as e:
+          print(f'ERROR: {e}')
+      " 2>/dev/null || echo "NO_FIXABLE"
+      else
+        echo "STALE_DIAGNOSIS"
+      fi
+    output_var: fixable_items
+
+  # === CHECK IF THERE ARE ITEMS TO FIX ===
+  - name: check_fixable
+    type: shell
+    condition: "${vars.config_check} = PROCEED"
+    command: |
+      ITEMS="${vars.fixable_items}"
+      if echo "$ITEMS" | grep -qE "NO_FIXABLE|NO_DIAGNOSIS|STALE_DIAGNOSIS|ERROR"; then
+        echo "SKIP"
+      else
+        echo "PROCEED"
+      fi
+    output_var: should_fix
+
+  # === CREATE GIT BRANCH ===
+  - name: create_branch
+    type: shell
+    condition: "${vars.should_fix} = PROCEED"
+    command: |
+      cd "${config.kai_src}" || exit 1
+
+      # Ensure we're on a clean state
+      if [ -n "$(git status --porcelain 2>/dev/null)" ]; then
+        echo "ERROR: Working directory not clean. Stash or commit changes first."
+        exit 1
+      fi
+
+      BRANCH="kai/self-heal-$(date +%Y%m%d-%H%M)"
+      CURRENT=$(git rev-parse --abbrev-ref HEAD)
+
+      git checkout -b "$BRANCH" 2>&1
+      echo "BRANCH=$BRANCH"
+      echo "BASE=$CURRENT"
+    output_var: branch_info
+
+  # === READ CURRENT SOURCE FILES ===
+  - name: read_files_to_fix
+    type: shell
+    condition: "${vars.should_fix} = PROCEED"
+    command: |
+      cd "${config.kai_src}" || exit 1
+
+      # Extract file paths from fixable items
+      FILES=$(echo '${vars.fixable_items}' | python3 -c "
+      import json, sys
+      data = json.load(sys.stdin)
+      files = set()
+      for d in data:
+          for f in d.get('files_involved', []):
+              files.add(f)
+      for f in sorted(files):
+          print(f)
+      " 2>/dev/null)
+
+      echo "=== FILES TO MODIFY ==="
+      for f in $FILES; do
+        FULL="${config.kai_src}/$f"
+        if [ -f "$FULL" ]; then
+          echo "--- $f ---"
+          cat "$FULL"
+          echo ""
+        else
+          echo "--- $f (NOT FOUND) ---"
+        fi
+      done
+    output_var: current_sources
+
+  # === LLM: GENERATE CODE EDITS ===
+  - name: generate_fixes
+    type: llm
+    condition: "${vars.should_fix} = PROCEED"
+    prompt: |
+      You are Kai's self-healing agent. Generate precise code edits to fix diagnosed errors.
+
+      ## Diagnosis (high-confidence, fixable items only):
+      ${vars.fixable_items}
+
+      ## Current Source Code:
+      ${vars.current_sources}
+
+      ## Instructions
+
+      For each diagnosed error, generate the exact code edit needed. Use old_string/new_string pairs
+      that can be applied as find-and-replace operations.
+
+      Output ONLY a JSON array (no other text):
+
+      ```json
+      [
+        {
+          "fingerprint": "abc12345",
+          "file": "src/client.ts",
+          "old_string": "exact text to find",
+          "new_string": "replacement text",
+          "description": "Brief description of what this fixes"
+        }
+      ]
+      ```
+
+      Rules:
+      - old_string must match the current file content EXACTLY (including whitespace)
+      - Keep changes minimal — fix the bug, don't refactor surrounding code
+      - One edit per error (multiple edits OK if needed, one entry per edit)
+      - If you're not confident in an edit, omit it — a wrong fix is worse than no fix
+      - DO NOT modify test files, config files, or package.json
+      - DO NOT add new dependencies
+      - DO NOT change function signatures (would break callers)
+
+  # === APPLY EDITS ===
+  - name: apply_edits
+    type: shell
+    condition: "${vars.should_fix} = PROCEED"
+    command: |
+      cd "${config.kai_src}" || exit 1
+
+      # Extract JSON from LLM output
+      EDITS_JSON=$(echo '${vars.generate_fixes}' | python3 -c "
+      import json, sys, re
+      text = sys.stdin.read()
+      # Try bare JSON first
+      try:
+          data = json.loads(text.strip())
+          print(json.dumps(data))
+          sys.exit(0)
+      except: pass
+      # Try extracting from code block
+      m = re.search(r'\`\`\`json\s*(.*?)\`\`\`', text, re.DOTALL)
+      if m:
+          print(m.group(1).strip())
+      else:
+          print('[]')
+      " 2>/dev/null)
+
+      if [ "$EDITS_JSON" = "[]" ] || [ -z "$EDITS_JSON" ]; then
+        echo "No edits to apply"
+        exit 0
+      fi
+
+      # Apply each edit
+      APPLIED=0
+      FAILED=0
+      echo "$EDITS_JSON" | python3 -c "
+      import json, sys
+      edits = json.load(sys.stdin)
+      for i, edit in enumerate(edits):
+          f = edit.get('file', '')
+          old = edit.get('old_string', '')
+          new = edit.get('new_string', '')
+          desc = edit.get('description', 'no description')
+          if not f or not old:
+              print(f'  SKIP edit {i}: missing file or old_string')
+              continue
+          try:
+              with open(f, 'r') as fh:
+                  content = fh.read()
+              if old not in content:
+                  print(f'  FAIL edit {i} ({f}): old_string not found')
+                  continue
+              # Only replace first occurrence
+              content = content.replace(old, new, 1)
+              with open(f, 'w') as fh:
+                  fh.write(content)
+              print(f'  OK edit {i} ({f}): {desc}')
+          except Exception as e:
+              print(f'  FAIL edit {i} ({f}): {e}')
+      " 2>&1
+
+      echo ""
+      echo "Edits applied. Running verification..."
+    output_var: apply_result
+
+  # === BUILD GATE ===
+  - name: build_check
+    type: shell
+    condition: "${vars.should_fix} = PROCEED"
+    command: |
+      cd "${config.kai_src}" || exit 1
+
+      echo "Running TypeScript type-check..."
+      npx tsc --noEmit 2>&1
+      BUILD_EXIT=$?
+
+      if [ $BUILD_EXIT -ne 0 ]; then
+        echo ""
+        echo "BUILD_FAILED"
+        echo "Reverting changes..."
+        git checkout -- . 2>&1
+        BRANCH=$(echo "${vars.branch_info}" | grep "BRANCH=" | cut -d= -f2)
+        BASE=$(echo "${vars.branch_info}" | grep "BASE=" | cut -d= -f2)
+        git checkout "$BASE" 2>&1
+        git branch -D "$BRANCH" 2>&1
+        echo "Branch abandoned due to build failure."
+      else
+        echo "BUILD_PASSED"
+      fi
+    output_var: build_result
+
+  # === REQUEST APPROVAL ===
+  - name: request_approval
+    type: approval
+    condition: "${vars.build_result} contains BUILD_PASSED"
+    params:
+      prompt: |
+        Self-heal fixes are ready for review.
+
+        Diagnosis: ${vars.fixable_items}
+        Edits applied: ${vars.apply_result}
+        Build status: ${vars.build_result}
+        Branch: ${vars.branch_info}
+
+        Review the changes with: git diff kai/self-heal-*
+        Approve to commit, reject to abandon the branch.
+
+  # === COMMIT FIXES ===
+  - name: commit_fixes
+    type: shell
+    condition: "${vars.build_result} contains BUILD_PASSED"
+    command: |
+      cd "${config.kai_src}" || exit 1
+
+      # Check if there are actual changes
+      if [ -z "$(git status --porcelain)" ]; then
+        echo "No changes to commit"
+        exit 0
+      fi
+
+      # Commit
+      git add -A
+      git commit -m "self-heal: auto-fix from diagnosis $(date +%Y-%m-%d)
+
+      Applied fixes:
+      $(echo '${vars.apply_result}' | grep '  OK' | sed 's/^  OK /- /')
+
+      Generated by kai-self-heal agent.
+      " 2>&1
+
+      echo ""
+      echo "COMMITTED"
+
+      # Mark errors as resolved in the DB
+      DB="${config.kai_dir}/agents.db"
+      echo '${vars.fixable_items}' | python3 -c "
+      import json, sys, subprocess
+      data = json.load(sys.stdin)
+      for d in data:
+          fp = d.get('fingerprint', '')
+          if fp:
+              subprocess.run(['sqlite3', '$DB',
+                  f\"UPDATE error_events SET resolved = 1 WHERE fingerprint = '{fp}'\"],
+                  capture_output=True)
+              print(f'  Resolved: {fp}')
+      " 2>/dev/null
+
+      echo ""
+      # Return to base branch (leave heal branch for review)
+      BASE=$(echo "${vars.branch_info}" | grep "BASE=" | cut -d= -f2)
+      git checkout "$BASE" 2>&1
+      echo "Returned to $BASE. Self-heal branch ready for review/merge."
+    output_var: commit_result
+
+  # === NOTIFY ===
+  - name: notify
+    type: notify
+    params:
+      title: "Kai Self-Heal"
+      message: "Healing cycle complete. Check git branches for review."

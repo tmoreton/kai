@@ -107,7 +107,7 @@ agent
   .option("--heartbeat-interval <ms>", "Heartbeat check interval in ms (default: 60000)")
   .option("--heartbeat-cooldown <ms>", "Cooldown between triggers in ms (default: 300000)")
   .action(async (name, workflowFile, options) => {
-    const { createAgent } = await import("./agents/manager.js");
+    const { createAgent } = await import("./agents-core/manager.js");
     try {
       let config = options.config ? JSON.parse(options.config) : undefined;
 
@@ -146,7 +146,7 @@ agent
   .description("List all registered agents")
   .action(async () => {
     try {
-      const { formatAgentList, daemonStatus } = await import("./agents/manager.js");
+      const { formatAgentList, daemonStatus } = await import("./agents-core/manager.js");
       console.log(daemonStatus());
       console.log(formatAgentList());
     } catch (err: any) {
@@ -160,7 +160,7 @@ agent
   .description("Show the output from an agent's latest run")
   .action(async (agentId, step) => {
     try {
-      const { formatAgentOutput } = await import("./agents/manager.js");
+      const { formatAgentOutput } = await import("./agents-core/manager.js");
       console.log(formatAgentOutput(agentId, step));
     } catch (err: any) {
       console.error(`Error: ${err.message}`);
@@ -173,7 +173,7 @@ agent
   .description("Show detailed info about an agent")
   .action(async (agentId) => {
     try {
-      const { formatAgentDetail } = await import("./agents/manager.js");
+      const { formatAgentDetail } = await import("./agents-core/manager.js");
       console.log(formatAgentDetail(agentId));
     } catch (err: any) {
       console.error(`Error: ${err.message}`);
@@ -186,7 +186,7 @@ agent
   .description("Run an agent immediately")
   .action(async (agentId) => {
     try {
-      const { runAgentCommand } = await import("./agents/manager.js");
+      const { runAgentCommand } = await import("./agents-core/manager.js");
       await runAgentCommand(agentId);
     } catch (err: any) {
       console.error(`Error: ${err.message}`);
@@ -200,7 +200,7 @@ agent
   .action(async (runId) => {
     const chalk = (await import("chalk")).default;
     try {
-      const { resumeRun, getResumeStatus } = await import("./agents-v2/index.js");
+      const { resumeRun, getResumeStatus } = await import("./agents/index.js");
       
       // Check if resumable
       const details = getResumeStatus(runId);
@@ -235,7 +235,7 @@ agent
   .action(async (options) => {
     const chalk = (await import("chalk")).default;
     try {
-      const { findInterruptedRunsForDisplay } = await import("./agents-v2/index.js");
+      const { findInterruptedRunsForDisplay } = await import("./agents/index.js");
       
       const interrupted = await findInterruptedRunsForDisplay({ 
         agentId: options.agent,
@@ -269,7 +269,7 @@ agent
   .description("Delete an agent and its history")
   .action(async (agentId) => {
     try {
-      const { deleteAgent } = await import("./agents/db.js");
+      const { deleteAgent } = await import("./agents-core/db.js");
       deleteAgent(agentId);
       console.log(`✓ Agent "${agentId}" deleted`);
     } catch (err: any) {
@@ -282,7 +282,7 @@ agent
   .command("daemon")
   .description("Start the agent daemon (runs scheduled agents)")
   .action(async () => {
-    const { startDaemon, writeDaemonPid, isDaemonRunning } = await import("./agents/daemon.js");
+    const { startDaemon, writeDaemonPid, isDaemonRunning } = await import("./agents-core/daemon.js");
     if (isDaemonRunning()) {
       console.log("Daemon is already running.");
       process.exit(0);
@@ -292,8 +292,8 @@ agent
 
     // Keep alive
     process.on("SIGINT", async () => {
-      const { stopDaemon, getDaemonPidPath } = await import("./agents/daemon.js");
-      const { closeDb } = await import("./agents/db.js");
+      const { stopDaemon, getDaemonPidPath } = await import("./agents-core/daemon.js");
+      const { closeDb } = await import("./agents-core/db.js");
       const fs = await import("fs");
       stopDaemon();
       try { fs.unlinkSync(getDaemonPidPath()); } catch {}
@@ -306,7 +306,7 @@ agent
   .command("stop")
   .description("Stop the running daemon")
   .action(async () => {
-    const { stopDaemonProcess } = await import("./agents/daemon.js");
+    const { stopDaemonProcess } = await import("./agents-core/daemon.js");
     if (stopDaemonProcess()) {
       console.log("✓ Daemon stopped");
     } else {
@@ -322,7 +322,7 @@ agent
   .action(async (options) => {
     const chalk = (await import("chalk")).default;
     try {
-      const { formatNotificationsList, formatNotificationDigest, markAllNotificationsAsRead } = await import("./agents/manager.js");
+      const { formatNotificationsList, formatNotificationDigest, markAllNotificationsAsRead } = await import("./agents-core/manager.js");
       if (options.all) {
         console.log(formatNotificationsList());
       } else {
@@ -348,7 +348,7 @@ agent
   .argument("[step-name]", "Step name to analyze (defaults to first completed step)")
   .action(async (agentId, stepName) => {
     try {
-      const { formatAgentTrends } = await import("./agents/manager.js");
+      const { formatAgentTrends } = await import("./agents-core/manager.js");
       console.log(formatAgentTrends(agentId, stepName));
     } catch (err: any) {
       console.error(chalk.red(`  Error: ${err.message}`));
@@ -371,7 +371,7 @@ agent
     
     try {
       // Validate agent exists
-      const { getAgent } = await import("./agents/db.js");
+      const { getAgent } = await import("./agents-core/db.js");
       const agent = getAgent(agentId);
       if (!agent) {
         console.error(chalk.red(`  ✗ Agent "${agentId}" not found`));
@@ -385,7 +385,7 @@ agent
       let analysis: any;
       try {
         // Dynamic import with type-only check - module may not exist yet
-        const patternAnalyzer = await import("./agents-v2/analysis/pattern-analyzer.js").catch(() => null);
+        const patternAnalyzer = await import("./agents/analysis/pattern-analyzer.js").catch(() => null);
         if (patternAnalyzer && patternAnalyzer.analyzeAgentPerformance) {
           const result = await patternAnalyzer.analyzeAgentPerformance(agentId, { windowHours: parseInt(options.window) });
           // Convert to the format expected by the display code
@@ -406,7 +406,7 @@ agent
         }
       } catch (patternErr) {
         // Fallback to meta-learner
-        const { analyzeAgent } = await import("./agents-v2/meta-learner.js");
+        const { analyzeAgent } = await import("./agents/meta-learner.js");
         analysis = await analyzeAgent(agentId, parseInt(options.window));
         console.log(chalk.dim(`  Using meta-learner (pattern analyzer not available)`));
       }
@@ -461,7 +461,7 @@ agent
       // Apply improvements if requested
       if (options.apply && highConfidence.length > 0) {
         console.log(chalk.cyan(`\n  Applying ${highConfidence.length} high-confidence improvement(s)...`));
-        const { applyImprovements } = await import("./agents-v2/meta-learner.js");
+        const { applyImprovements } = await import("./agents/meta-learner.js");
         const result = await applyImprovements(agentId, highConfidence);
         console.log(chalk.green(`  ✓ Applied: ${result.applied}, Notified: ${result.notified}, Logged: ${result.logged}`));
       } else if (options.apply) {
@@ -487,7 +487,7 @@ agent
     
     try {
       // Validate agent exists
-      const { getAgent } = await import("./agents/db.js");
+      const { getAgent } = await import("./agents-core/db.js");
       const agent = getAgent(agentId);
       if (!agent) {
         console.error(chalk.red(`  ✗ Agent "${agentId}" not found`));
@@ -499,7 +499,7 @@ agent
       let experiments: any[] = [];
       try {
         // Dynamic import with type-only check - module may not exist yet
-        const expFramework = await import("./agents-v2/experiments/framework.js").catch(() => null);
+        const expFramework = await import("./agents/experiments/framework.js").catch(() => null);
         if (expFramework && expFramework.listExperiments) {
           experiments = expFramework.listExperiments(agentId);
           if (options.active) {
@@ -510,7 +510,7 @@ agent
         }
       } catch (expErr) {
         // Fallback: scan for workflow variants
-        const { listWorkflowVariants } = await import("./agents/manager.js");
+        const { listWorkflowVariants } = await import("./agents-core/manager.js");
         experiments = listWorkflowVariants(agentId);
         if (experiments.length === 0) {
           // Check agent config for experiment metadata
@@ -590,7 +590,7 @@ agent
     
     try {
       // Validate agent exists
-      const { getAgent, saveAgent } = await import("./agents/db.js");
+      const { getAgent, saveAgent } = await import("./agents-core/db.js");
       const agent = getAgent(agentId);
       if (!agent) {
         console.error(chalk.red(`  ✗ Agent "${agentId}" not found`));
@@ -598,7 +598,7 @@ agent
       }
 
       // Load current workflow
-      const { parseWorkflow } = await import("./agents/workflow.js");
+      const { parseWorkflow } = await import("./agents-core/workflow.js");
       const { ensureKaiDir } = await import("./config.js");
       const currentWorkflow = parseWorkflow(agent.workflow_path);
 

@@ -36,8 +36,8 @@ import {
   startEmailWatcher,
   unwatchAll,
   recoverAll,
-} from "../agents-v2/index.js";
-import type { TriggerConfig } from "../agents-v2/types.js";
+} from "../agents/index.js";
+import type { TriggerConfig } from "../agents/types.js";
 
 /**
  * Daemon: Persistent background agent runner.
@@ -58,7 +58,7 @@ const RESTART_DELAY_MS = 3000;
 let restartTimestamps: number[] = [];
 
 async function startDaemonInner(): Promise<void> {
-  console.log(chalk.bold.cyan("\n  ⚡ Kai Agent Daemon starting (v2 event-driven)...\n"));
+  console.log(chalk.bold.cyan("⚡ Kai Agent Daemon starting (v2 event-driven)..."));
 
   // Catch unhandled errors from scheduled agent runs so they don't kill the daemon
   process.on("uncaughtException", (err) => {
@@ -75,15 +75,15 @@ async function startDaemonInner(): Promise<void> {
   await loadAllSkills();
 
   // Recover interrupted runs from previous session
-  console.log(chalk.dim("  Checking for interrupted runs..."));
   const recovery = await recoverAll({ olderThanMinutes: 2 });
   if (recovery.recovered.length > 0) {
-    console.log(chalk.green(`  ✓ Recovered ${recovery.recovered.length} run(s)`));
+    console.log(chalk.green(`✓ Recovered ${recovery.recovered.length} run(s)`));
   }
 
   // Load all agents and register event-driven triggers
   const agents = listAgents();
-  console.log(chalk.dim(`  Found ${agents.length} agents\n`));
+  let scheduledCount = 0;
+  let triggerCount = 0;
 
   for (const agent of agents) {
     if (!agent.enabled) continue;
@@ -93,7 +93,7 @@ async function startDaemonInner(): Promise<void> {
     // Add cron schedule if exists
     if (agent.schedule) {
       triggers.push({ type: "cron", expr: agent.schedule });
-      console.log(chalk.dim(`  ✓ Cron: ${agent.name} (${agent.schedule})`));
+      scheduledCount++;
     }
     
     // Convert heartbeat conditions to triggers
@@ -105,19 +105,23 @@ async function startDaemonInner(): Promise<void> {
     if (config.heartbeat?.enabled && config.heartbeat.conditions) {
       const heartbeatTriggers = convertHeartbeatToTriggers(config.heartbeat.conditions);
       triggers.push(...heartbeatTriggers);
-      console.log(chalk.dim(`  ✓ Triggers: ${agent.name} (${heartbeatTriggers.length} condition-based)`));
+      triggerCount += heartbeatTriggers.length;
     }
     
     if (triggers.length > 0) {
       registerAgentTriggers({ agentId: agent.id, triggers });
     }
   }
+  
+  if (scheduledCount > 0 || triggerCount > 0) {
+    console.log(chalk.dim(`Registered ${scheduledCount} scheduled agents, ${triggerCount} triggers`));
+  }
 
   // Subscribe to manual run requests
   eventBus.subscribe("agent:run-requested", async (event) => {
     const agentId = event.payload.agentId as string;
     if (agentId) {
-      const { runAgent } = await import("../agents-v2/runner.js");
+      const { runAgent } = await import("../agents/runner.js");
       await runAgent(agentId, { triggerEvent: event });
     }
   });
@@ -130,7 +134,7 @@ async function startDaemonInner(): Promise<void> {
   }
 
   // Keep the process alive
-  console.log(chalk.dim("  Daemon running. Press Ctrl+C to stop.\n"));
+  console.log(chalk.dim("Daemon running. Press Ctrl+C to stop."));
 
   // Start simplified heartbeat (just for self-healing, no condition polling)
   startProactiveHeartbeat();
@@ -431,7 +435,7 @@ export function stopDaemon(): void {
   // Stop v2 watchers
   unwatchAll();
   
-  import("../agents-v2/watchers/email.js").then(m => m.stopEmailWatcher()).catch(() => {});
+  import("../agents/watchers/email.js").then(m => m.stopEmailWatcher()).catch(() => {});
 }
 
 export function getDaemonPidPath(): string {

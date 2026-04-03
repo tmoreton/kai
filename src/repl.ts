@@ -35,7 +35,7 @@ import { isPlanMode } from "./plan-mode.js";
 import { autoRoute, applyRoute } from "./auto-route.js";
 import { recordError, installGlobalErrorHandlers } from "./error-tracker.js";
 import { resolveFilePath, expandHome } from "./utils.js";
-import { bootstrapBuiltinAgents } from "./agents/bootstrap.js";
+import { bootstrapBuiltinAgents } from "./agents-core/bootstrap.js";
 import { SLASH_COMMANDS, handleCommand } from "./repl-commands.js";
 import { startSpinner, stopSpinner, renderToolCard, renderAssistantMarker, clearLine, COLOR_THEME, MarkdownStreamBuffer } from "./render/stream.js";
 
@@ -163,7 +163,7 @@ export async function startRepl(options: ReplOptions = {}, initialPrompt?: strin
   console.log("");
 
   // Show notification digest in REPL startup
-  const { formatNotificationDigest } = await import("./agents/manager.js");
+  const { formatNotificationDigest } = await import("./agents-core/manager.js");
   const digest = formatNotificationDigest(24);
   if (digest) {
     console.log(digest);

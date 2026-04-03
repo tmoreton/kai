@@ -7,7 +7,7 @@ import { z } from "zod";
 
 export const bashSchema = z.object({
   command: z.string().min(1, "command is required"),
-  timeout: z.number().min(1).transform(v => Math.min(v, 600000)).optional(),
+  timeout: z.number().min(1).max(600000, "timeout cannot exceed 600000ms (10 minutes)").optional(),
 });
 
 export const bashBackgroundSchema = z.object({

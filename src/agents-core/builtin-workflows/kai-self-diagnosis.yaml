@@ -1,0 +1,191 @@
+name: Kai Self-Diagnosis
+description: Analyzes accumulated error events and generates structured diagnosis reports for self-healing
+schedule: "0 3 * * *"
+
+config:
+  kai_dir: "~/.kai"
+  min_error_count: 2
+  max_errors_to_analyze: 20
+
+steps:
+  # === GATHER UNRESOLVED ERRORS ===
+  - name: collect_errors
+    type: shell
+    command: |
+      DB="${config.kai_dir}/agents.db"
+      if [ ! -f "$DB" ]; then
+        echo "NO_ERRORS"
+        exit 0
+      fi
+
+      # Query unresolved errors grouped by fingerprint, last 48h
+      CUTOFF=$(date -u -v-48H +"%Y-%m-%d %H:%M:%S" 2>/dev/null || date -u -d "48 hours ago" +"%Y-%m-%d %H:%M:%S" 2>/dev/null)
+
+      sqlite3 -json "$DB" "
+        SELECT fingerprint, source, error_class, message, stack, context,
+               SUM(count) as total_count,
+               MIN(first_seen) as first_seen,
+               MAX(last_seen) as last_seen
+        FROM error_events
+        WHERE resolved = 0 AND last_seen > '$CUTOFF'
+        GROUP BY fingerprint
+        HAVING total_count >= ${config.min_error_count}
+        ORDER BY total_count DESC
+        LIMIT ${config.max_errors_to_analyze}
+      " 2>/dev/null || echo "NO_ERRORS"
+    output_var: error_data
+
+  # === CHECK IF THERE ARE ERRORS TO ANALYZE ===
+  - name: check_errors
+    type: shell
+    condition: "${vars.error_data}"
+    command: |
+      if [ "${vars.error_data}" = "NO_ERRORS" ] || [ -z "${vars.error_data}" ] || [ "${vars.error_data}" = "[]" ]; then
+        echo "SKIP"
+      else
+        echo "PROCEED"
+      fi
+    output_var: should_proceed
+
+  # === READ RELEVANT SOURCE FILES ===
+  - name: read_sources
+    type: shell
+    condition: "${vars.should_proceed} = PROCEED"
+    command: |
+      # Extract unique file paths from stack traces and show relevant code
+      KAI_SRC="$(cd "$(dirname "$(which kai 2>/dev/null || echo ~/.kai)")" && pwd)/../src"
+      # Fallback to common locations
+      for dir in "$KAI_SRC" ~/Code/kai/src ~/.kai/src; do
+        if [ -d "$dir" ]; then
+          KAI_SRC="$dir"
+          break
+        fi
+      done
+
+      echo "=== KEY SOURCE FILES ==="
+
+      # Always include the main error-prone files
+      for f in client.ts tools/executor.ts repl.ts tools/search.ts; do
+        full="$KAI_SRC/$f"
+        if [ -f "$full" ]; then
+          echo "--- $f (first 100 lines) ---"
+          head -100 "$full"
+          echo ""
+        fi
+      done
+
+      # Extract file paths mentioned in error stacks
+      echo "${vars.error_data}" | grep -oE 'src/[a-zA-Z0-9/_.-]+\.ts' | sort -u | head -10 | while read f; do
+        full="$KAI_SRC/../$f"
+        if [ -f "$full" ]; then
+          echo "--- $f (first 80 lines) ---"
+          head -80 "$full"
+          echo ""
+        fi
+      done
+    output_var: source_context
+
+  # === LLM DIAGNOSIS ===
+  - name: diagnose
+    type: llm
+    condition: "${vars.should_proceed} = PROCEED"
+    prompt: |
+      You are Kai's self-diagnosis agent. Analyze accumulated runtime errors and produce structured diagnoses.
+
+      ## Error Events (last 48 hours, grouped by fingerprint):
+      ${vars.error_data}
+
+      ## Relevant Source Code:
+      ${vars.source_context}
+
+      ## Instructions
+
+      For each error fingerprint, analyze:
+      1. What is the root cause?
+      2. Is this a code bug, a configuration issue, a transient external failure, or expected behavior?
+      3. How confident are you in your diagnosis? (0.0-1.0)
+      4. What specific code change would fix it? (if applicable)
+      5. Which files need to be modified?
+
+      ## Output Format
+
+      Respond with a JSON array (and NOTHING else before or after it):
+
+      ```json
+      [
+        {
+          "fingerprint": "abc12345",
+          "severity": "high",
+          "category": "bug",
+          "diagnosis": "Brief description of the root cause",
+          "suggested_fix": "Specific code change description",
+          "confidence": 0.85,
+          "files_involved": ["src/client.ts"],
+          "skip_auto_fix": false
+        }
+      ]
+      ```
+
+      Rules:
+      - Set `skip_auto_fix: true` for transient/external errors (API timeouts, rate limits) that don't need code fixes
+      - Set severity: "high" for errors causing user-visible failures, "medium" for degraded behavior, "low" for cosmetic/logging issues
+      - Set category: "bug" | "config" | "transient" | "expected"
+      - Only suggest fixes you are confident about (>= 0.7). For lower confidence, set `skip_auto_fix: true`
+      - Be conservative — a wrong fix is worse than no fix
+
+  # === STORE RESULTS ===
+  - name: store_diagnosis
+    type: shell
+    condition: "${vars.should_proceed} = PROCEED"
+    command: |
+      # Save diagnosis to a file for the self-heal workflow to read
+      DIAGNOSIS_DIR="${config.kai_dir}/self-heal"
+      mkdir -p "$DIAGNOSIS_DIR"
+      DIAGNOSIS_FILE="$DIAGNOSIS_DIR/latest-diagnosis.json"
+
+      # Extract JSON from the LLM output (handle markdown code blocks)
+      echo "${vars.diagnose}" | sed -n '/^\[/,/^\]/p' > "$DIAGNOSIS_FILE" 2>/dev/null
+
+      # If sed didn't find bare JSON, try extracting from code block
+      if [ ! -s "$DIAGNOSIS_FILE" ]; then
+        echo "${vars.diagnose}" | sed -n '/```json/,/```/{/```/d;p}' > "$DIAGNOSIS_FILE" 2>/dev/null
+      fi
+
+      if [ -s "$DIAGNOSIS_FILE" ]; then
+        COUNT=$(python3 -c "import json; print(len(json.load(open('$DIAGNOSIS_FILE'))))" 2>/dev/null || echo "?")
+        echo "Diagnosis saved: $COUNT error(s) analyzed"
+        echo "File: $DIAGNOSIS_FILE"
+      else
+        echo "No diagnosis produced"
+      fi
+    output_var: store_result
+
+  # === REPORT ===
+  - name: report
+    type: llm
+    condition: "${vars.should_proceed} = PROCEED"
+    prompt: |
+      Generate a concise self-diagnosis report for the user.
+
+      ## Error Data:
+      ${vars.error_data}
+
+      ## Diagnosis:
+      ${vars.diagnose}
+
+      ## Storage:
+      ${vars.store_result}
+
+      Write a brief report (under 200 words) covering:
+      1. **Errors found** — how many, by source and severity
+      2. **Key diagnoses** — what's actually broken vs transient
+      3. **Fixable items** — what the self-heal agent can attempt
+      4. **Needs attention** — anything requiring manual intervention
+
+      Be specific and actionable. If no errors were found, say so.
+
+  - name: notify
+    type: notify
+    params:
+      title: "Kai Self-Diagnosis"
+      message: "Error analysis complete — check /errors or run kai agent output kai-self-diagnosis"
