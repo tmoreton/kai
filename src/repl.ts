@@ -162,13 +162,6 @@ export async function startRepl(options: ReplOptions = {}, initialPrompt?: strin
   } catch {}
   console.log("");
 
-  // Show notification digest in REPL startup
-  const { formatNotificationDigest } = await import("./agents-core/manager.js");
-  const digest = formatNotificationDigest(24);
-  if (digest) {
-    console.log(digest);
-  }
-
   console.log(chalk.dim("  Tips: Ask me to build/debug/refactor • Type /help for commands\n"));
 
   // Startup warnings
