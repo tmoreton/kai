@@ -8,132 +8,117 @@ tools:
   - name: docker_build
     description: Build Docker image with intelligent tagging
     parameters:
-      type: object
-      properties:
-        tag:
-          type: string
-          description: Image tag (auto-generated if not provided)
-        dockerfile:
-          type: string
-          description: Path to Dockerfile (default 'Dockerfile')
-          default: Dockerfile
-        context:
-          type: string
-          description: Build context path (default '.')
-          default: .
-        push:
-          type: boolean
-          description: Push to registry after build
-          default: false
-        no_cache:
-          type: boolean
-          description: Build without cache
-          default: false
-      required: []
+      tag:
+        type: string
+        description: Image tag (auto-generated if not provided)
+      dockerfile:
+        type: string
+        description: Path to Dockerfile (default 'Dockerfile')
+        default: Dockerfile
+      context:
+        type: string
+        description: Build context path (default '.')
+        default: .
+      push:
+        type: boolean
+        description: Push to registry after build
+        default: false
+      no_cache:
+        type: boolean
+        description: Build without cache
+        default: false
+    required: []
 
   - name: docker_run
     description: Run Docker container with smart defaults
     parameters:
-      type: object
-      properties:
-        image:
-          type: string
-          description: Image name to run
-        name:
-          type: string
-          description: Container name (auto-generated if not provided)
-        ports:
-          type: array
-          items:
-            type: string
-          description: Port mappings (e.g., ['3000:3000'])
-        env:
-          type: object
-          description: Environment variables
-        volumes:
-          type: array
-          items:
-            type: string
-          description: Volume mounts
-        detach:
-          type: boolean
-          description: Run in background
-          default: true
-        remove:
-          type: boolean
-          description: Remove container on stop (--rm)
-          default: false
-      required: [image]
+      image:
+        type: string
+        description: Image name to run
+        required: true
+      name:
+        type: string
+        description: Container name (auto-generated if not provided)
+      ports:
+        type: array
+        description: Port mappings (e.g., ['3000:3000'])
+      env:
+        type: object
+        description: Environment variables
+      volumes:
+        type: array
+        description: Volume mounts
+      detach:
+        type: boolean
+        description: Run in background
+        default: true
+      remove:
+        type: boolean
+        description: Remove container on stop (--rm)
+        default: false
+    required: [image]
 
   - name: docker_compose_up
     description: Start services with docker-compose
     parameters:
-      type: object
-      properties:
-        services:
-          type: array
-          items:
-            type: string
-          description: Specific services to start
-        build:
-          type: boolean
-          description: Build images before starting
-          default: false
-        detach:
-          type: boolean
-          description: Run in background
-          default: true
-        file:
-          type: string
-          description: Compose file path (default 'docker-compose.yml')
-      required: []
+      services:
+        type: array
+        description: Specific services to start
+      build:
+        type: boolean
+        description: Build images before starting
+        default: false
+      detach:
+        type: boolean
+        description: Run in background
+        default: true
+      file:
+        type: string
+        description: Compose file path (default 'docker-compose.yml')
+    required: []
 
   - name: docker_compose_down
     description: Stop and remove docker-compose services
     parameters:
-      type: object
-      properties:
-        volumes:
-          type: boolean
-          description: Remove volumes as well
-          default: false
-        file:
-          type: string
-          description: Compose file path
-      required: []
+      volumes:
+        type: boolean
+        description: Remove volumes as well
+        default: false
+      file:
+        type: string
+        description: Compose file path
+    required: []
 
   - name: docker_logs
     description: View container logs with filtering
     parameters:
-      type: object
-      properties:
-        container:
-          type: string
-          description: Container name or ID
-        follow:
-          type: boolean
-          description: Follow log output
-          default: false
-        tail:
-          type: number
-          description: Number of lines to show
-          default: 100
-        since:
-          type: string
-          description: Show logs since timestamp
-      required: [container]
+      container:
+        type: string
+        description: Container name or ID
+        required: true
+      follow:
+        type: boolean
+        description: Follow log output
+        default: false
+      tail:
+        type: number
+        description: Number of lines to show
+        default: 100
+      since:
+        type: string
+        description: Show logs since timestamp
+    required: [container]
 
   - name: docker_status
     description: Show running containers and resource usage
     parameters:
-      type: object
-      properties:
-        all:
-          type: boolean
-          description: Show all containers including stopped
-          default: false
-        format:
-          type: string
-          enum: [table, json]
-          default: table
-      required: []
+      all:
+        type: boolean
+        description: Show all containers including stopped
+        default: false
+      format:
+        type: string
+        description: Output format
+        enum: [table, json]
+        default: table
+    required: []

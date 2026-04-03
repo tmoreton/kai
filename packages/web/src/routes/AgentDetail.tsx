@@ -122,11 +122,15 @@ export function AgentDetail() {
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-hidden p-4">
-        {activeTab === 'chat' && <AgentChat agent={agent} />}
-        {activeTab === 'workflows' && <AgentWorkflow agent={agent} />}
-        {activeTab === 'history' && <AgentHistory agent={agent} />}
-        {activeTab === 'settings' && <AgentSettings agent={agent} />}
+      <div className="flex-1 overflow-hidden">
+        <div className="h-full overflow-y-auto p-4 sm:p-6">
+          <div className="max-w-4xl mx-auto h-full">
+            {activeTab === 'chat' && <AgentChat agent={agent} />}
+            {activeTab === 'workflows' && <AgentWorkflow agent={agent} />}
+            {activeTab === 'history' && <AgentHistory agent={agent} />}
+            {activeTab === 'settings' && <AgentSettings agent={agent} />}
+          </div>
+        </div>
       </div>
     </div>
   );

@@ -8,93 +8,84 @@ tools:
   - name: git_smart_commit
     description: AI-powered git commit with automatic message generation and optional push
     parameters:
-      type: object
-      properties:
-        message:
-          type: string
-          description: Optional commit message (auto-generated if not provided)
-        scope:
-          type: string
-          description: Commit scope (e.g., 'api', 'ui', 'docs')
-        push:
-          type: boolean
-          description: Push after commit
-          default: false
-        dry_run:
-          type: boolean
-          description: Preview what would be committed without doing it
-          default: false
-      required: []
+      message:
+        type: string
+        description: Optional commit message (auto-generated if not provided)
+      scope:
+        type: string
+        description: Commit scope (e.g., 'api', 'ui', 'docs')
+      push:
+        type: boolean
+        description: Push after commit
+        default: false
+      dry_run:
+        type: boolean
+        description: Preview what would be committed without doing it
+        default: false
+    required: []
 
   - name: git_pr_create
     description: Full PR workflow - creates branch, commits changes, pushes, and opens PR
     parameters:
-      type: object
-      properties:
-        title:
-          type: string
-          description: PR title
-        body:
-          type: string
-          description: PR description/body
-        base:
-          type: string
-          description: Base branch to merge into (default 'main')
-          default: main
-        branch_name:
-          type: string
-          description: Branch name (auto-generated if not provided)
-        draft:
-          type: boolean
-          description: Create as draft PR
-          default: false
-      required: [title]
+      title:
+        type: string
+        description: PR title
+        required: true
+      body:
+        type: string
+        description: PR description/body
+      base:
+        type: string
+        description: Base branch to merge into (default 'main')
+        default: main
+      branch_name:
+        type: string
+        description: Branch name (auto-generated if not provided)
+      draft:
+        type: boolean
+        description: Create as draft PR
+        default: false
+    required: [title]
 
   - name: git_log_summary
     description: Summarize recent git history with AI-generated changelog
     parameters:
-      type: object
-      properties:
-        since:
-          type: string
-          description: Show commits since date (e.g., '2024-01-01', '1 week ago')
-          default: "1 week ago"
-        max_entries:
-          type: number
-          description: Maximum commits to analyze
-          default: 50
-        format:
-          type: string
-          enum: [changelog, summary, list]
-          description: Output format
-          default: summary
-      required: []
+      since:
+        type: string
+        description: Show commits since date (e.g., '2024-01-01', '1 week ago')
+        default: "1 week ago"
+      max_entries:
+        type: number
+        description: Maximum commits to analyze
+        default: 50
+      format:
+        type: string
+        description: Output format
+        enum: [changelog, summary, list]
+        default: summary
+    required: []
 
   - name: git_branch_suggest
     description: Suggest branch name based on context (current changes or description)
     parameters:
-      type: object
-      properties:
-        description:
-          type: string
-          description: Description of the work being done
-        prefix:
-          type: string
-          description: Branch prefix (feature/, fix/, hotfix/, etc.)
-          default: feature/
-        max_length:
-          type: number
-          description: Maximum branch name length
-          default: 50
-      required: []
+      description:
+        type: string
+        description: Description of the work being done
+      prefix:
+        type: string
+        description: Branch prefix (feature/, fix/, hotfix/, etc.)
+        default: feature/
+      max_length:
+        type: number
+        description: Maximum branch name length
+        default: 50
+    required: []
 
   - name: git_status_detailed
     description: Detailed git status with AI analysis of changes
     parameters:
-      type: object
-      properties:
-        analyze:
-          type: boolean
-          description: AI analysis of what the changes are doing
-          default: true
-      required: []
+      analyze:
+        type: boolean
+        description: AI analysis of what the changes are doing
+        default: true
+    required: []
