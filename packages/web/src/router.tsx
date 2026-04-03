@@ -11,7 +11,7 @@ import { AgentDetail } from "./routes/AgentDetail";
 import { SettingsView } from "./routes/SettingsView";
 import { NotificationsView } from "./routes/NotificationsView";
 import { PersonaEditor } from "./routes/PersonaEditor";
-import { AgentWorkflow } from "./routes/AgentWorkflow";
+import { DocsView } from "./routes/DocsView";
 
 // Wrapper component to add ErrorBoundary to routes
 const withErrorBoundary = (Component: React.ComponentType) => (
@@ -35,10 +35,9 @@ export const router = createBrowserRouter([
       { path: "agents/persona/edit/:personaId", element: withErrorBoundary(PersonaEditor), errorElement: <RouteError /> },
       { path: "personas/new", element: withErrorBoundary(PersonaEditor), errorElement: <RouteError /> },
       { path: "personas/:personaId/edit", element: withErrorBoundary(PersonaEditor), errorElement: <RouteError /> },
-      { path: "workflow", element: withErrorBoundary(AgentWorkflow), errorElement: <RouteError /> },
-      { path: "workflow/:agentId", element: withErrorBoundary(AgentWorkflow), errorElement: <RouteError /> },
       { path: "settings", element: withErrorBoundary(SettingsView), errorElement: <RouteError /> },
       { path: "notifications", element: withErrorBoundary(NotificationsView), errorElement: <RouteError /> },
+      { path: "docs", element: withErrorBoundary(DocsView), errorElement: <RouteError /> },
     ],
   },
 ]);

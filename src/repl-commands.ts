@@ -265,6 +265,8 @@ export async function handleCommand(
     session.messages = messages;
     saveSession(session);
     console.log(chalk.dim("\n  Session saved. Goodbye!\n"));
+    console.log(chalk.dim("  Resume this session with:"));
+    console.log(chalk.cyan(`  kai --resume ${session.id}\n`));
     return "exit";
   }
 

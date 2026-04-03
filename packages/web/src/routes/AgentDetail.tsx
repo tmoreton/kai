@@ -1,12 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useSuspenseQuery, useQuery } from '@tanstack/react-query';
-import { 
-  ArrowLeft, 
-  MessageSquare, 
-  GitBranch, 
-  History, 
-  Play, 
+import {
+  ArrowLeft,
+  MessageSquare,
+  GitBranch,
+  History,
+  Play,
   Plus,
   Loader2,
   AlertCircle,
@@ -523,17 +523,17 @@ function EmbeddedWorkflowEditor({ agentId, agentName }: { agentId: string; agent
           <span className="font-medium text-sm truncate">{agentName}</span>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
-          <Button 
-            variant="outline" 
-            size="sm" 
+          <Button
+            variant="outline"
+            size="sm"
             onClick={handleSave}
             disabled={isSaving}
           >
             {isSaving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
             Save
           </Button>
-          <Button 
-            size="sm" 
+          <Button
+            size="sm"
             onClick={handleRun}
             disabled={isRunning}
             className="bg-kai-teal hover:bg-kai-teal/90"

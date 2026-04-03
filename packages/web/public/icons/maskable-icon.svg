@@ -24,8 +24,8 @@
   <rect x="0" y="0" width="512" height="260" fill="url(#gloss)"/>
   <!-- K mark centered in safe zone (inner 80% = 410x410 centered) -->
   <g filter="url(#shadow)">
-    <path d="M180 148v216" stroke="url(#k-stroke)" stroke-width="40" stroke-linecap="round"/>
-    <path d="M180 256l100-100" stroke="url(#k-stroke)" stroke-width="40" stroke-linecap="round" stroke-linejoin="round"/>
-    <path d="M180 256l100 100" stroke="url(#k-stroke)" stroke-width="40" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M185 148v216" stroke="url(#k-stroke)" stroke-width="40" stroke-linecap="round"/>
+    <path d="M185 256l148-108" stroke="url(#k-stroke)" stroke-width="40" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M185 256l148 108" stroke="url(#k-stroke)" stroke-width="40" stroke-linecap="round" stroke-linejoin="round"/>
   </g>
 </svg>

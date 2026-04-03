@@ -55,6 +55,12 @@ function readImageAsDataUrl(filePath: string): { dataUrl: string; sizeKB: number
   return { dataUrl: `data:${MIME_MAP[ext] || "image/png"};base64,${base64}`, sizeKB: Math.round(stat.size / 1024) };
 }
 
+function printGoodbye(sessionId: string): void {
+  console.log(chalk.dim("\n  Session saved. Goodbye!\n"));
+  console.log(chalk.dim("  Resume this session with:"));
+  console.log(chalk.cyan(`  kai --resume ${sessionId}\n`));
+}
+
 export interface ReplOptions {
   continueSession?: boolean;
   resumeSessionId?: string;
@@ -451,7 +457,7 @@ export async function startRepl(options: ReplOptions = {}, initialPrompt?: strin
       cleanupBackgroundProcesses();
       session.messages = messages;
       saveSessionSync(session);
-      console.log(chalk.dim("\n  Session saved. Goodbye!\n"));
+      printGoodbye(session.id);
       rl.close();
       process.exit(0);
     }
@@ -494,7 +500,7 @@ export async function startRepl(options: ReplOptions = {}, initialPrompt?: strin
         cleanupBackgroundProcesses();
         session.messages = messages;
         saveSessionSync(session);
-        console.log(chalk.dim("  Session saved. Goodbye!\n"));
+        printGoodbye(session.id);
         process.exit(0);
       }
       // Force processing flag reset so prompt reappears
@@ -505,7 +511,7 @@ export async function startRepl(options: ReplOptions = {}, initialPrompt?: strin
       cleanupBackgroundProcesses();
       session.messages = messages;
       saveSessionSync(session);
-      console.log(chalk.dim("\n  Session saved. Goodbye!\n"));
+      printGoodbye(session.id);
       process.exit(0);
     }
   });
@@ -513,6 +519,7 @@ export async function startRepl(options: ReplOptions = {}, initialPrompt?: strin
   rl.on("close", () => {
     session.messages = messages;
     saveSessionSync(session);
+    printGoodbye(session.id);
     process.exit(0);
   });
 

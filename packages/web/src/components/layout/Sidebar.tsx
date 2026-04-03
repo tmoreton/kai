@@ -7,6 +7,7 @@ import {
   Code,
   Settings,
   Bell,
+  BookOpen,
   Plus,
   ChevronDown,
   PanelLeftClose,
@@ -355,6 +356,12 @@ export function Sidebar() {
 
         {/* Static sections */}
         <SidebarItem
+          to="/docs"
+          icon={<BookOpen className="w-4 h-4" />}
+          label="Docs"
+          active={isActive('/docs')}
+        />
+        <SidebarItem
           to="/settings"
           icon={<Settings className="w-4 h-4" />}
           label="Settings"
@@ -417,6 +424,13 @@ export function Sidebar() {
           <Plus className="w-5 h-5" />
         </button>
         <div className="flex-1" />
+        <Link
+          to="/docs"
+          className="p-2 rounded-lg hover:bg-accent/50 text-muted-foreground"
+          title="Docs"
+        >
+          <BookOpen className="w-5 h-5" />
+        </Link>
         <Link
           to="/settings"
           className="p-2 rounded-lg hover:bg-accent/50 text-muted-foreground"

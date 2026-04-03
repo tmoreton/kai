@@ -26,9 +26,9 @@
   <rect x="8" y="6" width="176" height="90" rx="38" fill="url(#gloss)"/>
   <!-- K mark with subtle shadow -->
   <g filter="url(#shadow)">
-    <path d="M58 48v96" stroke="url(#k-stroke)" stroke-width="16" stroke-linecap="round"/>
-    <path d="M58 96l44-44" stroke="url(#k-stroke)" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/>
-    <path d="M58 96l44 44" stroke="url(#k-stroke)" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M64 44v104" stroke="url(#k-stroke)" stroke-width="16" stroke-linecap="round"/>
+    <path d="M64 96l68-52" stroke="url(#k-stroke)" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M64 96l68 52" stroke="url(#k-stroke)" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/>
   </g>
   <!-- Bottom edge highlight -->
   <rect x="8" y="186" width="176" height="2" rx="1" fill="white" opacity="0.08"/>
