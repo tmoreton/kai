@@ -28,6 +28,9 @@ npm-debug.log*
 .kai/soul/
 .kai/agent-output/
 .kai/workflows/
+.kai/commands/
+.kai/metrics/
+.kai/agents.db
 .kai/tasks.json
 .kai/daemon.pid
 agents.db
