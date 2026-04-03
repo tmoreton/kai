@@ -195,6 +195,77 @@ agent
   });
 
 agent
+  .command("resume <run-id>")
+  .description("Resume an interrupted run from its last checkpoint")
+  .action(async (runId) => {
+    const chalk = (await import("chalk")).default;
+    try {
+      const { resumeRun, getInterruptedRunDetails } = await import("./agents/resume.js");
+      
+      // Check if resumable
+      const details = getInterruptedRunDetails(runId);
+      if (!details.canResume) {
+        console.log(chalk.red(`  ✗ Cannot resume: ${details.reason}`));
+        process.exit(1);
+      }
+
+      console.log(chalk.cyan(`  Resuming run ${runId}...`));
+      console.log(chalk.dim(`  Agent: ${details.run?.agent_id}`));
+      console.log(chalk.dim(`  Checkpoint step: ${details.checkpoint?.stepIndex ?? 0}`));
+      console.log();
+
+      const result = await resumeRun(runId);
+
+      if (result.success) {
+        console.log(chalk.green(`  ✓ Run resumed and completed successfully`));
+      } else {
+        console.log(chalk.red(`  ✗ Resume failed: ${result.error}`));
+        process.exit(1);
+      }
+    } catch (err: any) {
+      console.error(chalk.red(`  Error: ${err.message}`));
+      process.exit(1);
+    }
+  });
+
+agent
+  .command("list-interrupted")
+  .alias("interrupted")
+  .description("List all interrupted runs that can be resumed")
+  .option("-a, --agent <agent-id>", "Filter by agent ID")
+  .action(async (options) => {
+    const chalk = (await import("chalk")).default;
+    try {
+      const { findInterruptedRunsForDisplay } = await import("./agents/resume.js");
+      
+      const interrupted = findInterruptedRunsForDisplay({ 
+        agentId: options.agent,
+        limit: 50 
+      });
+
+      if (interrupted.length === 0) {
+        console.log(chalk.dim("\n  No interrupted runs found.\n"));
+        return;
+      }
+
+      console.log(chalk.bold(`\n  Interrupted Runs (${interrupted.length}):\n`));
+
+      for (const run of interrupted) {
+        console.log(`  ${chalk.cyan(run.id)}`);
+        console.log(`    Agent: ${run.agent_id}`);
+        console.log(`    Status: ${run.status}`);
+        console.log(`    Checkpoint step: ${run.checkpoint_step}`);
+        console.log(`    Started: ${run.started_at}`);
+        console.log(`    Resume: kai agent resume ${run.id}`);
+        console.log();
+      }
+    } catch (err: any) {
+      console.error(chalk.red(`  Error: ${err.message}`));
+      process.exit(1);
+    }
+  });
+
+agent
   .command("delete <agent-id>")
   .description("Delete an agent and its history")
   .action(async (agentId) => {
@@ -282,6 +353,344 @@ agent
       console.log(formatAgentTrends(agentId, stepName));
     } catch (err: any) {
       console.error(chalk.red(`  Error: ${err.message}`));
+      process.exit(1);
+    }
+  });
+
+// --- Self-Improvement Commands ---
+// These integrate with the meta-learner, pattern analyzer, and experiment framework
+
+agent
+  .command("optimize <agent-id>")
+  .description("Analyze and suggest improvements for an agent")
+  .option("-w, --window <n>", "Number of runs to analyze", "30")
+  .option("-a, --apply", "Auto-apply high-confidence improvements")
+  .option("-o, --output <file>", "Save improvement plan to JSON file")
+  .action(async (agentId, options) => {
+    const chalk = (await import("chalk")).default;
+    const fs = await import("fs");
+    
+    try {
+      // Validate agent exists
+      const { getAgent } = await import("./agents/db.js");
+      const agent = getAgent(agentId);
+      if (!agent) {
+        console.error(chalk.red(`  ✗ Agent "${agentId}" not found`));
+        process.exit(1);
+      }
+
+      console.log(chalk.cyan(`  Analyzing ${agentId}...`));
+
+      // Try pattern analyzer first (for future integration)
+      // Falls back to meta-learner if pattern analyzer isn't available
+      let analysis: any;
+      try {
+        // Dynamic import with type-only check - module may not exist yet
+        const patternAnalyzer = await import("./agents-v2/analysis/pattern-analyzer.js").catch(() => null);
+        if (patternAnalyzer && patternAnalyzer.analyzeAgentPerformance) {
+          const result = await patternAnalyzer.analyzeAgentPerformance(agentId, { windowHours: parseInt(options.window) });
+          // Convert to the format expected by the display code
+          analysis = {
+            totalRuns: result.summary.totalRuns,
+            successRate: result.successRate,
+            qualityTrend: result.patterns.find((p: any) => p.id === "quality-score-correlation")?.type || "stable",
+            commonErrors: result.commonErrors.map((e: any) => ({
+              type: e.type,
+              count: e.count,
+              percentage: e.percentageOfFailures,
+            })),
+            recommendations: result.recommendations.map((r: any) => r.title),
+          };
+          console.log(chalk.green(`  ✓ Pattern analysis complete`));
+        } else {
+          throw new Error("Pattern analyzer not available");
+        }
+      } catch (patternErr) {
+        // Fallback to meta-learner
+        const { analyzeAgent } = await import("./agents-v2/meta-learner.js");
+        analysis = await analyzeAgent(agentId, parseInt(options.window));
+        console.log(chalk.dim(`  Using meta-learner (pattern analyzer not available)`));
+      }
+
+      // Display results
+      console.log(chalk.bold("\n  Analysis Results\n"));
+      console.log(`  Total runs analyzed: ${analysis.totalRuns}`);
+      console.log(`  Success rate: ${(analysis.successRate * 100).toFixed(1)}%`);
+      console.log(`  Quality trend: ${chalk.cyan(analysis.qualityTrend)}`);
+
+      if (analysis.commonErrors?.length > 0) {
+        console.log(chalk.yellow("\n  Common errors:"));
+        for (const err of analysis.commonErrors.slice(0, 5)) {
+          console.log(`    - ${err.error}: ${err.count}x`);
+        }
+      }
+
+      if (analysis.slowSteps?.length > 0) {
+        console.log(chalk.blue("\n  Slowest steps:"));
+        for (const step of analysis.slowSteps.slice(0, 5)) {
+          console.log(`    - ${step.step}: ${step.avgMs}ms avg`);
+        }
+      }
+
+      // Display and handle suggestions
+      const suggestions = analysis.suggestions || [];
+      const highConfidence = suggestions.filter((s: any) => s.confidence >= 0.9);
+      const mediumConfidence = suggestions.filter((s: any) => s.confidence >= 0.7 && s.confidence < 0.9);
+
+      if (suggestions.length > 0) {
+        console.log(chalk.green("\n  Improvement Suggestions:"));
+        for (const s of suggestions) {
+          const confidence = Math.round(s.confidence * 100);
+          const color = s.confidence >= 0.9 ? chalk.green : s.confidence >= 0.7 ? chalk.yellow : chalk.dim;
+          console.log(color(`    ${s.type} on "${s.target}" (${confidence}%)`));
+          console.log(chalk.dim(`      ${s.reason}`));
+          if (s.patternMatch) {
+            console.log(chalk.dim(`      Pattern: ${s.patternMatch}`));
+          }
+        }
+      } else {
+        console.log(chalk.dim("\n  No improvements suggested at this time."));
+      }
+
+      // Save output if requested
+      if (options.output) {
+        const outputPath = options.output.endsWith('.json') ? options.output : `${options.output}.json`;
+        fs.writeFileSync(outputPath, JSON.stringify(analysis, null, 2));
+        console.log(chalk.dim(`\n  Analysis saved to: ${outputPath}`));
+      }
+
+      // Apply improvements if requested
+      if (options.apply && highConfidence.length > 0) {
+        console.log(chalk.cyan(`\n  Applying ${highConfidence.length} high-confidence improvement(s)...`));
+        const { applyImprovements } = await import("./agents-v2/meta-learner.js");
+        const result = await applyImprovements(agentId, highConfidence);
+        console.log(chalk.green(`  ✓ Applied: ${result.applied}, Notified: ${result.notified}, Logged: ${result.logged}`));
+      } else if (options.apply) {
+        console.log(chalk.dim(`\n  No high-confidence improvements to apply.`));
+      } else if (highConfidence.length > 0) {
+        console.log(chalk.dim(`\n  Run with --apply to auto-apply ${highConfidence.length} high-confidence suggestion(s)`));
+      }
+
+      console.log();
+    } catch (err: any) {
+      console.error(chalk.red(`  ✗ Error: ${err.message}`));
+      process.exit(1);
+    }
+  });
+
+agent
+  .command("experiments <agent-id>")
+  .description("List A/B experiments and variants for an agent")
+  .option("-a, --active", "Show only active experiments")
+  .option("-v, --verbose", "Show detailed variant information")
+  .action(async (agentId, options) => {
+    const chalk = (await import("chalk")).default;
+    
+    try {
+      // Validate agent exists
+      const { getAgent } = await import("./agents/db.js");
+      const agent = getAgent(agentId);
+      if (!agent) {
+        console.error(chalk.red(`  ✗ Agent "${agentId}" not found`));
+        process.exit(1);
+      }
+
+      // Try experiment framework (future integration)
+      // Falls back to workflow variant detection
+      let experiments: any[] = [];
+      try {
+        // Dynamic import with type-only check - module may not exist yet
+        const expFramework = await import("./agents-v2/experiments/framework.js").catch(() => null);
+        if (expFramework && expFramework.listExperiments) {
+          experiments = expFramework.listExperiments(agentId);
+          if (options.active) {
+            experiments = experiments.filter((e: any) => e.active);
+          }
+        } else {
+          throw new Error("Experiment framework not available");
+        }
+      } catch (expErr) {
+        // Fallback: scan for workflow variants
+        const { listWorkflowVariants } = await import("./agents/manager.js");
+        experiments = listWorkflowVariants(agentId);
+        if (experiments.length === 0) {
+          // Check agent config for experiment metadata
+          const config = JSON.parse(agent.config || "{}");
+          if (config.experiments) {
+            experiments = config.experiments;
+          }
+        }
+      }
+
+      if (experiments.length === 0) {
+        console.log(chalk.dim(`\n  No experiments found for ${agentId}.`));
+        console.log(chalk.dim(`  Create a variant with: kai agent create-variant ${agentId} <name>`));
+        console.log();
+        return;
+      }
+
+      console.log(chalk.bold(`\n  Experiments for ${agent.name} (${agentId})\n`));
+
+      for (const exp of experiments) {
+        const statusIcon = exp.active ? chalk.green("●") : chalk.dim("○");
+        const statusText = exp.active ? chalk.green("active") : chalk.dim("inactive");
+        console.log(`  ${statusIcon} ${chalk.bold(exp.name || exp.variantName || "Unnamed")} ${chalk.dim(`[${statusText}]`)}`);
+        
+        if (exp.description) {
+          console.log(chalk.dim(`    ${exp.description}`));
+        }
+        
+        if (exp.startDate) {
+          console.log(chalk.dim(`    Started: ${new Date(exp.startDate).toLocaleDateString()}`));
+        }
+        
+        if (exp.metrics && Object.keys(exp.metrics).length > 0) {
+          console.log(chalk.cyan("    Metrics:"));
+          for (const [key, value] of Object.entries(exp.metrics)) {
+            console.log(chalk.dim(`      ${key}: ${value}`));
+          }
+        }
+
+        if (options.verbose && exp.variants) {
+          console.log(chalk.blue("    Variants:"));
+          for (const variant of exp.variants) {
+            const control = variant.isControl ? chalk.green(" (control)") : "";
+            console.log(chalk.dim(`      - ${variant.name}${control}`));
+            if (variant.trafficSplit) {
+              console.log(chalk.dim(`        Traffic: ${Math.round(variant.trafficSplit * 100)}%`));
+            }
+          }
+        }
+
+        console.log();
+      }
+
+      // Show controls
+      console.log(chalk.dim("  Commands:"));
+      console.log(chalk.dim(`    kai agent create-variant ${agentId} <name> - Create new variant`));
+      if (experiments.some((e: any) => e.active)) {
+        console.log(chalk.dim(`    kai agent enable ${agentId} --variant <name> - Switch variant`));
+      }
+      console.log();
+    } catch (err: any) {
+      console.error(chalk.red(`  ✗ Error: ${err.message}`));
+      process.exit(1);
+    }
+  });
+
+agent
+  .command("create-variant <agent-id> <variant-name>")
+  .description("Create a workflow variant (A/B test branch)")
+  .option("-d, --description <text>", "Description of the variant")
+  .option("-f, --from <base>", "Base variant to copy from (default: current)")
+  .option("-c, --changes <json>", "JSON array of step modifications")
+  .action(async (agentId, variantName, options) => {
+    const chalk = (await import("chalk")).default;
+    const fs = await import("fs");
+    const path = await import("path");
+    
+    try {
+      // Validate agent exists
+      const { getAgent, saveAgent } = await import("./agents/db.js");
+      const agent = getAgent(agentId);
+      if (!agent) {
+        console.error(chalk.red(`  ✗ Agent "${agentId}" not found`));
+        process.exit(1);
+      }
+
+      // Load current workflow
+      const { parseWorkflow } = await import("./agents/workflow.js");
+      const { ensureKaiDir } = await import("./config.js");
+      const currentWorkflow = parseWorkflow(agent.workflow_path);
+
+      // Create variant workflow path
+      const workflowsDir = path.join(ensureKaiDir(), "workflows");
+      const baseName = path.basename(agent.workflow_path, ".yaml");
+      const variantPath = path.join(workflowsDir, `${baseName}-${variantName}.yaml`);
+
+      // Load or copy workflow
+      let variantWorkflow: any;
+      if (options.from) {
+        const fromPath = path.join(workflowsDir, `${baseName}-${options.from}.yaml`);
+        if (fs.existsSync(fromPath)) {
+          variantWorkflow = parseWorkflow(fromPath);
+          console.log(chalk.dim(`  Copying from variant: ${options.from}`));
+        } else {
+          console.log(chalk.yellow(`  Base variant ${options.from} not found, using current workflow`));
+          variantWorkflow = JSON.parse(JSON.stringify(currentWorkflow)); // Deep copy
+        }
+      } else {
+        variantWorkflow = JSON.parse(JSON.stringify(currentWorkflow)); // Deep copy
+      }
+
+      // Apply changes if provided
+      if (options.changes) {
+        try {
+          const changes = JSON.parse(options.changes);
+          for (const change of changes) {
+            if (change.stepIndex !== undefined && change.stepIndex < variantWorkflow.steps.length) {
+              if (change.prompt) {
+                variantWorkflow.steps[change.stepIndex].prompt = change.prompt;
+              }
+              if (change.params) {
+                variantWorkflow.steps[change.stepIndex].params = { 
+                  ...variantWorkflow.steps[change.stepIndex].params, 
+                  ...change.params 
+                };
+              }
+              if (change.maxTokens) {
+                variantWorkflow.steps[change.stepIndex].max_tokens = change.maxTokens;
+              }
+            }
+          }
+          console.log(chalk.dim(`  Applied ${changes.length} modification(s)`));
+        } catch (parseErr) {
+          console.log(chalk.yellow(`  Warning: Could not parse changes JSON`));
+        }
+      }
+
+      // Update variant metadata
+      variantWorkflow.name = `${currentWorkflow.name} (${variantName})`;
+      variantWorkflow.description = options.description || `${variantName} variant of ${agent.name}`;
+      variantWorkflow.variant = {
+        name: variantName,
+        baseAgent: agentId,
+        createdAt: new Date().toISOString(),
+        isControl: false,
+      };
+
+      // Write variant workflow
+      const YAML = (await import("yaml")).default;
+      fs.writeFileSync(variantPath, YAML.stringify(variantWorkflow));
+
+      // Update agent config with experiment metadata
+      const config = JSON.parse(agent.config || "{}");
+      config.experiments = config.experiments || [];
+      config.experiments.push({
+        variantName,
+        workflowPath: variantPath,
+        createdAt: new Date().toISOString(),
+        active: true,
+        description: variantWorkflow.description,
+      });
+      
+      saveAgent({
+        ...agent,
+        config: JSON.stringify(config),
+      });
+
+      console.log(chalk.green(`\n  ✓ Variant "${variantName}" created`));
+      console.log(chalk.dim(`    Workflow: ${variantPath}`));
+      console.log(chalk.dim(`    Base: ${agent.workflow_path}`));
+      
+      if (!options.changes) {
+        console.log(chalk.dim(`\n  Edit the workflow to make changes, then run:`));
+        console.log(chalk.dim(`    kai agent run ${agentId} --variant ${variantName}`));
+      }
+      
+      console.log();
+    } catch (err: any) {
+      console.error(chalk.red(`  ✗ Error: ${err.message}`));
       process.exit(1);
     }
   });
@@ -403,6 +812,10 @@ mcp
 // Graceful shutdown of MCP servers on exit
 process.on("exit", () => { shutdownMcpServers().catch(() => {}); });
 process.on("SIGINT", () => { shutdownMcpServers().catch(() => {}).finally(() => process.exit(0)); });
+
+// --- Agent V2 commands ---
+import { addAgentV2Commands } from "./commands/agent-v2.js";
+addAgentV2Commands(program);
 
 program.parse();
 

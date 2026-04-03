@@ -20,6 +20,7 @@ import {
   hasPendingApprovals,
   type StepRecord,
 } from "./db.js";
+import { saveCheckpoint, cleanupCheckpoints } from "./checkpoint.js";
 import { resolveProvider, resolveProviderWithFallback, type ResolvedProvider } from "../providers/index.js";
 import { backoffDelay, sleep } from "../utils.js";
 import {
@@ -62,15 +63,20 @@ function getFallbackProvider(): { client: OpenAI; model: string } | null {
  * Workflow Engine
  *
  * Executes YAML-defined agent workflows step by step.
- * Each step can be: an LLM call, an integration call, or a shell command.
+ * Each step can be: an LLM call, a skill call, an integration call (deprecated), or a shell command.
  * State is checkpointed after each step so workflows can resume on crash.
  */
 
 export interface WorkflowStep {
   name: string;
-  type: "llm" | "integration" | "shell" | "notify" | "review" | "approval" | "parallel";
+  type: "llm" | "skill" | "integration" | "shell" | "notify" | "review" | "approval" | "parallel";
+  /**
+   * @deprecated Use 'skill' instead of 'integration'. The integration system is deprecated.
+   */
   integration?: string;
-  action?: string;
+  skill?: string;       // skill ID to call
+  action?: string;      // action/skill tool to call
+  tool?: string;        // alias for action
   prompt?: string;
   command?: string;
   params?: Record<string, any>;
@@ -78,8 +84,8 @@ export interface WorkflowStep {
   condition?: string;
   stream?: boolean;
   max_tokens?: number;
-  auto_approve?: boolean; // for approval steps
-  steps?: WorkflowStep[]; // nested steps for parallel execution
+  auto_approve?: boolean;
+  steps?: WorkflowStep[];
 }
 
 export interface ReviewConfig {
@@ -112,14 +118,26 @@ export interface WorkflowContext {
 }
 
 // Registry of integration handlers
+/**
+ * @deprecated Use the skill system instead. The integration registry is kept for backward compatibility.
+ */
 const integrations = new Map<string, IntegrationHandler>();
 
+/**
+ * @deprecated Use the skill system instead. Integration handlers are deprecated.
+ */
 export interface IntegrationHandler {
   name: string;
   description: string;
   actions: Record<string, (params: Record<string, any>, ctx: WorkflowContext) => Promise<any>>;
 }
 
+/**
+ * Register an integration handler.
+ *
+ * @deprecated Use the skill system instead. This function is kept for backward compatibility.
+ *   For new integrations, create a skill manifest in ~/.kai/skills/<skill-id>/skill.yaml
+ */
 export function registerIntegration(handler: IntegrationHandler): void {
   integrations.set(handler.name, handler);
 }
@@ -226,36 +244,94 @@ function interpolateParam(value: any, ctx: WorkflowContext): any {
 
 /**
  * Execute a complete workflow.
+ * 
+ * Supports durable execution with automatic checkpointing. If a run crashes,
+ * it can be resumed from the last completed step by passing resumeFrom.
  */
 export async function executeWorkflow(
   workflow: WorkflowDefinition,
   agentId: string,
   configOverrides?: Record<string, any>,
-  onProgress?: (step: string, status: string) => void
-): Promise<{ success: boolean; results: Record<string, any>; error?: string }> {
-  const runId = `run-${Date.now().toString(36)}-${crypto.randomBytes(3).toString("hex")}`;
-  createRun(runId, agentId);
-
-  const ctx: WorkflowContext = {
-    config: { ...workflow.config, ...configOverrides },
+  onProgress?: (step: string, status: string) => void,
+  options?: { resumeFrom?: string }
+): Promise<{ success: boolean; results: Record<string, any>; error?: string; runId?: string }> {
+  
+  // Load existing checkpoint or start fresh
+  let runId: string = "";
+  let ctx: WorkflowContext = {
+    config: {},
     vars: {},
-    env: { ...process.env } as Record<string, string>,
+    env: {},
     agent_id: agentId,
-    run_id: runId,
+    run_id: "",
     history: {
-      previous_runs: getPreviousRuns(agentId, runId, 5),
-      compare_outputs: (stepName: string, limit = 5) => getRunOutputsForComparison(agentId, stepName, limit),
+      previous_runs: [],
+      compare_outputs: () => [],
     },
   };
+  let startStep = 0;
+  let isResuming = false;
+  
+  if (options?.resumeFrom) {
+    // Attempt to resume from checkpoint
+    const { getLatestCheckpoint } = await import("./checkpoint.js");
+    const checkpoint = getLatestCheckpoint(options.resumeFrom);
+    
+    if (checkpoint) {
+      runId = options.resumeFrom;
+      try {
+        const savedCtx = JSON.parse(checkpoint.context);
+        ctx = {
+          config: savedCtx.config || {},
+          vars: savedCtx.vars || {},
+          env: { ...process.env } as Record<string, string>,
+          agent_id: agentId,
+          run_id: runId,
+          history: {
+            previous_runs: getPreviousRuns(agentId, runId, 5),
+            compare_outputs: (stepName: string, limit = 5) => getRunOutputsForComparison(agentId, stepName, limit),
+          },
+        };
+        startStep = checkpoint.stepIndex;
+        isResuming = true;
+        addLog(agentId, "info", `Resuming workflow "${workflow.name}" from step ${startStep} (run: ${runId})`, runId);
+      } catch (err) {
+        // Failed to parse checkpoint, start fresh
+        addLog(agentId, "warn", `Failed to load checkpoint for ${options.resumeFrom}, starting fresh`, options.resumeFrom);
+        // Fall through to fresh run creation below
+      }
+    } else {
+      // No checkpoint found, start fresh with the provided runId
+      addLog(agentId, "warn", `No checkpoint found for ${options.resumeFrom}, starting fresh`, options.resumeFrom);
+      // Fall through to fresh run creation below
+    }
+  }
+  
+  // If not resuming (either no resumeFrom or no checkpoint), create fresh run
+  if (!isResuming) {
+    runId = options?.resumeFrom || `run-${Date.now().toString(36)}-${crypto.randomBytes(3).toString("hex")}`;
+    createRun(runId, agentId);
+    
+    ctx = {
+      config: { ...workflow.config, ...configOverrides },
+      vars: {},
+      env: { ...process.env } as Record<string, string>,
+      agent_id: agentId,
+      run_id: runId,
+      history: {
+        previous_runs: getPreviousRuns(agentId, runId, 5),
+        compare_outputs: (stepName: string, limit = 5) => getRunOutputsForComparison(agentId, stepName, limit),
+      },
+    };
+  }
 
   // Track all files created during this run
   const createdFiles: string[] = [];
 
-  addLog(agentId, "info", `Workflow "${workflow.name}" started (run: ${runId})`, runId);
-  onProgress?.("start", `Running "${workflow.name}"`);
+  onProgress?.("start", isResuming ? `Resuming "${workflow.name}"` : `Running "${workflow.name}"`);
 
   try {
-    for (let i = 0; i < workflow.steps.length; i++) {
+    for (let i = startStep; i < workflow.steps.length; i++) {
       const step = workflow.steps[i];
 
       // Check condition
@@ -269,6 +345,18 @@ export async function executeWorkflow(
       }
 
       const stepId = createStep(runId, step.name, i);
+      
+      // Checkpoint: Save state BEFORE executing the step
+      const checkpointContext = {
+        config: ctx.config,
+        vars: ctx.vars,
+        env: ctx.env,
+        agent_id: ctx.agent_id,
+        run_id: ctx.run_id,
+        trigger_reason: ctx.trigger_reason,
+      };
+      saveCheckpoint(runId, i, checkpointContext);
+      
       addLog(agentId, "info", `Step "${step.name}" starting`, runId);
       onProgress?.(step.name, "running");
 
@@ -278,6 +366,9 @@ export async function executeWorkflow(
         switch (step.type) {
           case "llm":
             result = await executeLlmStep(step, ctx);
+            break;
+          case "skill":
+            result = await executeSkillStep(step, ctx);
             break;
           case "integration":
             result = await executeIntegrationStep(step, ctx);
@@ -301,7 +392,7 @@ export async function executeWorkflow(
             // If still pending, halt workflow gracefully
             if (result === "__PENDING_APPROVAL__") {
               completeRun(runId, "paused", `Awaiting approval for step: ${step.name}`);
-              return { success: true, results: ctx.vars, error: `Paused for approval: ${step.name}` };
+              return { success: true, results: ctx.vars, error: `Paused for approval: ${step.name}`, runId };
             }
             break;
           default:
@@ -334,7 +425,7 @@ export async function executeWorkflow(
 
         // Fail the run on step failure
         completeRun(runId, "failed", `Step "${step.name}" failed: ${msg}`);
-        return { success: false, results: ctx.vars, error: msg };
+        return { success: false, results: ctx.vars, error: msg, runId };
       }
     }
 
@@ -406,10 +497,22 @@ export async function executeWorkflow(
     // Store created files in context for recap to access
     ctx.vars.__createdFiles = createdFiles;
 
+    // Save final checkpoint with completed status and cleanup old ones
+    saveCheckpoint(runId, workflow.steps.length, {
+      config: ctx.config,
+      vars: ctx.vars,
+      env: ctx.env,
+      agent_id: ctx.agent_id,
+      run_id: ctx.run_id,
+      trigger_reason: ctx.trigger_reason,
+      status: "completed"
+    });
+    cleanupCheckpoints(runId);
+
     // Generate and cache recap + create notification (non-blocking)
     generateAndCacheRecap(runId, agentId, workflow.name, createdFiles).catch(() => {});
 
-    return { success: true, results: ctx.vars };
+    return { success: true, results: ctx.vars, runId };
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     completeRun(runId, "failed", msg);
@@ -423,7 +526,7 @@ export async function executeWorkflow(
       runId,
     });
 
-    return { success: false, results: ctx.vars, error: msg };
+    return { success: false, results: ctx.vars, error: msg, runId };
   }
 }
 
@@ -673,6 +776,46 @@ async function executeLlmStep(step: WorkflowStep, ctx: WorkflowContext): Promise
   throw new Error(`LLM failed after all retries and fallback models`);
 }
 
+async function executeSkillStep(step: WorkflowStep, ctx: WorkflowContext): Promise<any> {
+  const { getSkill } = await import("../skills/loader.js");
+  
+  const skillId = step.skill || step.integration;
+  if (!skillId) throw new Error("Skill step requires a 'skill' or 'integration' name");
+
+  const skill = getSkill(skillId);
+  if (!skill) {
+    throw new Error(`Skill "${skillId}" not loaded. Make sure it's in ~/.kai/skills/`);
+  }
+
+  const toolName = step.action || step.tool || "default";
+  const toolDef = skill.manifest.tools.find((t: any) => t.name === toolName);
+  if (!toolDef) {
+    const available = skill.manifest.tools.map((t: any) => t.name).join(", ");
+    throw new Error(`Tool "${toolName}" not found in skill "${skillId}". Available: ${available}`);
+  }
+
+  // Build params from step params
+  const params: Record<string, any> = {};
+  if (step.params) {
+    for (const [key, value] of Object.entries(step.params)) {
+      params[key] = interpolateParam(value, ctx);
+    }
+  }
+
+  // Call the skill action
+  const actionFn = skill.handler.actions[toolName];
+  if (!actionFn) {
+    throw new Error(`Action "${toolName}" not found in skill "${skillId}" handler`);
+  }
+  
+  return await actionFn(params);
+}
+
+/**
+ * Execute an integration step.
+ *
+ * @deprecated Use executeSkillStep instead. Integration steps are deprecated in favor of skill steps.
+ */
 async function executeIntegrationStep(step: WorkflowStep, ctx: WorkflowContext): Promise<any> {
   if (!step.integration) throw new Error("Integration step requires an 'integration' name");
 

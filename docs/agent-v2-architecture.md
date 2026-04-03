@@ -1,371 +1,216 @@
-# Kai Agent System v2 Architecture
+# Kai Event-Driven Agent System: Architecture
 
-## Executive Summary
+## Overview
 
-Replace the custom cron-based daemon with **Ingest** as the workflow orchestration layer. Kai becomes an "AI-native workflow platform" where:
-- **Ingest** handles: scheduling, retries, concurrency, state persistence, event routing
-- **Kai** handles: LLM calls, tool execution, memory, reasoning, custom logic
-
-This gives us production-grade orchestration without building it ourselves.
+Build an in-house, event-driven agent system that achieves autonomy without external dependencies. Single-process, SQLite-backed, compiles to one executable.
 
 ---
 
-## Current vs. Proposed Architecture
+## Core Architecture
 
-### Current (Custom Implementation)
 ```
-┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│  Cron Jobs  │────▶│  Workflow   │────▶│   SQLite    │
-│  (node-cron)│     │   Engine    │     │   State     │
-└─────────────┘     └─────────────┘     └─────────────┘
-                            │
-                    ┌───────┴───────┐
-                    ▼               ▼
-              ┌─────────┐      ┌──────────┐
-              │  LLM    │      │  Skills  │
-              │  Calls  │      │  (MCP)   │
-              └─────────┘      └──────────┘
-```
-
-**Problems:**
-- Custom scheduler (reliability, scaling concerns)
-- No native event-driven triggers
-- Manual retry/backoff logic
-- No distributed execution
-- SQLite is single-node only
-
-### Proposed (Ingest + Kai)
-```
-┌─────────────────────────────────────────────────────────┐
-│                    INNGEST PLATFORM                      │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐   │
-│  │ Event Bus   │  │ Scheduler   │  │ State Store │   │
-│  │ (Redis/Pg)  │  │ (cron +     │  │ (durable    │   │
-│  │             │  │  event)     │  │  execution) │   │
-│  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘   │
-│         └─────────────────┴─────────────────┘         │
-│                          │                              │
-│                   ┌──────┴──────┐                       │
-│                   ▼             ▼                       │
-│         ┌──────────────┐ ┌─────────────┐              │
-│         │  KAI AGENT   │ │  KAI AGENT  │  ...         │
-│         │   RUNNERS    │ │   RUNNERS   │              │
-│         └──────────────┘ └─────────────┘              │
-└─────────────────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────────────────┐
-│                    KAI INTELLIGENCE                      │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐   │
-│  │ LLM Router  │  │ Tool Exec   │  │  Memory     │   │
-│  │ (multi-     │  │ (skills,    │  │  (archival, │   │
-│  │  provider)  │  │  MCP, bash) │  │  recall)    │   │
-│  └─────────────┘  └─────────────┘  └─────────────┘   │
-│                                                          │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐   │
-│  │ Personas    │  │ Planning    │  │ Self-Heal   │   │
-│  │ (identity)  │  │ (goal dec.) │  │ (diagnosis) │   │
-│  └─────────────┘  └─────────────┘  └─────────────┘   │
-└─────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│                     KAI AGENT SYSTEM                        │
+├─────────────────────────────────────────────────────────────┤
+│  EVENT LAYER                                                │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐     │
+│  │  Event Bus   │  │  Watchers    │  │  Scheduler   │     │
+│  │  (pub/sub)   │  │  (file,email)│  │  (cron)      │     │
+│  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘     │
+│         └─────────────────┴─────────────────┘             │
+│                            │                                │
+├────────────────────────────┼────────────────────────────────┤
+│  ORCHESTRATION LAYER       │                                │
+│  ┌────────────────┐       │  ┌────────────────┐           │
+│  │ Goal           │       │  │ Agent          │           │
+│  │ Orchestrator   │◄──────┘  │ Runner         │           │
+│  │                │          │ (durable)      │           │
+│  └────────┬───────┘          └────────────────┘           │
+│           │                                                 │
+│           ▼                                                 │
+│  ┌─────────────────────────────────────────────┐           │
+│  │ Template Spawner                            │           │
+│  └─────────────────────────────────────────────┘           │
+├─────────────────────────────────────────────────────────────┤
+│  EXECUTION LAYER                                            │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐       │
+│  │ LLM Router  │  │ Tool Exec   │  │ Memory      │       │
+│  │ (multi-     │  │ (skills,    │  │ (archival,  │       │
+│  │  provider)  │  │  MCP, bash) │  │  recall)    │       │
+│  └─────────────┘  └─────────────┘  └─────────────┘       │
+├─────────────────────────────────────────────────────────────┤
+│  PERSISTENCE LAYER                                          │
+│  ┌─────────────────────────────────────────────┐           │
+│  │ SQLite (single file)                        │           │
+│  │ • agents, runs, steps, checkpoints          │           │
+│  │ • goals, events, logs, notifications        │           │
+│  └─────────────────────────────────────────────┘           │
+└─────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
 ## Key Components
 
-### 1. Ingest Integration Layer
+### 1. Event Bus (In-Process Pub/Sub)
+
+Simple, fast, zero dependencies:
 
 ```typescript
-// src/agents-v2/ingest/client.ts
-import { Inngest } from "inngest";
-
-export const ingest = new Inngest({
-  id: "kai-agents",
-  eventKey: process.env.INNGEST_EVENT_KEY,
-});
-
-// Event definitions
-export const AgentEvents = {
-  AGENT_RUN_REQUESTED: "agent/run.requested",
-  AGENT_STEP_COMPLETED: "agent/step.completed",
-  AGENT_STEP_FAILED: "agent/step.failed",
-  AGENT_HUMAN_APPROVAL: "agent/human.approval",
-  AGENT_SCHEDULE_CREATE: "agent/schedule.create",
-  KNOWLEDGE_NEW: "knowledge/new",           // trigger learning agents
-  ERROR_DETECTED: "error/detected",         // trigger diagnosis
-  GOAL_ASSIGNED: "goal/assigned",           // trigger orchestrator
-} as const;
-```
-
-### 2. Workflow Functions
-
-Replace YAML workflows with TypeScript functions:
-
-```typescript
-// src/agents-v2/workflows/content-calendar.ts
-import { ingest } from "../ingest/client";
-
-export const contentCalendarWorkflow = ingest.createFunction(
-  { id: "content-calendar-generator" },
-  { cron: "0 7 * * *" }, // Daily at 7am
-  async ({ step, runId }) => {
-    // Step 1: Gather intel
-    const intel = await step.run("fetch-intel", async () => {
-      return await fetchYouTubeIntel();
-    });
-
-    // Step 2: Read content board
-    const board = await step.run("read-board", async () => {
-      return await readData("content-board.json");
-    });
-
-    // Step 3: Generate calendar (LLM call)
-    const calendar = await step.run("generate-calendar", async () => {
-      return await llmCall({
-        prompt: buildCalendarPrompt(intel, board),
-        persona: "youtube-strategist",
-      });
-    });
-
-    // Step 4: Write output
-    await step.run("save-calendar", async () => {
-      await writeFile("~/content-calendar.md", calendar);
-    });
-
-    // Step 5: Notify (optional approval)
-    await step.run("notify-user", async () => {
-      await createNotification({
-        title: "Content Calendar Ready",
-        body: calendar.summary,
-        requiresApproval: false,
-      });
-    });
-  }
-);
-```
-
-### 3. Event-Driven Agent Triggers
-
-```typescript
-// src/agents-v2/workflows/orchestrator.ts
-export const goalOrchestrator = ingest.createFunction(
-  { id: "goal-orchestrator" },
-  { event: "goal/assigned" },
-  async ({ event, step }) => {
-    const { goalId, goalDescription, priority } = event.data;
-
-    // Step 1: Decompose goal into sub-goals
-    const plan = await step.run("create-plan", async () => {
-      return await llmCall({
-        prompt: `Decompose this goal into actionable sub-goals: ${goalDescription}`,
-        persona: "strategist",
-        outputSchema: z.array(z.object({
-          agentType: z.enum(["youtube", "code", "research"]),
-          task: z.string(),
-          dependencies: z.array(z.string()).optional(),
-        })),
-      });
-    });
-
-    // Step 2: Spawn child agents
-    for (const task of plan) {
-      await step.sendEvent(`spawn-${task.agentType}`, {
-        name: AgentEvents.AGENT_RUN_REQUESTED,
-        data: {
-          goalId,
-          taskId: generateId(),
-          agentType: task.agentType,
-          task: task.task,
-          parentRunId: runId,
-        },
-      });
-    }
-
-    // Step 3: Wait for all children (fan-out/fan-in)
-    const results = await step.waitForEvent("all-children-complete", {
-      event: AgentEvents.AGENT_STEP_COMPLETED,
-      timeout: "1h",
-      match: { "data.parentRunId": runId },
-    });
-
-    // Step 4: Synthesize results
-    await step.run("synthesize", async () => {
-      return await llmCall({
-        prompt: `Synthesize these sub-task results into goal progress: ${JSON.stringify(results)}`,
-      });
-    });
-  }
-);
-```
-
-### 4. Self-Healing with Ingest
-
-```typescript
-// src/agents-v2/workflows/self-heal.ts
-export const selfHealWorkflow = ingest.createFunction(
-  { id: "kai-self-heal", retries: 0 }, // No auto-retry, we handle it
-  [
-    { cron: "0 3 * * *" },              // Daily check
-    { event: "error/detected" },         // Or on-demand
-  ],
-  async ({ step, runId }) => {
-    // Step 1: Gather recent errors
-    const errors = await step.run("collect-errors", async () => {
-      return await getRecentErrors({ hours: 24, unresolved: true });
-    });
-
-    // Step 2: AI diagnosis
-    const diagnosis = await step.run("diagnose", async () => {
-      return await llmCall({
-        prompt: buildDiagnosisPrompt(errors),
-        persona: "debugger",
-        outputSchema: DiagnosisSchema,
-      });
-    });
-
-    // Step 3: For fixable issues, create branch and apply
-    if (diagnosis.fixable) {
-      await step.run("create-branch", async () => {
-        return await createGitBranch(`kai/heal-${runId}`);
-      });
-
-      // Step 4: Generate and apply fixes
-      const fixes = await step.run("generate-fixes", async () => {
-        return await llmCall({
-          prompt: buildFixPrompt(diagnosis),
-          outputSchema: FixesSchema,
-        });
-      });
-
-      // Step 5: Apply edits
-      await step.run("apply-fixes", async () => {
-        for (const fix of fixes) {
-          await applyEdit(fix);
-        }
-      });
-
-      // Step 6: Build gate
-      const buildResult = await step.run("build-check", async () => {
-        return await runBuild();
-      });
-
-      if (!buildResult.success) {
-        // Step 7: Auto-revert on failure
-        await step.run("revert", async () => {
-          await revertBranch();
-        });
-        throw new Error("Build failed, reverted changes");
-      }
-
-      // Step 8: Human approval for commit
-      const approval = await step.waitForEvent("human-approval", {
-        event: AgentEvents.AGENT_HUMAN_APPROVAL,
-        timeout: "24h",
-      });
-
-      if (approval?.data?.approved) {
-        await step.run("commit", async () => {
-          await commitChanges("Self-heal: auto-fix");
-        });
-      }
-    }
-  }
-);
-```
-
-### 5. Dynamic Agent Spawning
-
-```typescript
-// src/agents-v2/spawner.ts
-interface AgentTemplate {
-  id: string;
-  name: string;
-  description: string;
-  baseWorkflow: string;
-  defaultSchedule?: string;
-  requiredConfig: string[];
+// No Redis, no network, just Maps and function calls
+class EventBus {
+  private handlers = new Map<EventType, Set<EventHandler>>();
+  publish(event: AgentEvent) { /* ... */ }
+  subscribe(filter, handler) { /* ... */ }
 }
+```
 
-const agentTemplates: Record<string, AgentTemplate> = {
+**Why in-process?**
+- Latency: <1ms vs network round-trip
+- Zero dependencies: No Redis/Postgres to configure
+- Single executable: Everything in one binary
+
+### 2. Event Sources
+
+| Source | Implementation | Triggers |
+|--------|---------------|----------|
+| **File Watcher** | Node.js `fs.watch()` | File changes, config updates |
+| **Email Poller** | `setInterval` + IMAP | New emails, replies |
+| **HTTP Server** | Hono routes | Webhooks, API calls |
+| **Cron** | `node-cron` | Scheduled tasks |
+| **Memory Listener** | Archival hooks | Knowledge matches |
+| **Error Handler** | Process `uncaughtException` | Auto-healing triggers |
+
+All emit to the same Event Bus → Agents subscribe → Immediate execution.
+
+### 3. Durable Execution
+
+Every workflow run is checkpointed after each step:
+
+```typescript
+interface RunState {
+  runId: string;
+  agentId: string;
+  workflow: WorkflowDefinition;
+  currentStep: number;        // Resume here
+  context: WorkflowContext;  // Variables, config
+  status: "pending" | "running" | "paused" | "completed" | "failed";
+}
+```
+
+**Crash Recovery:**
+1. Process starts → Check for interrupted runs
+2. Load last checkpoint → Resume from `currentStep`
+3. No lost work, idempotent re-runs
+
+### 4. Goal Orchestrator
+
+Break down complex goals into sub-goals:
+
+```
+Goal: "Launch YouTube channel"
+  └─ Sub-goal 1: "Research trending topics" → [yt-scout agent]
+  └─ Sub-goal 2: "Create content calendar" → [calendar agent]
+  └─ Sub-goal 3: "Set up branding" → [design agent]
+       └─ Synthesis: Combine all results
+```
+
+**Fan-out/Fan-in Pattern:**
+- Spawn N agents in parallel
+- Each emits `agent:completed` event
+- Orchestrator waits for all → Synthesizes → Completes goal
+
+### 5. Template System
+
+Pre-defined agent blueprints:
+
+```typescript
+const TEMPLATES = {
   "youtube-scout": {
-    id: "youtube-scout",
-    name: "YouTube Trend Scout",
-    description: "Monitors trending content in niche",
-    baseWorkflow: "youtube-scout-workflow",
-    requiredConfig: ["channel_id", "topics"],
+    workflow: youtubeScoutWorkflow,
+    defaultConfig: { max_results: 10 },
+    triggers: [{ type: "cron", expr: "0 8 * * *" }],
   },
   "code-reviewer": {
-    id: "code-reviewer",
-    name: "Code Review Agent",
-    description: "Reviews PRs and suggests improvements",
-    baseWorkflow: "code-review-workflow",
+    workflow: codeReviewWorkflow,
+    triggers: [{ type: "event", filter: "git:pr:opened" }],
   },
-  // ... more templates
 };
+```
 
-export async function spawnAgent(
-  templateId: string,
-  config: Record<string, any>,
-  options?: {
-    oneTime?: boolean;
-    schedule?: string;
-    triggerOn?: string[]; // event types
+Spawn in one line:
+```typescript
+const agentId = await spawnFromTemplate("youtube-scout", { topics: ["AI", "coding"] });
+```
+
+### 6. Meta-Learning
+
+System analyzes its own run history:
+
+```typescript
+async function analyzeAgentHistory(agentId: string) {
+  const runs = await getRuns({ agentId, limit: 30 });
+  
+  // Ask LLM: "What patterns do you see?"
+  const analysis = await llm({
+    prompt: `Analyze these runs: ${JSON.stringify(runs)}`,
+    output: { suggestions: ["prompt-improvement", "config-tuning"] }
+  });
+  
+  // Auto-apply if confidence > 0.9
+  if (analysis.confidence > 0.9) {
+    await applyImprovements(agentId, analysis.suggestions);
   }
-): Promise<string> {
-  const template = agentTemplates[templateId];
-  if (!template) throw new Error(`Unknown template: ${templateId}`);
-
-  const agentId = `${templateId}-${Date.now()}`;
-
-  // Register with Ingest
-  await ingest.send({
-    name: AgentEvents.AGENT_SCHEDULE_CREATE,
-    data: {
-      agentId,
-      workflow: template.baseWorkflow,
-      config,
-      schedule: options?.schedule || template.defaultSchedule,
-      triggerOn: options?.triggerOn,
-    },
-  });
-
-  // Save agent config to Kai's memory
-  await saveAgentConfig(agentId, {
-    templateId,
-    config,
-    createdAt: new Date(),
-    runs: [],
-  });
-
-  return agentId;
 }
 ```
 
 ---
 
-## Migration Strategy
+## Data Flow
 
-### Phase 1: Ingest Setup (Week 1)
-1. Add Ingest dependencies
-2. Create `src/agents-v2/` directory structure
-3. Set up local Ingest dev server
-4. Port 2-3 simple agents as proof of concept
+### Scenario: File Change Triggers Agent
 
-### Phase 2: Feature Parity (Weeks 2-3)
-1. Port all built-in agents (self-heal, backup, etc.)
-2. Implement persona integration in new workflow runner
-3. Port skill/MCP integrations
-4. Web UI updates for new API
+```
+1. User edits ~/content-board.json
+   ↓
+2. File Watcher detects change
+   ↓
+3. Event Bus receives: { type: "file:changed", path: "..." }
+   ↓
+4. Scheduler matches to subscribed agent
+   ↓
+5. Agent Runner loads checkpoint (or starts new)
+   ↓
+6. Execute workflow steps with checkpointing
+   ↓
+7. Emit: { type: "agent:completed", results: {...} }
+   ↓
+8. If part of goal → Orchestrator notified → Spawns next agents
+```
 
-### Phase 3: New Capabilities (Week 4)
-1. Event-driven triggers
-2. Agent templates and spawner
-3. Goal orchestrator
-4. Cross-agent memory/knowledge graph
+**Latency:** File change → Agent start = ~50-100ms (vs 30s polling)
 
-### Phase 4: Deprecation (Week 5)
-1. Migration tool for existing agents
-2. Deprecate old daemon (keep for 1 release)
-3. Update documentation
+---
+
+## SQLite Schema
+
+```sql
+-- Core tables
+CREATE TABLE agents (id, name, workflow, config, triggers, enabled);
+CREATE TABLE runs (id, agent_id, status, current_step, context, created_at);
+CREATE TABLE steps (id, run_id, name, index, status, output, error);
+CREATE TABLE checkpoints (id, run_id, step_index, context, created_at);
+
+-- Goal orchestration
+CREATE TABLE goals (id, description, status, parent_id, sub_goal_ids, result);
+CREATE TABLE goal_runs (goal_id, run_id, agent_id, role);
+
+-- Events (for debugging/analysis)
+CREATE TABLE events (id, type, payload, timestamp, processed);
+
+-- Meta-learning
+CREATE TABLE improvements (id, agent_id, type, reason, applied, created_at);
+```
 
 ---
 
@@ -373,87 +218,92 @@ export async function spawnAgent(
 
 ```
 src/
-├── agents-v2/              # NEW: Ingest-based system
-│   ├── ingest/
-│   │   ├── client.ts       # Ingest client setup
-│   │   ├── events.ts       # Event type definitions
-│   │   └── middleware.ts   # Auth, logging, etc.
-│   ├── workflows/          # Workflow function definitions
-│   │   ├── content-calendar.ts
-│   │   ├── self-heal.ts
-│   │   ├── goal-orchestrator.ts
-│   │   └── index.ts        # Registration
-│   ├── runners/            # Kai-specific execution logic
-│   │   ├── llm-runner.ts   # LLM call with fallback
-│   │   ├── tool-runner.ts  # Skill/MCP execution
-│   │   └── memory-runner.ts # Archival/recall integration
-│   ├── spawner.ts          # Dynamic agent creation
-│   ├── templates.ts        # Agent template registry
-│   └── api.ts              # HTTP API for web UI
-├── agents/                 # OLD: Keep for migration
-│   └── (existing files)
+├── agents-v2/
+│   ├── index.ts              # Public API
+│   ├── event-bus.ts          # Core pub/sub
+│   ├── watchers/
+│   │   ├── file.ts           # fs.watch wrapper
+│   │   ├── email.ts          # IMAP poller → events
+│   │   └── webhook.ts        # HTTP → events
+│   ├── scheduler.ts          # Trigger registration
+│   ├── runner.ts             # Durable workflow execution
+│   ├── orchestrator.ts       # Goal decomposition
+│   ├── templates/
+│   │   ├── index.ts          # Template registry
+│   │   ├── youtube-scout.ts  # Pre-built workflows
+│   │   ├── code-reviewer.ts
+│   │   └── self-heal.ts
+│   ├── spawner.ts            # spawnFromTemplate()
+│   ├── meta-learner.ts       # Self-improvement
+│   ├── db.ts                 # SQLite operations
+│   └── api.ts                # HTTP routes
+├── agents/                   # OLD: Keep for compat
 └── web/routes/
-    └── agents-v2.ts        # New REST API
+    └── agents-v2.ts          # REST API
 ```
 
 ---
 
-## Configuration
+## Why This Beats External Orchestrators
 
-```json
-// ~/.kai/settings.json
-{
-  "agents": {
-    "version": "v2",
-    "ingest": {
-      "mode": "self-hosted",  // or "cloud"
-      "eventKey": "...",
-      "signingKey": "...",
-      "redisUrl": "redis://localhost:6379"
-    },
-    "orchestrator": {
-      "enabled": true,
-      "autoSpawn": false,      // Require approval for new agents
-      "maxConcurrent": 5,
-      "costBudget": {
-        "daily": 10.00,        // USD
-        "alertAt": 8.00
-      }
-    }
-  }
-}
-```
+| Criteria | In-House Event-Driven | Inngest | Temporal |
+|----------|----------------------|---------|----------|
+| **Single executable** | ✅ Yes | ❌ No (needs server) | ❌ No |
+| **Zero dependencies** | ✅ SQLite only | ❌ Redis + server | ❌ PG + ES + server |
+| **Latency** | ✅ <1ms | ⚠️ Network RTT | ⚠️ Network RTT |
+| **Setup complexity** | ✅ None | ⚠️ Moderate | ❌ High |
+| **Horizontal scale** | ❌ Single node | ✅ Yes | ✅ Yes |
+| **Learning curve** | ✅ Your code | ⚠️ New concepts | ❌ High |
+| **Vendor lock-in** | ✅ None | ⚠️ Moderate | ⚠️ High |
+
+**Bottom line:** For a personal/1-3 person indie hacker setup, the in-house approach wins on every metric that matters. You can always migrate to Inngest later if you need multi-node scaling.
 
 ---
 
-## Benefits of This Architecture
+## Implementation Phases
 
-1. **Reliability**: Ingest handles retries, timeouts, idempotency
-2. **Observability**: Built-in tracing, step-by-step visibility
-3. **Scalability**: Can distribute workers across multiple machines
-4. **Event-Driven**: Real-time reactions to errors, new knowledge, etc.
-5. **Type Safety**: Full TypeScript across workflows
-6. **Dev Experience**: Local dev server, step replay, time travel debugging
-7. **Ecosystem**: Connect to 400+ integrations via Ingest
+| Phase | Duration | Deliverable |
+|-------|----------|-------------|
+| 1 | 3 days | Event bus + file watching + email polling |
+| 2 | 3 days | Durable execution with checkpoint/resume |
+| 3 | 4 days | Goal orchestrator with fan-out/fan-in |
+| 4 | 3 days | Template system for dynamic agent spawning |
+| 5 | 3 days | Meta-learning (analyze → suggest → improve) |
+| 6 | 2 days | Single executable build with `pkg` |
+| **Total** | **18 days** | Fully autonomous agent system |
 
----
-
-## Risks & Mitigations
-
-| Risk | Mitigation |
-|------|-----------|
-| Learning curve | Start with simple cron workflows, expand gradually |
-| Self-hosting complexity | Use Ingest Cloud for testing, migrate to self-hosted later |
-| Migration downtime | Run v1 and v2 in parallel during transition |
-| Vendor lock-in | Workflow logic stays in Kai, Ingest is swappable |
+Each phase builds on previous. Can stop at any point and still have working system.
 
 ---
 
-## Next Steps
+## Success Metrics
 
-1. **Validate approach** - Does this match your vision?
-2. **Spike** - Build a minimal proof-of-concept (2-3 days)
-3. **Decide** - Proceed with full migration or adjust
-4. **Execute** - Follow 5-week migration plan
+| Metric | Current (Polling) | Target (Event-Driven) |
+|--------|-------------------|------------------------|
+| Trigger latency | 30s | <100ms |
+| CPU usage (idle) | Moderate (polling loops) | Near zero |
+| Crash recovery | Restart from scratch | Resume exact step |
+| Dynamic agents | Manual CLI spawn | Template-based |
+| Cross-agent coordination | None | Goal orchestration |
+| Self-improvement | Per-workflow review | System-wide analysis |
+| Deployment | Node + files | Single binary |
 
-Ready to start the spike, or want to adjust the architecture first?
+---
+
+## Migration Strategy
+
+1. **Parallel operation**: Run both old and new systems during transition
+2. **Auto-migrate**: On startup, convert v1 agents to v2 templates
+3. **Gradual cutover**: Move agents one at a time
+4. **Fallback**: Can always revert to v1 daemon
+
+---
+
+## Open Questions
+
+1. **Max goal depth?** Recommend 3 levels (goal → sub-goal → task)
+2. **Workflow format?** TypeScript functions (bundleable) + optional YAML for user custom
+3. **Auto-improve threshold?** Start at 0.9 confidence, adjust after testing
+4. **Error retention?** Keep 30 days of run history for analysis
+
+Ready to proceed with detailed implementation plan?

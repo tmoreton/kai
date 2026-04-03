@@ -41,6 +41,10 @@ export function getDb(): Database.Database {
       completed_at TEXT,
       error TEXT,
       trigger TEXT DEFAULT 'manual',
+      current_step INTEGER DEFAULT 0,
+      context TEXT DEFAULT '{}',
+      parent_run_id TEXT,
+      goal_id TEXT,
       FOREIGN KEY (agent_id) REFERENCES agents(id)
     );
 
@@ -121,6 +125,50 @@ export function getDb(): Database.Database {
     );
     CREATE INDEX IF NOT EXISTS idx_error_fingerprint ON error_events(fingerprint);
     CREATE INDEX IF NOT EXISTS idx_error_unresolved ON error_events(resolved, last_seen);
+
+    -- Checkpoints for durable execution (Phase 2)
+    CREATE TABLE IF NOT EXISTS checkpoints (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      run_id TEXT NOT NULL,
+      step_index INTEGER NOT NULL,
+      context TEXT NOT NULL,
+      created_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (run_id) REFERENCES runs(id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_checkpoints_run ON checkpoints(run_id);
+    CREATE INDEX IF NOT EXISTS idx_checkpoints_step ON checkpoints(run_id, step_index);
+
+    -- Goals for orchestration (Phase 3)
+    CREATE TABLE IF NOT EXISTS goals (
+      id TEXT PRIMARY KEY,
+      description TEXT NOT NULL,
+      priority INTEGER DEFAULT 3,
+      status TEXT DEFAULT 'pending',
+      parent_goal_id TEXT,
+      sub_goal_ids TEXT DEFAULT '[]',
+      context TEXT,
+      result TEXT,
+      created_at TEXT DEFAULT (datetime('now')),
+      completed_at TEXT,
+      FOREIGN KEY (parent_goal_id) REFERENCES goals(id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_goals_status ON goals(status);
+    CREATE INDEX IF NOT EXISTS idx_goals_parent ON goals(parent_goal_id);
+
+    -- Goal runs tracking
+    CREATE TABLE IF NOT EXISTS goal_runs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      goal_id TEXT NOT NULL,
+      run_id TEXT NOT NULL,
+      agent_id TEXT NOT NULL,
+      sub_goal_id TEXT,
+      status TEXT DEFAULT 'pending',
+      created_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (goal_id) REFERENCES goals(id),
+      FOREIGN KEY (run_id) REFERENCES runs(id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_goal_runs_goal ON goal_runs(goal_id);
+    CREATE INDEX IF NOT EXISTS idx_goal_runs_run ON goal_runs(run_id);
   `);
 
   // Migrations for existing databases
@@ -157,12 +205,24 @@ export interface AgentRecord {
   updated_at: string;
 }
 
-export function saveAgent(agent: Omit<AgentRecord, "created_at" | "updated_at">): void {
+export interface AgentInput {
+  id: string;
+  name: string;
+  description: string;
+  workflow_path: string;
+  schedule: string;
+  enabled: number;
+  config: string | Record<string, any>;
+}
+
+export function saveAgent(agent: AgentInput): void {
   const db = getDb();
+  // Ensure config is always a string for SQLite binding
+  const configStr = typeof agent.config === "string" ? agent.config : JSON.stringify(agent.config ?? {});
   db.prepare(`
     INSERT OR REPLACE INTO agents (id, name, description, workflow_path, schedule, enabled, config, updated_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
-  `).run(agent.id, agent.name, agent.description, agent.workflow_path, agent.schedule, agent.enabled, agent.config);
+  `).run(agent.id, agent.name, agent.description, agent.workflow_path, agent.schedule, agent.enabled, configStr);
 }
 
 
@@ -196,6 +256,10 @@ export interface RunRecord {
   error: string | null;
   trigger: string;
   recap: string | null;
+  current_step: number;
+  context: string;
+  parent_run_id: string | null;
+  goal_id: string | null;
 }
 
 export function createRun(runId: string, agentId: string, trigger = "manual"): void {
@@ -209,6 +273,22 @@ export function completeRun(runId: string, status: "completed" | "failed" | "pau
   getDb().prepare(`
     UPDATE runs SET status = ?, completed_at = datetime('now'), error = ? WHERE id = ?
   `).run(status, error || null, runId);
+}
+
+export function updateRunStep(runId: string, stepIndex: number, error?: string): void {
+  getDb().prepare(`
+    UPDATE runs SET current_step = ?, error = ? WHERE id = ?
+  `).run(stepIndex, error || null, runId);
+}
+
+export function saveRunContext(runId: string, context: object): void {
+  getDb().prepare(`
+    UPDATE runs SET context = ? WHERE id = ?
+  `).run(JSON.stringify(context), runId);
+}
+
+export function getRun(runId: string): RunRecord | undefined {
+  return getDb().prepare("SELECT * FROM runs WHERE id = ?").get(runId) as RunRecord | undefined;
 }
 
 export function markAllStuckRunsFailed(agentId: string, staleMinutes = 30): number {

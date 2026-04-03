@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useSuspenseQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, Folder, MessageSquare, Clock } from "lucide-react";
 import { projectsQueries } from "../api/queries";
@@ -96,6 +97,18 @@ export function CodeView() {
 }
 
 function ProjectCard({ project }: { project: Project }) {
+  const navigate = useNavigate();
+  const createSession = useMutation({
+    mutationFn: () => api.sessions.create({ type: "code", cwd: project.cwd }),
+    onSuccess: (session) => {
+      navigate(`/chat/${session.id}`);
+    },
+    onError: (err) => {
+      const message = err instanceof Error ? err.message : "Failed to create session";
+      toast.error("Error", message);
+    },
+  });
+
   return (
     <div className="bg-card border border-border rounded-xl p-5 hover:border-primary transition-colors">
       <div className="flex items-start justify-between mb-4">
@@ -103,8 +116,18 @@ function ProjectCard({ project }: { project: Project }) {
           <h3 className="font-semibold text-foreground text-lg">{project.name}</h3>
           <p className="text-sm text-muted-foreground font-mono mt-1">{project.cwd}</p>
         </div>
-        <div className="text-sm text-muted-foreground">
-          {project.sessionCount} sessions
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-muted-foreground">
+            {project.sessionCount} sessions
+          </span>
+          <button
+            onClick={() => createSession.mutate()}
+            disabled={createSession.isPending}
+            className="p-1 rounded-md hover:bg-accent/50 text-muted-foreground hover:text-foreground transition-colors"
+            title="New session"
+          >
+            <Plus className="w-4 h-4" />
+          </button>
         </div>
       </div>
 

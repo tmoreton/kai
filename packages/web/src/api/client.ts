@@ -18,6 +18,8 @@ import type {
   SkillDetail,
   ServerStatus,
   ChatRequest,
+  InterruptedRun,
+  CheckpointStatus,
 } from '../types/api';
 import { toast } from '../components/Toast';
 
@@ -509,6 +511,20 @@ export const agentsApi = {
 
   getRunSteps: (id: string, runId: string): Promise<{ steps: AgentStep[] }> => {
     return fetchJson(`${API_BASE}/agents/${id}/runs/${runId}`);
+  },
+
+  resumeRun: (agentId: string, runId: string): Promise<{ success: boolean; runId?: string; results?: Record<string, any>; error?: string }> => {
+    return fetchJson(`${API_BASE}/agents/${agentId}/resume/${runId}`, {
+      method: 'POST',
+    });
+  },
+
+  getInterruptedRuns: (id: string): Promise<{ interruptedRuns: InterruptedRun[] }> => {
+    return fetchJson(`${API_BASE}/agents/${id}/interrupted`);
+  },
+
+  getCheckpointStatus: (agentId: string, runId: string): Promise<CheckpointStatus> => {
+    return fetchJson(`${API_BASE}/agents/${agentId}/runs/${runId}/checkpoint`);
   },
 
   getLogs: (id: string, limit = 50): Promise<unknown[]> => {

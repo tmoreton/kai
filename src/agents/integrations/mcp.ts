@@ -1,3 +1,36 @@
+/**
+ * ⚠️ DEPRECATED: This integration system is deprecated and will be removed in a future version.
+ *
+ * MIGRATION GUIDE:
+ * The new Skill system should be used instead of direct integrations. Skills provide:
+ * - Better type safety and validation
+ * - More flexible configuration
+ * - Easier testing and mocking
+ * - Standardized manifest-based approach
+ *
+ * To migrate from MCP integration to skills:
+ * 1. Create a skill manifest in ~/.kai/skills/mcp/skill.yaml
+ * 2. Use the MCP tool calls within skill actions
+ * 3. Use `type: skill` and `skill: mcp` in workflows instead of `type: integration` and `integration: mcp`
+ *
+ * Example migration:
+ *   OLD:
+ *     - type: integration
+ *       integration: mcp
+ *       action: call
+ *       params: { server: "filesystem", tool: "read_file", args: { path: "/tmp/data.json" } }
+ *
+ *   NEW:
+ *     - type: skill
+ *       skill: mcp
+ *       action: call
+ *       params: { server: "filesystem", tool: "read_file", args: { path: "/tmp/data.json" } }
+ *
+ * For more information, see the skills/ directory for built-in skill examples.
+ *
+ * @deprecated Use the skill system instead
+ */
+
 import { registerIntegration } from "../workflow.js";
 import { callMcpTool, listMcpServers } from "../../tools/mcp.js";
 

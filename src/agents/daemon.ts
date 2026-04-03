@@ -30,6 +30,17 @@ import {
 } from "./db.js";
 import { evaluateConditions, type HeartbeatConfig } from "./conditions.js";
 
+// V2 Event-driven imports
+import {
+  eventBus,
+  registerAgentTriggers,
+  convertHeartbeatToTriggers,
+  startEmailWatcher,
+  unwatchAll,
+} from "../agents-v2/index.js";
+import { recoverAll } from "./resume.js";
+import type { TriggerConfig } from "../agents-v2/types.js";
+
 /**
  * Daemon: Persistent background agent runner.
  *
@@ -49,7 +60,7 @@ const RESTART_DELAY_MS = 3000;
 let restartTimestamps: number[] = [];
 
 async function startDaemonInner(): Promise<void> {
-  console.log(chalk.bold.cyan("\n  ⚡ Kai Agent Daemon starting...\n"));
+  console.log(chalk.bold.cyan("\n  ⚡ Kai Agent Daemon starting (v2 event-driven)...\n"));
 
   // Catch unhandled errors from scheduled agent runs so they don't kill the daemon
   process.on("uncaughtException", (err) => {
@@ -68,27 +79,66 @@ async function startDaemonInner(): Promise<void> {
   // Register all integrations (bridges to skills)
   await registerAllIntegrations();
 
-  // Load all agents and schedule them
+  // Recover interrupted runs from previous session
+  console.log(chalk.dim("  Checking for interrupted runs..."));
+  const recovery = await recoverAll({ olderThanMinutes: 2 });
+  if (recovery.recovered.length > 0) {
+    console.log(chalk.green(`  ✓ Recovered ${recovery.recovered.length} run(s)`));
+  }
+
+  // Load all agents and register event-driven triggers
   const agents = listAgents();
   console.log(chalk.dim(`  Found ${agents.length} agents\n`));
 
   for (const agent of agents) {
-    if (agent.enabled && agent.schedule) {
-      scheduleAgent(agent);
+    if (!agent.enabled) continue;
+    
+    const triggers: TriggerConfig[] = [];
+    
+    // Add cron schedule if exists
+    if (agent.schedule) {
+      triggers.push({ type: "cron", expr: agent.schedule });
+      console.log(chalk.dim(`  ✓ Cron: ${agent.name} (${agent.schedule})`));
     }
+    
+    // Convert heartbeat conditions to triggers
+    let config: Record<string, any>;
+    try {
+      config = JSON.parse(agent.config || "{}");
+    } catch { continue; }
+    
+    if (config.heartbeat?.enabled && config.heartbeat.conditions) {
+      const heartbeatTriggers = convertHeartbeatToTriggers(config.heartbeat.conditions);
+      triggers.push(...heartbeatTriggers);
+      console.log(chalk.dim(`  ✓ Triggers: ${agent.name} (${heartbeatTriggers.length} condition-based)`));
+    }
+    
+    if (triggers.length > 0) {
+      registerAgentTriggers({ agentId: agent.id, triggers });
+    }
+  }
+
+  // Subscribe to manual run requests
+  eventBus.subscribe("agent:run-requested", async (event) => {
+    const agentId = event.payload.agentId as string;
+    if (agentId) {
+      const { runAgent } = await import("../agents-v2/runner.js");
+      await runAgent(agentId, { triggerEvent: event });
+    }
+  });
+
+  // Start email watcher (event-driven)
+  try {
+    await startEmailWatcher(60000);
+  } catch {
+    // Email not configured, that's fine
   }
 
   // Keep the process alive
   console.log(chalk.dim("  Daemon running. Press Ctrl+C to stop.\n"));
 
-  // Start proactive heartbeat loop (checks conditions + logs status)
+  // Start simplified heartbeat (just for self-healing, no condition polling)
   startProactiveHeartbeat();
-
-  // Start email reply poller (if RESEND_API_KEY is set)
-  try {
-    const { startEmailPoller } = await import("./email-poller.js");
-    startEmailPoller();
-  } catch {}
 }
 
 /**
@@ -128,8 +178,7 @@ const MAX_AUTO_RETRIES = 3; // stop retrying after 3 consecutive failures
 const STALE_RUN_MINUTES = 30; // mark runs as stuck after 30 minutes
 
 /**
- * Proactive heartbeat: actively evaluates conditions for agents with heartbeat config.
- * Also checks for failed/stuck runs and auto-retries them.
+ * Proactive heartbeat: Only for self-healing (no condition polling - now event-driven)
  */
 function startProactiveHeartbeat(): void {
   let checkCount = 0;
@@ -139,8 +188,8 @@ function startProactiveHeartbeat(): void {
 
     // Log daemon status every 10 checks (~5 minutes)
     if (checkCount % 10 === 0) {
-      const count = scheduledJobs.size;
-      addLog("__daemon__", "info", `Heartbeat: ${count} agents scheduled`);
+      const stats = eventBus.getStats();
+      addLog("__daemon__", "info", `Heartbeat: ${stats.types} event handlers`);
     }
 
     // --- Self-healing: check for failed/stuck runs and auto-retry ---
@@ -149,45 +198,7 @@ function startProactiveHeartbeat(): void {
       await checkAndRetryFailedRuns();
     }
 
-    // Check heartbeat conditions for eligible agents
-    const agents = listAgents();
-    for (const agent of agents) {
-      if (!agent.enabled) continue;
-
-      let config: Record<string, any>;
-      try {
-        config = JSON.parse(agent.config || "{}");
-      } catch {
-        continue;
-      }
-
-      const heartbeat = config.heartbeat as HeartbeatConfig | undefined;
-      if (!heartbeat?.enabled || !heartbeat.conditions?.length) continue;
-
-      // Respect cooldown — check last run time
-      const cooldown = heartbeat.cooldown_ms ?? DEFAULT_COOLDOWN_MS;
-      const recentRuns = getLatestRuns(agent.id, 1);
-      if (recentRuns.length > 0) {
-        const lastRunTime = new Date(recentRuns[0].started_at).getTime();
-        if (Date.now() - lastRunTime < cooldown) continue;
-      }
-
-      try {
-        const results = await evaluateConditions(heartbeat.conditions);
-        const anyMet = results.some((r) => r.met);
-
-        if (anyMet) {
-          const metConditions = results.filter((r) => r.met);
-          const summary = metConditions.map((r) => `${r.condition.type}:${r.condition.check.substring(0, 50)}`).join(", ");
-          addLog(agent.id, "info", `Heartbeat condition met (${summary}), triggering workflow`);
-          console.log(chalk.cyan(`  💓 Heartbeat triggered: ${agent.name} — ${summary}`));
-          await runAgent(agent.id);
-        }
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : String(err);
-        addLog(agent.id, "error", `Heartbeat check failed: ${msg}`);
-      }
-    }
+    // REMOVED: Heartbeat condition polling - now event-driven via agents-v2
   }, HEARTBEAT_CHECK_INTERVAL);
 }
 
@@ -423,6 +434,10 @@ export function stopDaemon(): void {
   }
   scheduledJobs.clear();
 
+  // Stop v2 watchers
+  unwatchAll();
+  
+  import("../agents-v2/watchers/email.js").then(m => m.stopEmailWatcher()).catch(() => {});
   import("./email-poller.js").then(m => m.stopEmailPoller()).catch(() => {});
 }
 

@@ -66,12 +66,30 @@ export interface Agent {
   enabled: boolean;
   personaId: string | null;
   personaName: string | null;
+  workflow_path?: string;
+  steps?: WorkflowStep[];
   lastRun: AgentRun | null;
+}
+
+export interface WorkflowStep {
+  name: string;
+  type: 'llm' | 'skill' | 'integration' | 'shell' | 'notify' | 'review' | 'approval' | 'parallel';
+  skill?: string;
+  action?: string;
+  tool?: string;
+  prompt?: string;
+  command?: string;
+  condition?: string;
+  output_var?: string;
+  params?: Record<string, unknown>;
+  max_tokens?: number;
+  auto_approve?: boolean;
+  stream?: boolean;
 }
 
 export interface AgentRun {
   id: string;
-  status: 'completed' | 'failed' | 'running' | 'never';
+  status: 'completed' | 'failed' | 'running' | 'paused' | 'never';
   startedAt: string;
   completedAt?: string;
   error?: string;
@@ -88,6 +106,26 @@ export interface AgentStep {
   tokensUsed?: number;
   startedAt?: string;
   completedAt?: string;
+}
+
+export interface InterruptedRun {
+  id: string;
+  agentId: string;
+  status: string;
+  currentStep: number;
+  startedAt: string;
+  checkpointStep: number;
+  canResume: boolean;
+}
+
+export interface CheckpointStatus {
+  runId: string;
+  canResume: boolean;
+  status: string;
+  lastCheckpoint: {
+    stepIndex: number;
+    createdAt: string;
+  } | null;
 }
 
 export interface AgentDetail extends Agent {

@@ -88,9 +88,10 @@ Return a clear, actionable plan with file paths and specific changes needed.`,
   },
   worker: {
     description: "General-purpose agent that can read, write, and execute code for complex multi-step tasks.",
-    systemPromptTemplate: `You are a worker agent. Complete the assigned task autonomously.
+    systemPromptTemplate: `You are a worker agent. Complete the assigned task autonomously and fully.
 You have full access to the filesystem and shell.
-Work step by step: understand → implement → verify.
+Work step by step: understand → implement → verify. After implementing, ALWAYS verify (build, test).
+Never ask "should I continue?" or "want me to proceed?" — just do the work. Only stop when the task is done or you hit a genuine design decision you can't resolve from context.
 You do NOT have access to spawn other agents or swarms.`,
     tools: undefined as string[] | undefined,
     maxTurns: 25,

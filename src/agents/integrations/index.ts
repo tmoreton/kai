@@ -1,18 +1,20 @@
-import { registerDataIntegration } from "./data.js";
-import { registerMcpIntegration } from "./mcp.js";
-import { registerImageIntegration } from "./image.js";
-import { registerSkillIntegration, registerSkillsAsIntegrations } from "./skill.js";
+/**
+ * @deprecated DEPRECATED - Use the skill system instead
+ * 
+ * This entire module is deprecated. The skill system in ~/.kai/skills/ 
+ * and src/skills/ provides superior functionality.
+ * 
+ * Migration:
+ * - Old: registerAllIntegrations()
+ * - New: loadAllSkills() from src/skills/loader.js
+ */
+
+// Re-export for backward compatibility (all no-ops now)
+export { registerSkillIntegration, registerSkillsAsIntegrations } from "./skill.js";
 
 /**
- * Register all built-in integrations for the workflow engine.
+ * @deprecated Use loadAllSkills() from src/skills/loader.js instead
  */
 export function registerAllIntegrations(): void {
-  registerDataIntegration();
-  registerMcpIntegration();
-  registerImageIntegration();
-  registerSkillIntegration();
-  // Register all loaded skills as top-level integrations (youtube, web, email, etc.)
-  registerSkillsAsIntegrations();
+  console.warn("[DEPRECATED] registerAllIntegrations() is deprecated. Use loadAllSkills() instead.");
 }
-
-export { registerSkillsAsIntegrations } from "./skill.js";

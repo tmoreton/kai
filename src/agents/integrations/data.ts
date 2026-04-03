@@ -4,6 +4,38 @@ import { registerIntegration, type WorkflowContext } from "../workflow.js";
 import { expandHome } from "../../utils.js";
 
 /**
+ * ⚠️ DEPRECATED: This integration system is deprecated and will be removed in a future version.
+ *
+ * MIGRATION GUIDE:
+ * The new Skill system should be used instead of direct integrations. Skills provide:
+ * - Better type safety and validation
+ * - More flexible configuration
+ * - Easier testing and mocking
+ * - Standardized manifest-based approach
+ *
+ * To migrate from data integration to skills:
+ * 1. Create a skill manifest in ~/.kai/skills/your-skill/skill.yaml
+ * 2. Define tools that handle file operations
+ * 3. Use `type: skill` and `skill: your-skill` in workflows instead of `type: integration` and `integration: data`
+ *
+ * Example skill.yaml:
+ *   id: data
+ *   name: Data Operations
+ *   version: 1.0.0
+ *   tools:
+ *     - name: read
+ *       description: Read a JSON file
+ *       parameters:
+ *         - name: file
+ *           type: string
+ *           required: true
+ *
+ * For more information, see the skills/ directory for built-in skill examples.
+ *
+ * @deprecated Use the skill system instead
+ */
+
+/**
  * File-based Data Integration
  *
  * Enables cross-agent communication via JSON files.

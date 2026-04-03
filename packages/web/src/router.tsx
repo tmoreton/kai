@@ -12,6 +12,7 @@ import { SettingsView } from "./routes/SettingsView";
 import { NotificationsView } from "./routes/NotificationsView";
 import { PersonaEditor } from "./routes/PersonaEditor";
 import { DocsView } from "./routes/DocsView";
+import { WorkflowView } from "./routes/WorkflowView";
 
 // Wrapper component to add ErrorBoundary to routes
 const withErrorBoundary = (Component: React.ComponentType) => (
@@ -38,6 +39,8 @@ export const router = createBrowserRouter([
       { path: "settings", element: withErrorBoundary(SettingsView), errorElement: <RouteError /> },
       { path: "notifications", element: withErrorBoundary(NotificationsView), errorElement: <RouteError /> },
       { path: "docs", element: withErrorBoundary(DocsView), errorElement: <RouteError /> },
+      { path: "workflows", element: withErrorBoundary(WorkflowView), errorElement: <RouteError /> },
+      { path: "workflows/:workflowId", element: withErrorBoundary(WorkflowView), errorElement: <RouteError /> },
     ],
   },
 ]);

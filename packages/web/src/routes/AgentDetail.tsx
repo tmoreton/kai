@@ -16,7 +16,7 @@ import {
   XCircle,
   Terminal,
   Paperclip,
-  Sparkles
+  Sparkles,
 } from 'lucide-react';
 import { agentsQueries } from '../api/queries';
 import { agentsApi, personasApi, api, streamChat } from '../api/client';
@@ -382,7 +382,7 @@ function AgentWorkflows({ agents, personaId }: { agents: Agent[]; personaId: str
             {selectedAgent.name}
             <ArrowLeft className={cn("w-4 h-4 transition-transform", showSidebar ? "rotate-90" : "-rotate-90")} />
           </button>
-          <Button size="sm" variant="ghost" onClick={() => navigate(`/agents/persona/edit/${personaId}`)}>
+          <Button size="sm" variant="ghost" onClick={() => navigate(`/workflows`)}>
             <Plus className="w-4 h-4" />
           </Button>
         </div>
@@ -411,7 +411,7 @@ function AgentWorkflows({ agents, personaId }: { agents: Agent[]; personaId: str
             <h3 className="font-semibold text-kai-text">Workflows</h3>
             <p className="text-xs text-muted-foreground mt-1">{agents.length} total</p>
           </div>
-          <Button size="sm" variant="ghost" onClick={() => navigate(`/agents/persona/edit/${personaId}`)}>
+          <Button size="sm" variant="ghost" onClick={() => navigate(`/workflows`)}>
             <Plus className="w-4 h-4" />
           </Button>
         </div>

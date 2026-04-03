@@ -121,6 +121,22 @@ export const agentsQueries = {
       staleTime: STALE_TIMES.critical,
       ...defaultRetryConfig,
     }),
+
+  interrupted: (id: string) =>
+    queryOptions({
+      queryKey: [...agentsQueries.all(), id, 'interrupted'],
+      queryFn: () => api.agents.getInterruptedRuns(id),
+      staleTime: STALE_TIMES.frequent,
+      ...defaultRetryConfig,
+    }),
+
+  checkpoint: (agentId: string, runId: string) =>
+    queryOptions({
+      queryKey: [...agentsQueries.all(), agentId, 'runs', runId, 'checkpoint'],
+      queryFn: () => api.agents.getCheckpointStatus(agentId, runId),
+      staleTime: STALE_TIMES.frequent,
+      ...defaultRetryConfig,
+    }),
 };
 
 // Notifications

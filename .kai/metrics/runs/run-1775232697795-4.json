@@ -1,0 +1,24 @@
+{
+  "runId": "run-1775232697795-4",
+  "agentId": "test-agent-1775232697795",
+  "startedAt": 1775232667795,
+  "totalDurationMs": 2000,
+  "status": "failed",
+  "stepCount": 2,
+  "retryCount": 2,
+  "checkpointCount": 0,
+  "tokensUsed": {
+    "prompt": 500,
+    "completion": 200,
+    "total": 700
+  },
+  "tokensPerStep": {},
+  "errorType": "timeout",
+  "errorCategory": "transient",
+  "errorRecoverable": true,
+  "errorStepIndex": 2,
+  "triggerType": "manual",
+  "metadata": {
+    "test": true
+  }
+}

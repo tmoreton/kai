@@ -184,6 +184,13 @@ export function getSkill(id: string): LoadedSkill | undefined {
 }
 
 /**
+ * Set/register a skill directly (used for testing/mocking).
+ */
+export function setSkill(id: string, skill: LoadedSkill): void {
+  skills.set(id, skill);
+}
+
+/**
  * Generate OpenAI-compatible tool definitions for all loaded skills.
  * Tools are namespaced as skill__<id>__<tool_name>.
  */

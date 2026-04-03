@@ -2,6 +2,7 @@ import fs from "fs";
 import path from "path";
 import crypto from "crypto";
 import chalk from "chalk";
+import YAML from "yaml";
 import { ensureKaiDir } from "../config.js";
 import { expandHome } from "../utils.js";
 import {
@@ -177,6 +178,87 @@ export function formatAgentDetail(agentId: string): string {
 
   lines.push("");
   return lines.join("\n");
+}
+
+/**
+ * Scan for workflow variants (A/B test candidates) for an agent.
+ * Returns variants found in the workflows directory and agent config.
+ */
+export function listWorkflowVariants(agentId: string): Array<{
+  name: string;
+  active: boolean;
+  workflowPath: string;
+  createdAt?: string;
+  description?: string;
+  metrics?: Record<string, any>;
+}> {
+  const agent = getAgent(agentId);
+  if (!agent) return [];
+
+  const variants: ReturnType<typeof listWorkflowVariants> = [];
+  const workflowsDir = path.dirname(agent.workflow_path);
+  const baseName = path.basename(agent.workflow_path, ".yaml");
+
+  // Scan directory for variant workflows
+  try {
+    const files = fs.readdirSync(workflowsDir);
+    for (const file of files) {
+      if (file.startsWith(`${baseName}-`) && file.endsWith(".yaml")) {
+        const variantName = file.slice(baseName.length + 1, -5);
+        const variantPath = path.join(workflowsDir, file);
+        
+        // Parse variant metadata
+        let description: string | undefined;
+        let createdAt: string | undefined;
+        try {
+          const raw = fs.readFileSync(variantPath, "utf-8");
+          const parsed = YAML.parse(raw);
+          description = parsed.description;
+          createdAt = parsed.variant?.createdAt;
+        } catch {
+          // Ignore parse errors
+        }
+
+        variants.push({
+          name: variantName,
+          active: false, // Will be updated from config below
+          workflowPath: variantPath,
+          description,
+          createdAt,
+        });
+      }
+    }
+  } catch {
+    // Directory might not exist
+  }
+
+  // Merge with agent config experiment metadata
+  try {
+    const config = JSON.parse(agent.config || "{}");
+    if (config.experiments && Array.isArray(config.experiments)) {
+      for (const exp of config.experiments) {
+        const existing = variants.find(v => v.name === exp.variantName);
+        if (existing) {
+          existing.active = exp.active || false;
+          if (exp.metrics) existing.metrics = exp.metrics;
+        } else if (exp.variantName) {
+          // Config-only experiment (workflow might have been moved)
+          variants.push({
+            name: exp.variantName,
+            active: exp.active || false,
+            workflowPath: exp.workflowPath || path.join(workflowsDir, `${baseName}-${exp.variantName}.yaml`),
+            description: exp.description,
+            createdAt: exp.createdAt,
+            metrics: exp.metrics,
+          });
+        }
+      }
+    }
+  } catch {
+    // Config might not be valid JSON
+  }
+
+  return variants;
 }
 
 export async function runAgentCommand(agentId: string): Promise<void> {

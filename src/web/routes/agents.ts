@@ -17,6 +17,7 @@ import {
   deleteAllNotifications,
 } from "../../agents/db.js";
 import { runAgent } from "../../agents/daemon.js";
+import { resumeRun, findInterruptedRunsForDisplay, getResumeStatus } from "../../agents/resume.js";
 import { listPersonas, loadPersona, createPersona, updatePersonaField, addFileReference, removeFileReference, getFilePath } from "../../agent-persona.js";
 import { createClient, getModelId } from "../../client.js";
 import { buildSystemPrompt } from "../../system-prompt.js";
@@ -29,6 +30,27 @@ import {
 import { getCwd } from "../../tools/bash.js";
 import { ensureKaiDir } from "../../config.js";
 import { ensureGlobalDir } from "../../project.js";
+
+function inferAttachmentType(filePath: string): 'image' | 'markdown' | 'file' {
+  const ext = path.extname(filePath).toLowerCase();
+  if (['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg'].includes(ext)) {
+    return 'image';
+  }
+  if (ext === '.md') {
+    return 'markdown';
+  }
+  return 'file';
+}
+
+// Helper to infer step type from step properties
+function inferStepType(step: any): string {
+  if (step.steps && Array.isArray(step.steps)) return 'parallel';
+  if (step.prompt) return 'llm';
+  if (step.skill || step.integration) return 'skill';
+  if (step.command) return 'shell';
+  if (step.params?.title || step.params?.message) return 'notify';
+  return 'llm';
+}
 
 function createNewSession(): Session {
   return {
@@ -54,10 +76,13 @@ function buildPersonaContext(persona: { name: string; role?: string; personality
 
 export function registerAgentRoutes(app: Hono) {
   // --- Agents ---
-  app.get("/api/agents", (c) => {
+  app.get("/api/agents", async (c) => {
     const agents = listAgents();
     const personas = listPersonas();
     const personaMap = new Map(personas.map((p) => [p.id, p]));
+
+    // Parse workflow files to get steps
+    const YAML = await import("yaml");
 
     return c.json({
       agents: agents.map((a) => {
@@ -66,6 +91,34 @@ export function registerAgentRoutes(app: Hono) {
         const config = JSON.parse(a.config || "{}");
         const personaId = config.personaId;
         const persona = personaId ? personaMap.get(personaId) : null;
+        
+        // Parse workflow to get steps
+        let steps = undefined;
+        if (a.workflow_path && fs.existsSync(a.workflow_path)) {
+          try {
+            const yamlContent = fs.readFileSync(a.workflow_path, "utf-8");
+            const workflow = YAML.parse(yamlContent);
+            if (workflow.steps && Array.isArray(workflow.steps)) {
+              steps = workflow.steps.map((s: any) => ({
+                name: s.name,
+                type: s.type || inferStepType(s),
+                skill: s.skill,
+                action: s.action || s.tool,
+                prompt: s.prompt,
+                command: s.command,
+                condition: s.condition,
+                output_var: s.output_var,
+                params: s.params,
+                max_tokens: s.max_tokens,
+                auto_approve: s.auto_approve,
+                stream: s.stream,
+              }));
+            }
+          } catch (e) {
+            // Silently ignore parse errors, steps will be undefined
+          }
+        }
+        
         return {
           id: a.id,
           name: a.name,
@@ -74,6 +127,8 @@ export function registerAgentRoutes(app: Hono) {
           enabled: !!a.enabled,
           personaId: persona?.id || null,
           personaName: persona?.name || null,
+          workflow_path: a.workflow_path,
+          steps,
           lastRun: lastRun
             ? {
                 id: lastRun.id,
@@ -352,6 +407,77 @@ export function registerAgentRoutes(app: Hono) {
     });
   });
 
+  // --- Resume an interrupted run ---
+  app.post("/api/agents/:id/resume/:runId", async (c) => {
+    const agentId = c.req.param("id");
+    const runId = c.req.param("runId");
+    
+    const agent = getAgent(agentId);
+    if (!agent) return c.json({ error: "Agent not found" }, 404);
+
+    // Check if run can be resumed
+    const status = getResumeStatus(runId);
+    if (!status.canResume) {
+      return c.json({ 
+        error: "Run cannot be resumed", 
+        reason: status.status 
+      }, 400);
+    }
+
+    try {
+      const result = await resumeRun(runId);
+      return c.json({
+        success: result.success,
+        runId: result.runId,
+        results: result.results,
+        error: result.error,
+      });
+    } catch (err) {
+      return c.json({ 
+        error: err instanceof Error ? err.message : String(err) 
+      }, 500);
+    }
+  });
+
+  // --- List interrupted runs for an agent ---
+  app.get("/api/agents/:id/interrupted", (c) => {
+    const agent = getAgent(c.req.param("id"));
+    if (!agent) return c.json({ error: "Agent not found" }, 404);
+
+    const interrupted = findInterruptedRunsForDisplay({ agentId: agent.id, limit: 10 });
+    
+    return c.json({
+      interruptedRuns: interrupted.map((r) => ({
+        id: r.id,
+        agentId: r.agent_id,
+        status: r.status,
+        currentStep: r.current_step,
+        startedAt: r.started_at,
+        checkpointStep: r.checkpoint_step,
+        canResume: r.checkpoint_step > 0,
+      })),
+    });
+  });
+
+  // --- Get checkpoint status for a run ---
+  app.get("/api/agents/:id/runs/:runId/checkpoint", (c) => {
+    const agent = getAgent(c.req.param("id"));
+    if (!agent) return c.json({ error: "Agent not found" }, 404);
+    
+    const runId = c.req.param("runId");
+    const status = getResumeStatus(runId);
+    
+    return c.json({
+      runId,
+      canResume: status.canResume,
+      status: status.status,
+      lastCheckpoint: status.lastCheckpoint ? {
+        stepIndex: status.lastCheckpoint.stepIndex,
+        createdAt: status.lastCheckpoint.createdAt,
+      } : null,
+    });
+  });
+
   // --- Agent logs ---
   app.get("/api/agents/:id/logs", (c) => {
     const agent = getAgent(c.req.param("id"));
@@ -376,15 +502,48 @@ export function registerAgentRoutes(app: Hono) {
     const notifications = listNotifications(limit);
     const unread = unreadNotificationCount();
     return c.json({
-      notifications: notifications.map((n) => ({
-        id: n.id,
-        agentId: n.agent_id,
-        title: n.title,
-        message: n.body || '',
-        read: !!n.read,
-        createdAt: n.created_at,
-        attachments: n.attachments ? JSON.parse(n.attachments) : undefined,
-      })),
+      notifications: notifications.map((n) => {
+        // Parse attachments - handle both string[] and object[] formats
+        let attachments: Array<{ path: string; type: string; name: string }> | undefined;
+        if (n.attachments) {
+          try {
+            const parsed = JSON.parse(n.attachments);
+            if (Array.isArray(parsed)) {
+              attachments = parsed.map((att: any) => {
+                // If it's already an object with path, use it
+                if (typeof att === 'object' && att.path) {
+                  return {
+                    path: att.path,
+                    type: att.type || inferAttachmentType(att.path),
+                    name: att.name || att.path.split('/').pop() || 'file',
+                  };
+                }
+                // If it's a string (file path), convert to object
+                if (typeof att === 'string') {
+                  return {
+                    path: att,
+                    type: inferAttachmentType(att),
+                    name: att.split('/').pop() || 'file',
+                  };
+                }
+                return null;
+              }).filter(Boolean) as any[];
+            }
+          } catch {
+            // If parsing fails, ignore attachments
+          }
+        }
+        
+        return {
+          id: n.id,
+          agentId: n.agent_id,
+          title: n.title,
+          message: n.body || '',
+          read: !!n.read,
+          createdAt: n.created_at,
+          attachments,
+        };
+      }),
       unread,
     });
   });
@@ -417,9 +576,14 @@ export function registerAgentRoutes(app: Hono) {
     if (!filePath) return c.json({ error: "Missing path" }, 400);
 
     // Resolve ~ to home directory
-    const resolved = filePath.startsWith("~")
+    let resolved = filePath.startsWith("~")
       ? path.join(process.env.HOME || "", filePath.slice(1))
       : filePath;
+    
+    // Resolve relative paths against cwd
+    if (!path.isAbsolute(resolved)) {
+      resolved = path.resolve(getCwd(), resolved);
+    }
 
     if (!fs.existsSync(resolved)) return c.json({ error: "File not found" }, 404);
 

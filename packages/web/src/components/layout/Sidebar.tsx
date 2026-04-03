@@ -12,6 +12,7 @@ import {
   ChevronDown,
   PanelLeftClose,
   X,
+  GitBranch,
 } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { sessionsQueries, agentsQueries } from "../../api/queries";
@@ -345,6 +346,12 @@ export function Sidebar() {
         </SidebarSection>
 
         {/* Static sections */}
+        <SidebarItem
+          to="/workflows"
+          icon={<GitBranch className="w-4 h-4" />}
+          label="Workflows"
+          active={isActive('/workflows')}
+        />
         <SidebarItem
           to="/docs"
           icon={<BookOpen className="w-4 h-4" />}
