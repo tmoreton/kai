@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useSuspenseQuery } from '@tanstack/react-query';
+import { useSuspenseQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft,
   Play,
@@ -16,15 +16,20 @@ import {
   Mail,
   Copy,
   Trash2,
+  Brain,
+  Target,
+  StickyNote,
+  Bot,
+  Save,
 } from 'lucide-react';
 import { agentsQueries } from '../api/queries';
-import { agentsApi } from '../api/client';
+import { agentsApi, personasApi } from '../api/client';
 import { NetworkError, TimeoutError } from '../api/client';
 import { cn } from '../lib/utils';
 import { toast } from '../components/Toast';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
-import type { Agent, ErrorState, Attachment } from '../types/api';
+import type { Agent, ErrorState, Attachment, Persona } from '../types/api';
 import { WorkflowEditor } from '../components/WorkflowEditor';
 import { AIWorkflowCreator } from '../components/AIWorkflowCreator';
 import { SmartChatInput } from '../components/SmartChatInput';
@@ -32,7 +37,7 @@ import { SmartChatInput } from '../components/SmartChatInput';
 export function AgentDetail() {
   const { agentId } = useParams<{ agentId: string }>();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<'chat' | 'workflows' | 'history' | 'settings'>('chat');
+  const [activeTab, setActiveTab] = useState<'chat' | 'workflows' | 'history' | 'memory' | 'settings'>('chat');
   const [error, setError] = useState<ErrorState | null>(null);
 
   const { data, isError, error: queryError } = useSuspenseQuery({
@@ -114,6 +119,10 @@ export function AgentDetail() {
             <History className="w-4 h-4 mr-2" />
             History
           </TabButton>
+          <TabButton active={activeTab === 'memory'} onClick={() => setActiveTab('memory')}>
+            <Brain className="w-4 h-4 mr-2" />
+            Memory
+          </TabButton>
           <TabButton active={activeTab === 'settings'} onClick={() => setActiveTab('settings')}>
             <Settings className="w-4 h-4 mr-2" />
             Settings
@@ -128,6 +137,7 @@ export function AgentDetail() {
             {activeTab === 'chat' && <AgentChat agent={agent} />}
             {activeTab === 'workflows' && <AgentWorkflow agent={agent} />}
             {activeTab === 'history' && <AgentHistory agent={agent} />}
+            {activeTab === 'memory' && <AgentMemory agent={agent} />}
             {activeTab === 'settings' && <AgentSettings agent={agent} />}
           </div>
         </div>
@@ -311,6 +321,159 @@ function AgentHistory({ agent }: { agent: Agent }) {
         </div>
       ) : (
         <p className="text-muted-foreground">No runs yet</p>
+      )}
+    </div>
+  );
+}
+
+function AgentMemory({ agent }: { agent: Agent }) {
+  const queryClient = useQueryClient();
+  const { data: agentsData } = useSuspenseQuery({
+    ...agentsQueries.list(),
+  });
+
+  // Find linked persona
+  const personaId = (agent.config?.personaId as string) || agent.id;
+  const persona = agentsData?.personas.find((p: Persona) => p.id === personaId);
+
+  const [memory, setMemory] = useState({
+    personality: persona?.personality || '',
+    goals: persona?.goals || '',
+    scratchpad: persona?.scratchpad || '',
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: async () => {
+      const promises = [];
+      if (persona) {
+        if (memory.personality !== persona.personality) {
+          promises.push(personasApi.updateField(persona.id, { field: 'personality', content: memory.personality }));
+        }
+        if (memory.goals !== persona.goals) {
+          promises.push(personasApi.updateField(persona.id, { field: 'goals', content: memory.goals }));
+        }
+        if (memory.scratchpad !== persona.scratchpad) {
+          promises.push(personasApi.updateField(persona.id, { field: 'scratchpad', content: memory.scratchpad }));
+        }
+      } else {
+        // Create persona if doesn't exist
+        promises.push(personasApi.create({
+          id: personaId,
+          name: agent.name,
+          role: agent.description || 'Agent',
+          personality: memory.personality,
+          goals: memory.goals,
+          scratchpad: memory.scratchpad,
+        }));
+      }
+      await Promise.all(promises);
+      // Link persona to agent if not already linked
+      if (!agent.config?.personaId) {
+        await agentsApi.update(agent.id, { config: { ...agent.config, personaId } });
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: agentsQueries.all() });
+      toast.success('Memory saved', "Agent's memory has been updated");
+    },
+    onError: (err) => {
+      toast.error('Failed to save memory', err instanceof Error ? err.message : 'Unknown error');
+    },
+  });
+
+  const hasChanges = persona ? (
+    memory.personality !== persona.personality ||
+    memory.goals !== persona.goals ||
+    memory.scratchpad !== persona.scratchpad
+  ) : memory.personality || memory.goals || memory.scratchpad;
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-lg font-semibold flex items-center gap-2">
+            <Brain className="w-5 h-5" />
+            Agent Memory
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            This agent's persistent memory, goals, and working notes
+          </p>
+        </div>
+        <Button
+          onClick={() => updateMutation.mutate()}
+          disabled={!hasChanges || updateMutation.isPending}
+        >
+          <Save className="w-4 h-4 mr-2" />
+          {updateMutation.isPending ? 'Saving...' : 'Save Changes'}
+        </Button>
+      </div>
+
+      {!persona && (
+        <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg">
+          <p className="text-sm text-amber-700">
+            No memory file exists yet for this agent. Saving will create one.
+          </p>
+        </div>
+      )}
+
+      {/* Personality */}
+      <div className="space-y-2">
+        <label className="text-sm font-medium flex items-center gap-2">
+          <Bot className="w-4 h-4" />
+          Personality & Identity
+        </label>
+        <textarea
+          value={memory.personality}
+          onChange={(e) => setMemory({ ...memory, personality: e.target.value })}
+          className="w-full h-32 px-3 py-2 bg-card border border-border rounded-lg text-sm resize-none focus:border-primary outline-none"
+          placeholder="Who is this agent? Describe their personality, tone, and approach..."
+        />
+        <p className="text-xs text-muted-foreground">
+          How the agent behaves, speaks, and approaches tasks
+        </p>
+      </div>
+
+      {/* Goals */}
+      <div className="space-y-2">
+        <label className="text-sm font-medium flex items-center gap-2">
+          <Target className="w-4 h-4" />
+          Goals
+        </label>
+        <textarea
+          value={memory.goals}
+          onChange={(e) => setMemory({ ...memory, goals: e.target.value })}
+          className="w-full h-32 px-3 py-2 bg-card border border-border rounded-lg text-sm resize-none focus:border-primary outline-none"
+          placeholder="What is this agent trying to achieve?"
+        />
+        <p className="text-xs text-muted-foreground">
+          The agent's objectives and what it's working toward
+        </p>
+      </div>
+
+      {/* Scratchpad */}
+      <div className="space-y-2">
+        <label className="text-sm font-medium flex items-center gap-2">
+          <StickyNote className="w-4 h-4" />
+          Working Notes (Scratchpad)
+        </label>
+        <textarea
+          value={memory.scratchpad}
+          onChange={(e) => setMemory({ ...memory, scratchpad: e.target.value })}
+          className="w-full h-40 px-3 py-2 bg-card border border-border rounded-lg text-sm resize-none focus:border-primary outline-none"
+          placeholder="Working notes, learnings, and context the agent should remember..."
+        />
+        <p className="text-xs text-muted-foreground">
+          Persistent working memory - the agent can update this during runs
+        </p>
+      </div>
+
+      {/* File Path */}
+      {persona && (
+        <div className="pt-4 border-t">
+          <p className="text-xs text-muted-foreground">
+            Memory file: <code className="font-mono">~/.kai/agents/personas/{persona.id}.json</code>
+          </p>
+        </div>
       )}
     </div>
   );
