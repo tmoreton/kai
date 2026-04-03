@@ -586,10 +586,11 @@ export function createNotification(n: { type?: string; title: string; body?: str
     VALUES (?, ?, ?, ?, ?, ?)
   `).run(type, n.title, n.body || null, n.agentId || null, n.runId || null, attachmentsJson);
 
-  // Only email error notifications
-  if (type === "agent_error" || type === "agent_failed") {
+  // Email on successful completions
+  if (type === "agent_completed") {
     const id = Number(result.lastInsertRowid);
-    sendNotificationEmail({ type, title: n.title, body: n.body, agentId: n.agentId, notificationId: id }).catch(() => {});
+    const attachmentsJson = n.attachments ? JSON.stringify(n.attachments) : undefined;
+    sendNotificationEmail({ type, title: n.title, body: n.body, agentId: n.agentId, notificationId: id, attachments: attachmentsJson }).catch(() => {});
   }
 
   return Number(result.lastInsertRowid);

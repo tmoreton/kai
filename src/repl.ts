@@ -1,4 +1,5 @@
 import * as readline from "readline";
+import { Writable } from "stream";
 import type { ChatCompletionMessageParam } from "openai/resources/chat/completions";
 import chalk from "chalk";
 import { createClient, chat, signalUserTyping } from "./client.js";
@@ -180,6 +181,66 @@ export async function startRepl(options: ReplOptions = {}, initialPrompt?: strin
   let processing = false;
   let chatAbort: AbortController | null = null;
   const inputQueue: string[] = [];
+  let typingBuffer = "";
+  let inputBoxActive = false;
+
+  // Render a fixed input box at the bottom of the terminal (3 rows: line, prompt, line)
+  function showInputBox() {
+    if (!process.stdout.isTTY || inputBoxActive) return;
+    inputBoxActive = true;
+    const rows = process.stdout.rows || 24;
+    const cols = process.stdout.columns || 80;
+    const hr = chalk.dim("─".repeat(cols));
+    const queueLabel = inputQueue.length > 0 ? chalk.yellow(` [${inputQueue.length} queued]`) : "";
+    const content = typingBuffer || "";
+    // Set scroll region to exclude bottom 3 rows
+    process.stderr.write(`\x1b[1;${rows - 3}r`);
+    // Draw the 3-row input box
+    process.stderr.write(`\x1b[${rows - 2};1H\x1b[2K${hr}`);
+    process.stderr.write(`\x1b[${rows - 1};1H\x1b[2K  ${chalk.bold("›")} ${content}${queueLabel}`);
+    process.stderr.write(`\x1b[${rows};1H\x1b[2K${hr}`);
+    // Move cursor back into scroll region
+    process.stderr.write(`\x1b[${rows - 3};1H`);
+  }
+
+  function updateInputBox() {
+    if (!process.stdout.isTTY || !inputBoxActive) return;
+    const rows = process.stdout.rows || 24;
+    const queueLabel = inputQueue.length > 0 ? chalk.yellow(` [${inputQueue.length} queued]`) : "";
+    const content = typingBuffer || "";
+    // Only redraw the prompt row
+    process.stderr.write(`\x1b[s\x1b[${rows - 1};1H\x1b[2K  ${chalk.bold("›")} ${content}${queueLabel}\x1b[u`);
+  }
+
+  function hideInputBox() {
+    if (!process.stdout.isTTY || !inputBoxActive) return;
+    inputBoxActive = false;
+    const rows = process.stdout.rows || 24;
+    // Reset scroll region to full terminal
+    process.stderr.write(`\x1b[1;${rows}r`);
+    // Clear the 3 rows
+    process.stderr.write(`\x1b[${rows - 2};1H\x1b[2K\x1b[${rows - 1};1H\x1b[2K\x1b[${rows};1H\x1b[2K`);
+    // Move cursor to where content ends
+    process.stderr.write(`\x1b[${rows - 2};1H`);
+  }
+
+  // Re-adjust on terminal resize
+  if (process.stdout.isTTY) {
+    process.stdout.on("resize", () => {
+      if (inputBoxActive && processing) {
+        const rows = process.stdout.rows || 24;
+        const cols = process.stdout.columns || 80;
+        process.stderr.write(`\x1b[1;${rows - 3}r`);
+        const hr = chalk.dim("─".repeat(cols));
+        const queueLabel = inputQueue.length > 0 ? chalk.yellow(` [${inputQueue.length} queued]`) : "";
+        const content = typingBuffer || "";
+        process.stderr.write(`\x1b[${rows - 2};1H\x1b[2K${hr}`);
+        process.stderr.write(`\x1b[${rows - 1};1H\x1b[2K  ${chalk.bold("›")} ${content}${queueLabel}`);
+        process.stderr.write(`\x1b[${rows};1H\x1b[2K${hr}`);
+        process.stderr.write(`\x1b[${rows - 3};1H`);
+      }
+    });
+  }
 
   // Multiline paste detection using bracketed paste mode
   let pasteBuffer: string[] = [];
@@ -227,6 +288,10 @@ export async function startRepl(options: ReplOptions = {}, initialPrompt?: strin
     });
   }
 
+  // Mute stream to suppress readline echo while processing — input only shows in the fixed bar
+  const muteStream = new Writable({ write(_chunk, _enc, cb) { cb(); } });
+  let rlOutput = process.stdout as Writable;
+
   const rl = readline.createInterface({
     input: process.stdin,
     output: process.stdout,
@@ -235,21 +300,50 @@ export async function startRepl(options: ReplOptions = {}, initialPrompt?: strin
     completer,
   });
 
-  // Disable bracketed paste on exit
-  const disableBracketedPaste = () => {
-    if (process.stdout.isTTY) process.stdout.write("\x1b[?2004l");
+  function muteReadline() {
+    if (process.stdout.isTTY) {
+      (rl as unknown as { output: Writable }).output = muteStream;
+    }
+  }
+
+  function unmuteReadline() {
+    if (process.stdout.isTTY) {
+      (rl as unknown as { output: Writable }).output = process.stdout;
+    }
+  }
+
+  // Cleanup terminal state on exit
+  const cleanupTerminal = () => {
+    if (process.stdout.isTTY) {
+      process.stdout.write("\x1b[?2004l"); // Disable bracketed paste
+      hideInputBox(); // Reset terminal
+    }
   };
-  process.on("exit", disableBracketedPaste);
+  process.on("exit", cleanupTerminal);
 
   // Signal typing activity so spinners pause while user types during processing
   if (process.stdin.isTTY) {
-    process.stdin.on("keypress", () => {
-      if (processing) signalUserTyping();
+    process.stdin.on("keypress", (_str: string | undefined, key: readline.Key) => {
+      if (processing) {
+        signalUserTyping();
+        // Track what the user is typing for the input bar
+        if (key?.name === "backspace") {
+          typingBuffer = typingBuffer.slice(0, -1);
+        } else if (key?.name === "return") {
+          // Will be handled by the line event
+        } else if (_str && !key?.ctrl && !key?.meta && _str.length === 1) {
+          typingBuffer += _str;
+        }
+        updateInputBox();
+      }
     });
   }
 
   async function processInput(input: string) {
     processing = true;
+    typingBuffer = "";
+    muteReadline();
+    showInputBox();
 
     // Show command menu on bare "/"
     if (input === "/") {
@@ -429,6 +523,8 @@ export async function startRepl(options: ReplOptions = {}, initialPrompt?: strin
 
     processing = false;
     sigintCount = 0;
+    unmuteReadline();
+    hideInputBox();
 
     // Process queued input
     if (inputQueue.length > 0) {
@@ -464,8 +560,8 @@ export async function startRepl(options: ReplOptions = {}, initialPrompt?: strin
 
     if (processing) {
       inputQueue.push(input);
-      const preview = input.length > 60 ? input.substring(0, 60) + "..." : input;
-      console.log(chalk.dim(`\n  Queued (${inputQueue.length}): ${preview}`));
+      typingBuffer = "";
+      updateInputBox();
     } else {
       processInput(input);
     }
@@ -506,6 +602,8 @@ export async function startRepl(options: ReplOptions = {}, initialPrompt?: strin
       // Force processing flag reset so prompt reappears
       processing = false;
       inputQueue.length = 0;
+      unmuteReadline();
+      hideInputBox();
       rl.setPrompt(getPrompt()); rl.prompt();
     } else {
       cleanupBackgroundProcesses();

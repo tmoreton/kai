@@ -8,7 +8,6 @@ import { ensureKaiDir } from "../config.js";
 // Load env from multiple locations
 dotenvConfig({ path: path.resolve(ensureKaiDir(), ".env"), quiet: true } as any);
 dotenvConfig({ path: path.resolve(process.cwd(), ".env"), quiet: true } as any);
-import { registerAllIntegrations, registerSkillsAsIntegrations } from "./integrations/index.js";
 import { loadAllSkills, getLoadedSkills } from "../skills/index.js";
 import { listMcpServers } from "../tools/index.js";
 import {
@@ -73,11 +72,8 @@ async function startDaemonInner(): Promise<void> {
     addLog("__daemon__", "error", `Unhandled rejection: ${msg}`);
   });
 
-  // Load all skills first (needed for integration bridges)
+  // Load all skills first (needed for workflows)
   await loadAllSkills();
-  
-  // Register all integrations (bridges to skills)
-  await registerAllIntegrations();
 
   // Recover interrupted runs from previous session
   console.log(chalk.dim("  Checking for interrupted runs..."));
@@ -381,9 +377,8 @@ export async function runAgent(agentId: string): Promise<{ success: boolean; err
   }
   if (!agent) return { success: false, error: `Agent "${agentId}" not found` };
 
-  // Register integrations if not already done
+  // Load skills if not already done
   await loadAllSkills();
-  await registerAllIntegrations();
 
   // Validate workflow path exists
   if (!agent.workflow_path) {
