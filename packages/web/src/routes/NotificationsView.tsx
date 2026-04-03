@@ -6,6 +6,7 @@ import { api, NetworkError, TimeoutError } from "../api/client";
 import { timeAgo, cn } from "../lib/utils";
 import { toast } from "../components/Toast";
 import { MarkdownRenderer } from "../components/MarkdownRenderer";
+import { Button } from "../components/ui/button";
 import type { Notification, NotificationAttachment, ErrorState } from "../types/api";
 
 export function NotificationsView() {
@@ -121,13 +122,13 @@ export function NotificationsView() {
               {error.message}
             </p>
             {error.recoverable && (
-              <button
+              <Button
                 onClick={handleRetry}
-                className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
+                variant="default"
               >
                 <RefreshCw className="w-4 h-4" />
                 Try Again
-              </button>
+              </Button>
             )}
           </div>
         </div>
@@ -149,30 +150,34 @@ export function NotificationsView() {
           </div>
           <div className="flex items-center gap-2">
             {error && error.recoverable && (
-              <button
+              <Button
                 onClick={handleRetry}
-                className="flex items-center gap-2 px-3 py-2 border border-border rounded-lg text-sm hover:bg-accent/10"
+                variant="outline"
+                size="sm"
               >
                 <RefreshCw className="w-4 h-4" />
                 Retry
-              </button>
+              </Button>
             )}
-            <button
+            <Button
               onClick={() => markAllReadMutation.mutate()}
               disabled={unreadCount === 0 || markAllReadMutation.isPending}
-              className="flex items-center gap-2 px-3 py-2 border border-border rounded-lg text-sm hover:bg-accent/10 disabled:opacity-50"
+              variant="outline"
+              size="sm"
             >
               <MailOpen className="w-4 h-4" />
               Mark all read
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={() => deleteAllMutation.mutate()}
               disabled={notifications.length === 0 || deleteAllMutation.isPending}
-              className="flex items-center gap-2 px-3 py-2 border border-border rounded-lg text-sm hover:bg-destructive/10 hover:text-destructive hover:border-destructive disabled:opacity-50"
+              variant="outline"
+              size="sm"
+              className="hover:text-destructive hover:border-destructive hover:bg-destructive/10"
             >
               <Trash2 className="w-4 h-4" />
               Clear all
-            </button>
+            </Button>
           </div>
         </div>
 
@@ -183,13 +188,14 @@ export function NotificationsView() {
               <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
               <p className="text-red-700 flex-1">{error.message}</p>
               {error.recoverable && (
-                <button
+                <Button
                   onClick={handleRetry}
-                  className="flex items-center gap-2 px-3 py-1.5 bg-red-100 text-red-700 rounded-lg text-sm font-medium hover:bg-red-200 transition-colors"
+                  variant="secondary"
+                  size="sm"
                 >
                   <RefreshCw className="w-4 h-4" />
                   Retry
-                </button>
+                </Button>
               )}
             </div>
           </div>
@@ -242,15 +248,17 @@ export function NotificationsView() {
                   <div className="flex items-center gap-4 mt-3">
                     <span className="text-xs text-muted-foreground">{timeAgo(notification.createdAt)}</span>
                     {expandedId === notification.id && (
-                      <button
+                      <Button
                         onClick={(e) => {
                           e.stopPropagation();
                           deleteMutation.mutate(notification.id);
                         }}
-                        className="text-xs text-muted-foreground hover:text-destructive"
+                        variant="ghost"
+                        size="sm"
+                        className="text-muted-foreground hover:text-destructive h-auto py-1"
                       >
                         Delete
-                      </button>
+                      </Button>
                     )}
                   </div>
                 </div>

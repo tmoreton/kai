@@ -5,6 +5,7 @@ import { settingsQueries } from "../api/queries";
 import { ApiError, NetworkError, TimeoutError } from "../api/client";
 import { cn } from "../lib/utils";
 import { toast } from "../components/Toast";
+import { Button } from "../components/ui/button";
 import { McpSettings } from "./settings/McpSettings";
 import { SkillsSettings } from "./settings/SkillsSettings";
 import { EnvSettings } from "./settings/EnvSettings";
@@ -56,7 +57,7 @@ export function SettingsView() {
   return (
     <div className="h-full overflow-y-auto p-4 sm:p-6">
       <div className="max-w-4xl mx-auto">
-        <h1 className="text-xl sm:text-2xl font-semibold text-kai-text mb-2">Settings</h1>
+        <h1 className="text-xl sm:text-2xl font-semibold text-foreground mb-2">Settings</h1>
         <p className="text-muted-foreground mb-6">
           Configure MCP servers, manage skills, and adjust preferences.
         </p>
@@ -66,13 +67,14 @@ export function SettingsView() {
             <div className="flex items-center gap-3">
               <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
               <p className="text-red-700 flex-1">{error.message}</p>
-              <button
+              <Button
                 onClick={handleRetry}
-                className="flex items-center gap-2 px-3 py-1.5 bg-red-100 text-red-700 rounded-lg text-sm font-medium hover:bg-red-200 transition-colors"
+                variant="secondary"
+                size="sm"
               >
                 <RotateCcw className="w-4 h-4" />
                 Retry
-              </button>
+              </Button>
             </div>
           </div>
         )}
@@ -123,17 +125,18 @@ function TabButton({
   children: React.ReactNode;
 }) {
   return (
-    <button
+    <Button
       onClick={onClick}
+      variant="ghost"
       className={cn(
-        "flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap",
+        "flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap rounded-none",
         active
           ? "border-primary text-primary"
-          : "border-transparent text-muted-foreground hover:text-kai-text hover:border-border"
+          : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
       )}
     >
       {icon}
       {children}
-    </button>
+    </Button>
   );
 }

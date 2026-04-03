@@ -19,7 +19,7 @@ export function WorkflowView() {
   };
 
   return (
-    <div className="h-[calc(100vh-4rem)]">
+    <div className="h-[calc(100vh-4rem)] p-2 sm:p-4">
       <WorkflowEditor
         onSave={handleSave}
       />

@@ -11,6 +11,7 @@ import { ToolCard } from "../components/ToolCard";
 import { ImageLightbox } from "../components/ImageLightbox";
 import { VoiceInputButton } from "../components/VoiceInputButton";
 import { toast } from "../components/Toast";
+import { Button } from "../components/ui/button";
 import type { Message, Attachment, ToolCallWithStatus, ToolCallEvent, ToolResultEvent, ThinkingEvent, TokenEvent, ErrorState } from "../types/api";
 
 interface MessageWithTools extends Message {
@@ -378,14 +379,14 @@ export function ChatView() {
             <p className="text-muted-foreground mb-6">{error.message}</p>
             <div className="flex items-center justify-center gap-3">
               {error.recoverable && (
-                <button
+                <Button
                   onClick={handleRetry}
                   disabled={retryCount > 3}
-                  className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
+                  variant="default"
                 >
                   <RefreshCw className={`w-4 h-4 ${retryCount > 0 ? 'animate-spin' : ''}`} />
                   {retryCount > 0 ? 'Retrying...' : 'Try Again'}
-                </button>
+                </Button>
               )}
               <a
                 href="/chat"
@@ -406,28 +407,32 @@ export function ChatView() {
       {/* Chat menu - floating top-right */}
       {messages.length > 0 && (
         <div className="absolute top-2 right-3 z-10" ref={menuRef}>
-          <button
+          <Button
             onClick={() => setShowMenu(!showMenu)}
-            className="p-2 rounded-lg bg-background/80 backdrop-blur-sm hover:bg-accent/10 text-muted-foreground hover:text-foreground border border-border/50"
+            variant="ghost"
+            size="icon"
+            className="bg-background/80 backdrop-blur-sm border border-border/50"
           >
             <MoreVertical className="w-4 h-4" />
-          </button>
+          </Button>
           {showMenu && (
             <div className="absolute right-0 top-full mt-1 w-48 bg-card border border-border rounded-lg shadow-lg py-1 z-50">
-              <button
+              <Button
                 onClick={handleExport}
-                className="flex items-center gap-2 w-full px-4 py-2 text-sm text-foreground hover:bg-accent/10"
+                variant="ghost"
+                className="w-full justify-start"
               >
                 <FileText className="w-4 h-4" />
                 Export as Markdown
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={handleClear}
-                className="flex items-center gap-2 w-full px-4 py-2 text-sm text-destructive hover:bg-accent/10"
+                variant="ghost"
+                className="w-full justify-start text-destructive hover:text-destructive"
               >
                 <Trash2 className="w-4 h-4" />
                 Clear Chat
-              </button>
+              </Button>
             </div>
           )}
         </div>
@@ -442,12 +447,13 @@ export function ChatView() {
               <span>{error.message}</span>
             </div>
             {error.recoverable && (
-              <button
+              <Button
                 onClick={handleRetry}
-                className="text-sm text-primary hover:underline"
+                variant="link"
+                size="sm"
               >
                 Retry
-              </button>
+              </Button>
             )}
           </div>
         </div>
@@ -532,20 +538,24 @@ export function ChatView() {
             />
 
             {streaming ? (
-              <button
+              <Button
                 onClick={handleStop}
-                className="p-2 rounded-full bg-destructive text-white hover:bg-primary/90 flex-shrink-0 animate-pulse"
+                variant="destructive"
+                size="icon"
+                className="rounded-full animate-pulse"
               >
                 <Square className="w-5 h-5" fill="currentColor" />
-              </button>
+              </Button>
             ) : (
-              <button
+              <Button
                 onClick={handleSend}
                 disabled={(!input.trim() && attachments.length === 0) || (!!error && !error.recoverable)}
-                className="p-2 rounded-full bg-primary text-white hover:bg-primary/90 disabled:opacity-40 flex-shrink-0"
+                variant="default"
+                size="icon"
+                className="rounded-full"
               >
                 <Send className="w-5 h-5" />
-              </button>
+              </Button>
             )}
           </div>
         </div>
@@ -580,12 +590,14 @@ function AttachmentPreview({ attachment, onRemove }: { attachment: Attachment; o
         <FileText className="w-4 h-4 text-primary" />
       )}
       <span className="truncate max-w-[120px]">{attachment.name}</span>
-      <button
+      <Button
         onClick={onRemove}
-        className="p-1 rounded hover:bg-accent/10 text-muted-foreground hover:text-destructive"
+        variant="ghost"
+        size="icon"
+        className="h-6 w-6"
       >
         <Trash2 className="w-3 h-3" />
-      </button>
+      </Button>
     </div>
   );
 }
@@ -659,13 +671,14 @@ function WelcomeScreen({ onSelect }: { onSelect: (text: string) => void }) {
       <p className="text-muted-foreground mb-8">What would you like to work on today?</p>
       <div className="grid gap-3 max-w-md mx-auto">
         {suggestions.map((suggestion, i) => (
-          <button
+          <Button
             key={i}
             onClick={() => onSelect(suggestion)}
-            className="p-3 bg-card border border-border rounded-lg text-left text-sm text-muted-foreground hover:border-primary hover:text-foreground transition-colors"
+            variant="secondary"
+            className="justify-start text-left"
           >
             {suggestion}
-          </button>
+          </Button>
         ))}
       </div>
     </div>

@@ -47,16 +47,17 @@ function SidebarSection({ title, icon, children, action, defaultCollapsed = true
           {title}
         </span>
         {action && (
-          <button
+          <span
             onClick={(e) => {
               e.stopPropagation();
               action.onClick();
             }}
             title={action.title}
-            className="p-1 rounded hover:bg-secondary text-muted-foreground hover:text-primary"
+            className="p-1 rounded hover:bg-secondary text-muted-foreground hover:text-primary cursor-pointer"
+            role="button"
           >
             {action.icon}
-          </button>
+          </span>
         )}
         <ChevronDown
           className={cn(
@@ -98,6 +99,7 @@ function SidebarItem({ to, onClick, icon, label, active, meta, onDelete }: Sideb
             onDelete();
           }}
           className="hidden group-hover:flex p-1 rounded hover:bg-destructive/10 hover:text-destructive text-muted-foreground"
+          aria-label={`Delete ${label}`}
         >
           ×
         </button>
@@ -365,11 +367,13 @@ export function Sidebar() {
           <Link
             to="/notifications"
             className={cn(
-              "flex items-center justify-center w-10 h-10 rounded-lg transition-colors",
+              "flex items-center justify-center w-11 h-11 rounded-lg transition-colors touch-target",
               isActive('/notifications')
                 ? "bg-primary text-primary-foreground"
                 : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
             )}
+            aria-label="Notifications"
+            aria-current={isActive('/notifications') ? 'page' : undefined}
           >
             <Bell className="w-5 h-5" />
           </Link>

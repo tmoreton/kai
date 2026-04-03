@@ -17,6 +17,7 @@ import { agentsQueries } from "../api/queries";
 import { NetworkError, TimeoutError } from "../api/client";
 import { toast } from "../components/Toast";
 import { cn } from "../lib/utils";
+import { Button } from "../components/ui/button";
 import type { Agent, ErrorState } from "../types/api";
 
 export function AgentsView() {
@@ -62,13 +63,13 @@ export function AgentsView() {
       <div className="border-b border-border bg-card px-6 py-4">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-semibold">Agents</h1>
-          <button
+          <Button
             onClick={() => navigate('/agents/new')}
-            className="flex items-center gap-2 px-4 py-2 bg-kai-teal text-white rounded-lg hover:bg-primary/90"
+            variant="default"
           >
             <Plus className="w-4 h-4" />
             New Agent
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -79,13 +80,14 @@ export function AgentsView() {
             <AlertCircle className="w-5 h-5 text-red-500" />
             <p className="text-red-700">{error.message}</p>
             {error.recoverable && (
-              <button
+              <Button
                 onClick={() => { setError(null); refetch(); }}
-                className="flex items-center gap-1 px-3 py-1 bg-red-100 rounded text-sm"
+                variant="secondary"
+                size="sm"
               >
                 <RefreshCw className="w-4 h-4" />
                 Retry
-              </button>
+              </Button>
             )}
           </div>
         </div>
@@ -98,12 +100,12 @@ export function AgentsView() {
             <div className="text-center">
               <FileCode2 className="w-12 h-12 mx-auto mb-3 text-muted-foreground" />
               <p className="text-muted-foreground mb-4">No agents yet</p>
-              <button
+              <Button
                 onClick={() => navigate('/agents/new')}
-                className="px-4 py-2 bg-kai-teal text-white rounded-lg"
+                variant="default"
               >
                 Create your first agent
-              </button>
+              </Button>
             </div>
           </div>
         ) : (
@@ -194,34 +196,35 @@ function AgentCard({
         </div>
 
         <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-          <button
+          <Button
             onClick={onToggle}
-            className={cn(
-              "p-2 rounded-lg transition-colors",
-              agent.enabled
-                ? "hover:bg-yellow-100 text-yellow-600"
-                : "hover:bg-green-100 text-green-600"
-            )}
+            variant="ghost"
+            size="icon"
+            className={agent.enabled ? "text-yellow-600 hover:text-yellow-600 hover:bg-yellow-100" : "text-green-600 hover:text-green-600 hover:bg-green-100"}
             title={agent.enabled ? 'Disable' : 'Enable'}
           >
             {agent.enabled ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
-          </button>
+          </Button>
           
-          <button
+          <Button
             onClick={onRun}
-            className="p-2 hover:bg-blue-100 text-blue-600 rounded-lg transition-colors"
+            variant="ghost"
+            size="icon"
+            className="text-blue-600 hover:text-blue-600 hover:bg-blue-100"
             title="Run now"
           >
             <Play className="w-4 h-4" />
-          </button>
+          </Button>
           
-          <button
+          <Button
             onClick={onDelete}
-            className="p-2 hover:bg-red-100 text-red-600 rounded-lg transition-colors"
+            variant="ghost"
+            size="icon"
+            className="text-red-600 hover:text-red-600 hover:bg-red-100"
             title="Delete"
           >
             <Trash2 className="w-4 h-4" />
-          </button>
+          </Button>
         </div>
       </div>
     </div>

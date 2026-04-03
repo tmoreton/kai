@@ -133,7 +133,7 @@ function TabButton({ active, onClick, children }: { active: boolean; onClick: ()
       onClick={onClick}
       className={cn(
         "flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors",
-        active ? "bg-kai-teal text-white" : "text-muted-foreground hover:bg-accent"
+        active ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-accent"
       )}
     >
       {children}

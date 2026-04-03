@@ -6,6 +6,7 @@ import { projectsQueries } from "../api/queries";
 import { api } from "../api/client";
 import { timeAgo } from "../lib/utils";
 import { toast } from "../components/Toast";
+import { Button } from "../components/ui/button";
 import type { Project } from "../types/api";
 
 export function CodeView() {
@@ -37,23 +38,23 @@ export function CodeView() {
   };
 
   return (
-    <div className="h-full overflow-y-auto p-6">
+    <div className="h-full overflow-y-auto p-4 sm:p-6">
       <div className="max-w-4xl mx-auto">
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-semibold text-foreground">Code Projects</h1>
-          <button
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+          <h1 className="text-xl sm:text-2xl font-semibold text-foreground">Code Projects</h1>
+          <Button
             onClick={() => setShowCreate(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-foreground text-background rounded-lg hover:bg-foreground/90 text-sm font-medium"
+            variant="default"
           >
             <Plus className="w-4 h-4" />
             New Project
-          </button>
+          </Button>
         </div>
 
         {showCreate && (
           <div className="mb-6 p-4 bg-card border border-border rounded-xl">
             <h3 className="font-medium text-foreground mb-3">Create New Project</h3>
-            <div className="flex gap-2">
+            <div className="flex flex-col sm:flex-row gap-2">
               <input
                 type="text"
                 value={newPath}
@@ -62,19 +63,23 @@ export function CodeView() {
                 className="flex-1 px-3 py-2 bg-secondary border border-border rounded-lg text-sm outline-none focus:border-primary"
                 onKeyDown={(e) => e.key === "Enter" && handleCreate()}
               />
-              <button
-                onClick={handleCreate}
-                disabled={createMutation.isPending}
-                className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 disabled:opacity-50 text-sm font-medium"
-              >
-                {createMutation.isPending ? "Creating..." : "Create"}
-              </button>
-              <button
-                onClick={() => setShowCreate(false)}
-                className="px-4 py-2 border border-border rounded-lg hover:bg-accent/50 text-sm"
-              >
-                Cancel
-              </button>
+              <div className="flex gap-2">
+                <Button
+                  onClick={handleCreate}
+                  disabled={createMutation.isPending}
+                  variant="default"
+                  className="flex-1 sm:flex-none whitespace-nowrap"
+                >
+                  {createMutation.isPending ? "Creating..." : "Create"}
+                </Button>
+                <Button
+                  onClick={() => setShowCreate(false)}
+                  variant="outline"
+                  className="flex-1 sm:flex-none whitespace-nowrap"
+                >
+                  Cancel
+                </Button>
+              </div>
             </div>
           </div>
         )}
@@ -110,24 +115,25 @@ function ProjectCard({ project }: { project: Project }) {
   });
 
   return (
-    <div className="bg-card border border-border rounded-xl p-5 hover:border-primary transition-colors">
-      <div className="flex items-start justify-between mb-4">
-        <div>
-          <h3 className="font-semibold text-foreground text-lg">{project.name}</h3>
-          <p className="text-sm text-muted-foreground font-mono mt-1">{project.cwd}</p>
+    <div className="bg-card border border-border rounded-xl p-4 sm:p-5 hover:border-primary transition-colors">
+      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 mb-4">
+        <div className="min-w-0">
+          <h3 className="font-semibold text-foreground text-base sm:text-lg">{project.name}</h3>
+          <p className="text-xs sm:text-sm text-muted-foreground font-mono mt-1 truncate">{project.cwd}</p>
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-sm text-muted-foreground">
+          <span className="text-xs sm:text-sm text-muted-foreground">
             {project.sessionCount} sessions
           </span>
-          <button
+          <Button
             onClick={() => createSession.mutate()}
             disabled={createSession.isPending}
-            className="p-1 rounded-md hover:bg-accent/50 text-muted-foreground hover:text-foreground transition-colors"
+            variant="ghost"
+            size="icon"
             title="New session"
           >
             <Plus className="w-4 h-4" />
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -138,13 +144,14 @@ function ProjectCard({ project }: { project: Project }) {
             href={`/chat/${session.id}`}
             className="flex items-center gap-3 p-2 rounded-lg hover:bg-accent/50 transition-colors group"
           >
-            <MessageSquare className="w-4 h-4 text-muted-foreground" />
-            <span className="flex-1 text-sm text-muted-foreground truncate">
+            <MessageSquare className="w-4 h-4 text-muted-foreground shrink-0" />
+            <span className="flex-1 text-xs sm:text-sm text-muted-foreground truncate">
               {session.preview || "No preview"}
             </span>
-            <span className="text-xs text-muted-foreground flex items-center gap-1">
+            <span className="text-xs text-muted-foreground flex items-center gap-1 shrink-0">
               <Clock className="w-3 h-3" />
-              {timeAgo(session.updatedAt)}
+              <span className="hidden sm:inline">{timeAgo(session.updatedAt)}</span>
+              <span className="sm:hidden">{timeAgo(session.updatedAt).replace(/\sago/, "")}</span>
             </span>
           </a>
         ))}
