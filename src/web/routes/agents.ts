@@ -746,4 +746,42 @@ Current status: ${agent.enabled ? "Enabled" : "Disabled"}`;
       return c.json({ error: msg }, 500);
     }
   });
+
+  // --- AI Workflow Generation ---
+  app.post("/api/generate-workflow", async (c) => {
+    const { systemPrompt, userPrompt } = await c.req.json() as { 
+      systemPrompt: string; 
+      userPrompt: string;
+    };
+
+    if (!systemPrompt || !userPrompt) {
+      return c.json({ error: "Missing systemPrompt or userPrompt" }, 400);
+    }
+
+    try {
+      const client = createClient();
+      const response = await client.chat.completions.create({
+        model: getModelId(),
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt },
+        ],
+        max_tokens: 4096,
+      });
+
+      const text = response.choices[0]?.message?.content
+        || (response.choices[0]?.message as any)?.reasoning || "";
+      
+      // Extract YAML from markdown code block if present
+      const yamlMatch = text.match(/```yaml\n([\s\S]*?)```/) || 
+                        text.match(/```\n([\s\S]*?)```/) ||
+                        [null, text];
+      const yaml = yamlMatch[1]?.trim() || text.trim();
+      
+      return c.json({ yaml });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return c.json({ error: msg }, 500);
+    }
+  });
 }

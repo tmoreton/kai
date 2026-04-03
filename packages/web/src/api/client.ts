@@ -753,6 +753,13 @@ export const settingsApi = {
     });
   },
 
+  createCustomSkill: (name: string, description: string, code: string): Promise<{ ok: boolean; id: string }> => {
+    return fetchJson(`${API_BASE}/settings/skills/custom`, {
+      method: 'POST',
+      body: JSON.stringify({ name, description, code }),
+    });
+  },
+
   // Environment Variables
   getEnv: (): Promise<{ env: Record<string, string> }> => {
     return fetchJson(`${API_BASE}/settings/env`);

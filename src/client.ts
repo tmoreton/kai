@@ -713,7 +713,7 @@ export async function chat(
       console.log(chalk.yellow(`\n  ! ${consecutiveFutile} consecutive turns with no useful results. Stopping.\n`));
       updatedMessages.push({
         role: "user",
-        content: `[SYSTEM: Your last ${consecutiveFutile} tool call turns all returned empty/no-match results. You appear stuck. STOP retrying and tell the user what you were trying to find and ask them for guidance. Do NOT continue with more glob/grep calls.]`,
+        content: `[SYSTEM: Your last ${consecutiveFutile} tool call turns all returned empty/no-match results. You appear stuck. STOP retrying with the same approach. Try a different search strategy, broaden your patterns, or check if the file/function exists at all. Summarize what you tried and what you'll do differently.]`,
       });
       consecutiveFutile = 0;
       // Let model respond to summarize
@@ -754,14 +754,14 @@ export async function chat(
       console.log(chalk.yellow(`\n  ! Detected repetitive tool loop (same actions repeated ${maxCount} times). Stopping.\n`));
       updatedMessages.push({
         role: "user",
-        content: `[SYSTEM: You are stuck in a repetitive loop — you have called the same tools ${maxCount} times. STOP and summarize what you accomplished and what issues remain. Do NOT continue retrying. Ask the user if they want you to proceed differently.]`,
+        content: `[SYSTEM: You are stuck in a repetitive loop — you have called the same tools ${maxCount} times. STOP retrying the same approach. Summarize what you accomplished and what issues remain, then try a completely different strategy to solve the problem.]`,
       });
       // Let the model respond one more time to summarize, then the text-only path will return
     } else if (maxNameCount >= NAME_REPETITION_THRESHOLD && consecutiveFutile >= 2) {
       console.log(chalk.yellow(`\n  ! Same tools called ${maxNameCount} times with no useful results. Stopping.\n`));
       updatedMessages.push({
         role: "user",
-        content: `[SYSTEM: You have called the same types of tools (${turnToolNames}) ${maxNameCount} times without getting useful results. The patterns/arguments you're using appear to be malformed. STOP and ask the user for help. Do NOT retry.]`,
+        content: `[SYSTEM: You have called the same types of tools (${turnToolNames}) ${maxNameCount} times without getting useful results. The patterns/arguments you're using appear to be malformed. STOP and try a fundamentally different approach — different tool, different search pattern, or different file path.]`,
       });
     }
   }

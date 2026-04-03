@@ -288,6 +288,51 @@ export default {
     }
   });
 
+  // --- Custom Skill Creation (with code) ---
+  app.post("/api/settings/skills/custom", async (c) => {
+    try {
+      const { name, description, code } = await c.req.json();
+      
+      if (!name || !code) {
+        return c.json({ error: "Name and code are required" }, 400);
+      }
+      
+      // Generate skill ID from name
+      const skillId = `custom-${name.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/--+/g, '-').replace(/^-|-$/g, '')}`;
+      const dir = skillsDir();
+      const skillPath = path.join(dir, skillId);
+      
+      // Check if skill already exists
+      if (fs.existsSync(skillPath)) {
+        return c.json({ error: `Skill "${skillId}" already exists` }, 409);
+      }
+      
+      // Create directory
+      fs.mkdirSync(skillPath, { recursive: true });
+      
+      // Write skill.yaml manifest
+      const manifest = `id: ${skillId}
+name: ${name}
+version: 1.0.0
+description: ${description || `Custom skill: ${name}`}
+author: user
+config_schema: {}
+tools: []
+`;
+      fs.writeFileSync(path.join(skillPath, "skill.yaml"), manifest, "utf-8");
+      
+      // Write index.ts with user code
+      fs.writeFileSync(path.join(skillPath, "index.ts"), code, "utf-8");
+      
+      // Load the skill
+      await loadSkill(skillPath);
+      
+      return c.json({ ok: true, id: skillId });
+    } catch (err: any) {
+      return c.json({ error: err.message }, 500);
+    }
+  });
+
   // --- Env vars API ---
   const ENV_PATH = path.resolve(process.env.HOME || "~", ".kai/.env");
 

@@ -2,19 +2,14 @@ import { useState, useRef, useEffect } from "react";
 import { 
   Sparkles, 
   Send, 
-  Loader2, 
   Wand2,
   CheckCircle2,
   AlertCircle,
-  ChevronRight,
-  Play,
-  Save,
   X,
   Bot,
   FileCode2,
 } from "lucide-react";
 import { Button } from "./ui/button";
-import { cn } from "../lib/utils";
 import { toast } from "./Toast";
 import { WorkflowEditor } from "./WorkflowEditor";
 

@@ -12,6 +12,7 @@ import {
   History,
   Edit,
   MessageSquare,
+  Sparkles,
 } from 'lucide-react';
 import { agentsQueries } from '../api/queries';
 import { agentsApi } from '../api/client';
@@ -21,6 +22,7 @@ import { toast } from '../components/Toast';
 import { Button } from '../components/ui/button';
 import type { Agent, ErrorState } from '../types/api';
 import { WorkflowEditor } from '../components/WorkflowEditor';
+import { AIWorkflowCreator } from '../components/AIWorkflowCreator';
 
 export function AgentDetail() {
   const { agentId } = useParams<{ agentId: string }>();
@@ -141,6 +143,7 @@ function TabButton({ active, onClick, children }: { active: boolean; onClick: ()
 
 function AgentWorkflow({ agent }: { agent: Agent }) {
   const [isEditing, setIsEditing] = useState(false);
+  const [isCreating, setIsCreating] = useState(!agent.steps || agent.steps.length === 0);
   const navigate = useNavigate();
 
   // Convert agent steps to WorkflowEditor format
@@ -168,6 +171,7 @@ function AgentWorkflow({ agent }: { agent: Agent }) {
       await agentsApi.updateWorkflow(agent.id, yamlContent);
       toast.success('Workflow saved');
       setIsEditing(false);
+      setIsCreating(false);
       // Refresh the page to show updated steps
       navigate(0);
     } catch (err) {
@@ -175,14 +179,45 @@ function AgentWorkflow({ agent }: { agent: Agent }) {
     }
   };
 
+  const handleWorkflowGenerated = async (yaml: string, _workflow: any) => {
+    try {
+      await agentsApi.updateWorkflow(agent.id, yaml);
+      toast.success('Workflow created!');
+      setIsCreating(false);
+      // Refresh to show the new workflow
+      navigate(0);
+    } catch (err) {
+      toast.error('Failed to save workflow');
+    }
+  };
+
+  // AI Workflow Creation Mode
+  if (isCreating) {
+    return (
+      <div className="h-full">
+        <AIWorkflowCreator
+          agentName={agent.name}
+          agentDescription={agent.description}
+          onWorkflowGenerated={handleWorkflowGenerated}
+          onCancel={() => setIsCreating(false)}
+        />
+      </div>
+    );
+  }
+
   if (isEditing) {
     return (
       <div className="h-full flex flex-col">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold">Edit Workflow</h2>
-          <Button variant="outline" onClick={() => setIsEditing(false)}>
-            Cancel
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setIsEditing(false)}>
+              Cancel
+            </Button>
+            <Button variant="outline" onClick={() => setIsCreating(true)}>
+              AI Assist
+            </Button>
+          </div>
         </div>
         <div className="flex-1 overflow-auto border rounded-lg">
           <WorkflowEditor
@@ -200,9 +235,9 @@ function AgentWorkflow({ agent }: { agent: Agent }) {
         <div className="text-center">
           <FileCode2 className="w-12 h-12 mx-auto mb-3 text-muted-foreground" />
           <p className="text-muted-foreground mb-4">No workflow steps defined</p>
-          <Button onClick={() => setIsEditing(true)}>
-            <Edit className="w-4 h-4 mr-2" />
-            Create Workflow
+          <Button onClick={() => setIsCreating(true)}>
+            <Sparkles className="w-4 h-4 mr-2" />
+            Create with AI
           </Button>
         </div>
       </div>
@@ -213,10 +248,16 @@ function AgentWorkflow({ agent }: { agent: Agent }) {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold">Workflow Steps</h2>
-        <Button variant="outline" onClick={() => setIsEditing(true)}>
-          <Edit className="w-4 h-4 mr-2" />
-          Edit
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setIsCreating(true)}>
+            <Sparkles className="w-4 h-4 mr-2" />
+            AI Assist
+          </Button>
+          <Button variant="outline" onClick={() => setIsEditing(true)}>
+            <Edit className="w-4 h-4 mr-2" />
+            Edit
+          </Button>
+        </div>
       </div>
       <div className="space-y-2">
         {agent.steps.map((step, i) => (
