@@ -45,6 +45,17 @@ export default {
           DEFAULT: "#0D9488",
           light: "#CCFBF1",
         },
+        "kai-text": {
+          DEFAULT: "hsl(var(--foreground))",
+          muted: "hsl(var(--muted-foreground))",
+        },
+        "kai-bg": "hsl(var(--background))",
+        "kai-border": "hsl(var(--border))",
+        "kai-red": "hsl(var(--destructive))",
+        "kai-green": {
+          DEFAULT: "#10b981",
+          light: "#d1fae5",
+        },
       },
       borderRadius: {
         lg: "var(--radius)",

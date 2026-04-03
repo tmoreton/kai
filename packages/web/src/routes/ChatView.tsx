@@ -11,16 +11,10 @@ import { ToolCard } from "../components/ToolCard";
 import { ImageLightbox } from "../components/ImageLightbox";
 import { VoiceInputButton } from "../components/VoiceInputButton";
 import { toast } from "../components/Toast";
-import type { Message, Attachment, ToolCallWithStatus, ToolCallEvent, ToolResultEvent, ThinkingEvent, TokenEvent } from "../types/api";
+import type { Message, Attachment, ToolCallWithStatus, ToolCallEvent, ToolResultEvent, ThinkingEvent, TokenEvent, ErrorState } from "../types/api";
 
 interface MessageWithTools extends Message {
   toolCalls?: ToolCallWithStatus[];
-}
-
-interface ErrorState {
-  type: 'network' | 'timeout' | 'server' | 'unknown';
-  message: string;
-  recoverable: boolean;
 }
 
 export function ChatView() {

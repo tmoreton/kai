@@ -6,13 +6,7 @@ import { api, NetworkError, TimeoutError } from "../api/client";
 import { timeAgo, cn } from "../lib/utils";
 import { toast } from "../components/Toast";
 import { MarkdownRenderer } from "../components/MarkdownRenderer";
-import type { Notification, NotificationAttachment } from "../types/api";
-
-interface ErrorState {
-  message: string;
-  type: 'network' | 'timeout' | 'server' | 'unknown';
-  recoverable: boolean;
-}
+import type { Notification, NotificationAttachment, ErrorState } from "../types/api";
 
 export function NotificationsView() {
   const [expandedId, setExpandedId] = useState<number | null>(null);

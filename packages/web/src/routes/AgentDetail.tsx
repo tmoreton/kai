@@ -24,16 +24,10 @@ import { cn } from '../lib/utils';
 import { toast } from '../components/Toast';
 import { Button } from '../components/ui/button';
 import { VoiceInputButton } from '../components/VoiceInputButton';
-import type { Agent, Persona, Message } from '../types/api';
+import type { Agent, Persona, Message, ErrorState } from '../types/api';
 import { MarkdownRenderer } from '../components/MarkdownRenderer';
 
 type Tab = 'chat' | 'workflows' | 'history';
-
-interface ErrorState {
-  message: string;
-  type: 'network' | 'timeout' | 'server' | 'unknown';
-  recoverable: boolean;
-}
 
 export function AgentDetail() {
   const { personaId } = useParams<{ personaId: string }>();

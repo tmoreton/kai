@@ -2,6 +2,14 @@
 // API Types - Generated from backend audit
 // ============================================
 
+// Shared Error State
+export interface ErrorState {
+  message: string;
+  type: 'network' | 'timeout' | 'server' | 'unknown';
+  recoverable: boolean;
+  field?: string;
+}
+
 // Core Session Types
 export interface Session {
   id: string;

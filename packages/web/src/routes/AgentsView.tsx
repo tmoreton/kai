@@ -6,13 +6,7 @@ import { agentsQueries } from "../api/queries";
 import { NetworkError, TimeoutError } from "../api/client";
 import { toast } from "../components/Toast";
 import { cn } from "../lib/utils";
-import type { Agent, Persona } from "../types/api";
-
-interface ErrorState {
-  message: string;
-  type: 'network' | 'timeout' | 'server' | 'unknown';
-  recoverable: boolean;
-}
+import type { Agent, Persona, ErrorState } from "../types/api";
 
 export function AgentsView() {
   const { personaId } = useParams();

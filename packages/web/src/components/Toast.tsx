@@ -115,6 +115,12 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   };
 
+  // Connect static toast API to this provider
+  useEffect(() => {
+    setToastApi({ addToast, removeToast });
+    return () => { toastApi = undefined; };
+  }, []);
+
   return (
     <ToastContext.Provider value={{ addToast, removeToast }}>
       {children}
