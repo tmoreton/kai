@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useSuspenseQuery } from '@tanstack/react-query';
 import {
@@ -11,6 +11,7 @@ import {
   FileCode2,
   History,
   Edit,
+  MessageSquare,
 } from 'lucide-react';
 import { agentsQueries } from '../api/queries';
 import { agentsApi } from '../api/client';
@@ -24,7 +25,7 @@ import { WorkflowEditor } from '../components/WorkflowEditor';
 export function AgentDetail() {
   const { agentId } = useParams<{ agentId: string }>();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<'workflows' | 'history' | 'settings'>('workflows');
+  const [activeTab, setActiveTab] = useState<'chat' | 'workflows' | 'history' | 'settings'>('chat');
   const [error, setError] = useState<ErrorState | null>(null);
 
   const { data, isError, error: queryError } = useSuspenseQuery({
@@ -94,6 +95,10 @@ export function AgentDetail() {
 
         {/* Tabs */}
         <div className="flex gap-1 mt-3">
+          <TabButton active={activeTab === 'chat'} onClick={() => setActiveTab('chat')}>
+            <MessageSquare className="w-4 h-4 mr-2" />
+            Chat
+          </TabButton>
           <TabButton active={activeTab === 'workflows'} onClick={() => setActiveTab('workflows')}>
             <FileCode2 className="w-4 h-4 mr-2" />
             Workflow
@@ -111,6 +116,7 @@ export function AgentDetail() {
 
       {/* Content */}
       <div className="flex-1 overflow-hidden p-4">
+        {activeTab === 'chat' && <AgentChat agent={agent} />}
         {activeTab === 'workflows' && <AgentWorkflow agent={agent} />}
         {activeTab === 'history' && <AgentHistory agent={agent} />}
         {activeTab === 'settings' && <AgentSettings agent={agent} />}
@@ -281,5 +287,168 @@ function AgentSettings({ agent }: { agent: Agent }) {
 function Badge({ children }: { children: React.ReactNode }) {
   return (
     <span className="px-2 py-1 bg-muted rounded text-xs">{children}</span>
+  );
+}
+
+interface ChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: number;
+}
+
+function AgentChat({ agent }: { agent: Agent }) {
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [input, setInput] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Load messages from localStorage on mount
+  useEffect(() => {
+    const stored = localStorage.getItem(`agent-chat-${agent.id}`);
+    if (stored) {
+      setMessages(JSON.parse(stored));
+    } else {
+      // Welcome message
+      setMessages([{
+        role: 'assistant',
+        content: `Hi! I'm ${agent.name}. I can help you understand my workflow, check my history, or answer questions about what I do. What would you like to know?`,
+        timestamp: Date.now(),
+      }]);
+    }
+  }, [agent.id, agent.name]);
+
+  // Save messages to localStorage
+  useEffect(() => {
+    localStorage.setItem(`agent-chat-${agent.id}`, JSON.stringify(messages));
+  }, [messages, agent.id]);
+
+  // Scroll to bottom when messages change
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  const sendMessage = async () => {
+    if (!input.trim() || isLoading) return;
+
+    const userMessage: ChatMessage = {
+      role: 'user',
+      content: input.trim(),
+      timestamp: Date.now(),
+    };
+
+    setMessages(prev => [...prev, userMessage]);
+    setInput('');
+    setIsLoading(true);
+
+    try {
+      const response = await agentsApi.chat(agent.id, userMessage.content);
+      
+      const assistantMessage: ChatMessage = {
+        role: 'assistant',
+        content: response.response,
+        timestamp: Date.now(),
+      };
+
+      setMessages(prev => [...prev, assistantMessage]);
+    } catch (err) {
+      toast.error('Failed to get response from agent');
+      // Remove the user message on error
+      setMessages(prev => prev.slice(0, -1));
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  };
+
+  const clearChat = () => {
+    setMessages([{
+      role: 'assistant',
+      content: `Chat cleared. I'm ${agent.name}. How can I help you?`,
+      timestamp: Date.now(),
+    }]);
+    localStorage.removeItem(`agent-chat-${agent.id}`);
+  };
+
+  return (
+    <div className="flex flex-col h-full">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h2 className="text-lg font-semibold">Chat with {agent.name}</h2>
+          <p className="text-sm text-muted-foreground">
+            Ask about my workflow, history, or capabilities
+          </p>
+        </div>
+        <Button variant="outline" size="sm" onClick={clearChat}>
+          Clear Chat
+        </Button>
+      </div>
+
+      {/* Messages */}
+      <div className="flex-1 overflow-y-auto space-y-4 mb-4 pr-2">
+        {messages.map((message, index) => (
+          <div
+            key={index}
+            className={cn(
+              "flex",
+              message.role === 'user' ? "justify-end" : "justify-start"
+            )}
+          >
+            <div
+              className={cn(
+                "max-w-[80%] rounded-lg px-4 py-3",
+                message.role === 'user'
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-muted border border-border"
+              )}
+            >
+              <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+              <p className="text-xs opacity-50 mt-1">
+                {new Date(message.timestamp).toLocaleTimeString()}
+              </p>
+            </div>
+          </div>
+        ))}
+        {isLoading && (
+          <div className="flex justify-start">
+            <div className="bg-muted border border-border rounded-lg px-4 py-3">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 bg-foreground rounded-full animate-bounce" />
+                <div className="w-2 h-2 bg-foreground rounded-full animate-bounce delay-100" />
+                <div className="w-2 h-2 bg-foreground rounded-full animate-bounce delay-200" />
+              </div>
+            </div>
+          </div>
+        )}
+        <div ref={messagesEndRef} />
+      </div>
+
+      {/* Input */}
+      <div className="flex gap-2">
+        <textarea
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={handleKeyDown}
+          placeholder="Ask me anything about my workflow..."
+          className="flex-1 min-h-[60px] max-h-[120px] px-3 py-2 bg-background border rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-ring"
+          disabled={isLoading}
+        />
+        <div className="flex flex-col gap-2">
+          <Button 
+            onClick={sendMessage} 
+            disabled={isLoading || !input.trim()}
+            className="h-[60px]"
+          >
+            {isLoading ? 'Sending...' : 'Send'}
+          </Button>
+        </div>
+      </div>
+    </div>
   );
 }

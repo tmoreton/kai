@@ -534,6 +534,13 @@ export const agentsApi = {
   getRecap: (id: string): Promise<{ recap: string | null; run: AgentRun }> => {
     return fetchJson(`${API_BASE}/agents/${id}/recap`);
   },
+
+  chat: (id: string, message: string): Promise<{ response: string; sessionId: string }> => {
+    return fetchJson(`${API_BASE}/agents/${id}/chat`, {
+      method: 'POST',
+      body: JSON.stringify({ message }),
+    });
+  },
 };
 
 // ============================================

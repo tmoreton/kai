@@ -706,4 +706,44 @@ export function registerAgentRoutes(app: Hono) {
       return c.json({ error: msg }, 500);
     }
   });
+
+  // --- Agent Detail Chat (RESTful) ---
+  app.post("/api/agents/:id/chat", async (c) => {
+    const id = c.req.param("id");
+    const { message } = await c.req.json() as { message: string };
+    if (!message) return c.json({ error: "Missing message" }, 400);
+
+    const agent = getAgent(id);
+    if (!agent) return c.json({ error: "Agent not found" }, 404);
+
+    const systemPrompt = `You are ${agent.name}. ${agent.description || ""}
+
+You help the user understand your workflow, check your run history, and manage your settings.
+Be concise and helpful. If you don't know something, say so.
+
+Current status: ${agent.enabled ? "Enabled" : "Disabled"}`;
+
+    try {
+      const client = createClient();
+      const response = await client.chat.completions.create({
+        model: getModelId(),
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: message },
+        ],
+        max_tokens: 4096,
+      });
+
+      const text = response.choices[0]?.message?.content
+        || (response.choices[0]?.message as any)?.reasoning || "";
+      
+      return c.json({ 
+        response: text, 
+        sessionId: generateSessionId() 
+      });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return c.json({ error: msg }, 500);
+    }
+  });
 }
