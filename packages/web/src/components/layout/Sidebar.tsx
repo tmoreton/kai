@@ -133,9 +133,9 @@ export function Sidebar() {
   const location = useLocation();
   const queryClient = useQueryClient();
   const { sessionId, personaId } = useParams();
-  const { sidebarCollapsed, toggleSidebar } = useAppStore();
+  const { sidebarCollapsed, toggleSidebar, sidebarOpen: mobileOpen, setSidebarOpen } = useAppStore();
   const isMobile = useMobile();
-  const [mobileOpen, setMobileOpen] = useState(false);
+  const setMobileOpen = setSidebarOpen;
 
   // Close mobile sidebar on navigation
   useEffect(() => {
@@ -191,19 +191,10 @@ export function Sidebar() {
     }
   };
 
-  // Mobile collapsed state - slim rail
+  // Mobile collapsed state - no rail, just render nothing
+  // The mobile header with hamburger is rendered in RootLayout
   if (isMobile && !mobileOpen) {
-    return (
-      <div className="w-12 flex-shrink-0 flex flex-col items-center py-3 bg-secondary border-r border-border">
-        <button
-          onClick={() => setMobileOpen(true)}
-          className="p-2 rounded-lg hover:bg-accent/50 text-muted-foreground"
-          title="Open menu"
-        >
-          <PanelLeft className="w-5 h-5" />
-        </button>
-      </div>
-    );
+    return null;
   }
 
   const sidebarContent = (

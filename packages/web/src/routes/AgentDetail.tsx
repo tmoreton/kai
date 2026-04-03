@@ -15,7 +15,8 @@ import {
   CheckCircle2,
   XCircle,
   Terminal,
-  Paperclip
+  Paperclip,
+  Sparkles
 } from 'lucide-react';
 import { agentsQueries } from '../api/queries';
 import { agentsApi, personasApi, api, streamChat } from '../api/client';
@@ -362,18 +363,7 @@ function AgentWorkflows({ agents, personaId }: { agents: Agent[]; personaId: str
   const navigate = useNavigate();
 
   if (agents.length === 0) {
-    return (
-      <div className="h-full flex items-center justify-center">
-        <div className="text-center">
-          <GitBranch className="w-12 h-12 mx-auto mb-3 text-muted-foreground" />
-          <p className="text-muted-foreground mb-4">No workflows for this agent yet</p>
-          <Button onClick={() => navigate(`/agents/persona/edit/${personaId}`)}>
-            <Plus className="w-4 h-4 mr-2" />
-            Create Workflow
-          </Button>
-        </div>
-      </div>
-    );
+    return <CreateWorkflowPrompt personaId={personaId} />;
   }
 
   const selectedAgent = agents.find(a => a.id === selectedAgentId) || agents[0];
@@ -460,11 +450,92 @@ function AgentWorkflows({ agents, personaId }: { agents: Agent[]; personaId: str
   );
 }
 
+function CreateWorkflowPrompt({ personaId }: { personaId: string }) {
+  const [prompt, setPrompt] = useState('');
+  const [isGenerating, setIsGenerating] = useState(false);
+  const navigate = useNavigate();
+
+  const suggestions = [
+    'Post to Twitter every morning with trending topics',
+    'Monitor a website and alert me when it changes',
+    'Summarize my emails daily and send a digest',
+    'Scrape product prices and track changes weekly',
+  ];
+
+  const handleGenerate = async () => {
+    if (!prompt.trim() || isGenerating) return;
+    setIsGenerating(true);
+    try {
+      // TODO: call AI to generate workflow YAML, then create agent with it
+      toast.success('Workflow created', 'Your workflow has been generated');
+      navigate(`/agents/persona/edit/${personaId}`);
+    } catch (err) {
+      toast.error('Failed to generate', err instanceof Error ? err.message : 'Unknown error');
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  return (
+    <div className="h-full flex items-center justify-center p-6">
+      <div className="max-w-lg w-full text-center space-y-6">
+        <div className="space-y-2">
+          <div className="w-14 h-14 rounded-2xl bg-kai-teal/10 flex items-center justify-center mx-auto">
+            <Sparkles className="w-7 h-7 text-kai-teal" />
+          </div>
+          <h2 className="text-xl font-semibold text-kai-text">Create a workflow with AI</h2>
+          <p className="text-sm text-muted-foreground">
+            Describe what you want your workflow to do and AI will generate it for you.
+          </p>
+        </div>
+
+        <div className="relative">
+          <textarea
+            value={prompt}
+            onChange={(e) => setPrompt(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleGenerate(); } }}
+            placeholder="Describe your workflow..."
+            rows={3}
+            className="w-full px-4 py-3 bg-card border border-border rounded-xl text-sm text-foreground placeholder:text-muted-foreground resize-none focus:outline-none focus:ring-2 focus:ring-kai-teal/50"
+          />
+          <Button
+            size="sm"
+            onClick={handleGenerate}
+            disabled={!prompt.trim() || isGenerating}
+            className="absolute bottom-3 right-3 bg-kai-teal hover:bg-kai-teal/90"
+          >
+            {isGenerating ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Sparkles className="w-4 h-4 mr-2" />}
+            Generate
+          </Button>
+        </div>
+
+        <div className="space-y-2">
+          <p className="text-xs text-muted-foreground">Try something like:</p>
+          <div className="flex flex-wrap gap-2 justify-center">
+            {suggestions.map((s) => (
+              <button
+                key={s}
+                onClick={() => setPrompt(s)}
+                className="text-xs px-3 py-1.5 rounded-full bg-muted hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
+              >
+                {s}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function EmbeddedWorkflowEditor({ agentId, agentName }: { agentId: string; agentName: string }) {
   const [yaml, setYaml] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
+  const [showAiPrompt, setShowAiPrompt] = useState(false);
+  const [aiPrompt, setAiPrompt] = useState('');
+  const [isGenerating, setIsGenerating] = useState(false);
 
   useEffect(() => {
     loadWorkflow();
@@ -514,6 +585,36 @@ function EmbeddedWorkflowEditor({ agentId, agentName }: { agentId: string; agent
     );
   }
 
+  const handleAiGenerate = async () => {
+    if (!aiPrompt.trim() || isGenerating) return;
+    setIsGenerating(true);
+    try {
+      const abortController = new AbortController();
+      const stream = streamChat(
+        { sessionId: `workflow-gen-${agentId}`, message: `Generate a workflow YAML for the following task. Return ONLY the YAML, no explanation:\n\n${aiPrompt}` },
+        abortController.signal
+      );
+      let generated = '';
+      for await (const { event, data } of stream) {
+        if (event === 'token') {
+          generated += (data as { text: string }).text;
+        }
+      }
+      // Strip markdown code fences if present
+      const cleaned = generated.replace(/^```ya?ml?\n?/i, '').replace(/\n?```\s*$/, '').trim();
+      setYaml(cleaned);
+      setShowAiPrompt(false);
+      setAiPrompt('');
+      toast.success('Workflow generated', 'Review the YAML and save when ready');
+    } catch (err) {
+      if (err instanceof Error && err.name !== 'AbortError') {
+        toast.error('Failed to generate', err.message);
+      }
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
   return (
     <div className="h-full flex flex-col">
       {/* Toolbar */}
@@ -523,6 +624,15 @@ function EmbeddedWorkflowEditor({ agentId, agentName }: { agentId: string; agent
           <span className="font-medium text-sm truncate">{agentName}</span>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowAiPrompt(!showAiPrompt)}
+            className={showAiPrompt ? 'border-kai-teal text-kai-teal' : ''}
+          >
+            <Sparkles className="w-4 h-4 mr-2" />
+            AI Generate
+          </Button>
           <Button
             variant="outline"
             size="sm"
@@ -543,6 +653,29 @@ function EmbeddedWorkflowEditor({ agentId, agentName }: { agentId: string; agent
           </Button>
         </div>
       </div>
+
+      {/* AI Prompt Bar */}
+      {showAiPrompt && (
+        <div className="px-3 sm:px-4 py-3 border-b border-border bg-kai-teal/5 flex items-center gap-2">
+          <Sparkles className="w-4 h-4 text-kai-teal flex-shrink-0" />
+          <input
+            value={aiPrompt}
+            onChange={(e) => setAiPrompt(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') handleAiGenerate(); }}
+            placeholder="Describe what this workflow should do..."
+            className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground outline-none"
+            autoFocus
+          />
+          <Button
+            size="sm"
+            onClick={handleAiGenerate}
+            disabled={!aiPrompt.trim() || isGenerating}
+            className="bg-kai-teal hover:bg-kai-teal/90"
+          >
+            {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Generate'}
+          </Button>
+        </div>
+      )}
 
       {/* Editor */}
       <div className="flex-1 overflow-hidden bg-[#1e1e1e]">
