@@ -58,8 +58,8 @@ export function AgentsView() {
   };
 
   return (
-    <div className="h-full overflow-y-auto p-4 sm:p-6">
-      <div className="max-w-4xl mx-auto">
+    <div className="h-full overflow-y-auto">
+      <div className="max-w-3xl mx-auto p-4 sm:p-6 overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-xl sm:text-2xl font-semibold text-foreground">Agents</h1>
@@ -105,7 +105,7 @@ export function AgentsView() {
             </Button>
           </div>
         ) : (
-          <div className="grid gap-4">
+          <div className="gap-4">
             {agents.map((agent) => (
               <AgentCard
                 key={agent.id}
@@ -148,10 +148,10 @@ function AgentCard({
 
   return (
     <div
-      className="border rounded-lg bg-card p-4 hover:border-kai-teal transition-colors cursor-pointer"
+      className="border rounded-lg bg-card hover:border-kai-teal transition-colors cursor-pointer w-full overflow-hidden"
       onClick={onClick}
     >
-      <div className="flex items-start gap-4">
+      <div className="flex items-start gap-4 overflow-hidden">
         <div className="flex-shrink-0 mt-1">{statusIcon}</div>
         
         <div className="flex-1 min-w-0">
@@ -191,7 +191,7 @@ function AgentCard({
           </div>
         </div>
 
-        <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center gap-2 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
           <Button
             onClick={onToggle}
             variant="ghost"
