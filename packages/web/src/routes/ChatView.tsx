@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { MoreVertical, FileText, Trash2, AlertCircle, RefreshCw, Home } from "lucide-react";
+import { AlertCircle, RefreshCw, Home } from "lucide-react";
 import { sessionsQueries } from "../api/queries";
 import { api, NetworkError, TimeoutError } from "../api/client";
 import { useAppStore } from "../stores/appStore";
@@ -363,40 +363,6 @@ export function ChatView() {
 
   return (
     <div className="relative flex flex-col h-full min-h-0 bg-background">
-      {/* Chat menu - floating top-right */}
-      {messages.length > 0 && (
-        <div className="absolute top-2 right-3 z-10" ref={menuRef}>
-          <Button
-            onClick={() => setShowMenu(!showMenu)}
-            variant="ghost"
-            size="icon"
-            className="bg-background/80 backdrop-blur-sm border border-border/50"
-          >
-            <MoreVertical className="w-4 h-4" />
-          </Button>
-          {showMenu && (
-            <div className="absolute right-0 top-full mt-1 w-48 bg-card border border-border rounded-lg shadow-lg py-1 z-50">
-              <Button
-                onClick={handleExport}
-                variant="ghost"
-                className="w-full justify-start"
-              >
-                <FileText className="w-4 h-4" />
-                Export as Markdown
-              </Button>
-              <Button
-                onClick={handleClear}
-                variant="ghost"
-                className="w-full justify-start text-destructive hover:text-destructive"
-              >
-                <Trash2 className="w-4 h-4" />
-                Clear Chat
-              </Button>
-            </div>
-          )}
-        </div>
-      )}
-
       {/* Error Banner */}
       {error && messages.length > 0 && (
         <div className="px-4 py-2 bg-destructive/10 border-b border-destructive">
