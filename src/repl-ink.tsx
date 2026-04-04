@@ -22,7 +22,6 @@ import chalk from "chalk";
 import { createClient, chat, signalUserTyping } from "./client.js";
 import { buildSystemPrompt } from "./system-prompt.js";
 import { getCwd, cleanupBackgroundProcesses } from "./tools/bash.js";
-import { estimateContextSize } from "./context.js";
 import {
   generateSessionId,
   saveSession,
@@ -44,6 +43,7 @@ import { recordError, installGlobalErrorHandlers } from "./error-tracker.js";
 import { resolveFilePath, expandHome } from "./utils.js";
 import { bootstrapBuiltinAgents } from "./agents-core/bootstrap.js";
 import { SLASH_COMMANDS, handleCommand } from "./repl-commands.js";
+import { recordUsage, getUsageStats } from "./usage.js";
 import type { ReplOptions } from "./repl.js";
 
 // ─── Image helpers (shared with repl.ts) ─────────────────────────────────────
@@ -95,6 +95,12 @@ interface AppProps {
 
 const SPINNER = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
 
+function fmt(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000)     return `${(n / 1_000).toFixed(1)}k`;
+  return String(n);
+}
+
 // ─── Main Ink component ───────────────────────────────────────────────────────
 
 function KaiApp({ options, initialPrompt, initSession, client, initMessages }: AppProps) {
@@ -114,7 +120,12 @@ function KaiApp({ options, initialPrompt, initSession, client, initMessages }: A
   const [messages,     setMessages]     = useState<UIMessage[]>([]);
   const [streamText,   setStreamText]   = useState("");
   const [thinking,     setThinking]     = useState(false);
-  const [tokenInfo,    setTokenInfo]    = useState("");
+  const [tokenInfo,    setTokenInfo]    = useState(() => {
+    const s = getUsageStats();
+    return s.totalInput + s.totalOutput > 0
+      ? `↑${fmt(s.totalInput)} ↓${fmt(s.totalOutput)} total`
+      : "";
+  });
   const [spinnerFrame, setSpinnerFrame] = useState(0);
   const [input,        setInput]        = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
@@ -254,7 +265,14 @@ function KaiApp({ options, initialPrompt, initSession, client, initMessages }: A
           accumulated += token;
           setStreamText(accumulated);
         },
-        { signal: chatAbortRef.current.signal, unleash: options.unleash }
+        {
+          signal: chatAbortRef.current.signal,
+          unleash: options.unleash,
+          onUsage: (input, output) => {
+            const store = recordUsage(input, output);
+            setTokenInfo(`↑${fmt(store.totalInput)} ↓${fmt(store.totalOutput)} total`);
+          },
+        }
       );
 
       setThinking(false);
@@ -264,10 +282,6 @@ function KaiApp({ options, initialPrompt, initSession, client, initMessages }: A
 
       chatMessagesRef.current = updatedMessages;
 
-      // Update token count in header
-      const tokens = estimateContextSize(updatedMessages);
-      const pct    = Math.round((tokens / 256_000) * 100);
-      setTokenInfo(`${Math.round(tokens / 1000)}k / 256k · ${pct}%`);
 
       // Recall
       const lastMsg = updatedMessages.at(-1);

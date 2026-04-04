@@ -85,7 +85,7 @@ export async function chat(
   client: OpenAI,
   messages: ChatCompletionMessageParam[],
   onToken?: (token: string) => void,
-  options?: { tools?: ChatCompletionTool[]; maxTurns?: number; signal?: AbortSignal; unleash?: boolean }
+  options?: { tools?: ChatCompletionTool[]; maxTurns?: number; signal?: AbortSignal; unleash?: boolean; onUsage?: (input: number, output: number) => void }
 ): Promise<ChatCompletionMessageParam[]> {
   const activeTools = options?.tools ?? getCachedToolDefinitions();
   const unleash = options?.unleash ?? false;
@@ -169,8 +169,9 @@ export async function chat(
             tools: activeTools,
             tool_choice: "auto",
             stream: true,
+            stream_options: { include_usage: true },
             max_tokens: MAX_TOKENS,
-          },
+          } as any,
           { signal: controller.signal }
         );
         break;
@@ -199,8 +200,13 @@ export async function chat(
     try {
       for await (const chunk of stream) {
         if (options?.signal?.aborted) break;
-        const delta = chunk.choices?.[0]?.delta;
 
+        // Capture real token usage from the final stream chunk
+        if (chunk.usage && options?.onUsage) {
+          options.onUsage(chunk.usage.prompt_tokens ?? 0, chunk.usage.completion_tokens ?? 0);
+        }
+
+        const delta = chunk.choices?.[0]?.delta;
         if (!delta) continue;
 
         // Reasoning is internal thinking — store separately, never show to user
