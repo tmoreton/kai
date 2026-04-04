@@ -4,14 +4,12 @@ import {
   createGoal,
   decomposeGoal,
   orchestrateGoal,
-  spawnFromTemplate,
   runDurable,
   resumeRun,
   recoverInterruptedRuns,
   analyzeAgent,
   applyImprovements,
   runMetaLearning,
-  listTemplates,
   eventBus,
   watchFile,
 } from "../agents/index.js";
@@ -53,41 +51,21 @@ export function addAgentV2Commands(program: Command): void {
       }
     });
 
-  // Template commands
+  // Template commands - deprecated (templates feature removed)
   v2.command("templates")
-    .description("List available agent templates")
+    .description("List available agent templates (deprecated)")
     .action(() => {
-      const templates = listTemplates();
-      console.log(chalk.bold("\nAvailable Templates:\n"));
-      for (const t of templates) {
-        console.log(`  ${chalk.cyan(t.id)} - ${t.name}`);
-        console.log(`    ${chalk.dim(t.description)}`);
-        if (t.requiredEnv?.length) {
-          console.log(`    ${chalk.yellow("Requires:")} ${t.requiredEnv.join(", ")}`);
-        }
-        if (t.defaultTriggers?.length) {
-          const triggers = t.defaultTriggers.map(tr => tr.type).join(", ");
-          console.log(`    ${chalk.blue("Triggers:")} ${triggers}`);
-        }
-        console.log();
-      }
+      console.log(chalk.yellow("\nTemplates feature has been removed.\n"));
+      console.log("Use 'kai agent create' to create agents directly.\n");
     });
 
   v2.command("spawn <template> [name]")
-    .description("Spawn a new agent from a template")
+    .description("Spawn a new agent from a template (deprecated)")
     .option("-c, --config <json>", "Config as JSON", "{}")
     .option("--one-time", "Don't register triggers (run once)")
-    .action(async (templateId: string, name: string | undefined, opts: any) => {
-      const config = JSON.parse(opts.config);
-      if (name) config.name = name;
-      
-      console.log(chalk.cyan(`Spawning agent from template: ${templateId}`));
-      
-      const agentId = await spawnFromTemplate(templateId, config, {
-        oneTime: opts.oneTime,
-      });
-      
-      console.log(chalk.green(`Agent spawned: ${agentId}`));
+    .action(async () => {
+      console.log(chalk.yellow("\nTemplates feature has been removed.\n"));
+      console.log("Use 'kai agent create' to create agents directly.\n");
     });
 
   // Durable execution commands

@@ -29,14 +29,12 @@ export function ChatView() {
   const [messages, setMessages] = useState<MessageWithTools[]>([]);
   const [isThinking, setIsThinking] = useState(false);
   const [pendingToolCalls, setPendingToolCalls] = useState<Record<string, ToolCallWithStatus>>({});
-  const [showMenu, setShowMenu] = useState(false);
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
   const [error, setError] = useState<ErrorState | null>(null);
   const [retryCount, setRetryCount] = useState(0);
   
   const abortControllerRef = useRef<AbortController | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
   const smartInputRef = useRef<import('../components/SmartChatInput').SmartChatInputRef>(null);
 
   // Only fetch session if we have a sessionId, otherwise it's a new chat
@@ -82,17 +80,6 @@ export function ChatView() {
       toast.error('Failed to load chat', errorState.message, 10000);
     }
   }, [isSessionError, sessionError]);
-
-  // Close menu when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setShowMenu(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
 
   useEffect(() => {
     if (session?.messages) {
@@ -281,41 +268,7 @@ export function ChatView() {
     }
   };
 
-  const handleExport = useCallback(async () => {
-    if (!sessionId) return;
-    try {
-      const markdown = await api.sessions.exportSession(sessionId);
-      const blob = new Blob([markdown], { type: 'text/markdown' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `chat-${sessionId}.md`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      toast.success('Chat exported', 'Download started', 3000);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to export';
-      toast.error('Export failed', message, 6000);
-    }
-    setShowMenu(false);
-  }, [sessionId]);
 
-  const handleClear = useCallback(async () => {
-    if (!sessionId) return;
-    if (!confirm("Clear all messages in this chat?")) return;
-    try {
-      await api.sessions.clearSession(sessionId);
-      setMessages([]);
-      queryClient.invalidateQueries({ queryKey: sessionsQueries.detail(sessionId).queryKey });
-      toast.success('Chat cleared', 'All messages have been removed', 3000);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to clear chat';
-      toast.error('Clear failed', message, 6000);
-    }
-    setShowMenu(false);
-  }, [sessionId, queryClient]);
 
   const streaming = isStreaming(sessionId || 'new');
 
