@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useSuspenseQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Key, Plus, Trash2, Mail, Info } from "lucide-react";
+import { Key, Plus, Trash2, Mail, Info, Eye, EyeOff } from "lucide-react";
 import { settingsQueries } from "../../api/queries";
 import { api } from "../../api/client";
 import { toast } from "../../components/Toast";
@@ -55,6 +55,7 @@ export function EnvSettings() {
   });
 
   const entries = Object.entries(data.env);
+  const [visibleSecrets, setVisibleSecrets] = useState<Record<string, boolean>>({});
 
   // Check if email is configured
   const hasEmailConfigured = entries.some(([k]) => k === 'NOTIFICATION_EMAIL');
@@ -167,22 +168,41 @@ export function EnvSettings() {
         </div>
 
         <div className="space-y-1 mt-4">
-          {entries.map(([key, value]) => (
-            <div key={key} className="flex items-center justify-between p-2 bg-kai-bg rounded-lg">
-              <div className="flex items-center gap-2 font-mono text-sm">
-                <span className="text-primary font-medium">{key}</span>
-                <span className="text-muted-foreground">=</span>
-                <span className="text-muted-foreground">{value}</span>
+          {entries.map(([key, value]) => {
+            const isSecret = key.toLowerCase().includes('key') || key.toLowerCase().includes('pass') || key.toLowerCase().includes('secret') || key.toLowerCase().includes('token');
+            const isVisible = visibleSecrets[key];
+            const displayValue = isSecret && !isVisible 
+              ? '•'.repeat(Math.min(value.length, 20)) 
+              : value;
+            
+            return (
+              <div key={key} className="flex items-center justify-between p-2 bg-kai-bg rounded-lg min-w-0">
+                <div className="flex items-center gap-2 font-mono text-sm min-w-0 flex-1">
+                  <span className="text-primary font-medium shrink-0">{key}</span>
+                  <span className="text-muted-foreground shrink-0">=</span>
+                  <span className="text-muted-foreground truncate">{displayValue}</span>
+                </div>
+                <div className="flex items-center gap-1 shrink-0">
+                  {isSecret && (
+                    <button
+                      onClick={() => setVisibleSecrets(prev => ({ ...prev, [key]: !prev[key] }))}
+                      className="p-1.5 text-muted-foreground hover:text-foreground rounded hover:bg-accent/20"
+                      title={isVisible ? "Hide" : "Show"}
+                    >
+                      {isVisible ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  )}
+                  <button
+                    onClick={() => removeMutation.mutate(key)}
+                    disabled={removeMutation.isPending}
+                    className="p-1.5 text-muted-foreground hover:text-destructive rounded hover:bg-destructive/10 disabled:opacity-50"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
-              <button
-                onClick={() => removeMutation.mutate(key)}
-                disabled={removeMutation.isPending}
-                className="p-1.5 text-muted-foreground hover:text-destructive rounded hover:bg-destructive/10 disabled:opacity-50"
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
-            </div>
-          ))}
+            );
+          })}
           {entries.length === 0 && (
             <div className="text-muted-foreground text-center py-8">
               <Key className="w-12 h-12 mx-auto mb-3 text-muted-foreground" />

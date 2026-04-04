@@ -31,7 +31,15 @@ export async function tryExecuteSkillTool(
   }
 
   try {
-    return await actionFn(args as Record<string, any>);
+    const result = await actionFn(args as Record<string, any>);
+    // Skill handlers can return strings directly or { content: "..." } objects
+    if (typeof result === "string") {
+      return result;
+    } else if (result && typeof result === "object") {
+      return String((result as Record<string, unknown>).content ?? result);
+    } else {
+      return String(result);
+    }
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     return `Skill "${skillId}" action "${toolName}" failed: ${msg}`;

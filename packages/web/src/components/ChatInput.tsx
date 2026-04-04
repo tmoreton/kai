@@ -120,7 +120,7 @@ export function ChatInput({
       )}
 
       {/* Input Area */}
-      <div className="flex gap-2">
+      <div className="flex gap-2 items-center">
         <div className="flex-1 relative">
           <textarea
             ref={textareaRef}
@@ -157,7 +157,7 @@ export function ChatInput({
             onClick={onStop}
             variant="destructive"
             size="icon"
-            className="h-[44px] w-[44px] animate-pulse self-end"
+            className="h-[44px] w-[44px] animate-pulse"
           >
             <Square className="w-4 h-4" fill="currentColor" />
           </Button>
@@ -165,7 +165,7 @@ export function ChatInput({
           <Button
             onClick={onSend}
             disabled={isLoading || !canSend}
-            className="h-[44px] px-4 self-end"
+            className="h-[44px] px-4"
           >
             <Send className="w-4 h-4" />
           </Button>

@@ -480,29 +480,43 @@ export async function chat(
       for (let i = 0; i < parsed.length; i++) {
         const p = parsed[i];
         const result = results[i];
-        const resultStr = result.status === "fulfilled"
+        let resultStr: string = result.status === "fulfilled"
           ? result.value
           : `Tool "${p.toolName}" failed: ${(result as PromiseRejectedResult).reason?.message || "Unknown error"}`;
 
-        // Display output with truncation indicator
-        const lines = resultStr.split("\n");
+        // Ensure resultStr is a string (skill handlers may return objects)
+        if (typeof resultStr !== "string") {
+          resultStr = resultStr ? String(resultStr) : "";
+        }
+
+        // Display output with truncation indicator - collapsed view for common tools
         if (p.toolName === "read_file") {
-          // Compact display for file reads — just show line count
-          console.log(chalk.gray(`    ⎿  ${lines.length} lines`));
+          // Compact display for file reads
+          const lines = resultStr.split('\n');
+          console.log(chalk.gray(`    ⎿  📄 ${lines.length} lines`));
         } else if (p.toolName === "grep") {
-          // Compact display for grep — show match count
+          // Compact display for grep
+          const lines = resultStr.split('\n').filter(l => l.trim());
           const matchCount = resultStr === "No matches found." ? 0 : lines.length;
-          console.log(chalk.gray(`    ⎿  ${matchCount} match${matchCount !== 1 ? "es" : ""}`));
+          console.log(chalk.gray(`    ⎿  🔍 ${matchCount} matches`));
+        } else if (p.toolName === "glob") {
+          // Compact display for glob
+          const lines = resultStr.split('\n').filter(l => l.trim());
+          const fileCount = resultStr ? lines.length : 0;
+          console.log(chalk.gray(`    ⎿  📁 ${fileCount} files`));
         } else if (p.toolName === "bash" || p.toolName === "bash_background") {
-          // Hide bash output completely — just show completion
-          console.log(chalk.gray(`    ⎿  done`));
-        } else if (lines.length > TOOL_OUTPUT_MAX_LINES) {
-          console.log(chalk.gray(`    ⎿  ${lines.length} lines (showing lines 1-${TOOL_OUTPUT_PREVIEW_LINES} in context)`));
-        } else if (resultStr.length > TOOL_OUTPUT_MAX_CHARS) {
-          console.log(chalk.gray(`    ⎿  ${formatToolLabel(p.toolName)}: ${resultStr.substring(0, TOOL_OUTPUT_MAX_CHARS)}...`));
-          console.log(chalk.gray(`       (${resultStr.length} chars total — truncated)`));
+          // Hide bash output completely
+          console.log(chalk.gray(`    ⎿  ⚡ done`));
         } else {
-          console.log(chalk.gray(`    ⎿  ${formatToolLabel(p.toolName)}: ${resultStr}`));
+          const lines = resultStr.split('\n');
+          if (lines.length > TOOL_OUTPUT_MAX_LINES) {
+            console.log(chalk.gray(`    ⎿  ${lines.length} lines (showing lines 1-${TOOL_OUTPUT_PREVIEW_LINES} in context)`));
+          } else if (resultStr.length > TOOL_OUTPUT_MAX_CHARS) {
+            console.log(chalk.gray(`    ⎿  ${formatToolLabel(p.toolName)}: ${resultStr.substring(0, TOOL_OUTPUT_MAX_CHARS)}...`));
+            console.log(chalk.gray(`       (${resultStr.length} chars total — truncated)`));
+          } else {
+            console.log(chalk.gray(`    ⎿  ${formatToolLabel(p.toolName)}: ${resultStr}`));
+          }
         }
 
         // Truncate for context

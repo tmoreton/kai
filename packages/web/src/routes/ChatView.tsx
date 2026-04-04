@@ -32,9 +32,12 @@ export function ChatView() {
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
   const [error, setError] = useState<ErrorState | null>(null);
   const [retryCount, setRetryCount] = useState(0);
+  const [hasInitiallyScrolled, setHasInitiallyScrolled] = useState(false);
+  const [isNearBottom, setIsNearBottom] = useState(true);
   
   const abortControllerRef = useRef<AbortController | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const smartInputRef = useRef<import('../components/SmartChatInput').SmartChatInputRef>(null);
 
   // Only fetch session if we have a sessionId, otherwise it's a new chat
@@ -92,9 +95,15 @@ export function ChatView() {
     }
   }, [session, sessionId]);
 
+  // Auto-scroll: only on initial load or if user is already near bottom
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, pendingToolCalls]);
+    if (!hasInitiallyScrolled) {
+      messagesEndRef.current?.scrollIntoView({ behavior: "auto" });
+      setHasInitiallyScrolled(true);
+    } else if (isNearBottom) {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [messages, pendingToolCalls, hasInitiallyScrolled, isNearBottom]);
 
   const handleStop = useCallback(() => {
     abortControllerRef.current?.abort();
@@ -342,7 +351,15 @@ export function ChatView() {
       )}
 
       {/* Messages Area */}
-      <div className="flex-1 overflow-y-auto overflow-x-hidden">
+      <div 
+        ref={messagesContainerRef}
+        className="flex-1 overflow-y-auto overflow-x-hidden"
+        onScroll={(e) => {
+          const target = e.target as HTMLDivElement;
+          const isBottom = target.scrollHeight - target.scrollTop - target.clientHeight < 100;
+          setIsNearBottom(isBottom);
+        }}
+      >
         <div className="max-w-3xl mx-auto px-4 py-6 overflow-hidden">
           {messages.length === 0 ? (
             <WelcomeScreen onSelect={(text) => smartInputRef.current?.setInput(text)} />
