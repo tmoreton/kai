@@ -19,6 +19,7 @@ import { api } from "../../api/client";
 import { useAppStore } from "../../stores/appStore";
 import { formatShortDate } from "../../lib/utils";
 import { useMobile } from "../../hooks/useMobile";
+import { toast } from "../../components/Toast";
 import type { Session, Agent } from "../../types/api";
 
 interface SidebarSectionProps {
@@ -82,16 +83,31 @@ interface SidebarItemProps {
 }
 
 function SidebarItem({ to, onClick, icon, label, active, meta, onDelete }: SidebarItemProps) {
-  const content = (
-    <>
-      {icon && <span className="w-5 flex-shrink-0">{icon}</span>}
-      <span className="flex-1 truncate text-left">{label}</span>
-      {meta && (
-        <span className="text-xs text-muted-foreground flex-shrink-0 group-hover:hidden">
-          {meta}
-        </span>
-      )}
-      {onDelete && (
+  const className = cn(
+    "flex items-center gap-2 px-2 py-1.5 text-[13px] rounded-lg transition-colors group",
+    active
+      ? "bg-accent/80 text-foreground font-medium"
+      : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+  );
+
+  // If there's a delete handler, render a div wrapper instead of Link/button
+  // to prevent navigation conflicts with the delete button
+  if (onDelete) {
+    return (
+      <div className={cn(className, "cursor-pointer")}>
+        {icon && <span className="w-5 flex-shrink-0">{icon}</span>}
+        <Link 
+          to={to!} 
+          className="flex-1 truncate text-left hover:text-foreground"
+          onClick={onClick}
+        >
+          {label}
+        </Link>
+        {meta && (
+          <span className="text-xs text-muted-foreground flex-shrink-0 group-hover:hidden">
+            {meta}
+          </span>
+        )}
         <button
           onClick={(e) => {
             e.stopPropagation();
@@ -103,15 +119,20 @@ function SidebarItem({ to, onClick, icon, label, active, meta, onDelete }: Sideb
         >
           ×
         </button>
+      </div>
+    );
+  }
+
+  const content = (
+    <>
+      {icon && <span className="w-5 flex-shrink-0">{icon}</span>}
+      <span className="flex-1 truncate text-left">{label}</span>
+      {meta && (
+        <span className="text-xs text-muted-foreground flex-shrink-0">
+          {meta}
+        </span>
       )}
     </>
-  );
-
-  const className = cn(
-    "flex items-center gap-2 px-2 py-1.5 text-[13px] rounded-lg transition-colors group",
-    active
-      ? "bg-accent/80 text-foreground font-medium"
-      : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
   );
 
   if (to) {
@@ -187,8 +208,10 @@ export function Sidebar() {
       if (sessionId === id) {
         navigate('/chat');
       }
+      toast.success('Chat deleted');
     } catch (err) {
       console.error('Failed to delete session:', err);
+      toast.error('Failed to delete chat');
     }
   };
 
