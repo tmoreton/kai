@@ -5,6 +5,7 @@ import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
 import { Command } from "commander";
 import chalk from "chalk";
+import fs from "fs";
 import { startReplInk } from "./repl-ink.js";
 import { initMcpServers, shutdownMcpServers, listMcpServers } from "./tools/index.js";
 import { loadAllSkills } from "./skills/index.js";
@@ -15,6 +16,13 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 config({ path: resolve(process.env.HOME || "~", ".kai/.env"), override: true, quiet: true });
 config({ path: resolve(__dirname, "../.env"), quiet: true });
 config({ path: resolve(process.cwd(), ".env"), quiet: true });
+
+// Ensure ~/.kai/package.json declares ESM so Node doesn't warn about skill
+// handler.js files being parsed as CommonJS.
+const kaiPkgPath = resolve(process.env.HOME || "~", ".kai/package.json");
+if (!fs.existsSync(kaiPkgPath)) {
+  fs.writeFileSync(kaiPkgPath, '{"type":"module"}\n', "utf8");
+}
 
 const program = new Command();
 

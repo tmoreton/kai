@@ -114,6 +114,7 @@ function KaiApp({ options, initialPrompt, initSession, client, initMessages }: A
   const [messages,     setMessages]     = useState<UIMessage[]>([]);
   const [streamText,   setStreamText]   = useState("");
   const [thinking,     setThinking]     = useState(false);
+  const [tokenInfo,    setTokenInfo]    = useState("");
   const [spinnerFrame, setSpinnerFrame] = useState(0);
   const [input,        setInput]        = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
@@ -263,10 +264,10 @@ function KaiApp({ options, initialPrompt, initSession, client, initMessages }: A
 
       chatMessagesRef.current = updatedMessages;
 
-      // Context usage line
+      // Update token count in header
       const tokens = estimateContextSize(updatedMessages);
       const pct    = Math.round((tokens / 256_000) * 100);
-      addMessage("info", chalk.dim(`  [${Math.round(tokens / 1000)}k / 256k tokens · ${pct}%]`));
+      setTokenInfo(`${Math.round(tokens / 1000)}k / 256k · ${pct}%`);
 
       // Recall
       const lastMsg = updatedMessages.at(-1);
@@ -404,7 +405,10 @@ function KaiApp({ options, initialPrompt, initSession, client, initMessages }: A
 
       {/* ── Header ─────────────────────────────────────────────────────────── */}
       <Box marginBottom={1}>
-        <Text bold color="cyan">  ⚡ Kai</Text>
+        <Text bold color="cyan">⚡ Kai</Text>
+        {tokenInfo !== "" && (
+          <Text dimColor>{"  "}{tokenInfo}</Text>
+        )}
       </Box>
 
       {/* ── Completed messages (static — scroll into terminal history) ─────── */}
@@ -413,14 +417,13 @@ function KaiApp({ options, initialPrompt, initSession, client, initMessages }: A
           <Box key={msg.id} flexDirection="column" marginBottom={1}>
             {msg.role === "user" && (
               <Box>
-                <Text color="cyan" bold>{"  › "}</Text>
+                <Text color="cyan" bold>{"› "}</Text>
                 <Text bold>{msg.content}</Text>
               </Box>
             )}
             {msg.role === "assistant" && (
               <Box flexDirection="column">
-                <Text color="cyan">{"  ⏺ "}</Text>
-                <Text>{renderMarkdown(msg.content)}</Text>
+                <Text>{chalk.cyan("⏺ ") + renderMarkdown(msg.content)}</Text>
               </Box>
             )}
             {msg.role === "info" && (
@@ -443,10 +446,7 @@ function KaiApp({ options, initialPrompt, initSession, client, initMessages }: A
       {/* ── Live streaming response ─────────────────────────────────────────── */}
       {streamText !== "" && (
         <Box flexDirection="column" marginBottom={1}>
-          <Box>
-            <Text color="cyan">{"  ⏺ "}</Text>
-          </Box>
-          <Text>{streamText}</Text>
+          <Text>{chalk.cyan("⏺ ") + streamText}</Text>
         </Box>
       )}
 
@@ -468,7 +468,7 @@ function KaiApp({ options, initialPrompt, initSession, client, initMessages }: A
 
       {/* ── Input bar ───────────────────────────────────────────────────────── */}
       <Box>
-        <Text color={promptColor} bold>{"  › "}</Text>
+        <Text color={promptColor} bold>{"› "}</Text>
         <Text>{input}</Text>
         {queueCount > 0 && (
           <Text color="yellow">{"  "}[{queueCount} in queue]</Text>
