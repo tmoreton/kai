@@ -94,6 +94,9 @@ export function bootstrapBuiltinSkills(): void {
   }
 
   if (installed > 0 || skipped > 0) {
-    console.log(`[skills] Bootstrap complete: ${installed} installed, ${skipped} skipped`);
+    const parts = [];
+    if (installed > 0) parts.push(`${installed} installed`);
+    if (skipped > 0) parts.push(`${skipped} already exist`);
+    console.log(`[skills] Bootstrap complete: ${parts.join(", ")}`);
   }
 }
