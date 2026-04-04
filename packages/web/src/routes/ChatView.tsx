@@ -191,13 +191,17 @@ export function ChatView() {
                 [resultData.id]: updated,
               }));
 
-              // Show error toast if tool call failed
+              // Show error toast if tool call failed (skip for bash/glob - often expected)
               if (resultData.error) {
-                toast.error(
-                  `${currentToolCall.function.name} failed`,
-                  resultData.result || 'An error occurred during tool execution',
-                  6000
-                );
+                const toolName = currentToolCall.function.name;
+                const isExploratory = toolName.includes('bash') || toolName.includes('glob') || toolName.includes('search');
+                if (!isExploratory) {
+                  toast.error(
+                    `${toolName} failed`,
+                    resultData.result || 'An error occurred during tool execution',
+                    6000
+                  );
+                }
               }
             }
             break;

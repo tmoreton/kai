@@ -5,7 +5,7 @@ import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
 import { Command } from "commander";
 import chalk from "chalk";
-import { startRepl } from "./repl.js";
+import { startReplInk } from "./repl-ink.js";
 import { initMcpServers, shutdownMcpServers, listMcpServers } from "./tools/index.js";
 import { loadAllSkills } from "./skills/index.js";
 
@@ -45,7 +45,7 @@ program
 
     // -c/-r with no value → true (continue most recent), -c/-r <id> → string
     const continueVal = options.continue || options.resume;
-    await startRepl({
+    await startReplInk({
       continueSession: continueVal === true,
       resumeSessionId: typeof continueVal === "string" ? continueVal : undefined,
       sessionName: options.name,

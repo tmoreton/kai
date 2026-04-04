@@ -11,7 +11,7 @@ import crypto from "crypto";
 import { recordErrorEvent } from "./agents-core/db.js";
 import { KaiError } from "./errors.js";
 
-export type ErrorSource = "repl" | "client" | "tool" | "daemon" | "uncaught";
+export type ErrorSource = "repl" | "repl-ink" | "client" | "tool" | "daemon" | "uncaught";
 
 export interface RecordErrorOpts {
   source: ErrorSource;
