@@ -13,6 +13,7 @@
     "LICENSE"
   ],
   "scripts": {
+    "prepare": "npm run build",
     "build": "npm run build:web && npm run build:server",
     "build:server": "tsc && rm -rf dist/agents-core/builtin-workflows && mkdir -p dist/agents-core/builtin-workflows && cp src/agents-core/builtin-workflows/*.yaml dist/agents-core/builtin-workflows/ && rm -rf dist/skills/builtins && mkdir -p dist/skills/builtins && cp -r src/skills/builtins/* dist/skills/builtins/ && chmod +x dist/index.js",
     "build:web": "cd packages/web && npm install --legacy-peer-deps && npm run build",
