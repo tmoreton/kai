@@ -352,21 +352,11 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_usage_unique ON usage(date, metric, agent_
     `.trim(),
   },
   {
-    name: "002_cleanup_retention.sql",
+    name: "003_system_agent.sql",
     sql: `
-DELETE FROM runs WHERE status = 'completed' AND completed_at < datetime('now', '-30 days');
-DELETE FROM runs WHERE status = 'failed' AND completed_at < datetime('now', '-7 days');
-DELETE FROM logs WHERE created_at < datetime('now', '-30 days');
-DELETE FROM notifications WHERE read = 1 AND created_at < datetime('now', '-7 days');
-DELETE FROM error_events WHERE resolved = 1 AND last_seen < datetime('now', '-90 days');
-DELETE FROM checkpoints
-WHERE id NOT IN (
-  SELECT id FROM (
-    SELECT id, ROW_NUMBER() OVER (PARTITION BY run_id ORDER BY step_index DESC) as rn
-    FROM checkpoints
-  ) WHERE rn <= 2
-);
-ANALYZE;
+-- Create system agent for daemon and system-level logs
+INSERT OR IGNORE INTO agents (id, name, description, workflow_path, schedule, enabled, config, created_at, updated_at)
+VALUES ('__daemon__', 'System Daemon', 'Internal system agent for daemon logs and system events', '', '', 0, '{}', datetime('now'), datetime('now'));
     `.trim(),
   },
 ];
