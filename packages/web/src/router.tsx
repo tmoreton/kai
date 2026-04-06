@@ -25,15 +25,10 @@ const withErrorBoundary = (Component: React.ComponentType) => (
 export const router = createBrowserRouter([
   {
     path: "/",
-    element: <LandingPage />,
-    errorElement: <RouteError />,
-  },
-  {
-    path: "/app",
     element: <RootLayout />,
     errorElement: <RouteError />,
     children: [
-      { index: true, element: <Navigate to="/app/chat" replace /> },
+      { index: true, element: <Navigate to="/chat" replace /> },
       { path: "chat/:sessionId?", element: withErrorBoundary(ChatView), errorElement: <RouteError /> },
       { path: "code", element: withErrorBoundary(CodeView), errorElement: <RouteError /> },
       { path: "agents", element: withErrorBoundary(AgentsView), errorElement: <RouteError /> },
@@ -46,5 +41,11 @@ export const router = createBrowserRouter([
       { path: "workflows", element: withErrorBoundary(WorkflowView), errorElement: <RouteError /> },
       { path: "workflows/:workflowId", element: withErrorBoundary(WorkflowView), errorElement: <RouteError /> },
     ],
+  },
+  // Landing page at separate route - not default
+  {
+    path: "/landing",
+    element: <LandingPage />,
+    errorElement: <RouteError />,
   },
 ]);
