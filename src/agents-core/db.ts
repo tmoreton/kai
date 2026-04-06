@@ -2,10 +2,11 @@ import Database from "better-sqlite3";
 import path from "path";
 import { ensureKaiDir } from "../config.js";
 import { sendNotificationEmail } from "../agents/services/email.js";
+import { migrate } from "../db/migrate.js";
 
 /**
  * SQLite database for agent state persistence.
- * Stores: workflow runs, step results, agent configs, scheduled jobs.
+ * Uses migration-based schema management in src/db/migrate.ts
  */
 
 let db: Database.Database | null = null;
@@ -18,168 +19,10 @@ export function getDb(): Database.Database {
 
   // Enable WAL mode for better concurrent access
   db.pragma("journal_mode = WAL");
-
-  // Create tables
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS agents (
-      id TEXT PRIMARY KEY,
-      name TEXT NOT NULL,
-      description TEXT,
-      workflow_path TEXT,
-      schedule TEXT,
-      enabled INTEGER DEFAULT 1,
-      config TEXT DEFAULT '{}',
-      created_at TEXT DEFAULT (datetime('now')),
-      updated_at TEXT DEFAULT (datetime('now'))
-    );
-
-    CREATE TABLE IF NOT EXISTS runs (
-      id TEXT PRIMARY KEY,
-      agent_id TEXT NOT NULL,
-      status TEXT DEFAULT 'pending',
-      started_at TEXT,
-      completed_at TEXT,
-      error TEXT,
-      trigger TEXT DEFAULT 'manual',
-      current_step INTEGER DEFAULT 0,
-      context TEXT DEFAULT '{}',
-      parent_run_id TEXT,
-      goal_id TEXT,
-      FOREIGN KEY (agent_id) REFERENCES agents(id)
-    );
-
-    CREATE TABLE IF NOT EXISTS steps (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      run_id TEXT NOT NULL,
-      step_name TEXT NOT NULL,
-      step_index INTEGER NOT NULL,
-      status TEXT DEFAULT 'pending',
-      input TEXT,
-      output TEXT,
-      error TEXT,
-      started_at TEXT,
-      completed_at TEXT,
-      tokens_used INTEGER DEFAULT 0,
-      FOREIGN KEY (run_id) REFERENCES runs(id)
-    );
-
-    CREATE TABLE IF NOT EXISTS logs (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      agent_id TEXT,
-      run_id TEXT,
-      level TEXT DEFAULT 'info',
-      message TEXT,
-      created_at TEXT DEFAULT (datetime('now'))
-    );
-
-    CREATE TABLE IF NOT EXISTS notifications (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      type TEXT DEFAULT 'agent_run',
-      title TEXT NOT NULL,
-      body TEXT,
-      agent_id TEXT,
-      run_id TEXT,
-      attachments TEXT,  -- JSON array of file paths
-      read INTEGER DEFAULT 0,
-      created_at TEXT DEFAULT (datetime('now'))
-    );
-
-    CREATE INDEX IF NOT EXISTS idx_runs_agent ON runs(agent_id);
-    CREATE INDEX IF NOT EXISTS idx_steps_run ON steps(run_id);
-    CREATE INDEX IF NOT EXISTS idx_logs_agent ON logs(agent_id);
-    CREATE INDEX IF NOT EXISTS idx_notifications_read ON notifications(read);
-    CREATE INDEX IF NOT EXISTS idx_notifications_agent_type ON notifications(agent_id, type, created_at);
-
-    -- Pending approvals table for human-in-the-loop
-    CREATE TABLE IF NOT EXISTS approvals (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      run_id TEXT NOT NULL,
-      step_index INTEGER NOT NULL,
-      step_name TEXT NOT NULL,
-      prompt TEXT,        -- what the agent is asking
-      context TEXT,       -- JSON with current workflow state
-      approved INTEGER,   -- NULL = pending, 0 = rejected, 1 = approved
-      response TEXT,      -- user feedback if any
-      created_at TEXT DEFAULT (datetime('now')),
-      resolved_at TEXT,
-      FOREIGN KEY (run_id) REFERENCES runs(id) ON DELETE CASCADE
-    );
-    CREATE INDEX IF NOT EXISTS idx_approvals_run ON approvals(run_id);
-    CREATE INDEX IF NOT EXISTS idx_approvals_pending ON approvals(approved);
-
-    -- Error tracking for self-healing
-    CREATE TABLE IF NOT EXISTS error_events (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      fingerprint TEXT NOT NULL,
-      source TEXT NOT NULL,           -- 'repl' | 'client' | 'tool' | 'daemon' | 'uncaught'
-      error_class TEXT,               -- 'ApiError' | 'ToolError' | 'Error' etc
-      error_code TEXT,                -- KaiError.code if available
-      message TEXT NOT NULL,
-      stack TEXT,
-      context TEXT,                   -- JSON: {toolName, args, sessionId, ...}
-      count INTEGER DEFAULT 1,
-      first_seen TEXT DEFAULT (datetime('now')),
-      last_seen TEXT DEFAULT (datetime('now')),
-      resolved INTEGER DEFAULT 0,
-      healing_run_id TEXT
-    );
-    CREATE INDEX IF NOT EXISTS idx_error_fingerprint ON error_events(fingerprint);
-    CREATE INDEX IF NOT EXISTS idx_error_unresolved ON error_events(resolved, last_seen);
-
-    -- Checkpoints for durable execution (Phase 2)
-    CREATE TABLE IF NOT EXISTS checkpoints (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      run_id TEXT NOT NULL,
-      step_index INTEGER NOT NULL,
-      context TEXT NOT NULL,
-      created_at TEXT DEFAULT (datetime('now')),
-      FOREIGN KEY (run_id) REFERENCES runs(id) ON DELETE CASCADE
-    );
-    CREATE INDEX IF NOT EXISTS idx_checkpoints_run ON checkpoints(run_id);
-    CREATE INDEX IF NOT EXISTS idx_checkpoints_step ON checkpoints(run_id, step_index);
-
-    -- Goals for orchestration (Phase 3)
-    CREATE TABLE IF NOT EXISTS goals (
-      id TEXT PRIMARY KEY,
-      description TEXT NOT NULL,
-      priority INTEGER DEFAULT 3,
-      status TEXT DEFAULT 'pending',
-      parent_goal_id TEXT,
-      sub_goal_ids TEXT DEFAULT '[]',
-      context TEXT,
-      result TEXT,
-      created_at TEXT DEFAULT (datetime('now')),
-      completed_at TEXT,
-      FOREIGN KEY (parent_goal_id) REFERENCES goals(id)
-    );
-    CREATE INDEX IF NOT EXISTS idx_goals_status ON goals(status);
-    CREATE INDEX IF NOT EXISTS idx_goals_parent ON goals(parent_goal_id);
-
-    -- Goal runs tracking
-    CREATE TABLE IF NOT EXISTS goal_runs (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      goal_id TEXT NOT NULL,
-      run_id TEXT NOT NULL,
-      agent_id TEXT NOT NULL,
-      sub_goal_id TEXT,
-      status TEXT DEFAULT 'pending',
-      created_at TEXT DEFAULT (datetime('now')),
-      FOREIGN KEY (goal_id) REFERENCES goals(id),
-      FOREIGN KEY (run_id) REFERENCES runs(id)
-    );
-    CREATE INDEX IF NOT EXISTS idx_goal_runs_goal ON goal_runs(goal_id);
-    CREATE INDEX IF NOT EXISTS idx_goal_runs_run ON goal_runs(run_id);
-  `);
-
-  // Migrations for existing databases
-  try { db.exec("ALTER TABLE runs ADD COLUMN recap TEXT"); } catch {}
-  try { db.exec("ALTER TABLE notifications ADD COLUMN attachments TEXT"); } catch {}
-  try { db.exec(`CREATE TABLE IF NOT EXISTS error_events (
-    id INTEGER PRIMARY KEY AUTOINCREMENT, fingerprint TEXT NOT NULL, source TEXT NOT NULL,
-    error_class TEXT, error_code TEXT, message TEXT NOT NULL, stack TEXT, context TEXT,
-    count INTEGER DEFAULT 1, first_seen TEXT DEFAULT (datetime('now')),
-    last_seen TEXT DEFAULT (datetime('now')), resolved INTEGER DEFAULT 0, healing_run_id TEXT
-  )`); } catch {}
+  
+  // Run migrations on first connection
+  // This ensures schema is always up to date
+  migrate();
 
   return db;
 }
