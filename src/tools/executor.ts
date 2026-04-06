@@ -29,7 +29,17 @@ export async function executeTool(
 ): Promise<ToolResult> {
   // Plan mode check — block write operations
   if (!isToolAllowedInPlanMode(name)) {
-    throw new PermissionError(name, "plan_mode", `Blocked: "${name}" is not allowed in plan mode. Only read-only tools are available. Present your plan to the user and ask them to approve it before making changes. They can type /plan to exit plan mode.`);
+    throw new PermissionError(
+      name, 
+      "plan_mode", 
+      `Plan mode active: "${name}" is a write operation and is blocked.\n\n` +
+      `In plan mode, only read-only tools are allowed:\n` +
+      `  • read_file, glob, grep — explore code\n` +
+      `  • web_search, web_fetch — research\n` +
+      `  • spawn_agent/spawn_swarm — use explorer/planner agents\n\n` +
+      `Once you have a plan, present it to the user and tell them:\n` +
+      `  "Type /plan to exit plan mode and I'll implement these changes."`
+    );
   }
 
   // Validate tool arguments with Zod

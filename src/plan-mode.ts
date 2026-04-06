@@ -7,6 +7,7 @@
  */
 
 let _planMode = false;
+let _currentPlan: string | null = null;
 
 const READ_ONLY_TOOLS = new Set([
   "read_file",
@@ -18,7 +19,7 @@ const READ_ONLY_TOOLS = new Set([
   "recall_search",
   "archival_search",
   "archival_insert",
-"spawn_agent", // explorer/planner agents are allowed
+  "spawn_agent", // explorer/planner agents are allowed
   "spawn_swarm", // swarm of read-only agents allowed
   "git_log",
   "git_diff_session",
@@ -30,11 +31,29 @@ export function isPlanMode(): boolean {
 
 export function setPlanMode(enabled: boolean): void {
   _planMode = enabled;
+  if (!enabled) {
+    // Clear plan when exiting
+    _currentPlan = null;
+  }
 }
 
 export function togglePlanMode(): boolean {
   _planMode = !_planMode;
   return _planMode;
+}
+
+/**
+ * Get the current plan being developed in plan mode.
+ */
+export function getCurrentPlan(): string | null {
+  return _currentPlan;
+}
+
+/**
+ * Set/update the current plan.
+ */
+export function setCurrentPlan(plan: string): void {
+  _currentPlan = plan;
 }
 
 /**

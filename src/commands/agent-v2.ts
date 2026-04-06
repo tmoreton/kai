@@ -12,7 +12,7 @@ import {
   runMetaLearning,
   eventBus,
   watchFile,
-} from "../agents/index.js";
+} from "../agents/index";
 import { getAgent, listAgents, getRun, getLatestRuns } from "../agents-core/db.js";
 import { expandHome } from "../utils.js";
 

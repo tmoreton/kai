@@ -28,7 +28,7 @@ export const SLASH_COMMANDS = [
   { cmd: "/compact", desc: "Compress context to save tokens" },
   { cmd: "/doctor", desc: "System diagnostics" },
   { cmd: "/export", desc: "Export session to markdown" },
-  { cmd: "/plan", desc: "Toggle plan mode (read-only)" },
+  { cmd: "/plan", desc: "Toggle plan mode (research → present plan → implement)" },
   { cmd: "/review", desc: "Code review current changes" },
   { cmd: "/security-review", desc: "Security audit" },
   { cmd: "/sessions", desc: "List sessions" },
@@ -308,10 +308,24 @@ export async function handleCommand(
   if (cmd === "/plan") {
     const enabled = togglePlanMode();
     if (enabled) {
-      console.log(chalk.yellow("\n  Plan mode ON — only read-only tools allowed."));
-      console.log(chalk.dim("  Use /plan again to exit plan mode.\n"));
+      console.log(chalk.yellow("\n  ╔══════════════════════════════════════════════════════════════════╗"));
+      console.log(chalk.yellow("  ║  PLAN MODE ON — Read-only exploration phase                     ║"));
+      console.log(chalk.yellow("  ╠══════════════════════════════════════════════════════════════════╣"));
+      console.log(chalk.yellow("  ║  You can now:                                                    ║"));
+      console.log(chalk.yellow("  ║    • Explore the codebase (read_file, glob, grep)               ║"));
+      console.log(chalk.yellow("  ║    • Research online (web_search, web_fetch)                    ║"));
+      console.log(chalk.yellow("  ║    • Spawn explorer/planner agents                              ║"));
+      console.log(chalk.yellow("  ║                                                                  ║"));
+      console.log(chalk.yellow("  ║  Write operations are BLOCKED. Once you understand the task:     ║"));
+      console.log(chalk.yellow("  ║    1. Present a clear plan to the user                          ║"));
+      console.log(chalk.yellow("  ║    2. Type '/plan' again to exit and start implementing         ║"));
+      console.log(chalk.yellow("  ╚══════════════════════════════════════════════════════════════════╝\n"));
     } else {
-      console.log(chalk.green("\n  Plan mode OFF — all tools available.\n"));
+      console.log(chalk.green("\n  ╔══════════════════════════════════════════════════════════════════╗"));
+      console.log(chalk.green("  ║  PLAN MODE OFF — Full tool access restored                      ║"));
+      console.log(chalk.green("  ║                                                                  ║"));
+      console.log(chalk.green("  ║  Implementing your plan now. All tools available.                ║"));
+      console.log(chalk.green("  ╚══════════════════════════════════════════════════════════════════╝\n"));
     }
     return "handled";
   }
