@@ -61,6 +61,7 @@
     "node-cron": "^4.2.1",
     "node-notifier": "^10.0.1",
     "nodemailer": "^8.0.4",
+    "oauth-1.0a": "^2.2.6",
     "openai": "^6.33.0",
     "playwright": "^1.59.1",
     "react": "^19.2.4",

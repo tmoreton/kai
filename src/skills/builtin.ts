@@ -23,10 +23,19 @@ interface SkillsConfig {
 }
 
 function loadSkillsConfig(): SkillsConfig {
+  const configPath = path.join(process.cwd(), "config", "builtin-skills.json");
   const defaultConfig: SkillsConfig = {
     skills: [],
     settings: { autoBootstrap: false, skipIfExists: true, requireSkillYaml: true }
   };
+  
+  try {
+    if (fs.existsSync(configPath)) {
+      return JSON.parse(fs.readFileSync(configPath, "utf-8"));
+    }
+  } catch {
+    console.warn("[skills] Could not load builtin-skills.json, using defaults");
+  }
   
   return defaultConfig;
 }

@@ -22,13 +22,6 @@
       "targetPrefix": "builtin-"
     },
     {
-      "id": "testing",
-      "name": "Testing",
-      "description": "Test runner integration - auto-detect framework, run tests, parse results, coverage analysis",
-      "sourceDir": "testing",
-      "targetPrefix": "builtin-"
-    },
-    {
       "id": "docker",
       "name": "Docker",
       "description": "Docker container management - build images, run containers, compose operations, logs",
