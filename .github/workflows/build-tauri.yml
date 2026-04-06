@@ -51,10 +51,9 @@ jobs:
       
       - name: Rename DMG with arch
         run: |
-          cd src-tauri/target/*/bundle/dmg
+          TARGET="${{ matrix.arch == 'aarch64' && 'aarch64-apple-darwin' || 'x86_64-apple-darwin' }}"
+          cd "src-tauri/target/${TARGET}/release/bundle/dmg"
           for f in *.dmg; do
-            # Extract base name and add version + underscore format
-            # e.g., Kai.dmg -> Kai_v1.0.0_aarch64.dmg
             ARCH="${{ matrix.arch }}"
             VERSION="${GITHUB_REF_NAME}"
             mv "$f" "Kai_${VERSION}_${ARCH}.dmg"

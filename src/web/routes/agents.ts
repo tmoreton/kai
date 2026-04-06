@@ -132,6 +132,7 @@ export function registerAgentRoutes(app: Hono) {
                 error: lastRun.error,
               }
             : null,
+          config: typeof a.config === 'string' ? JSON.parse(a.config || '{}') : (a.config || {}),
         };
       }),
       personas: personas.map((p) => ({
