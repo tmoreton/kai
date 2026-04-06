@@ -362,7 +362,7 @@ export function ChatView() {
       >
         <div className="max-w-3xl mx-auto px-4 py-4 sm:py-6 overflow-hidden">
           {messages.length === 0 ? (
-            <WelcomeScreen onSelect={(text) => smartInputRef.current?.setInput(text)} />
+            <WelcomeScreen />
           ) : (
             <div className="space-y-4 sm:space-y-6">
               {messages.map((message, i) => (
@@ -469,14 +469,7 @@ function ThinkingIndicator() {
   );
 }
 
-function WelcomeScreen({ onSelect }: { onSelect: (text: string) => void }) {
-  const suggestions = [
-    "Help me write a Python function to...",
-    "Explain how async/await works in JavaScript",
-    "Create a React component for...",
-    "Debug this error I'm seeing...",
-  ];
-
+function WelcomeScreen() {
   // Get time-based greeting
   const hour = new Date().getHours();
   let greeting = "Good evening";
@@ -498,36 +491,21 @@ function WelcomeScreen({ onSelect }: { onSelect: (text: string) => void }) {
   });
 
   return (
-    <div className="text-center py-8 sm:py-12 px-4">
+    <div className="flex flex-col items-center justify-center h-full py-8 sm:py-12 px-4">
       {/* Personalized greeting */}
-      <div className="mb-6">
-        <h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-1">
+      <div className="text-center">
+        <h1 className="text-3xl sm:text-4xl font-bold text-foreground mb-2">
           {greeting}, Tim
         </h1>
-        <p className="text-muted-foreground text-sm sm:text-base">
+        <p className="text-muted-foreground text-base sm:text-lg mb-6">
           {dateString} · {timeString}
         </p>
-      </div>
-
-      {/* Weather widget placeholder - can be enhanced with real API later */}
-      <div className="flex items-center justify-center gap-2 mb-8 text-muted-foreground">
-        <span className="text-2xl">☀️</span>
-        <span className="text-sm">Sunny · 72°F</span>
-      </div>
-
-      {/* Suggestions */}
-      <p className="text-muted-foreground mb-4 text-sm font-medium">What would you like to work on?</p>
-      <div className="grid gap-2 sm:gap-3 max-w-md mx-auto">
-        {suggestions.map((suggestion, i) => (
-          <Button
-            key={i}
-            onClick={() => onSelect(suggestion)}
-            variant="secondary"
-            className="justify-start text-left text-sm sm:text-base py-2 sm:py-2.5 h-auto min-h-[44px]"
-          >
-            {suggestion}
-          </Button>
-        ))}
+        
+        {/* Weather widget */}
+        <div className="flex items-center justify-center gap-3 text-muted-foreground bg-accent/10 rounded-full px-5 py-2.5">
+          <span className="text-2xl">☀️</span>
+          <span className="text-sm font-medium">Sunny · 72°F</span>
+        </div>
       </div>
     </div>
   );
