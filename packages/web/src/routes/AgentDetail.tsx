@@ -328,49 +328,24 @@ function AgentHistory({ agent }: { agent: Agent }) {
 
 function AgentMemory({ agent }: { agent: Agent }) {
   const queryClient = useQueryClient();
-  const { data: agentsData } = useSuspenseQuery({
-    ...agentsQueries.list(),
-  });
 
-  // Find linked persona
-  const personaId = (agent.config?.personaId as string) || agent.id;
-  const persona = agentsData?.personas.find((p: Persona) => p.id === personaId);
-
+  // Memory stored directly in agent config
   const [memory, setMemory] = useState({
-    personality: persona?.personality || '',
-    goals: persona?.goals || '',
-    scratchpad: persona?.scratchpad || '',
+    personality: (agent.config?.personality as string) || '',
+    goals: (agent.config?.goals as string) || '',
+    scratchpad: (agent.config?.scratchpad as string) || '',
   });
 
   const updateMutation = useMutation({
     mutationFn: async () => {
-      const promises = [];
-      if (persona) {
-        if (memory.personality !== persona.personality) {
-          promises.push(personasApi.updateField(persona.id, { field: 'personality', content: memory.personality }));
-        }
-        if (memory.goals !== persona.goals) {
-          promises.push(personasApi.updateField(persona.id, { field: 'goals', content: memory.goals }));
-        }
-        if (memory.scratchpad !== persona.scratchpad) {
-          promises.push(personasApi.updateField(persona.id, { field: 'scratchpad', content: memory.scratchpad }));
-        }
-      } else {
-        // Create persona if doesn't exist
-        promises.push(personasApi.create({
-          id: personaId,
-          name: agent.name,
-          role: agent.description || 'Agent',
+      await agentsApi.update(agent.id, {
+        config: {
+          ...agent.config,
           personality: memory.personality,
           goals: memory.goals,
           scratchpad: memory.scratchpad,
-        }));
-      }
-      await Promise.all(promises);
-      // Link persona to agent if not already linked
-      if (!agent.config?.personaId) {
-        await agentsApi.update(agent.id, { config: { ...agent.config, personaId } });
-      }
+        }
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: agentsQueries.all() });
@@ -381,11 +356,10 @@ function AgentMemory({ agent }: { agent: Agent }) {
     },
   });
 
-  const hasChanges = persona ? (
-    memory.personality !== persona.personality ||
-    memory.goals !== persona.goals ||
-    memory.scratchpad !== persona.scratchpad
-  ) : memory.personality || memory.goals || memory.scratchpad;
+  const hasChanges =
+    memory.personality !== (agent.config?.personality as string) ||
+    memory.goals !== (agent.config?.goals as string) ||
+    memory.scratchpad !== (agent.config?.scratchpad as string);
 
   return (
     <div className="space-y-6">
@@ -407,14 +381,6 @@ function AgentMemory({ agent }: { agent: Agent }) {
           {updateMutation.isPending ? 'Saving...' : 'Save Changes'}
         </Button>
       </div>
-
-      {!persona && (
-        <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg">
-          <p className="text-sm text-amber-700">
-            No memory file exists yet for this agent. Saving will create one.
-          </p>
-        </div>
-      )}
 
       {/* Personality */}
       <div className="space-y-2">
