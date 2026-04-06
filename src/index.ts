@@ -87,10 +87,14 @@ program
       // instead of using stale cached modules from before the rebuild
       const args = process.argv.slice(2).filter(a => a !== "--skip-build");
       args.push("--skip-build");
-      execSync(`node ${projectRoot}dist/index.js ${args.join(" ")}`, {
-        cwd: projectRoot,
-        stdio: "inherit",
-      });
+      try {
+        execSync(`node ${projectRoot}dist/index.js ${args.join(" ")}`, {
+          cwd: projectRoot,
+          stdio: "inherit",
+        });
+      } catch (err: any) {
+        process.exit(err.status || 1);
+      }
       return;
     }
     const { startServer } = await import("./web/server.js");
