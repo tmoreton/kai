@@ -725,12 +725,37 @@ export function registerAgentRoutes(app: Hono) {
     const agent = getAgent(id);
     if (!agent) return c.json({ error: "Agent not found" }, 404);
 
-    const systemPrompt = `You are ${agent.name}. ${agent.description || ""}
+    // Parse agent config to get personality/goals
+    const agentConfig = typeof agent.config === 'string' ? JSON.parse(agent.config || "{}") : (agent.config || {});
+    
+    // Build system prompt from config or fallback to simple prompt
+    let systemPrompt: string;
+    if (agentConfig.personality || agentConfig.goals) {
+      systemPrompt = `You are ${agent.name}.
+
+# Your Identity
+${agentConfig.personality || "An AI agent helping with tasks."}
+
+# Your Goals
+${agentConfig.goals || "Help the user achieve their objectives."}
+
+# Working Notes
+${agentConfig.scratchpad || "No notes yet."}
+
+# Current Status
+- Enabled: ${agent.enabled ? "Yes" : "No"}
+- Schedule: ${agent.schedule || "Not scheduled"}
+
+You are autonomous. Complete tasks fully without asking for permission. Be concise and direct. Update your working notes with important findings.`;
+    } else {
+      // Fallback for agents without personality/goals
+      systemPrompt = `You are ${agent.name}. ${agent.description || ""}
 
 You help the user understand your workflow, check your run history, and manage your settings.
 Be concise and helpful. If you don't know something, say so.
 
 Current status: ${agent.enabled ? "Enabled" : "Disabled"}`;
+    }
 
     try {
       const client = createClient();
