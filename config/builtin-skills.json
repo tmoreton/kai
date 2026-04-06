@@ -2,56 +2,56 @@
   "skills": [
     {
       "id": "browser",
-      "name": "Browser",
+      "name": "browser",
       "description": "Web browsing and interaction tools - navigate pages, click elements, fill forms, take screenshots",
       "sourceDir": "browser",
       "targetPrefix": "builtin-"
     },
     {
       "id": "email",
-      "name": "Email",
+      "name": "email",
       "description": "Email sending and reading tools - SMTP/IMAP integration",
       "sourceDir": "email",
       "targetPrefix": "builtin-"
     },
     {
       "id": "git",
-      "name": "Git",
+      "name": "git",
       "description": "Advanced Git operations - smart commits, PR workflows, branch management, changelog generation",
       "sourceDir": "git",
       "targetPrefix": "builtin-"
     },
     {
       "id": "docker",
-      "name": "Docker",
+      "name": "docker",
       "description": "Docker container management - build images, run containers, compose operations, logs",
       "sourceDir": "docker",
       "targetPrefix": "builtin-"
     },
     {
       "id": "database",
-      "name": "Database",
+      "name": "database",
       "description": "Database operations - migrations (Prisma/TypeORM/Knex), SQL queries, schema inspection, backups",
       "sourceDir": "database",
       "targetPrefix": "builtin-"
     },
     {
       "id": "data-storage",
-      "name": "Data Storage",
+      "name": "data-storage",
       "description": "Read and write JSON, Markdown, and text files with auto-detection",
       "sourceDir": "data-storage",
       "targetPrefix": "builtin-"
     },
     {
       "id": "notion",
-      "name": "Notion",
+      "name": "notion",
       "description": "Notion workspace - query databases, create pages, manage content",
       "sourceDir": "notion",
       "targetPrefix": "builtin-"
     },
     {
       "id": "web-tools",
-      "name": "Web Tools",
+      "name": "web-tools",
       "description": "Web utilities - fetch pages, search with Tavily",
       "sourceDir": "web-tools",
       "targetPrefix": "builtin-"
@@ -114,28 +114,28 @@
     },
     {
       "id": "openrouter",
-      "name": "OpenRouter",
+      "name": "openrouter",
       "description": "OpenRouter AI - image generation with Nano Banana, chat completions, model routing",
       "sourceDir": "openrouter",
       "targetPrefix": "builtin-"
     },
     {
       "id": "google-sheets",
-      "name": "Google Sheets",
+      "name": "google-sheets",
       "description": "Google Sheets - create spreadsheets, export analytics, share reports",
       "sourceDir": "google-sheets",
       "targetPrefix": "builtin-"
     },
     {
       "id": "slack",
-      "name": "Slack",
+      "name": "slack",
       "description": "Slack notifications - send alerts, upload files, create threads",
       "sourceDir": "slack",
       "targetPrefix": "builtin-"
     },
     {
       "id": "webhook",
-      "name": "Webhook",
+      "name": "webhook",
       "description": "Webhook triggers - POST to Zapier, Make, custom endpoints",
       "sourceDir": "webhook",
       "targetPrefix": "builtin-"
