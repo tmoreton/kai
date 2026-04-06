@@ -47,7 +47,7 @@ tasks.json
 *~
 
 # Personal agent configs & workflows (live in ~/.kai/)
-agents/
+/agents/
 examples/
 
 # Temp
