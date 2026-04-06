@@ -79,13 +79,13 @@ let _stmtDelete: Database.Statement | null = null;
 function stmtUpsert(): Database.Statement {
   if (!_stmtUpsert) {
     _stmtUpsert = getSessionDb().prepare(`
-      INSERT INTO sessions (id, name, cwd, type, persona_id, model, tags, messages, compacted_at, original_message_count, created_at, updated_at)
-      VALUES (@id, @name, @cwd, @type, @personaId, @model, @tags, @messages, @compactedAt, @originalMessageCount, @createdAt, @updatedAt)
+      INSERT INTO sessions (id, name, cwd, type, agent_id, model, tags, messages, compacted_at, original_message_count, created_at, updated_at)
+      VALUES (@id, @name, @cwd, @type, @agentId, @model, @tags, @messages, @compactedAt, @originalMessageCount, @createdAt, @updatedAt)
       ON CONFLICT(id) DO UPDATE SET
         name = @name,
         cwd = @cwd,
         type = @type,
-        persona_id = @personaId,
+        agent_id = @agentId,
         model = @model,
         tags = @tags,
         messages = @messages,
@@ -107,7 +107,7 @@ function stmtLoad(): Database.Statement {
 function stmtList(): Database.Statement {
   if (!_stmtList) {
     _stmtList = getSessionDb().prepare(`
-      SELECT id, name, type, persona_id, model, tags,
+      SELECT id, name, type, agent_id, model, tags,
              compacted_at, original_message_count,
              created_at, updated_at,
              length(messages) as messages_length,
@@ -124,7 +124,7 @@ function stmtList(): Database.Statement {
 function stmtListAll(): Database.Statement {
   if (!_stmtListAll) {
     _stmtListAll = getSessionDb().prepare(`
-      SELECT id, name, type, persona_id, model, tags,
+      SELECT id, name, type, agent_id, model, tags,
              compacted_at, original_message_count,
              created_at, updated_at,
              length(messages) as messages_length,
@@ -151,7 +151,7 @@ export interface SessionRow {
   name: string | null;
   cwd: string;
   type: string;
-  persona_id: string | null;
+  agent_id: string | null;
   model: string | null;
   tags: string;
   messages: string;
@@ -165,7 +165,7 @@ export interface SessionListRow {
   id: string;
   name: string | null;
   type: string;
-  persona_id: string | null;
+  agent_id: string | null;
   model: string | null;
   tags: string;
   compacted_at: string | null;
@@ -195,7 +195,7 @@ export function dbSaveSession(session: {
     name: session.name || null,
     cwd: session.cwd,
     type: session.type || "chat",
-    personaId: session.personaId || null,
+    agentId: session.personaId || null,
     model: session.model || null,
     tags: stableStringify(session.tags || []),
     messages: stableStringify(session.messages),
@@ -256,13 +256,13 @@ export function dbCleanupSessions(maxAgeDays: number): number {
 export function dbFindSessionByPersona(personaId: string, limit = 100): SessionListRow[] {
   return getSessionDb()
     .prepare(`
-      SELECT id, name, type, persona_id, model, tags,
+      SELECT id, name, type, agent_id, model, tags,
              compacted_at, original_message_count,
              created_at, updated_at,
              length(messages) as messages_length,
              json_array_length(messages) as message_count
       FROM sessions
-      WHERE persona_id = ?
+      WHERE agent_id = ?
       ORDER BY message_count DESC, updated_at DESC
       LIMIT ?
     `)
@@ -273,7 +273,7 @@ export function dbFindSessionByTag(tag: string): SessionListRow | null {
   // Use JSON search since tags is stored as a JSON array
   const row = getSessionDb()
     .prepare(`
-      SELECT id, name, type, persona_id, model, tags,
+      SELECT id, name, type, agent_id, model, tags,
              compacted_at, original_message_count,
              created_at, updated_at,
              length(messages) as messages_length,
@@ -288,7 +288,7 @@ export function dbFindSessionByTag(tag: string): SessionListRow | null {
   // Simpler approach: filter in-memory since tag searches are rare
   const all = getSessionDb()
     .prepare(`
-      SELECT id, name, type, persona_id, model, tags,
+      SELECT id, name, type, agent_id, model, tags,
              compacted_at, original_message_count,
              created_at, updated_at,
              length(messages) as messages_length,

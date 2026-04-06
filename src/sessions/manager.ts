@@ -129,7 +129,7 @@ export function loadSession(sessionId: string): Session | null {
       updatedAt: row.updated_at,
       messages: JSON.parse(row.messages),
       type: (row.type as Session["type"]) || undefined,
-      personaId: row.persona_id || undefined,
+      personaId: row.agent_id || undefined,
       tags: row.tags ? JSON.parse(row.tags) : undefined,
       model: row.model || undefined,
       compactedAt: row.compacted_at || undefined,
@@ -197,7 +197,7 @@ function rowToMetadata(row: SessionListRow): SessionMetadata {
     estimatedTokens,
     type: row.type || undefined,
     tags: row.tags ? JSON.parse(row.tags) : undefined,
-    personaId: row.persona_id || undefined,
+    personaId: row.agent_id || undefined,
   };
 }
 
