@@ -6,6 +6,14 @@
 
 import { getDb } from "../agents-core/db.js";
 
+const MAX_CHECKPOINT_SIZE = 2 * 1024 * 1024; // 2MB limit
+
+function truncateContext(context: string): string {
+  if (context.length <= MAX_CHECKPOINT_SIZE) return context;
+  return context.substring(0, MAX_CHECKPOINT_SIZE - 200) + 
+    `\n\n[...truncated, original size: ${(context.length / 1024 / 1024).toFixed(2)}MB]`;
+}
+
 export interface Checkpoint {
   id: number;
   runId: string;
@@ -26,7 +34,7 @@ export function saveCheckpoint(
   db.prepare(`
     INSERT INTO checkpoints (run_id, step_index, context, created_at)
     VALUES (?, ?, ?, datetime('now'))
-  `).run(runId, stepIndex, JSON.stringify(context));
+  `).run(runId, stepIndex, truncateContext(JSON.stringify(context)));
 }
 
 /**

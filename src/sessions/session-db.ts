@@ -1,7 +1,6 @@
 /**
  * SQLite-based session storage.
- * Replaces JSON file-per-session with a single WAL-mode SQLite database
- * for faster listing, atomic writes, and better scalability.
+ * Uses the main agents.db database for consistency.
  */
 import Database from "better-sqlite3";
 import path from "path";
@@ -29,37 +28,41 @@ let db: Database.Database | null = null;
 export function getSessionDb(): Database.Database {
   if (db) return db;
 
-  const dbPath = path.join(ensureKaiDir(), "sessions.db");
+  // Use the main agents.db instead of separate sessions.db
+  const dbPath = path.join(ensureKaiDir(), "agents.db");
   db = new Database(dbPath);
 
   // WAL mode for concurrent reads + single writer
   db.pragma("journal_mode = WAL");
   db.pragma("synchronous = NORMAL");
 
+  // Ensure tables exist (migrations handle full schema)
   db.exec(`
     CREATE TABLE IF NOT EXISTS sessions (
       id TEXT PRIMARY KEY,
       name TEXT,
       cwd TEXT NOT NULL,
       type TEXT DEFAULT 'chat',
-      persona_id TEXT,
+      agent_id TEXT,
       model TEXT,
       tags TEXT DEFAULT '[]',
       messages TEXT NOT NULL DEFAULT '[]',
       compacted_at TEXT,
       original_message_count INTEGER,
       created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL
+      updated_at TEXT NOT NULL,
+      FOREIGN KEY (agent_id) REFERENCES agents(id) ON DELETE SET NULL
     );
 
     CREATE INDEX IF NOT EXISTS idx_sessions_updated ON sessions(updated_at DESC);
-    CREATE INDEX IF NOT EXISTS idx_sessions_persona ON sessions(persona_id);
+    CREATE INDEX IF NOT EXISTS idx_sessions_agent ON sessions(agent_id);
+    CREATE INDEX IF NOT EXISTS idx_sessions_cwd ON sessions(cwd);
 
     CREATE TABLE IF NOT EXISTS compacted_sessions (
       id TEXT PRIMARY KEY,
       data TEXT NOT NULL,
       created_at TEXT DEFAULT (datetime('now')),
-      FOREIGN KEY (id) REFERENCES sessions(id)
+      FOREIGN KEY (id) REFERENCES sessions(id) ON DELETE CASCADE
     );
   `);
 

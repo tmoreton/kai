@@ -46,6 +46,74 @@ function recordMigration(db: Database.Database, name: string): void {
 }
 
 /**
+ * Migrate sessions from old sessions.db to agents.db
+ */
+export function migrateSessions(): { copied: number; errors: number } {
+  const kaiDir = ensureKaiDir();
+  const sessionsPath = path.join(kaiDir, "sessions.db");
+  const agentsPath = path.join(kaiDir, "agents.db");
+  
+  if (!fs.existsSync(sessionsPath)) {
+    console.log("No sessions.db to migrate");
+    return { copied: 0, errors: 0 };
+  }
+  
+  const db = getDb();
+  let copied = 0;
+  let errors = 0;
+  
+  try {
+    // Attach sessions.db
+    db.exec(`ATTACH DATABASE '${sessionsPath}' AS sessions_db`);
+    
+    // Check if sessions table exists in sessions.db
+    const checkTable = db.prepare(`
+      SELECT name FROM sessions_db.sqlite_master 
+      WHERE type='table' AND name='sessions'
+    `);
+    const hasTable = checkTable.get();
+    
+    if (hasTable) {
+      // Copy sessions
+      const copySessions = db.prepare(`
+        INSERT OR REPLACE INTO sessions (
+          id, name, cwd, type, agent_id, model, tags, messages,
+          compacted_at, original_message_count, created_at, updated_at
+        )
+        SELECT 
+          id, name, cwd, type, persona_id, model, tags, messages,
+          compacted_at, original_message_count, created_at, updated_at
+        FROM sessions_db.sessions
+      `);
+      const sessionsResult = copySessions.run();
+      copied += sessionsResult.changes;
+      
+      // Copy compacted sessions
+      const copyCompacted = db.prepare(`
+        INSERT OR REPLACE INTO compacted_sessions (id, data, created_at)
+        SELECT id, data, created_at FROM sessions_db.compacted_sessions
+      `);
+      copyCompacted.run();
+      
+      console.log(`✓ Migrated ${sessionsResult.changes} sessions from sessions.db`);
+      
+      // Detach
+      db.exec(`DETACH DATABASE sessions_db`);
+      
+      // Rename sessions.db to sessions.db.bak
+      fs.renameSync(sessionsPath, sessionsPath + ".bak");
+      console.log(`✓ Renamed sessions.db to sessions.db.bak`);
+    }
+  } catch (e: any) {
+    console.error("Failed to migrate sessions:", e.message);
+    errors++;
+  }
+  
+  db.close();
+  return { copied, errors };
+}
+
+/**
  * Run a single SQL file migration
  */
 function runSqlMigration(db: Database.Database, filepath: string, name: string): void {

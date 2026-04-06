@@ -199,6 +199,37 @@ export function getConsecutiveFailCount(agentId: string): number {
   return count;
 }
 
+// --- Size limits for storage ---
+const MAX_STEP_OUTPUT_SIZE = 1024 * 1024; // 1MB limit
+const MAX_CHECKPOINT_CONTEXT_SIZE = 2 * 1024 * 1024; // 2MB limit
+const MAX_ERROR_SIZE = 10000; // 10KB limit
+
+function truncateOutput(output: string | null | undefined): string | null {
+  if (!output) return null;
+  if (output.length > MAX_STEP_OUTPUT_SIZE) {
+    return output.substring(0, MAX_STEP_OUTPUT_SIZE - 200) + 
+      `\n\n[...truncated, original size: ${(output.length / 1024 / 1024).toFixed(2)}MB]`;
+  }
+  return output;
+}
+
+function truncateContext(context: string | null | undefined): string | null {
+  if (!context) return null;
+  if (context.length > MAX_CHECKPOINT_CONTEXT_SIZE) {
+    return context.substring(0, MAX_CHECKPOINT_CONTEXT_SIZE - 200) + 
+      `\n\n[...truncated, original size: ${(context.length / 1024 / 1024).toFixed(2)}MB]`;
+  }
+  return context;
+}
+
+function truncateError(error: string | null | undefined): string | null {
+  if (!error) return null;
+  if (error.length > MAX_ERROR_SIZE) {
+    return error.substring(0, MAX_ERROR_SIZE - 100) + "\n\n[...truncated]";
+  }
+  return error;
+}
+
 // --- Step CRUD ---
 
 export interface StepRecord {
@@ -233,7 +264,7 @@ export function completeStep(
   getDb().prepare(`
     UPDATE steps SET status = ?, output = ?, error = ?, tokens_used = ?, completed_at = datetime('now')
     WHERE id = ?
-  `).run(status, output || null, error || null, tokensUsed, stepId);
+  `).run(status, truncateOutput(output), truncateError(error), tokensUsed, stepId);
 }
 
 export function getSteps(runId: string): StepRecord[] {
