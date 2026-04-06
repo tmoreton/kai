@@ -275,11 +275,11 @@ export function getSteps(runId: string): StepRecord[] {
 
 // --- Logs ---
 
-export function addLog(agentId: string, level: string, message: string, runId?: string): void {
+export function addLog(agentId: string | null, level: string, message: string, runId?: string): void {
   getDb().prepare(`
     INSERT INTO logs (agent_id, run_id, level, message)
     VALUES (?, ?, ?, ?)
-  `).run(agentId, runId || null, level, message);
+  `).run(agentId || null, runId || null, level, message);
 }
 
 export function getAgentLogs(agentId: string, limit = 50): { level: string; message: string; created_at: string }[] {

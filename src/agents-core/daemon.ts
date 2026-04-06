@@ -64,12 +64,12 @@ async function startDaemonInner(): Promise<void> {
   // Catch unhandled errors from scheduled agent runs so they don't kill the daemon
   process.on("uncaughtException", (err) => {
     console.error(chalk.red(`  Uncaught exception: ${err.message}`));
-    addLog("__daemon__", "error", `Uncaught: ${err.message}`);
+    addLog(null, "error", `Uncaught: ${err.message}`);
   });
   process.on("unhandledRejection", (reason) => {
     const msg = reason instanceof Error ? reason.message : String(reason);
     console.error(chalk.red(`  Unhandled rejection: ${msg}`));
-    addLog("__daemon__", "error", `Unhandled rejection: ${msg}`);
+    addLog(null, "error", `Unhandled rejection: ${msg}`);
   });
 
   // Load all skills first (needed for workflows)
@@ -152,7 +152,7 @@ export async function startDaemon(): Promise<void> {
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error(chalk.red(`\n  Daemon crashed: ${msg}\n`));
-    addLog("__daemon__", "error", `Crashed: ${msg}`);
+    addLog(null, "error", `Crashed: ${msg}`);
 
     // Track restarts within the window
     const now = Date.now();
@@ -161,7 +161,7 @@ export async function startDaemon(): Promise<void> {
 
     if (restartTimestamps.length >= MAX_RESTARTS) {
       console.error(chalk.red(`  Too many crashes (${MAX_RESTARTS} in ${RESTART_WINDOW_MS / 60000}m). Giving up.\n`));
-      addLog("__daemon__", "error", `Exceeded restart limit (${MAX_RESTARTS}). Shutting down.`);
+      addLog(null, "error", `Exceeded restart limit (${MAX_RESTARTS}). Shutting down.`);
       process.exit(1);
     }
 
@@ -189,7 +189,7 @@ function startProactiveHeartbeat(): void {
     // Log daemon status every 10 checks (~5 minutes)
     if (checkCount % 10 === 0) {
       const stats = eventBus.getStats();
-      addLog("__daemon__", "info", `Heartbeat: ${stats.types} event handlers`);
+      addLog(null, "info", `Heartbeat: ${stats.types} event handlers`);
     }
 
     // --- Self-healing: check for failed/stuck runs and auto-retry ---

@@ -38,6 +38,7 @@ import { resolveFilePath, expandHome } from "./utils.js";
 import { bootstrapBuiltinAgents } from "./agents-core/bootstrap.js";
 import { SLASH_COMMANDS, handleCommand } from "./repl-commands.js";
 import { startSpinner, stopSpinner, renderToolCard, renderAssistantMarker, clearLine, COLOR_THEME, MarkdownStreamBuffer } from "./render/stream.js";
+import { recordUsage, migrateUsageFromJson } from "./usage.js";
 
 const IMAGE_EXTS = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"]);
 const MIME_MAP: Record<string, string> = {
@@ -90,6 +91,16 @@ export async function startRepl(options: ReplOptions = {}, initialPrompt?: strin
   if (bootstrapped > 0) {
     console.log(chalk.dim(`  Installed ${bootstrapped} built-in agent(s). Run /agent to see them.\n`));
   }
+
+  // Migrate legacy usage.json to SQLite (one-time, silent)
+  setTimeout(() => {
+    try {
+      const migrated = migrateUsageFromJson();
+      if (migrated.imported > 0) {
+        console.log(chalk.dim(`  Migrated ${migrated.imported} usage records to database.\n`));
+      }
+    } catch {}
+  }, 100);
 
   const client = createClient();
 
@@ -416,7 +427,7 @@ export async function startRepl(options: ReplOptions = {}, initialPrompt?: strin
         if (rendered) {
           process.stdout.write(rendered);
         }
-      }, { signal: chatAbort.signal, unleash: options.unleash });
+      }, { signal: chatAbort.signal, unleash: options.unleash, onUsage: recordUsage });
 
       // Stop spinner if still running (no tokens received)
       if (thinkingSpinner && firstResponseToken) {

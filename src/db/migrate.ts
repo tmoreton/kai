@@ -262,7 +262,8 @@ CREATE TABLE IF NOT EXISTS usage (
   agent_id TEXT,
   metadata TEXT,
   created_at TEXT DEFAULT (datetime('now')),
-  FOREIGN KEY (agent_id) REFERENCES agents(id) ON DELETE SET NULL
+  FOREIGN KEY (agent_id) REFERENCES agents(id) ON DELETE SET NULL,
+  UNIQUE(date, metric, agent_id)
 );
 CREATE INDEX IF NOT EXISTS idx_usage_date ON usage(date);
 CREATE INDEX IF NOT EXISTS idx_usage_metric ON usage(metric);
@@ -341,6 +342,13 @@ SELECT fingerprint, error_class, message, count, first_seen, last_seen, resolved
 FROM error_events
 WHERE last_seen > datetime('now', '-7 days')
 ORDER BY last_seen DESC;
+    `.trim(),
+  },
+  {
+    name: "001_usage_unique_constraint.sql",
+    sql: `
+-- Add unique constraint for usage table upserts (idempotent)
+CREATE UNIQUE INDEX IF NOT EXISTS idx_usage_unique ON usage(date, metric, agent_id);
     `.trim(),
   },
   {

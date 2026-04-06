@@ -269,9 +269,10 @@ function KaiApp({ options, initialPrompt, initSession, client, initMessages }: A
           signal: chatAbortRef.current.signal,
           unleash: options.unleash,
           onUsage: (input, output) => {
-            const store = recordUsage(input, output);
+            recordUsage(input, output);
+            const stats = getUsageStats();
             const ctxTokens = estimateContextSize(updatedMessages);
-            setTokenInfo(`↑${fmt(store.totalInput)} sent ↓${fmt(store.totalOutput)} received • ${fmt(ctxTokens)} context`);
+            setTokenInfo(`↑${fmt(stats.totalInput)} sent ↓${fmt(stats.totalOutput)} received • ${fmt(ctxTokens)} context`);
           },
         }
       );
