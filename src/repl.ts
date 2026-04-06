@@ -39,6 +39,7 @@ import { bootstrapBuiltinAgents } from "./agents-core/bootstrap.js";
 import { SLASH_COMMANDS, handleCommand } from "./repl-commands.js";
 import { startSpinner, stopSpinner, renderToolCard, renderAssistantMarker, clearLine, COLOR_THEME, MarkdownStreamBuffer } from "./render/stream.js";
 import { recordUsage, migrateUsageFromJson } from "./usage.js";
+import { migrateFromJson } from "./db/projects-db.js";
 
 const IMAGE_EXTS = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"]);
 const MIME_MAP: Record<string, string> = {
@@ -101,6 +102,17 @@ export async function startRepl(options: ReplOptions = {}, initialPrompt?: strin
       }
     } catch {}
   }, 100);
+
+  // Migrate legacy projects.json, settings.json, profiles to SQLite (one-time, silent)
+  setTimeout(() => {
+    try {
+      const migrated = migrateFromJson();
+      const total = migrated.projects + migrated.settings + migrated.profiles;
+      if (total > 0) {
+        console.log(chalk.dim(`  Migrated ${migrated.projects} projects, ${migrated.settings} settings, ${migrated.profiles} profiles to database.\n`));
+      }
+    } catch {}
+  }, 150);
 
   const client = createClient();
 

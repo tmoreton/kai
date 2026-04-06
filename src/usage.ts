@@ -135,8 +135,8 @@ export function migrateUsageFromJson(): { imported: number } {
       }
     }
 
-    // Rename old file to prevent re-import
-    fs.renameSync(usagePath, `${usagePath}.migrated`);
+    // Delete old file after successful migration
+    fs.unlinkSync(usagePath);
     return { imported };
   } catch {
     return { imported: 0 };

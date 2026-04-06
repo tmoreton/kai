@@ -197,7 +197,7 @@ export function saveProfile(projectId: string, context: string, preferences: Rec
 }
 
 // ============================================
-// MIGRATION: JSON → SQLite
+// MIGRATION: JSON → SQLite (one-time, deletes after migration)
 // ============================================
 
 export function migrateFromJson(): { projects: number; settings: number; profiles: number } {
@@ -214,6 +214,7 @@ export function migrateFromJson(): { projects: number; settings: number; profile
         saveProject(p);
         results.projects++;
       }
+      fs.unlinkSync(projectsPath); // Delete after migration
     }
   } catch (e) {
     console.error("Failed to migrate projects.json:", e);
@@ -228,6 +229,7 @@ export function migrateFromJson(): { projects: number; settings: number; profile
         setSetting(key, val);
         results.settings++;
       }
+      fs.unlinkSync(settingsPath); // Delete after migration
     }
   } catch (e) {
     console.error("Failed to migrate settings.json:", e);
@@ -243,8 +245,13 @@ export function migrateFromJson(): { projects: number; settings: number; profile
           const profile = JSON.parse(fs.readFileSync(profilePath, "utf-8"));
           saveProfile(dir, profile.context || "", profile.preferences || {}, profile.custom_instructions || "");
           results.profiles++;
+          fs.unlinkSync(profilePath); // Delete after migration
         }
       }
+      // Remove empty profile directory
+      try {
+        fs.rmdirSync(profileDir, { recursive: true });
+      } catch {}
     }
   } catch (e) {
     console.error("Failed to migrate profiles:", e);

@@ -2,7 +2,7 @@ import fs from "fs";
 import path from "path";
 import crypto from "crypto";
 import { ensureKaiDir } from "./config.js";
-import { saveProject, touchProject, getProjectByPath } from "./db/projects-db.js";
+import { saveProject, touchProject, getProjectByPath, listProjects as listProjectsFromDb, getProject } from "./db/projects-db.js";
 
 export interface ProjectInfo {
   id: string;
@@ -100,37 +100,18 @@ export function getCurrentProject(): ProjectInfo | null {
   return resolveProject();
 }
 
-// --- Legacy JSON registry (for migration) ---
-
-function registryPath(): string {
-  return path.join(ensureKaiDir(), "projects.json");
-}
-
-function loadRegistry(): Record<string, ProjectInfo> {
-  try {
-    const p = registryPath();
-    if (fs.existsSync(p)) {
-      return JSON.parse(fs.readFileSync(p, "utf-8"));
-    }
-  } catch {}
-  return {};
-}
-
-function saveRegistry(registry: Record<string, ProjectInfo>): void {
-  fs.writeFileSync(registryPath(), JSON.stringify(registry, null, 2), "utf-8");
-}
-
-function registerProject(info: ProjectInfo): void {
-  const registry = loadRegistry();
-  registry[info.id] = info;
-  saveRegistry(registry);
-}
-
+/**
+ * List all projects from the database (sorted by last accessed).
+ */
 export function listProjects(): ProjectInfo[] {
-  const registry = loadRegistry();
-  return Object.values(registry).sort(
-    (a, b) => (b.lastAccessed || "").localeCompare(a.lastAccessed || "")
-  );
+  return listProjectsFromDb();
+}
+
+/**
+ * Get a specific project by ID from the database.
+ */
+export function getProjectById(id: string): ProjectInfo | null {
+  return getProject(id);
 }
 
 // --- Scoped Directory Helpers ---
