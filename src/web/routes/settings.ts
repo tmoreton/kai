@@ -661,7 +661,3 @@ tools: []
     }
   });
 }
-      return c.json({ error: err.message }, 500);
-    }
-  });
-}
