@@ -95,6 +95,6 @@ export function bootstrapBuiltinSkills(): void {
 
   const total = installed + skipped;
   if (total > 0) {
-    console.log(`${total} Skills loaded`);
+    // console.log(`${total} Skills loaded`);
   }
 }

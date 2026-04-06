@@ -424,6 +424,11 @@ function KaiApp({ options, initialPrompt, initSession, client, initMessages }: A
           <Text dimColor>{"  "}{tokenInfo}</Text>
         )}
       </Box>
+      {sessionRef.current && (
+        <Box marginBottom={1}>
+          <Text dimColor>resume: kai --resume {sessionRef.current.id}</Text>
+        </Box>
+      )}
 
       {/* ── Completed messages (static — scroll into terminal history) ─────── */}
       <Static items={messages}>
