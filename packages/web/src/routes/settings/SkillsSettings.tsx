@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useSuspenseQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { 
   Puzzle, RotateCcw, Trash2, Plus, Code2, Check, X, Download, 
-  ChevronDown, ChevronUp, Package
+  ChevronDown, ChevronUp, Package, ExternalLink
 } from "lucide-react";
 import { settingsQueries } from "../../api/queries";
 import { api } from "../../api/client";
@@ -10,122 +10,6 @@ import { cn } from "../../lib/utils";
 import { toast } from "../../components/Toast";
 import type { Skill } from "../../types/api";
 import { Button } from "../../components/ui/button";
-
-// Built-in skill registry from kai-skills — all skills are external
-const BUILTIN_SKILLS = [
-  {
-    id: "git",
-    name: "Git",
-    description: "Git operations — smart commits, PR workflows, branch management",
-    author: "Kai",
-    tags: ["version-control", "git", "github"],
-  },
-  {
-    id: "docker",
-    name: "Docker",
-    description: "Docker containers — build images, run containers, compose operations",
-    author: "Kai",
-    tags: ["docker", "containers", "devops"],
-  },
-  {
-    id: "browser",
-    name: "Browser",
-    description: "Web automation — navigate pages, click elements, fill forms, screenshots",
-    author: "Kai",
-    tags: ["browser", "web", "playwright"],
-  },
-  {
-    id: "email",
-    name: "Email",
-    description: "Email via SMTP/IMAP — send and read with Gmail, Outlook, custom servers",
-    author: "Kai",
-    tags: ["email", "smtp", "communication"],
-  },
-  {
-    id: "notion",
-    name: "Notion",
-    description: "Notion workspace — query databases, create pages, manage content",
-    author: "Kai",
-    tags: ["notion", "wiki", "notes"],
-  },
-  {
-    id: "database",
-    name: "Database",
-    description: "Database operations — migrations, queries, schema inspection",
-    author: "Kai",
-    tags: ["database", "sql", "migrations"],
-  },
-  {
-    id: "twitter",
-    name: "Twitter/X",
-    description: "Twitter/X API — search tweets, analyze users, post content",
-    author: "Kai",
-    tags: ["twitter", "x", "social-media"],
-  },
-  {
-    id: "youtube",
-    name: "YouTube Analytics",
-    description: "YouTube Data API — channel stats, video metrics, analytics",
-    author: "Kai",
-    tags: ["youtube", "analytics", "video"],
-  },
-  {
-    id: "data-storage",
-    name: "Data Storage",
-    description: "File I/O — read/write JSON, Markdown, and text files",
-    author: "Kai",
-    tags: ["data", "files", "json", "storage"],
-  },
-  {
-    id: "web-tools",
-    name: "Web Tools",
-    description: "Web utilities — fetch pages, search via Tavily",
-    author: "Kai",
-    tags: ["web", "fetch", "search"],
-  },
-  {
-    id: "instagram",
-    name: "Instagram",
-    description: "Instagram API — user profiles, media posts, hashtag search, insights",
-    author: "Kai",
-    tags: ["instagram", "social-media", "photos"],
-  },
-  {
-    id: "facebook",
-    name: "Facebook",
-    description: "Facebook Pages API — page info, posts, insights, publishing",
-    author: "Kai",
-    tags: ["facebook", "social-media", "pages"],
-  },
-  {
-    id: "linkedin",
-    name: "LinkedIn",
-    description: "LinkedIn API — profile info, create posts, analytics, people search",
-    author: "Kai",
-    tags: ["linkedin", "social-media", "professional"],
-  },
-  {
-    id: "tiktok",
-    name: "TikTok",
-    description: "TikTok API — user info, videos, stats, hashtag search",
-    author: "Kai",
-    tags: ["tiktok", "social-media", "video"],
-  },
-  {
-    id: "threads",
-    name: "Threads",
-    description: "Threads API — profile, posts, publishing, replies, insights",
-    author: "Kai",
-    tags: ["threads", "social-media", "meta"],
-  },
-  {
-    id: "bluesky",
-    name: "Bluesky",
-    description: "Bluesky AT Protocol — profile, feed, posting, search, social actions",
-    author: "Kai",
-    tags: ["bluesky", "social-media", "at-protocol"],
-  },
-];
 
 const SKILL_EXAMPLES = [
   'github:tmoreton/kai-skill-example',
@@ -153,11 +37,18 @@ export const description = "A simple greeting skill";
 export const version = "1.0.0";`);
   const [expandedSkill, setExpandedSkill] = useState<string | null>(null);
 
+  // Fetch available skills from registry
+  const { data: availableData, isLoading: isLoadingAvailable } = useSuspenseQuery({
+    queryKey: ['availableSkills'],
+    queryFn: api.settings.getAvailableSkills,
+  });
+
   const installMutation = useMutation({
     mutationFn: api.settings.installSkill,
     onSuccess: (result) => {
+      // Invalidate both installed and available skills
       queryClient.invalidateQueries({ queryKey: settingsQueries.all() });
-      queryClient.refetchQueries({ queryKey: settingsQueries.all(), type: 'active' });
+      queryClient.invalidateQueries({ queryKey: ['availableSkills'] });
       setInstallSource("");
       toast.success('Skill installed', result.id || 'Successfully installed');
     },
@@ -171,6 +62,7 @@ export const version = "1.0.0";`);
     mutationFn: api.settings.reloadSkills,
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: settingsQueries.all() });
+      queryClient.invalidateQueries({ queryKey: ['availableSkills'] });
       if (result.errors.length > 0) {
         toast.warning('Skills reloaded', `${result.loaded} loaded, ${result.errors.length} errors`);
       } else {
@@ -186,7 +78,9 @@ export const version = "1.0.0";`);
   const uninstallMutation = useMutation({
     mutationFn: api.settings.uninstallSkill,
     onSuccess: () => {
+      // Invalidate both lists
       queryClient.invalidateQueries({ queryKey: settingsQueries.all() });
+      queryClient.invalidateQueries({ queryKey: ['availableSkills'] });
       toast.success('Skill uninstalled');
     },
     onError: (err) => {
@@ -222,10 +116,10 @@ export const version = "1.0.0";`);
   // Get installed skill IDs for quick lookup
   const installedSkillIds = new Set(settings.skills.map((s: Skill) => s.id));
 
-  // Available built-in skills (not installed)
-  const availableBuiltinSkills = BUILTIN_SKILLS.filter(s => !installedSkillIds.has(s.id));
+  // Available skills from registry (filter out installed)
+  const availableSkills = (availableData?.skills || []).filter((s: any) => !installedSkillIds.has(s.id));
 
-  const installBuiltinSkill = (skillId: string) => {
+  const installSkill = (skillId: string) => {
     // Use shorthand format: kai:skill-id
     installMutation.mutate(`kai:${skillId}`);
   };
@@ -260,19 +154,28 @@ export const version = "1.0.0";`);
         </div>
       </div>
 
-      {/* Available Built-in Skills */}
-      {availableBuiltinSkills.length > 0 && (
+      {/* Available Skills from Registry */}
+      {availableSkills.length > 0 && (
         <div className="space-y-3">
           <div className="flex items-center gap-2">
             <Package className="w-4 h-4 text-primary" />
             <h4 className="font-medium text-sm">Available Skills</h4>
             <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
-              {availableBuiltinSkills.length}
+              {availableSkills.length}
             </span>
+            <a 
+              href="https://github.com/tmoreton/kai-skills" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="ml-auto flex items-center gap-1 text-xs text-primary hover:underline"
+            >
+              <ExternalLink className="w-3 h-3" />
+              View Registry
+            </a>
           </div>
           
           <div className="grid gap-3">
-            {availableBuiltinSkills.map((skill) => (
+            {availableSkills.map((skill: any) => (
               <div 
                 key={skill.id}
                 className="p-4 bg-card border border-border rounded-lg hover:border-primary/50 transition-colors"
@@ -285,7 +188,7 @@ export const version = "1.0.0";`);
                     </div>
                     <p className="text-sm text-muted-foreground mt-1">{skill.description}</p>
                     <div className="flex flex-wrap gap-1 mt-2">
-                      {skill.tags.map(tag => (
+                      {skill.tags?.map((tag: string) => (
                         <span 
                           key={tag} 
                           className="text-xs bg-accent/20 text-accent-foreground px-1.5 py-0.5 rounded"
@@ -298,7 +201,7 @@ export const version = "1.0.0";`);
                   <div className="flex items-center gap-2">
                     <Button
                       size="sm"
-                      onClick={() => installBuiltinSkill(skill.id)}
+                      onClick={() => installSkill(skill.id)}
                       disabled={installMutation.isPending}
                     >
                       {installMutation.isPending ? (
@@ -315,6 +218,13 @@ export const version = "1.0.0";`);
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {isLoadingAvailable && (
+        <div className="flex items-center justify-center p-8 text-muted-foreground">
+          <RotateCcw className="w-4 h-4 mr-2 animate-spin" />
+          Loading available skills...
         </div>
       )}
 
@@ -482,7 +392,7 @@ export const version = "1.0.0";`);
                         Add these environment variables in <strong>Environment</strong> settings:
                       </p>
                       <div className="flex flex-wrap gap-2 mt-2">
-                        {skill.missingConfig.map((envKey) => (
+                        {skill.missingConfig.map((envKey: string) => (
                           <code 
                             key={envKey}
                             className="px-2 py-1 text-xs bg-white dark:bg-red-950 border border-red-200 dark:border-red-700 rounded font-mono text-red-700 dark:text-red-300"
@@ -551,7 +461,7 @@ export const version = "1.0.0";`);
                 <button
                   onClick={() => uninstallMutation.mutate(skill.id)}
                   disabled={uninstallMutation.isPending}
-                  className="p-2 text-muted-foreground hover:text-destructive rounded-lg hover:bg-destructive/10 disabled:opacity-50"
+                  className="p-2 text-muted-foreground hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 rounded-lg transition-colors"
                   title="Uninstall skill"
                 >
                   <Trash2 className="w-4 h-4" />
@@ -559,17 +469,15 @@ export const version = "1.0.0";`);
               </div>
             </div>
           ))}
-          
-          {settings.skills.length === 0 && (
-            <div className="text-muted-foreground text-center py-8">
-              <Puzzle className="w-12 h-12 mx-auto mb-3 text-muted-foreground" />
-              <p>No skills installed</p>
-              <p className="text-sm text-muted-foreground mt-1">
-                Install skills from the available list above to add new capabilities
-              </p>
-            </div>
-          )}
         </div>
+
+        {settings.skills.length === 0 && (
+          <div className="p-8 text-center text-muted-foreground bg-kai-bg rounded-lg border border-dashed border-border">
+            <Puzzle className="w-8 h-8 mx-auto mb-2 opacity-50" />
+            <p className="text-sm">No skills installed yet</p>
+            <p className="text-xs mt-1">Install skills from the available list above</p>
+          </div>
+        )}
       </div>
     </div>
   );

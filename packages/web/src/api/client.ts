@@ -761,6 +761,11 @@ export const settingsApi = {
     });
   },
 
+  // Available Skills from Registry
+  getAvailableSkills: (): Promise<{ skills: Array<{ id: string; name: string; description: string; version: string; author: string; tags: string[]; installed: boolean }> }> => {
+    return fetchJson(`${API_BASE}/settings/skills/available`);
+  },
+
   // Environment Variables
   getEnv: (): Promise<{ env: Record<string, string> }> => {
     return fetchJson(`${API_BASE}/settings/env`);

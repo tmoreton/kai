@@ -159,6 +159,37 @@ export function registerSettingsRoutes(app: Hono) {
     }
   });
 
+  // --- Available Skills from Registry ---
+  app.get("/api/settings/skills/available", async (c) => {
+    try {
+      // Fetch skills list from kai-skills registry
+      const response = await fetch("https://raw.githubusercontent.com/tmoreton/kai-skills/main/registry/skills.json");
+      if (!response.ok) {
+        return c.json({ error: "Failed to fetch skills registry" }, 500);
+      }
+      const registry = await response.json();
+      
+      // Get installed skill IDs
+      const installedSkills = getLoadedSkills();
+      const installedIds = new Set(installedSkills.map(s => s.manifest.id));
+      
+      // Filter out already installed skills
+      const availableSkills = (registry.skills || []).map((s: any) => ({
+        id: s.id,
+        name: s.name,
+        description: s.description,
+        version: s.version || "1.0.0",
+        author: s.author || "Kai",
+        tags: s.tags || [],
+        installed: installedIds.has(s.id),
+      }));
+      
+      return c.json({ skills: availableSkills });
+    } catch (err: any) {
+      return c.json({ error: err.message }, 500);
+    }
+  });
+
   app.get("/api/settings/skills/:id", async (c) => {
     try {
       const skillId = c.req.param("id");
