@@ -165,9 +165,11 @@ export async function startServer(options: ServerOptions): Promise<void> {
     };
     app.get("*", (c, next) => {
       const reqPath = new URL(c.req.url).pathname;
-      const ext = path.extname(reqPath);
+      // Strip /Kai/ base path for GitHub Pages compatibility
+      const cleanPath = reqPath.replace(/^\/Kai\//, '/');
+      const ext = path.extname(cleanPath);
       if (ext && staticMimeTypes[ext]) {
-        const filePath = path.join(publicDir, reqPath);
+        const filePath = path.join(publicDir, cleanPath);
         const resolved = path.resolve(filePath);
         if (resolved.startsWith(path.resolve(publicDir)) && fs.existsSync(resolved)) {
           const data = fs.readFileSync(resolved);
