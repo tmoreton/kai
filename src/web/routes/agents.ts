@@ -17,7 +17,7 @@ import {
   deleteAllNotifications,
 } from "../../agents-core/db.js";
 import { runAgent } from "../../agents-core/daemon.js";
-import { resumeRun, findInterruptedRunsForDisplay, getResumeStatus } from "../../agents/index";
+import { resumeRun, findInterruptedRunsForDisplay, getResumeStatus } from "../../agents/index.js";
 import { listPersonas, loadPersona, createPersona, updatePersonaField, addFileReference, removeFileReference, getFilePath } from "../../agent-persona.js";
 import { createClient, getModelId } from "../../client.js";
 import { buildSystemPrompt } from "../../system-prompt.js";

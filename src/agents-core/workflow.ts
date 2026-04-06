@@ -21,7 +21,7 @@ import {
   hasPendingApprovals,
   type StepRecord,
 } from "./db.js";
-import { saveCheckpoint, cleanupCheckpoints } from "../agents/checkpoint";
+import { saveCheckpoint, cleanupCheckpoints } from "../agents/checkpoint.js";
 import { resolveProvider, resolveProviderWithFallback, type ResolvedProvider } from "../providers/index.js";
 import { backoffDelay, sleep } from "../utils.js";
 import {
@@ -275,7 +275,7 @@ export async function executeWorkflow(
   
   if (options?.resumeFrom) {
     // Attempt to resume from checkpoint
-    const { getLatestCheckpoint } = await import("../agents/checkpoint");
+    const { getLatestCheckpoint } = await import("../agents/checkpoint.js");
     const checkpoint = getLatestCheckpoint(options.resumeFrom);
     
     if (checkpoint) {

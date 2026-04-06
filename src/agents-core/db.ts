@@ -1,7 +1,7 @@
 import Database from "better-sqlite3";
 import path from "path";
 import { ensureKaiDir } from "../config.js";
-import { sendNotificationEmail } from "../agents/services/email";
+import { sendNotificationEmail } from "../agents/services/email.js";
 
 /**
  * SQLite database for agent state persistence.

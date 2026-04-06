@@ -36,8 +36,8 @@ import {
   startEmailWatcher,
   unwatchAll,
   recoverAll,
-} from "../agents/index";
-import type { TriggerConfig } from "../agents/types";
+} from "../agents/index.js";
+import type { TriggerConfig } from "../agents/types.js";
 
 /**
  * Daemon: Persistent background agent runner.
@@ -122,7 +122,7 @@ async function startDaemonInner(): Promise<void> {
   eventBus.subscribe("agent:run-requested", async (event) => {
     const agentId = event.payload.agentId as string;
     if (agentId) {
-      const { runAgent } = await import("../agents/runner");
+      const { runAgent } = await import("../agents/runner.js");
       await runAgent(agentId, { triggerEvent: event });
     }
   });
@@ -447,7 +447,7 @@ export function stopDaemon(): void {
   // Stop v2 watchers
   unwatchAll();
   
-  import("../agents/watchers/email").then(m => m.stopEmailWatcher()).catch(() => {});
+  import("../agents/watchers/email.js").then(m => m.stopEmailWatcher()).catch(() => {});
 }
 
 export function getDaemonPidPath(): string {

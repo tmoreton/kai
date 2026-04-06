@@ -208,7 +208,7 @@ agent
   .action(async (runId) => {
     const chalk = (await import("chalk")).default;
     try {
-      const { resumeRun, getResumeStatus } = await import("./agents/index");
+      const { resumeRun, getResumeStatus } = await import("./agents/index.js");
       
       // Check if resumable
       const details = getResumeStatus(runId);
@@ -243,7 +243,7 @@ agent
   .action(async (options) => {
     const chalk = (await import("chalk")).default;
     try {
-      const { findInterruptedRunsForDisplay } = await import("./agents/index");
+      const { findInterruptedRunsForDisplay } = await import("./agents/index.js");
       
       const interrupted = await findInterruptedRunsForDisplay({ 
         agentId: options.agent,
@@ -393,7 +393,7 @@ agent
       let analysis: any;
       try {
         // Dynamic import with type-only check - module may not exist yet
-        const patternAnalyzer = await import("./agents/analysis/pattern-analyzer").catch(() => null);
+        const patternAnalyzer = await import("./agents/analysis/pattern-analyzer.js").catch(() => null);
         if (patternAnalyzer && patternAnalyzer.analyzeAgentPerformance) {
           const result = await patternAnalyzer.analyzeAgentPerformance(agentId, { windowHours: parseInt(options.window) });
           // Convert to the format expected by the display code
@@ -414,7 +414,7 @@ agent
         }
       } catch (patternErr) {
         // Fallback to meta-learner
-        const { analyzeAgent } = await import("./agents/meta-learner");
+        const { analyzeAgent } = await import("./agents/meta-learner.js");
         analysis = await analyzeAgent(agentId, parseInt(options.window));
         console.log(chalk.dim(`  Using meta-learner (pattern analyzer not available)`));
       }
@@ -469,7 +469,7 @@ agent
       // Apply improvements if requested
       if (options.apply && highConfidence.length > 0) {
         console.log(chalk.cyan(`\n  Applying ${highConfidence.length} high-confidence improvement(s)...`));
-        const { applyImprovements } = await import("./agents/meta-learner");
+        const { applyImprovements } = await import("./agents/meta-learner.js");
         const result = await applyImprovements(agentId, highConfidence);
         console.log(chalk.green(`  ✓ Applied: ${result.applied}, Notified: ${result.notified}, Logged: ${result.logged}`));
       } else if (options.apply) {
@@ -507,7 +507,7 @@ agent
       let experiments: any[] = [];
       try {
         // Dynamic import with type-only check - module may not exist yet
-        const expFramework = await import("./agents/experiments/framework").catch(() => null);
+        const expFramework = await import("./agents/experiments/framework.js").catch(() => null);
         if (expFramework && expFramework.listExperiments) {
           experiments = expFramework.listExperiments(agentId);
           if (options.active) {
