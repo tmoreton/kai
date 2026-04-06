@@ -57,11 +57,20 @@ function AppHeader() {
 export function RootLayout() {
   return (
     <ToastProvider>
-      <div className="flex h-screen overflow-hidden bg-background" style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)', paddingLeft: 'env(safe-area-inset-left)', paddingRight: 'env(safe-area-inset-right)' }}>
+      {/* Use dvh for proper mobile viewport height, fallback to vh */}
+      <div 
+        className="flex h-[100dvh] h-screen overflow-hidden bg-background"
+        style={{ 
+          paddingTop: 'env(safe-area-inset-top)', 
+          paddingBottom: 'env(safe-area-inset-bottom)', 
+          paddingLeft: 'env(safe-area-inset-left)', 
+          paddingRight: 'env(safe-area-inset-right)' 
+        }}
+      >
         <Sidebar />
         <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
           <AppHeader />
-          <main className="flex-1 min-w-0 overflow-hidden">
+          <main className="flex-1 min-w-0 overflow-hidden relative">
             <Outlet />
           </main>
         </div>

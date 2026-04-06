@@ -58,17 +58,19 @@ export function AgentsView() {
   };
 
   return (
-    <div className="h-full overflow-y-auto">
-      <div className="max-w-3xl mx-auto p-4 sm:p-6 overflow-hidden">
+    <div className="h-full overflow-y-auto mobile-scroll-container">
+      <div className="max-w-3xl mx-auto p-3 sm:p-4 md:p-6 overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-xl sm:text-2xl font-semibold text-foreground">Agents</h1>
+        <div className="flex items-center justify-between mb-4 sm:mb-6 gap-2">
+          <h1 className="text-lg sm:text-xl md:text-2xl font-semibold text-foreground">Agents</h1>
           <Button
             onClick={() => navigate('/agents/new')}
             variant="default"
+            size="sm"
+            className="sm:size-default"
           >
-            <Plus className="w-4 h-4" />
-            New Agent
+            <Plus className="w-4 h-4 sm:mr-2" />
+            <span className="hidden sm:inline">New Agent</span>
           </Button>
         </div>
 
@@ -94,18 +96,20 @@ export function AgentsView() {
 
         {/* Agents List */}
         {agents.length === 0 ? (
-          <div className="text-center py-12">
-            <FileCode2 className="w-12 h-12 mx-auto mb-3 text-muted-foreground" />
-            <p className="text-muted-foreground mb-4">No agents yet</p>
+          <div className="text-center py-8 sm:py-12 px-4">
+            <FileCode2 className="w-10 h-10 sm:w-12 sm:h-12 mx-auto mb-3 text-muted-foreground" />
+            <p className="text-muted-foreground mb-4 text-sm sm:text-base">No agents yet</p>
             <Button
               onClick={() => navigate('/agents/new')}
               variant="default"
+              size="sm"
+              className="sm:size-default"
             >
               Create your first agent
             </Button>
           </div>
         ) : (
-          <div className="gap-4">
+          <div className="flex flex-col gap-3 sm:gap-4">
             {agents.map((agent) => (
               <AgentCard
                 key={agent.id}
@@ -148,18 +152,18 @@ function AgentCard({
 
   return (
     <div
-      className="border rounded-lg bg-card hover:border-kai-teal transition-colors cursor-pointer w-full overflow-hidden"
+      className="border rounded-lg bg-card hover:border-kai-teal transition-colors cursor-pointer w-full overflow-hidden p-3 sm:p-4 mb-3 sm:mb-4"
       onClick={onClick}
     >
-      <div className="flex items-start gap-4 overflow-hidden">
-        <div className="flex-shrink-0 mt-1">{statusIcon}</div>
+      <div className="flex items-start gap-3 sm:gap-4 overflow-hidden">
+        <div className="flex-shrink-0 mt-0.5 sm:mt-1">{statusIcon}</div>
         
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <h3 className="font-semibold truncate">{agent.name}</h3>
+          <div className="flex items-center gap-2 flex-wrap">
+            <h3 className="font-semibold truncate text-sm sm:text-base">{agent.name}</h3>
             <span
               className={cn(
-                "px-2 py-0.5 rounded-full text-xs",
+                "px-1.5 sm:px-2 py-0.5 rounded-full text-xs flex-shrink-0",
                 agent.enabled
                   ? "bg-green-100 text-green-700"
                   : "bg-gray-100 text-gray-700"
@@ -169,57 +173,60 @@ function AgentCard({
             </span>
           </div>
           
-          <p className="text-sm text-muted-foreground truncate mt-1">
+          <p className="text-xs sm:text-sm text-muted-foreground truncate mt-1">
             {agent.description || 'No description'}
           </p>
           
-          <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground">
+          <div className="flex items-center gap-2 sm:gap-4 mt-2 text-xs sm:text-sm text-muted-foreground flex-wrap">
             {agent.schedule && (
               <span className="flex items-center gap-1">
-                <Clock className="w-4 h-4" />
-                {agent.schedule}
+                <Clock className="w-3 h-3 sm:w-4 sm:h-4" />
+                <span className="truncate">{agent.schedule}</span>
               </span>
             )}
             {agent.lastRun && (
-              <span>
-                Last run: {new Date(agent.lastRun.startedAt).toLocaleDateString()}
+              <span className="truncate">
+                Last: {new Date(agent.lastRun.startedAt).toLocaleDateString()}
               </span>
             )}
             {agent.steps && (
-              <span>{agent.steps.length} steps</span>
+              <span className="flex-shrink-0">{agent.steps.length} steps</span>
             )}
           </div>
         </div>
 
-        <div className="flex items-center gap-2 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
           <Button
             onClick={onToggle}
             variant="ghost"
             size="icon"
-            className={agent.enabled ? "text-yellow-600 hover:text-yellow-600 hover:bg-yellow-100" : "text-green-600 hover:text-green-600 hover:bg-green-100"}
+            className={cn(
+              "h-8 w-8 sm:h-9 sm:w-9 touch-target",
+              agent.enabled ? "text-yellow-600 hover:text-yellow-600 hover:bg-yellow-100" : "text-green-600 hover:text-green-600 hover:bg-green-100"
+            )}
             title={agent.enabled ? 'Disable' : 'Enable'}
           >
-            {agent.enabled ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+            {agent.enabled ? <Pause className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> : <Play className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
           </Button>
           
           <Button
             onClick={onRun}
             variant="ghost"
             size="icon"
-            className="text-blue-600 hover:text-blue-600 hover:bg-blue-100"
+            className="h-8 w-8 sm:h-9 sm:w-9 touch-target text-blue-600 hover:text-blue-600 hover:bg-blue-100"
             title="Run now"
           >
-            <Play className="w-4 h-4" />
+            <Play className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
           </Button>
           
           <Button
             onClick={onDelete}
             variant="ghost"
             size="icon"
-            className="text-red-600 hover:text-red-600 hover:bg-red-100"
+            className="h-8 w-8 sm:h-9 sm:w-9 touch-target text-red-600 hover:text-red-600 hover:bg-red-100"
             title="Delete"
           >
-            <Trash2 className="w-4 h-4" />
+            <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
           </Button>
         </div>
       </div>

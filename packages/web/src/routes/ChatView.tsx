@@ -331,11 +331,11 @@ export function ChatView() {
     <div className="relative flex flex-col h-full min-h-0 bg-background">
       {/* Error Banner */}
       {error && messages.length > 0 && (
-        <div className="px-4 py-2 bg-destructive/10 border-b border-destructive">
+        <div className="px-4 py-2 bg-destructive/10 border-b border-destructive flex-shrink-0">
           <div className="flex items-center justify-between max-w-3xl mx-auto">
             <div className="flex items-center gap-2 text-destructive text-sm">
-              <AlertCircle className="w-4 h-4" />
-              <span>{error.message}</span>
+              <AlertCircle className="w-4 h-4 flex-shrink-0" />
+              <span className="truncate">{error.message}</span>
             </div>
             {error.recoverable && (
               <Button
@@ -350,21 +350,21 @@ export function ChatView() {
         </div>
       )}
 
-      {/* Messages Area */}
+      {/* Messages Area - flex-1 with overflow for scrollable content */}
       <div 
         ref={messagesContainerRef}
-        className="flex-1 overflow-y-auto overflow-x-hidden"
+        className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden mobile-scroll-container"
         onScroll={(e) => {
           const target = e.target as HTMLDivElement;
           const isBottom = target.scrollHeight - target.scrollTop - target.clientHeight < 100;
           setIsNearBottom(isBottom);
         }}
       >
-        <div className="max-w-3xl mx-auto px-4 py-6 overflow-hidden">
+        <div className="max-w-3xl mx-auto px-4 py-4 sm:py-6 overflow-hidden">
           {messages.length === 0 ? (
             <WelcomeScreen onSelect={(text) => smartInputRef.current?.setInput(text)} />
           ) : (
-            <div className="space-y-6">
+            <div className="space-y-4 sm:space-y-6">
               {messages.map((message, i) => (
                 <MessageBubble 
                   key={i} 
@@ -374,7 +374,7 @@ export function ChatView() {
               ))}
               {/* Pending tool calls */}
               {Object.values(pendingToolCalls).length > 0 && (
-                <div className="pl-10 space-y-2">
+                <div className="pl-8 sm:pl-10 space-y-2">
                   {Object.values(pendingToolCalls).map((tool) => (
                     <ToolCard key={tool.id} tool={tool} />
                   ))}
@@ -387,8 +387,8 @@ export function ChatView() {
         </div>
       </div>
 
-      {/* Input Area */}
-      <div className="sticky bottom-0 z-10 border-t border-border bg-background p-4 flex-shrink-0">
+      {/* Input Area - fixed at bottom, shrinks on mobile keyboard */}
+      <div className="flex-shrink-0 border-t border-border bg-background p-3 sm:p-4 pb-safe">
         <div className="max-w-3xl mx-auto">
           <SmartChatInput
             ref={smartInputRef}
@@ -424,26 +424,26 @@ function MessageBubble({
   const isUser = message.role === 'user';
 
   return (
-    <div className={`flex gap-4 ${isUser ? 'flex-row-reverse' : ''}`}>
-      <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
+    <div className={`flex gap-3 sm:gap-4 ${isUser ? 'flex-row-reverse' : ''}`}>
+      <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center flex-shrink-0 text-sm sm:text-base ${
         isUser ? 'bg-primary text-white' : 'bg-primary text-white'
       }`}>
         {isUser ? 'U' : 'K'}
       </div>
       <div className={`flex-1 min-w-0 flex flex-col ${isUser ? 'items-end' : 'items-start'}`}>
-        <div className={`inline-block max-w-[85%] px-4 py-3 rounded-2xl ${
+        <div className={`inline-block max-w-[90%] sm:max-w-[85%] px-3 sm:px-4 py-2 sm:py-3 rounded-2xl text-sm sm:text-base ${
           isUser 
             ? 'bg-primary text-white rounded-tr-sm' 
             : 'bg-card border border-border rounded-tl-sm'
         }`}>
-          <div className={`prose prose-slate max-w-none overflow-hidden break-words ${isUser ? 'text-white' : ''}`}>
+          <div className={`prose prose-slate max-w-none overflow-hidden break-words ${isUser ? 'text-white' : ''} prose-sm sm:prose-base`}>
             {message.content && (
               <MarkdownRenderer content={typeof message.content === 'string' ? message.content : JSON.stringify(message.content)} onImageClick={onImageClick} />
             )}
           </div>
         </div>
         {message.toolCalls && message.toolCalls.length > 0 && (
-          <div className="mt-4 space-y-2">
+          <div className="mt-3 sm:mt-4 space-y-2 w-full">
             {message.toolCalls.map((tool) => (
               <ToolCard key={tool.id} tool={tool} />
             ))}
@@ -456,14 +456,14 @@ function MessageBubble({
 
 function ThinkingIndicator() {
   return (
-    <div className="flex gap-4">
-      <div className="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center flex-shrink-0">
+    <div className="flex gap-3 sm:gap-4">
+      <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-primary text-white flex items-center justify-center flex-shrink-0 text-sm sm:text-base">
         K
       </div>
       <div className="flex-1 flex items-center gap-1 text-muted-foreground">
-        <span className="w-2 h-2 rounded-full bg-primary animate-bounce" style={{ animationDelay: '0ms' }} />
-        <span className="w-2 h-2 rounded-full bg-primary animate-bounce" style={{ animationDelay: '150ms' }} />
-        <span className="w-2 h-2 rounded-full bg-primary animate-bounce" style={{ animationDelay: '300ms' }} />
+        <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-primary animate-bounce" style={{ animationDelay: '0ms' }} />
+        <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-primary animate-bounce" style={{ animationDelay: '150ms' }} />
+        <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-primary animate-bounce" style={{ animationDelay: '300ms' }} />
       </div>
     </div>
   );
@@ -478,16 +478,16 @@ function WelcomeScreen({ onSelect }: { onSelect: (text: string) => void }) {
   ];
 
   return (
-    <div className="text-center py-12">
-      <h2 className="text-2xl font-semibold text-foreground mb-2">Welcome to Kai</h2>
-      <p className="text-muted-foreground mb-8">What would you like to work on today?</p>
-      <div className="grid gap-3 max-w-md mx-auto">
+    <div className="text-center py-8 sm:py-12 px-4">
+      <h2 className="text-xl sm:text-2xl font-semibold text-foreground mb-2">Welcome to Kai</h2>
+      <p className="text-muted-foreground mb-6 sm:mb-8 text-sm sm:text-base">What would you like to work on today?</p>
+      <div className="grid gap-2 sm:gap-3 max-w-md mx-auto">
         {suggestions.map((suggestion, i) => (
           <Button
             key={i}
             onClick={() => onSelect(suggestion)}
             variant="secondary"
-            className="justify-start text-left"
+            className="justify-start text-left text-sm sm:text-base py-2 sm:py-2.5 h-auto min-h-[44px]"
           >
             {suggestion}
           </Button>

@@ -58,8 +58,9 @@ function readImageAsDataUrl(filePath: string): { dataUrl: string; sizeKB: number
 
 function printGoodbye(sessionId: string): void {
   console.log(chalk.dim("\n  Session saved. Goodbye!\n"));
-  console.log(chalk.dim("  Resume this session with:"));
-  console.log(chalk.cyan(`  kai --resume ${sessionId}\n`));
+  console.log(chalk.dim("  Resume this session:"));
+  console.log(chalk.dim("  kai "));
+  console.log(chalk.cyan(`  --resume ${sessionId}\n`));
 }
 
 export interface ReplOptions {

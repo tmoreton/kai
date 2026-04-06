@@ -83,9 +83,9 @@ export function AgentEditor() {
   };
 
   return (
-    <div className="h-full flex flex-col p-6">
-      <h1 className="text-2xl font-semibold mb-4">New Agent</h1>
-      <div className="space-y-4 max-w-md">
+    <div className="h-full flex flex-col p-3 sm:p-4 md:p-6 overflow-y-auto mobile-scroll-container">
+      <h1 className="text-xl sm:text-2xl font-semibold mb-4">New Agent</h1>
+      <div className="space-y-4 max-w-md w-full">
         <div>
           <label className="block text-sm font-medium mb-1">Name</label>
           <Input
@@ -113,9 +113,9 @@ export function AgentEditor() {
             <p className="text-sm text-destructive mt-1">{errors.description}</p>
           )}
         </div>
-        <div className="flex gap-2">
-          <Button onClick={handleSave}>Save</Button>
-          <Button variant="outline" onClick={() => navigate('/agents')}>
+        <div className="flex gap-2 flex-wrap">
+          <Button onClick={handleSave} size="sm" className="sm:size-default">Save</Button>
+          <Button variant="outline" onClick={() => navigate('/agents')} size="sm" className="sm:size-default">
             Cancel
           </Button>
         </div>

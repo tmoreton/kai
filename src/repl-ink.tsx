@@ -44,6 +44,7 @@ import { resolveFilePath, expandHome } from "./utils.js";
 import { bootstrapBuiltinAgents } from "./agents-core/bootstrap.js";
 import { SLASH_COMMANDS, handleCommand } from "./repl-commands.js";
 import { recordUsage, getUsageStats } from "./usage.js";
+import { estimateContextSize } from "./context.js";
 import type { ReplOptions } from "./repl.js";
 
 // ─── Image helpers (shared with repl.ts) ─────────────────────────────────────
@@ -122,9 +123,8 @@ function KaiApp({ options, initialPrompt, initSession, client, initMessages }: A
   const [thinking,     setThinking]     = useState(false);
   const [tokenInfo,    setTokenInfo]    = useState(() => {
     const s = getUsageStats();
-    return s.totalInput + s.totalOutput > 0
-      ? `↑${fmt(s.totalInput)} ↓${fmt(s.totalOutput)} total`
-      : "";
+    const ctxTokens = estimateContextSize(initMessages);
+    return `↑${fmt(s.totalInput)} sent ↓${fmt(s.totalOutput)} received${ctxTokens > 0 ? ` • ${fmt(ctxTokens)} context` : ""}`;
   });
   const [spinnerFrame, setSpinnerFrame] = useState(0);
   const [input,        setInput]        = useState("");
@@ -270,7 +270,8 @@ function KaiApp({ options, initialPrompt, initSession, client, initMessages }: A
           unleash: options.unleash,
           onUsage: (input, output) => {
             const store = recordUsage(input, output);
-            setTokenInfo(`↑${fmt(store.totalInput)} ↓${fmt(store.totalOutput)} total`);
+            const ctxTokens = estimateContextSize(updatedMessages);
+            setTokenInfo(`↑${fmt(store.totalInput)} sent ↓${fmt(store.totalOutput)} received • ${fmt(ctxTokens)} context`);
           },
         }
       );
@@ -418,15 +419,15 @@ function KaiApp({ options, initialPrompt, initSession, client, initMessages }: A
     <Box flexDirection="column">
 
       {/* ── Header ─────────────────────────────────────────────────────────── */}
-      <Box marginBottom={1}>
+      <Box marginBottom={0}>
         <Text bold color="cyan">⚡ Kai</Text>
         {tokenInfo !== "" && (
-          <Text dimColor>{"  "}{tokenInfo}</Text>
+          <Text dimColor>{" "}{tokenInfo}</Text>
         )}
       </Box>
       {sessionRef.current && (
         <Box marginBottom={1}>
-          <Text dimColor>resume: kai --resume {sessionRef.current.id}</Text>
+          <Text dimColor>kai --resume {sessionRef.current.id}</Text>
         </Box>
       )}
 

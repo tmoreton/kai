@@ -103,13 +103,13 @@ export function ChatInput({
           {attachments.map((attachment, index) => (
             <div
               key={index}
-              className="flex items-center gap-2 px-3 py-1.5 bg-accent rounded-lg text-sm border border-border"
+              className="flex items-center gap-2 px-2 sm:px-3 py-1 sm:py-1.5 bg-accent rounded-lg text-xs sm:text-sm border border-border"
             >
-              <span className="truncate max-w-[150px]">{attachment.name}</span>
+              <span className="truncate max-w-[100px] sm:max-w-[150px]">{attachment.name}</span>
               {onRemoveAttachment && (
                 <button
                   onClick={() => onRemoveAttachment(index)}
-                  className="text-muted-foreground hover:text-destructive"
+                  className="text-muted-foreground hover:text-destructive p-1 touch-target"
                 >
                   ×
                 </button>
@@ -120,7 +120,7 @@ export function ChatInput({
       )}
 
       {/* Input Area */}
-      <div className="flex gap-2 items-center">
+      <div className="flex gap-2 items-end">
         <div className="flex-1 relative">
           <textarea
             ref={textareaRef}
@@ -130,7 +130,7 @@ export function ChatInput({
             placeholder={placeholder}
             disabled={isLoading}
             rows={1}
-            className="w-full min-h-[44px] max-h-[200px] px-4 py-2.5 bg-background border rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-ring pr-24 text-sm leading-relaxed"
+            className="w-full min-h-[44px] max-h-[150px] sm:max-h-[200px] px-3 sm:px-4 py-2.5 bg-background border rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-ring pr-20 sm:pr-24 text-sm leading-relaxed"
           />
           {/* Input Actions - Inside Textarea */}
           <div className="absolute right-2 bottom-2 flex items-center gap-1">
@@ -144,7 +144,7 @@ export function ChatInput({
               <button
                 onClick={handleAttachmentClick}
                 disabled={isLoading}
-                className="p-1.5 text-muted-foreground hover:text-foreground rounded-lg hover:bg-accent transition-colors"
+                className="p-1.5 text-muted-foreground hover:text-foreground rounded-lg hover:bg-accent transition-colors touch-target"
                 title="Attach file"
               >
                 <Paperclip className="w-4 h-4" />
@@ -157,7 +157,7 @@ export function ChatInput({
             onClick={onStop}
             variant="destructive"
             size="icon"
-            className="h-[44px] w-[44px] animate-pulse"
+            className="h-[44px] w-[44px] animate-pulse flex-shrink-0"
           >
             <Square className="w-4 h-4" fill="currentColor" />
           </Button>
@@ -165,9 +165,10 @@ export function ChatInput({
           <Button
             onClick={onSend}
             disabled={isLoading || !canSend}
-            className="h-[44px] px-4"
+            className="h-[44px] w-[44px] sm:w-auto sm:px-4 flex-shrink-0"
           >
-            <Send className="w-4 h-4" />
+            <Send className="w-4 h-4 sm:mr-0" />
+            <span className="hidden sm:inline ml-2">Send</span>
           </Button>
         )}
       </div>
