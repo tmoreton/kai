@@ -226,6 +226,7 @@ export interface Skill {
   author: string;
   tools: SkillTool[];
   path: string;
+  missingConfig?: string[];
 }
 
 export interface SkillTool {

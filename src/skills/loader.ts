@@ -69,15 +69,42 @@ export async function loadSkill(skillPath: string): Promise<LoadedSkill> {
   if (!manifest.version) manifest.version = "1.0.0";
   if (!manifest.tools) manifest.tools = [];
 
-  // Load handler module
-  const handlerPath = path.join(skillPath, "handler.js");
+  // Load handler module - support both .js (compiled) and .ts (source)
+  const handlerJsPath = path.join(skillPath, "handler.js");
+  const handlerTsPath = path.join(skillPath, "handler.ts");
+  let handlerPath: string | null = null;
+  
+  if (fs.existsSync(handlerJsPath)) {
+    handlerPath = handlerJsPath;
+  } else if (fs.existsSync(handlerTsPath)) {
+    handlerPath = handlerTsPath;
+  }
+  
   let handler: SkillHandler;
 
-  if (fs.existsSync(handlerPath)) {
+  if (handlerPath) {
     // Use dynamic import with cache-busting for hot reload
     const moduleUrl = `file://${handlerPath}?t=${Date.now()}`;
-    const mod = await import(moduleUrl);
-    handler = mod.default || mod;
+    
+    try {
+      const mod = await import(moduleUrl);
+      handler = mod.default || mod;
+    } catch (importErr: any) {
+      // Check if it's a TypeScript syntax error
+      const errorMsg = importErr.message || String(importErr);
+      
+      if (errorMsg.includes("strict mode reserved word") || 
+          errorMsg.includes("Unexpected identifier") ||
+          errorMsg.includes("Cannot use import statement")) {
+        throw new Error(
+          `Skill "${manifest.id}" handler appears to be TypeScript that wasn't compiled. ` +
+          `Please ensure the skill has a compiled handler.js file. ` +
+          `Original error: ${errorMsg}`
+        );
+      }
+      
+      throw importErr;
+    }
 
     if (!handler.actions || typeof handler.actions !== "object") {
       throw new Error(`Skill "${manifest.id}" handler must export an 'actions' object`);

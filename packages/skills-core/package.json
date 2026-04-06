@@ -1,0 +1,68 @@
+{
+  "name": "@kai/skills-core",
+  "version": "1.0.0",
+  "description": "Framework-agnostic skill system for AI tools - load, execute, and manage modular AI tools",
+  "type": "module",
+  "license": "Apache-2.0",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.cjs"
+    },
+    "./types": {
+      "types": "./dist/types/index.d.ts",
+      "import": "./dist/types.mjs",
+      "require": "./dist/types.cjs"
+    },
+    "./loader": {
+      "types": "./dist/loader/index.d.ts",
+      "import": "./dist/loader.mjs",
+      "require": "./dist/loader.cjs"
+    },
+    "./executor": {
+      "types": "./dist/executor/index.d.ts",
+      "import": "./dist/executor.mjs",
+      "require": "./dist/executor.cjs"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsup src/index.ts src/types/index.ts src/loader/index.ts src/executor/index.ts --format esm,cjs --dts --clean",
+    "dev": "tsup --watch",
+    "test": "vitest",
+    "lint": "eslint src",
+    "prepack": "npm run build"
+  },
+  "dependencies": {
+    "yaml": "^2.8.3",
+    "zod": "^4.3.6",
+    "semver": "^7.6.3"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.2",
+    "tsup": "^8.0.0",
+    "vitest": "^2.0.0",
+    "@types/node": "^20.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kai-ai/skills"
+  },
+  "homepage": "https://github.com/kai-ai/skills#readme",
+  "keywords": [
+    "ai",
+    "skills",
+    "tools",
+    "llm",
+    "agents",
+    "automation"
+  ]
+}

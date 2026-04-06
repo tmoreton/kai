@@ -75,7 +75,23 @@ export function registerSettingsRoutes(app: Hono) {
           config: config.mcp?.servers?.[s.name] || {},
         })),
       },
-      skills: skills.map((s) => ({
+    // Check which required env vars are missing for each skill
+    const skillsWithConfig = skills.map((s) => {
+      const missingConfig: string[] = [];
+      
+      if (s.manifest.config_schema) {
+        for (const [key, field] of Object.entries(s.manifest.config_schema)) {
+          if (field.required) {
+            const envKey = field.env || key;
+            const hasValue = (field.env && envVars[field.env]) || envVars[key] || field.default !== undefined;
+            if (!hasValue) {
+              missingConfig.push(envKey);
+            }
+          }
+        }
+      }
+      
+      return {
         id: s.manifest.id,
         name: s.manifest.name,
         version: s.manifest.version,
@@ -83,7 +99,9 @@ export function registerSettingsRoutes(app: Hono) {
         author: s.manifest.author || "",
         tools: s.manifest.tools.map((t: any) => ({ name: t.name, description: t.description })),
         path: s.path,
-      })),
+        missingConfig: missingConfig.length > 0 ? missingConfig : undefined,
+      };
+    });
     });
   });
 

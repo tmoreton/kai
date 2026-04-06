@@ -1,12 +1,61 @@
 import { useState } from "react";
 import { useSuspenseQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Puzzle, RotateCcw, Trash2, Plus, Code2, Check, X } from "lucide-react";
+import { 
+  Puzzle, RotateCcw, Trash2, Plus, Code2, Check, X, Download, 
+  ChevronDown, ChevronUp, Package
+} from "lucide-react";
 import { settingsQueries } from "../../api/queries";
 import { api } from "../../api/client";
 import { cn } from "../../lib/utils";
 import { toast } from "../../components/Toast";
 import type { Skill } from "../../types/api";
 import { Button } from "../../components/ui/button";
+
+// Built-in skill registry from kai-skills — all skills are external
+const BUILTIN_SKILLS = [
+  {
+    id: "git",
+    name: "Git",
+    description: "Git operations — smart commits, PR workflows, branch management",
+    author: "Kai",
+    tags: ["version-control", "git", "github"],
+  },
+  {
+    id: "docker",
+    name: "Docker",
+    description: "Docker containers — build images, run containers, compose operations",
+    author: "Kai",
+    tags: ["docker", "containers", "devops"],
+  },
+  {
+    id: "browser",
+    name: "Browser",
+    description: "Web automation — navigate pages, click elements, fill forms, screenshots",
+    author: "Kai",
+    tags: ["browser", "web", "playwright"],
+  },
+  {
+    id: "email",
+    name: "Email",
+    description: "Email via SMTP/IMAP — send and read with Gmail, Outlook, custom servers",
+    author: "Kai",
+    tags: ["email", "smtp", "communication"],
+  },
+  {
+    id: "notion",
+    name: "Notion",
+    description: "Notion workspace — query databases, create pages, manage content",
+    author: "Kai",
+    tags: ["notion", "wiki", "notes"],
+  },
+  {
+    id: "database",
+    name: "Database",
+    description: "Database operations — migrations, queries, schema inspection",
+    author: "Kai",
+    tags: ["database", "sql", "migrations"],
+  },
+];
 
 const SKILL_EXAMPLES = [
   'github:tmoreton/kai-skill-example',
@@ -32,6 +81,7 @@ export const tools = {
 
 export const description = "A simple greeting skill";
 export const version = "1.0.0";`);
+  const [expandedSkill, setExpandedSkill] = useState<string | null>(null);
 
   const installMutation = useMutation({
     mutationFn: api.settings.installSkill,
@@ -98,12 +148,26 @@ export const version = "1.0.0";`);
     createMutation.mutate({ name: skillName, description: skillDescription, code: skillCode });
   };
 
+  // Get installed skill IDs for quick lookup
+  const installedSkillIds = new Set(settings.skills.map((s: Skill) => s.id));
+
+  // Available built-in skills (not installed)
+  const availableBuiltinSkills = BUILTIN_SKILLS.filter(s => !installedSkillIds.has(s.id));
+
+  const installBuiltinSkill = (skillId: string) => {
+    // Use shorthand format: kai:skill-id
+    installMutation.mutate(`kai:${skillId}`);
+  };
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="font-semibold text-kai-text">Installed Skills</h3>
-          <p className="text-sm text-muted-foreground">Skills add custom tools and capabilities</p>
+          <h3 className="font-semibold text-kai-text">Skills</h3>
+          <p className="text-sm text-muted-foreground">
+            {settings.skills.length} installed · Manage and discover new capabilities
+          </p>
         </div>
         <div className="flex gap-2">
           <Button
@@ -124,6 +188,66 @@ export const version = "1.0.0";`);
           </button>
         </div>
       </div>
+
+      {/* Available Built-in Skills */}
+      {availableBuiltinSkills.length > 0 && (
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <Package className="w-4 h-4 text-primary" />
+            <h4 className="font-medium text-sm">Available Skills</h4>
+            <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
+              {availableBuiltinSkills.length}
+            </span>
+          </div>
+          
+          <div className="grid gap-3">
+            {availableBuiltinSkills.map((skill) => (
+              <div 
+                key={skill.id}
+                className="p-4 bg-card border border-border rounded-lg hover:border-primary/50 transition-colors"
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-kai-text">{skill.name}</span>
+                      <span className="text-xs text-muted-foreground">by {skill.author}</span>
+                    </div>
+                    <p className="text-sm text-muted-foreground mt-1">{skill.description}</p>
+                    <div className="flex flex-wrap gap-1 mt-2">
+                      {skill.tags.map(tag => (
+                        <span 
+                          key={tag} 
+                          className="text-xs bg-accent/20 text-accent-foreground px-1.5 py-0.5 rounded"
+                        >
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      onClick={() => installBuiltinSkill(skill.id)}
+                      disabled={installMutation.isPending}
+                    >
+                      {installMutation.isPending ? (
+                        <RotateCcw className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <>
+                          <Download className="w-4 h-4 mr-2" />
+                          Install
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Create Custom Skill Form */}
       {showCreateForm && (
@@ -203,6 +327,7 @@ export const version = "1.0.0";`);
         </div>
       )}
 
+      {/* Install from Source */}
       <div className="p-3 bg-kai-bg rounded-lg">
         <div className="flex items-center justify-between mb-2">
           <span className="text-sm text-muted-foreground">Install from GitHub or npm</span>
@@ -247,32 +372,135 @@ export const version = "1.0.0";`);
         </div>
       </div>
 
-      <div className="space-y-2">
-        {settings.skills.map((skill: Skill) => (
-          <div key={skill.id} className="flex items-center justify-between p-3 bg-kai-bg rounded-lg">
-            <div>
-              <div className="font-medium text-kai-text">{skill.name}</div>
-              <div className="text-sm text-muted-foreground">{skill.description}</div>
-              <div className="text-xs text-muted-foreground mt-1">
-                v{skill.version} - {skill.tools.length} tools - {skill.path}
+      {/* Installed Skills */}
+      <div className="space-y-3">
+        <div className="flex items-center gap-2">
+          <Check className="w-4 h-4 text-green-500" />
+          <h4 className="font-medium text-sm">Installed Skills</h4>
+          <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
+            {settings.skills.length}
+          </span>
+        </div>
+
+        <div className="space-y-2">
+          {settings.skills.map((skill: Skill) => (
+            <div 
+              key={skill.id} 
+              className={cn(
+                "p-4 rounded-lg border",
+                skill.missingConfig && skill.missingConfig.length > 0
+                  ? "bg-red-50 border-red-200 dark:bg-red-950/20 dark:border-red-800"
+                  : "bg-kai-bg border-border"
+              )}
+            >
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium text-kai-text">{skill.name}</span>
+                    <span className="text-xs text-muted-foreground">v{skill.version}</span>
+                    <span className="text-xs text-muted-foreground">by {skill.author}</span>
+                  </div>
+                  <p className="text-sm text-muted-foreground mt-1">{skill.description}</p>
+                  
+                  {/* Missing config warning */}
+                  {skill.missingConfig && skill.missingConfig.length > 0 && (
+                    <div className="mt-3 p-3 bg-red-100 dark:bg-red-900/30 rounded border border-red-200 dark:border-red-800">
+                      <div className="flex items-center gap-2 text-red-700 dark:text-red-300 text-sm font-medium">
+                        <span>⚠️</span>
+                        <span>Configuration Required</span>
+                      </div>
+                      <p className="text-xs text-red-600 dark:text-red-400 mt-1">
+                        Add these environment variables in <strong>Environment</strong> settings:
+                      </p>
+                      <div className="flex flex-wrap gap-2 mt-2">
+                        {skill.missingConfig.map((envKey) => (
+                          <code 
+                            key={envKey}
+                            className="px-2 py-1 text-xs bg-white dark:bg-red-950 border border-red-200 dark:border-red-700 rounded font-mono text-red-700 dark:text-red-300"
+                          >
+                            {envKey}
+                          </code>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Tools list */}
+                  {skill.tools.length > 0 && (
+                    <div className="mt-3 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-medium text-muted-foreground">
+                          {skill.tools.length} {skill.tools.length === 1 ? 'tool' : 'tools'} available
+                        </span>
+                        <button
+                          onClick={() => setExpandedSkill(expandedSkill === skill.id ? null : skill.id)}
+                          className="flex items-center gap-1 text-xs text-primary hover:underline"
+                        >
+                          {expandedSkill === skill.id ? (
+                            <>
+                              <ChevronUp className="w-3 h-3" />
+                              Hide details
+                            </>
+                          ) : (
+                            <>
+                              <ChevronDown className="w-3 h-3" />
+                              Show details
+                            </>
+                          )}
+                        </button>
+                      </div>
+                      
+                      {expandedSkill === skill.id && (
+                        <div className="border border-border rounded-lg overflow-hidden">
+                          <table className="w-full text-sm">
+                            <thead className="bg-muted/50 border-b border-border">
+                              <tr>
+                                <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground w-32">Tool Name</th>
+                                <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">Description</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-border">
+                              {skill.tools.map((tool) => (
+                                <tr key={tool.name} className="hover:bg-accent/5">
+                                  <td className="px-3 py-2">
+                                    <code className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded text-foreground">
+                                      {tool.name}
+                                    </code>
+                                  </td>
+                                  <td className="px-3 py-2 text-muted-foreground text-xs">
+                                    {tool.description}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+                <button
+                  onClick={() => uninstallMutation.mutate(skill.id)}
+                  disabled={uninstallMutation.isPending}
+                  className="p-2 text-muted-foreground hover:text-destructive rounded-lg hover:bg-destructive/10 disabled:opacity-50"
+                  title="Uninstall skill"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
               </div>
             </div>
-            <button
-              onClick={() => uninstallMutation.mutate(skill.id)}
-              disabled={uninstallMutation.isPending}
-              className="p-2 text-muted-foreground hover:text-destructive rounded-lg hover:bg-destructive/10 disabled:opacity-50"
-            >
-              <Trash2 className="w-4 h-4" />
-            </button>
-          </div>
-        ))}
-        {settings.skills.length === 0 && (
-          <div className="text-muted-foreground text-center py-8">
-            <Puzzle className="w-12 h-12 mx-auto mb-3 text-muted-foreground" />
-            <p>No skills installed</p>
-            <p className="text-sm text-muted-foreground mt-1">Install skills to add new tools and capabilities</p>
-          </div>
-        )}
+          ))}
+          
+          {settings.skills.length === 0 && (
+            <div className="text-muted-foreground text-center py-8">
+              <Puzzle className="w-12 h-12 mx-auto mb-3 text-muted-foreground" />
+              <p>No skills installed</p>
+              <p className="text-sm text-muted-foreground mt-1">
+                Install skills from the available list above to add new capabilities
+              </p>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

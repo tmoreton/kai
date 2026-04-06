@@ -23,22 +23,11 @@ interface SkillsConfig {
 }
 
 function loadSkillsConfig(): SkillsConfig {
-  const configPath = path.join(process.cwd(), "config", "builtin-skills.json");
   const defaultConfig: SkillsConfig = {
-    skills: [
-      { id: "browser", name: "Browser", description: "Web browsing tools", sourceDir: "browser", targetPrefix: "builtin-" },
-      { id: "email", name: "Email", description: "Email tools", sourceDir: "email", targetPrefix: "builtin-" }
-    ],
-    settings: { autoBootstrap: true, skipIfExists: true, requireSkillYaml: true }
+    skills: [],
+    settings: { autoBootstrap: false, skipIfExists: true, requireSkillYaml: true }
   };
   
-  try {
-    if (fs.existsSync(configPath)) {
-      return JSON.parse(fs.readFileSync(configPath, "utf-8"));
-    }
-  } catch {
-    console.warn("[skills] Could not load builtin-skills.json, using defaults");
-  }
   return defaultConfig;
 }
 

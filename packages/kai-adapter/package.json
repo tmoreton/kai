@@ -1,0 +1,40 @@
+{
+  "name": "kai-adapter",
+  "version": "1.0.0",
+  "description": "Kai CLI adapter for @kai/skills-core - integrates skills with Kai CLI",
+  "type": "module",
+  "license": "Apache-2.0",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsup src/index.ts --format esm,cjs --dts --clean",
+    "dev": "tsup --watch",
+    "test": "vitest",
+    "prepack": "npm run build"
+  },
+  "dependencies": {
+    "@kai/skills-core": "^1.0.0",
+    "chalk": "^5.6.2"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.2",
+    "tsup": "^8.0.0",
+    "vitest": "^2.0.0"
+  },
+  "peerDependencies": {
+    "kai-ai": "^1.0.0"
+  }
+}
