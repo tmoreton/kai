@@ -118,6 +118,27 @@
       "description": "OpenRouter AI - image generation with Nano Banana, chat completions, model routing",
       "sourceDir": "openrouter",
       "targetPrefix": "builtin-"
+    },
+    {
+      "id": "google-sheets",
+      "name": "Google Sheets",
+      "description": "Google Sheets - create spreadsheets, export analytics, share reports",
+      "sourceDir": "google-sheets",
+      "targetPrefix": "builtin-"
+    },
+    {
+      "id": "slack",
+      "name": "Slack",
+      "description": "Slack notifications - send alerts, upload files, create threads",
+      "sourceDir": "slack",
+      "targetPrefix": "builtin-"
+    },
+    {
+      "id": "webhook",
+      "name": "Webhook",
+      "description": "Webhook triggers - POST to Zapier, Make, custom endpoints",
+      "sourceDir": "webhook",
+      "targetPrefix": "builtin-"
     }
   ],
   "settings": {
