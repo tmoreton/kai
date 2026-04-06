@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Kai - AI Coding Assistant</title>
+  <meta name="description" content="Your personal AI assistant for coding with persistent memory, background agents, and tool use.">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230D9488'/%3E%3Cpath d='M9 8v16M9 16l8-8M9 16l8 8' stroke='white' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    
+    :root {
+      --teal: #0D9488;
+      --teal-dark: #115E59;
+      --teal-light: #CCFBF1;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+      line-height: 1.6;
+      color: #1a1a1a;
+      background: #FAF9F7;
+    }
+    
+    /* Hero */
+    .hero {
+      background: linear-gradient(135deg, var(--teal) 0%, var(--teal-dark) 100%);
+      color: white;
+      padding: 80px 20px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+    
+    .hero::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.05'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+      opacity: 0.5;
+    }
+    
+    .hero-content {
+      position: relative;
+      z-index: 1;
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    
+    .logo {
+      width: 100px;
+      height: 100px;
+      margin: 0 auto 32px;
+      background: white;
+      border-radius: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+    }
+    
+    .logo svg {
+      width: 60px;
+      height: 60px;
+    }
+    
+    h1 {
+      font-size: clamp(2.5rem, 8vw, 4rem);
+      font-weight: 800;
+      margin-bottom: 16px;
+      letter-spacing: -0.02em;
+    }
+    
+    .tagline {
+      font-size: clamp(1.125rem, 3vw, 1.5rem);
+      opacity: 0.9;
+      margin-bottom: 40px;
+      max-width: 600px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    
+    .cta-button {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      background: white;
+      color: var(--teal);
+      text-decoration: none;
+      padding: 18px 32px;
+      border-radius: 14px;
+      font-weight: 600;
+      font-size: 1.125rem;
+      transition: all 0.2s ease;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+    }
+    
+    .cta-button:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 8px 30px rgba(0,0,0,0.25);
+    }
+    
+    .secondary-cta {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: white;
+      text-decoration: none;
+      margin-top: 20px;
+      font-size: 0.95rem;
+      opacity: 0.8;
+      transition: opacity 0.2s;
+    }
+    
+    .secondary-cta:hover {
+      opacity: 1;
+    }
+    
+    /* Features */
+    .features {
+      padding: 80px 20px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    
+    .features h2 {
+      text-align: center;
+      font-size: 2rem;
+      margin-bottom: 60px;
+      color: var(--teal-dark);
+    }
+    
+    .feature-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 32px;
+    }
+    
+    .feature-card {
+      background: white;
+      border-radius: 16px;
+      padding: 32px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+      border: 1px solid rgba(0,0,0,0.06);
+      transition: all 0.2s ease;
+    }
+    
+    .feature-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+    }
+    
+    .feature-icon {
+      width: 48px;
+      height: 48px;
+      background: var(--teal-light);
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 16px;
+    }
+    
+    .feature-icon svg {
+      width: 24px;
+      height: 24px;
+      color: var(--teal);
+    }
+    
+    .feature-card h3 {
+      font-size: 1.25rem;
+      margin-bottom: 8px;
+      color: var(--teal-dark);
+    }
+    
+    .feature-card p {
+      color: #666;
+      font-size: 0.95rem;
+      line-height: 1.6;
+    }
+    
+    /* Download Section */
+    .download {
+      background: var(--teal-dark);
+      color: white;
+      padding: 80px 20px;
+      text-align: center;
+    }
+    
+    .download h2 {
+      font-size: 2rem;
+      margin-bottom: 16px;
+    }
+    
+    .download p {
+      opacity: 0.8;
+      margin-bottom: 40px;
+      max-width: 500px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    
+    .download-grid {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 16px;
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    
+    .download-card {
+      background: rgba(255,255,255,0.1);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 16px;
+      padding: 24px 32px;
+      text-decoration: none;
+      color: white;
+      transition: all 0.2s ease;
+      min-width: 200px;
+    }
+    
+    .download-card:hover {
+      background: rgba(255,255,255,0.2);
+      transform: translateY(-2px);
+    }
+    
+    .download-card .platform {
+      font-size: 0.875rem;
+      opacity: 0.7;
+      margin-top: 4px;
+    }
+    
+    /* Footer */
+    footer {
+      padding: 40px 20px;
+      text-align: center;
+      color: #666;
+      font-size: 0.875rem;
+      border-top: 1px solid rgba(0,0,0,0.06);
+    }
+    
+    footer a {
+      color: var(--teal);
+      text-decoration: none;
+    }
+    
+    footer a:hover {
+      text-decoration: underline;
+    }
+    
+    /* Responsive */
+    @media (max-width: 640px) {
+      .hero { padding: 60px 20px; }
+      .logo { width: 80px; height: 80px; }
+      .features { padding: 60px 20px; }
+      .feature-grid { grid-template-columns: 1fr; }
+      .download-grid { flex-direction: column; align-items: center; }
+      .download-card { width: 100%; max-width: 300px; }
+    }
+  </style>
+</head>
+<body>
+  <section class="hero">
+    <div class="hero-content">
+      <div class="logo">
+        <svg viewBox="0 0 32 32" fill="none">
+          <rect width="32" height="32" rx="8" fill="#0D9488"/>
+          <path d="M9 8v16M9 16l8-8M9 16l8 8" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      <h1>Kai</h1>
+      <p class="tagline">Your AI coding assistant with persistent memory, background agents, and tool use.</p>
+      <a href="https://github.com/tmoreton/kai/releases/latest" class="cta-button">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+        Download for Free
+      </a>
+      <a href="#features" class="secondary-cta">
+        Learn more 
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12l7 7 7-7"/></svg>
+      </a>
+    </div>
+  </section>
+  
+  <section class="features" id="features">
+    <h2>Everything you need to ship faster</h2>
+    <div class="feature-grid">
+      <div class="feature-card">
+        <div class="feature-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+        </div>
+        <h3>Persistent Memory</h3>
+        <p>Kai remembers who you are, your preferences, and what you're working on across sessions.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+        </div>
+        <h3>Background Agents</h3>
+        <p>Create specialized agents that run on schedules or on-demand to automate your workflows.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+        </div>
+        <h3>Tool Use</h3>
+        <p>Read, write, and edit files, run shell commands, search your codebase — all with your approval.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
+        </div>
+        <h3>Git Integration</h3>
+        <p>Built-in git workflows — from viewing diffs to creating PRs — all without leaving Kai.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9M12 20v-6m0 6H3m9 0v-6m0 6h9M12 14V8m0 6H3m9 0h9M12 8V2m0 6H3m9 0h9M12 2v6"/></svg>
+        </div>
+        <h3>MCP Support</h3>
+        <p>Extend Kai's capabilities with Model Context Protocol servers for specialized tools.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 14l9-5-9-5-9 5 9 5z"/><path d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z"/></svg>
+        </div>
+        <h3>Personas</h3>
+        <p>Create specialized AI personas with unique identities, goals, and allowed tools.</p>
+      </div>
+    </div>
+  </section>
+  
+  <section class="download" id="download">
+    <h2>Download Kai</h2>
+    <p>Available for macOS (Apple Silicon & Intel), Linux, and Windows.</p>
+    <div class="download-grid">
+      <a href="https://github.com/tmoreton/kai/releases/latest/download/Kai_1.0.0_aarch64.dmg" class="download-card">
+        <strong>Mac (Apple Silicon)</strong>
+        <div class="platform">.dmg</div>
+      </a>
+      <a href="https://github.com/tmoreton/kai/releases/latest/download/Kai_1.0.0_x86_64.dmg" class="download-card">
+        <strong>Mac (Intel)</strong>
+        <div class="platform">.dmg</div>
+      </a>
+      <a href="https://github.com/tmoreton/kai/releases/latest/download/Kai_1.0.0_amd64.AppImage" class="download-card">
+        <strong>Linux</strong>
+        <div class="platform">.AppImage</div>
+      </a>
+      <a href="https://github.com/tmoreton/kai/releases/latest/download/Kai_1.0.0_x64-setup.exe" class="download-card">
+        <strong>Windows</strong>
+        <div class="platform">.exe</div>
+      </a>
+    </div>
+  </section>
+  
+  <footer>
+    <p>Built by <a href="https://youtube.com/@TheTravellingDeveloper">@TheTravellingDeveloper</a></p>
+    <p style="margin-top: 8px; font-size: 0.75rem; opacity: 0.6;">
+      <a href="https://github.com/tmoreton/kai">GitHub</a> · 
+      <a href="https://github.com/tmoreton/kai/issues">Issues</a> · 
+      <a href="https://github.com/tmoreton/kai/releases">Releases</a>
+    </p>
+  </footer>
+</body>
+</html>
