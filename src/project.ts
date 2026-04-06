@@ -2,6 +2,7 @@ import fs from "fs";
 import path from "path";
 import crypto from "crypto";
 import { ensureKaiDir } from "./config.js";
+import { saveProject, touchProject, getProjectByPath } from "./db/projects-db.js";
 
 export interface ProjectInfo {
   id: string;
@@ -51,14 +52,24 @@ export function resolveProject(cwd?: string): ProjectInfo | null {
     for (const marker of PROJECT_MARKERS) {
       const markerPath = path.join(dir, marker);
       if (fs.existsSync(markerPath)) {
-        const info: ProjectInfo = {
-          id: hashPath(dir),
-          path: dir,
-          name: path.basename(dir),
-          lastAccessed: new Date().toISOString(),
-        };
+        const id = hashPath(dir);
+        
+        // Check if already in DB
+        let info = getProjectByPath(dir);
+        if (!info) {
+          info = {
+            id,
+            path: dir,
+            name: path.basename(dir),
+            lastAccessed: new Date().toISOString(),
+          };
+          saveProject(info);
+        } else {
+          touchProject(id);
+          info.lastAccessed = new Date().toISOString();
+        }
+        
         cachedProject = info;
-        registerProject(info);
         return info;
       }
     }
@@ -89,7 +100,7 @@ export function getCurrentProject(): ProjectInfo | null {
   return resolveProject();
 }
 
-// --- Project Registry ---
+// --- Legacy JSON registry (for migration) ---
 
 function registryPath(): string {
   return path.join(ensureKaiDir(), "projects.json");
@@ -148,4 +159,3 @@ export function ensureGlobalDir(subsystem: string): string {
   }
   return dir;
 }
-

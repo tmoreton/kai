@@ -23,13 +23,13 @@ import {
   Save,
 } from 'lucide-react';
 import { agentsQueries } from '../api/queries';
-import { agentsApi, personasApi } from '../api/client';
+import { agentsApi } from '../api/client';
 import { NetworkError, TimeoutError } from '../api/client';
 import { cn } from '../lib/utils';
 import { toast } from '../components/Toast';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
-import type { Agent, ErrorState, Attachment, Persona } from '../types/api';
+import type { Agent, ErrorState, Attachment } from '../types/api';
 import { WorkflowEditor } from '../components/WorkflowEditor';
 import { AIWorkflowCreator } from '../components/AIWorkflowCreator';
 import { SmartChatInput } from '../components/SmartChatInput';
@@ -432,15 +432,6 @@ function AgentMemory({ agent }: { agent: Agent }) {
           Persistent working memory - the agent can update this during runs
         </p>
       </div>
-
-      {/* File Path */}
-      {persona && (
-        <div className="pt-4 border-t">
-          <p className="text-xs text-muted-foreground">
-            Memory file: <code className="font-mono">~/.kai/agents/personas/{persona.id}.json</code>
-          </p>
-        </div>
-      )}
     </div>
   );
 }
