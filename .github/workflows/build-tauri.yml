@@ -32,9 +32,10 @@ jobs:
           cache: 'npm'
       
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.arch == 'aarch64' && 'aarch64-apple-darwin' || 'x86_64-apple-darwin' }}
+        shell: bash
+        run: |
+          rustup update stable
+          rustup target add ${{ matrix.arch == 'aarch64' && 'aarch64-apple-darwin' || 'x86_64-apple-darwin' }}
       
       - name: Install dependencies
         run: npm ci
@@ -77,7 +78,8 @@ jobs:
           cache: 'npm'
       
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+        shell: bash
+        run: rustup update stable
       
       - name: Install system dependencies
         run: |
@@ -125,7 +127,8 @@ jobs:
           cache: 'npm'
       
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+        shell: bash
+        run: rustup update stable
       
       - name: Install dependencies
         run: npm ci
@@ -356,4 +359,3 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
-
