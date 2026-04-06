@@ -38,7 +38,13 @@ jobs:
           rustup target add ${{ matrix.arch == 'aarch64' && 'aarch64-apple-darwin' || 'x86_64-apple-darwin' }}
       
       - name: Install dependencies
-        run: npm ci
+        run: |
+          npm cache verify
+          npm ci --prefer-offline || npm ci
+
+      - name: Verify dependencies
+        run: |
+          npm ls yaml 2>/dev/null || (npm install yaml && npm ci)
       
       - name: Install Tauri CLI
         run: cargo install tauri-cli --version "^2.0"
