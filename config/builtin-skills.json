@@ -59,7 +59,7 @@
     {
       "id": "youtube",
       "name": "YouTube",
-      "description": "YouTube analytics - channel stats, video metrics, trending content, comments",
+      "description": "YouTube analytics - channel stats, video metrics, comments, trending",
       "sourceDir": "youtube",
       "targetPrefix": "builtin-"
     },
@@ -110,6 +110,13 @@
       "name": "Bluesky",
       "description": "Bluesky AT Protocol - profile, feed, posting, search, social actions",
       "sourceDir": "bluesky",
+      "targetPrefix": "builtin-"
+    },
+    {
+      "id": "openrouter",
+      "name": "OpenRouter",
+      "description": "OpenRouter AI - image generation with Nano Banana, chat completions, model routing",
+      "sourceDir": "openrouter",
       "targetPrefix": "builtin-"
     }
   ],
