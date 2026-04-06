@@ -53,8 +53,14 @@ jobs:
         run: |
           cd src-tauri/target/*/bundle/dmg
           for f in *.dmg; do
-            mv "$f" "${f%.dmg}-${{ matrix.arch }}.dmg"
+            # Extract base name and add version + underscore format
+            # e.g., Kai.dmg -> Kai_v1.0.0_aarch64.dmg
+            ARCH="${{ matrix.arch }}"
+            VERSION="${GITHUB_REF_NAME}"
+            mv "$f" "Kai_${VERSION}_${ARCH}.dmg"
           done
+        env:
+          GITHUB_REF_NAME: ${{ github.ref_name }}
       
       - name: Upload DMG artifact
         uses: actions/upload-artifact@v4

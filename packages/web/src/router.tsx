@@ -13,6 +13,7 @@ import { NotificationsView } from "./routes/NotificationsView";
 import { AgentEditor } from "./routes/AgentEditor";
 import { DocsView } from "./routes/DocsView";
 import { WorkflowView } from "./routes/WorkflowView";
+import { LandingPage } from "./routes/LandingPage";
 
 // Wrapper component to add ErrorBoundary to routes
 const withErrorBoundary = (Component: React.ComponentType) => (
@@ -24,10 +25,15 @@ const withErrorBoundary = (Component: React.ComponentType) => (
 export const router = createBrowserRouter([
   {
     path: "/",
+    element: <LandingPage />,
+    errorElement: <RouteError />,
+  },
+  {
+    path: "/app",
     element: <RootLayout />,
     errorElement: <RouteError />,
     children: [
-      { index: true, element: <Navigate to="/chat" replace /> },
+      { index: true, element: <Navigate to="/app/chat" replace /> },
       { path: "chat/:sessionId?", element: withErrorBoundary(ChatView), errorElement: <RouteError /> },
       { path: "code", element: withErrorBoundary(CodeView), errorElement: <RouteError /> },
       { path: "agents", element: withErrorBoundary(AgentsView), errorElement: <RouteError /> },
