@@ -545,4 +545,123 @@ tools: []
       return c.json({ error: err.message }, 500);
     }
   });
+
+  // --- User Profile ---
+  const PROFILE_PATH = path.resolve(process.env.HOME || "~", ".kai/profile.json");
+
+  app.get("/api/settings/profile", (c) => {
+    try {
+      let profile = {
+        name: "",
+        location: "",
+        weatherApiKey: "",
+        weatherUnit: "imperial" // or metric
+      };
+      
+      if (fs.existsSync(PROFILE_PATH)) {
+        const content = fs.readFileSync(PROFILE_PATH, "utf-8");
+        profile = { ...profile, ...JSON.parse(content) };
+      }
+      
+      return c.json(profile);
+    } catch (err: any) {
+      return c.json({ error: err.message }, 500);
+    }
+  });
+
+  app.put("/api/settings/profile", async (c) => {
+    try {
+      const updates = await c.req.json();
+      let profile: any = {};
+      
+      if (fs.existsSync(PROFILE_PATH)) {
+        const content = fs.readFileSync(PROFILE_PATH, "utf-8");
+        profile = JSON.parse(content);
+      }
+      
+      // Merge updates
+      profile = { ...profile, ...updates };
+      
+      fs.writeFileSync(PROFILE_PATH, JSON.stringify(profile, null, 2), "utf-8");
+      return c.json({ ok: true, profile });
+    } catch (err: any) {
+      return c.json({ error: err.message }, 400);
+    }
+  });
+
+  // --- Weather API ---
+  app.get("/api/weather", async (c) => {
+    try {
+      const { lat, lon, q } = c.req.query();
+      
+      // Read profile to get API key
+      let apiKey = "";
+      if (fs.existsSync(PROFILE_PATH)) {
+        const profile = JSON.parse(fs.readFileSync(PROFILE_PATH, "utf-8"));
+        apiKey = profile.weatherApiKey || "";
+      }
+      
+      if (!apiKey) {
+        // Return mock data if no API key
+        return c.json({
+          temp: 72,
+          condition: "Sunny",
+          icon: "☀️",
+          location: "Local",
+          mock: true
+        });
+      }
+      
+      // Build OpenWeatherMap URL
+      let url: string;
+      if (lat && lon) {
+        url = `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&units=imperial&appid=${apiKey}`;
+      } else if (q) {
+        url = `https://api.openweathermap.org/data/2.5/weather?q=${encodeURIComponent(q)}&units=imperial&appid=${apiKey}`;
+      } else {
+        return c.json({ error: "lat/lon or q (city name) required" }, 400);
+      }
+      
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`Weather API error: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      // Map weather conditions to icons
+      const conditionMap: Record<string, string> = {
+        "Clear": "☀️",
+        "Clouds": "☁️",
+        "Rain": "🌧️",
+        "Drizzle": "🌦️",
+        "Thunderstorm": "⛈️",
+        "Snow": "❄️",
+        "Mist": "🌫️",
+        "Fog": "🌫️",
+      };
+      
+      return c.json({
+        temp: Math.round(data.main.temp),
+        condition: data.weather[0].main,
+        description: data.weather[0].description,
+        icon: conditionMap[data.weather[0].main] || "🌡️",
+        location: data.name,
+        mock: false
+      });
+    } catch (err: any) {
+      return c.json({ 
+        temp: 72,
+        condition: "Sunny", 
+        icon: "☀️",
+        location: "Local",
+        mock: true,
+        error: err.message 
+      }, 200);
+    }
+  });
+}
+      return c.json({ error: err.message }, 500);
+    }
+  });
 }
