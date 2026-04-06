@@ -87,6 +87,7 @@ export const version = "1.0.0";`);
     mutationFn: api.settings.installSkill,
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: settingsQueries.all() });
+      queryClient.refetchQueries({ queryKey: settingsQueries.all(), type: 'active' });
       setInstallSource("");
       toast.success('Skill installed', result.id || 'Successfully installed');
     },
@@ -238,8 +239,6 @@ export const version = "1.0.0";`);
                           Install
                         </>
                       )}
-                    </Button>
-                  </div>
                     </Button>
                   </div>
                 </div>

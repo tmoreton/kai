@@ -13,7 +13,7 @@ import { SoulSettings } from "./settings/SoulSettings";
 import { ContextSettings } from "./settings/ContextSettings";
 import { CliSettings } from "./settings/CliSettings";
 
-type TabType = 'mcp' | 'skills' | 'env' | 'soul' | 'context' | 'cli';
+type TabType = 'skills' | 'mcp' | 'env' | 'soul' | 'context' | 'cli';
 
 interface SettingsErrorState {
   message: string;
@@ -21,7 +21,7 @@ interface SettingsErrorState {
 }
 
 export function SettingsView() {
-  const [activeTab, setActiveTab] = useState<TabType>('mcp');
+  const [activeTab, setActiveTab] = useState<TabType>('skills');
   const [error, setError] = useState<SettingsErrorState | null>(null);
 
   const { isError, error: queryError, refetch } = useSuspenseQuery({
@@ -80,12 +80,12 @@ export function SettingsView() {
         )}
 
         <div className="flex gap-1 border-b border-border mb-4 sm:mb-6 overflow-x-auto scrollbar-hide">
+          <TabButton active={activeTab === 'skills'} onClick={() => setActiveTab('skills')} icon={<Puzzle className="w-4 h-4" />}>
+            <span className="hidden sm:inline">Skills</span>
+          </TabButton>
           <TabButton active={activeTab === 'mcp'} onClick={() => setActiveTab('mcp')} icon={<Server className="w-4 h-4" />}>
             <span className="hidden sm:inline">MCP Servers</span>
             <span className="sm:hidden">MCP</span>
-          </TabButton>
-          <TabButton active={activeTab === 'skills'} onClick={() => setActiveTab('skills')} icon={<Puzzle className="w-4 h-4" />}>
-            <span className="hidden sm:inline">Skills</span>
           </TabButton>
           <TabButton active={activeTab === 'env'} onClick={() => setActiveTab('env')} icon={<Key className="w-4 h-4" />}>
             <span className="hidden sm:inline">Environment</span>
