@@ -477,10 +477,46 @@ function WelcomeScreen({ onSelect }: { onSelect: (text: string) => void }) {
     "Debug this error I'm seeing...",
   ];
 
+  // Get time-based greeting
+  const hour = new Date().getHours();
+  let greeting = "Good evening";
+  if (hour >= 5 && hour < 12) greeting = "Good morning";
+  else if (hour >= 12 && hour < 18) greeting = "Good afternoon";
+
+  // Format current time
+  const timeString = new Date().toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true
+  });
+
+  // Format date
+  const dateString = new Date().toLocaleDateString('en-US', {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric'
+  });
+
   return (
     <div className="text-center py-8 sm:py-12 px-4">
-      <h2 className="text-xl sm:text-2xl font-semibold text-foreground mb-2">Welcome to Kai</h2>
-      <p className="text-muted-foreground mb-6 sm:mb-8 text-sm sm:text-base">What would you like to work on today?</p>
+      {/* Personalized greeting */}
+      <div className="mb-6">
+        <h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-1">
+          {greeting}, Tim
+        </h1>
+        <p className="text-muted-foreground text-sm sm:text-base">
+          {dateString} · {timeString}
+        </p>
+      </div>
+
+      {/* Weather widget placeholder - can be enhanced with real API later */}
+      <div className="flex items-center justify-center gap-2 mb-8 text-muted-foreground">
+        <span className="text-2xl">☀️</span>
+        <span className="text-sm">Sunny · 72°F</span>
+      </div>
+
+      {/* Suggestions */}
+      <p className="text-muted-foreground mb-4 text-sm font-medium">What would you like to work on?</p>
       <div className="grid gap-2 sm:gap-3 max-w-md mx-auto">
         {suggestions.map((suggestion, i) => (
           <Button
