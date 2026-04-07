@@ -148,7 +148,7 @@ export async function loadSkill(skillPath: string): Promise<LoadedSkill> {
       } else if (field.default !== undefined) {
         config[key] = field.default;
       } else if (field.required) {
-        console.warn(chalk.yellow(`  Skill "${manifest.id}": missing required config "${key}" (set ${key})`));
+        console.warn(chalk.yellow(`  Skill "${manifest.id}": set ${field.env || key} to enable`));
       }
     }
   }

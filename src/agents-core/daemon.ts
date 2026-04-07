@@ -22,6 +22,7 @@ import {
   getConsecutiveFailCount,
   completeRun,
   markAllStuckRunsFailed,
+  deleteOldFailedRuns,
   addLog,
   createNotification,
   hasRecentNotification,
@@ -262,6 +263,8 @@ async function checkAndRetryFailedRuns(): Promise<void> {
               body: `Agent was auto-fixed and completed successfully`,
               agentId: run.agent_id,
             });
+            // Clean up old failed runs
+            deleteOldFailedRuns(run.agent_id, 1);
           }
         } catch (err: unknown) {
           const msg = err instanceof Error ? err.message : String(err);
@@ -298,6 +301,11 @@ async function checkAndRetryFailedRuns(): Promise<void> {
           body: `Previous error was: ${run.error || "unknown"}`,
           agentId: run.agent_id,
         });
+        // Clean up old failed runs to prevent re-retry loops
+        const cleaned = deleteOldFailedRuns(run.agent_id, 1);
+        if (cleaned > 0) {
+          addLog(run.agent_id, "info", `Cleaned up ${cleaned} old failed run(s)`);
+        }
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
