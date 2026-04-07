@@ -50,6 +50,7 @@ export const SLASH_COMMANDS = [
   { cmd: "/agent info", desc: "Agent details" },
   { cmd: "/skill", desc: "List installed skills" },
   { cmd: "/skill reload", desc: "Hot-reload all skills" },
+  { cmd: "/skill export-to-claude", desc: "Export skills to Claude Code" },
   { cmd: "/mcp", desc: "List MCP servers" },
   { cmd: "/mcp add", desc: "Add MCP server" },
   { cmd: "/mcp remove", desc: "Remove MCP server" },
@@ -860,6 +861,96 @@ ${(gitDiff(false) || "(none)").substring(0, 2000)}`;
       }
     }
     console.log("");
+    return "handled";
+  }
+
+  // === /skill export-to-claude ===
+  if (cmd === "/skill export-to-claude" || cmd.startsWith("/skill export-to-claude ")) {
+    const skillName = cmd.replace("/skill export-to-claude", "").trim();
+    
+    if (!skillName) {
+      console.log(chalk.yellow("\n  Usage: /skill export-to-claude <skill-name>"));
+      console.log(chalk.dim("  Examples:"));
+      console.log(chalk.dim("    /skill export-to-claude youtube"));
+      console.log(chalk.dim("    /skill export-to-claude notion"));
+      console.log(chalk.dim("    /skill export-to-claude all\n"));
+      return "handled";
+    }
+    
+    const { getLoadedSkills, skillsDir } = await import("./skills/index.js");
+    const skills = getLoadedSkills();
+    const kaiSkillsDir = skillsDir();
+    const claudeConfigPath = path.resolve(process.env.HOME || "~", ".claude/settings.json");
+    
+    // Ensure .claude directory exists
+    const claudeDir = path.dirname(claudeConfigPath);
+    if (!fs.existsSync(claudeDir)) {
+      fs.mkdirSync(claudeDir, { recursive: true });
+    }
+    
+    // Read or create Claude config
+    let claudeConfig: any = {};
+    try {
+      if (fs.existsSync(claudeConfigPath)) {
+        claudeConfig = JSON.parse(fs.readFileSync(claudeConfigPath, "utf-8"));
+      }
+    } catch (e) {
+      console.log(chalk.yellow("  ⚠ Could not read existing Claude config, creating new one"));
+    }
+    
+    if (!claudeConfig.mcpServers) {
+      claudeConfig.mcpServers = {};
+    }
+    
+    const exportSkill = (skillId: string, skillPath: string) => {
+      // Build env from current environment
+      const env: Record<string, string> = {};
+      const skill = skills.find(s => s.manifest.id === skillId);
+      if (skill?.manifest.config_schema) {
+        for (const [key, field] of Object.entries(skill.manifest.config_schema)) {
+          const envKey = (field as any).env || key;
+          const value = process.env[envKey];
+          if (value) {
+            env[envKey] = value;
+          }
+        }
+      }
+      
+      claudeConfig.mcpServers[skillId] = {
+        command: "npx",
+        args: ["-y", "kai-skill-mcp", skillPath],
+        env: Object.keys(env).length > 0 ? env : undefined,
+      };
+    };
+    
+    if (skillName === "all") {
+      console.log(chalk.bold("\n  Exporting all skills to Claude Code...\n"));
+      let exported = 0;
+      for (const skill of skills) {
+        const skillPath = path.join(kaiSkillsDir, path.basename(skill.path));
+        exportSkill(skill.manifest.id, skillPath);
+        console.log(chalk.green(`  ✓ ${skill.manifest.name}`));
+        exported++;
+      }
+      console.log(chalk.bold(`\n  Exported ${exported} skills\n`));
+    } else {
+      const skill = skills.find(s => s.manifest.id === skillName);
+      if (!skill) {
+        console.log(chalk.red(`\n  ❌ Skill "${skillName}" not found`));
+        console.log(chalk.dim("  Run /skill to see installed skills\n"));
+        return "handled";
+      }
+      
+      const skillPath = path.join(kaiSkillsDir, path.basename(skill.path));
+      exportSkill(skillName, skillPath);
+      console.log(chalk.green(`\n  ✓ Exported "${skill.manifest.name}" to Claude Code\n`));
+    }
+    
+    // Write Claude config
+    fs.writeFileSync(claudeConfigPath, JSON.stringify(claudeConfig, null, 2), "utf-8");
+    console.log(chalk.dim(`  Config saved: ${claudeConfigPath}`));
+    console.log(chalk.dim("  Restart Claude Code to use the skills\n"));
+    
     return "handled";
   }
 
