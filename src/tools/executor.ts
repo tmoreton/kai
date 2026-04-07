@@ -2,7 +2,6 @@ import { bashTool, bashBackgroundTool } from "./bash.js";
 import { readFile, writeFile, editFile } from "./files.js";
 import { globTool, grepTool } from "./search.js";
 import { webFetch, webSearch } from "./web.js";
-import { generateImageTool } from "./image.js";
 
 import { spawnAgent } from "../subagent.js";
 import { runSwarm, handleScratchpadTool } from "../swarm.js";
