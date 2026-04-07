@@ -21,8 +21,8 @@
     "dev:web": "cd packages/web && npm run dev",
     "start": "npm run build && node dist/index.js",
     "prepublishOnly": "npm run build",
-    "tauri:dev": "cargo tauri dev",
-    "tauri:build": "cargo tauri build"
+    "tauri:dev": "npm run tauri dev",
+    "tauri:build": "npm run tauri build"
   },
   "engines": {
     "node": ">=20.0.0"
@@ -45,7 +45,6 @@
   "homepage": "https://github.com/tmoreton/kai#readme",
   "dependencies": {
     "@hono/node-server": "^1.19.11",
-    "@types/react": "^19.2.14",
     "better-sqlite3": "^12.8.0",
     "chalk": "^5.6.2",
     "cli-highlight": "^2.1.11",
@@ -61,9 +60,7 @@
     "node-cron": "^4.2.1",
     "node-notifier": "^10.0.1",
     "nodemailer": "^8.0.4",
-    "oauth-1.0a": "^2.2.6",
     "openai": "^6.33.0",
-    "playwright": "^1.59.1",
     "react": "^19.2.4",
     "xlsx": "^0.18.5",
     "yaml": "^2.8.3",
@@ -76,6 +73,7 @@
     "@types/node-cron": "^3.0.11",
     "@types/node-notifier": "^8.0.5",
     "@types/nodemailer": "^7.0.11",
+    "@types/react": "^19.2.14",
     "tsx": "^4.21.0",
     "typescript": "^6.0.2"
   }

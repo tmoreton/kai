@@ -5,6 +5,7 @@ import {
   MessageSquare,
   Bot,
   Code,
+  Folder,
   Settings,
   Bell,
   BookOpen,
@@ -343,7 +344,7 @@ export function Sidebar() {
                 <div key={path} className="mb-2">
                   {/* Project Header */}
                   <div className="flex items-center gap-1.5 px-2 py-1 text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                    <span className="w-4 h-4">📁</span>
+                    <Folder className="w-4 h-4" />
                     <span className="truncate">{name}</span>
                   </div>
                   {/* Sessions under this project */}
