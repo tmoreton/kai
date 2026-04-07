@@ -197,13 +197,23 @@ export async function chat(
       id: string;
       function: { name: string; arguments: string };
     }>();
+    // Track cumulative usage to only record deltas (chunk.usage is cumulative, not per-chunk)
+    let lastInputTokens = 0;
+    let lastOutputTokens = 0;
+
     try {
       for await (const chunk of stream) {
         if (options?.signal?.aborted) break;
 
-        // Capture real token usage from the final stream chunk
+        // Capture real token usage from the final stream chunk (only record deltas)
         if (chunk.usage && options?.onUsage) {
-          options.onUsage(chunk.usage.prompt_tokens ?? 0, chunk.usage.completion_tokens ?? 0);
+          const inputDelta = (chunk.usage.prompt_tokens ?? 0) - lastInputTokens;
+          const outputDelta = (chunk.usage.completion_tokens ?? 0) - lastOutputTokens;
+          if (inputDelta > 0 || outputDelta > 0) {
+            options.onUsage(inputDelta, outputDelta);
+            lastInputTokens = chunk.usage.prompt_tokens ?? 0;
+            lastOutputTokens = chunk.usage.completion_tokens ?? 0;
+          }
         }
 
         const delta = chunk.choices?.[0]?.delta;
