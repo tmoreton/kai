@@ -44,7 +44,7 @@ import { resolveFilePath, expandHome } from "./utils.js";
 import { bootstrapBuiltinAgents } from "./agents-core/bootstrap.js";
 import { SLASH_COMMANDS, handleCommand } from "./repl-commands.js";
 import { recordUsage, getUsageStats } from "./usage.js";
-import { estimateContextSize } from "./context.js";
+import { estimateContextSize, getContextWindowSize } from "./context.js";
 import type { ReplOptions } from "./repl.js";
 
 // ─── Image helpers (shared with repl.ts) ─────────────────────────────────────
@@ -102,6 +102,11 @@ function fmt(n: number): string {
   return String(n);
 }
 
+function fmtPercent(used: number, total: number): string {
+  const pct = Math.min(100, (used / total) * 100);
+  return `${pct.toFixed(1)}%`;
+}
+
 // ─── Main Ink component ───────────────────────────────────────────────────────
 
 function KaiApp({ options, initialPrompt, initSession, client, initMessages }: AppProps) {
@@ -124,7 +129,8 @@ function KaiApp({ options, initialPrompt, initSession, client, initMessages }: A
   const [tokenInfo,    setTokenInfo]    = useState(() => {
     const s = getUsageStats();
     const ctxTokens = estimateContextSize(initMessages);
-    return `↑${fmt(s.totalInput)} sent ↓${fmt(s.totalOutput)} received${ctxTokens > 0 ? ` • ${fmt(ctxTokens)} context` : ""}`;
+    const totalCtx = getContextWindowSize();
+    return `↑${fmt(s.totalInput)} sent ↓${fmt(s.totalOutput)} received • ${fmtPercent(ctxTokens, totalCtx)} context`;
   });
   const [spinnerFrame, setSpinnerFrame] = useState(0);
   const [input,        setInput]        = useState("");
@@ -272,7 +278,8 @@ function KaiApp({ options, initialPrompt, initSession, client, initMessages }: A
             recordUsage(input, output);
             const stats = getUsageStats();
             const ctxTokens = estimateContextSize(updatedMessages);
-            setTokenInfo(`↑${fmt(stats.totalInput)} sent ↓${fmt(stats.totalOutput)} received • ${fmt(ctxTokens)} context`);
+            const totalCtx = getContextWindowSize();
+            setTokenInfo(`↑${fmt(stats.totalInput)} sent ↓${fmt(stats.totalOutput)} received • ${fmtPercent(ctxTokens, totalCtx)} context`);
           },
         }
       );

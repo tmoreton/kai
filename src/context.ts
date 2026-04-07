@@ -13,6 +13,14 @@ const COMPACT_SUMMARY_PREFIX = "# Compacted conversation history";
 const COMPACT_CONTINUATION = `Continue working on the task without asking the user any further questions unless you are genuinely blocked. Pick up where you left off.`;
 
 /**
+ * Get the configured context window size.
+ * Uses MAX_CONTEXT_TOKENS from constants.
+ */
+export function getContextWindowSize(): number {
+  return MAX_CONTEXT_TOKENS;
+}
+
+/**
  * Incremental metadata tracker — populated during chat to avoid
  * expensive rescanning during compaction.
  */
