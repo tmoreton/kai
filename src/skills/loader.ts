@@ -5,7 +5,6 @@ import chalk from "chalk";
 import type { ChatCompletionTool } from "openai/resources/chat/completions";
 import { ensureKaiDir } from "../config.js";
 import type { SkillManifest, SkillHandler, LoadedSkill } from "./types.js";
-import { bootstrapBuiltinSkills } from "./builtin.js";
 
 /**
  * Skill Loader
@@ -29,12 +28,8 @@ export function skillsDir(): string {
 
 /**
  * Load all skills from ~/.kai/skills/.
- * First bootstraps built-in skills if not already installed.
  */
 export async function loadAllSkills(): Promise<void> {
-  // Ensure built-in skills are copied to ~/.kai/skills/
-  try { bootstrapBuiltinSkills(); } catch {}
-
   const dir = skillsDir();
   if (!fs.existsSync(dir)) return;
 
