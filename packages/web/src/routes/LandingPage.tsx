@@ -115,12 +115,6 @@ export function LandingPage() {
     fetchRelease();
   }, []);
 
-  const getDownloadUrl = () => {
-    // Detect architecture
-    const isArm = /arm|aarch64/i.test(navigator.userAgent);
-    return isArm ? downloadInfo.aarch64Url : downloadInfo.x86_64Url;
-  };
-
   const handleDownload = () => {
     // Link to GitHub releases for all platforms
     window.open(`https://github.com/${GITHUB_REPO}/releases/latest`, '_blank');

@@ -14,9 +14,7 @@ import { SettingsView } from "./routes/SettingsView";
 import { NotificationsView } from "./routes/NotificationsView";
 import { AgentEditor } from "./routes/AgentEditor";
 import { WorkflowView } from "./routes/WorkflowView";
-import { LandingPage } from "./routes/LandingPage";
 import { Onboarding } from "./routes/Onboarding";
-import { DocsView } from "./routes/DocsView";
 
 // Wrapper component to add ErrorBoundary to routes
 const withErrorBoundary = (Component: React.ComponentType) => (
@@ -59,7 +57,6 @@ export const router = createBrowserRouter([
           { path: "agents/:agentId/edit", element: withErrorBoundary(AgentEditor), errorElement: <RouteError /> },
           { path: "settings", element: withErrorBoundary(SettingsView), errorElement: <RouteError /> },
           { path: "notifications", element: withErrorBoundary(NotificationsView), errorElement: <RouteError /> },
-          { path: "docs", element: withErrorBoundary(DocsView), errorElement: <RouteError /> },
           { path: "workflows", element: withErrorBoundary(WorkflowView), errorElement: <RouteError /> },
           { path: "workflows/:workflowId", element: withErrorBoundary(WorkflowView), errorElement: <RouteError /> },
         ],
@@ -70,12 +67,6 @@ export const router = createBrowserRouter([
   {
     path: "/setup",
     element: <Onboarding />,
-    errorElement: <RouteError />,
-  },
-  // Landing page at separate route - not default
-  {
-    path: "/landing",
-    element: <LandingPage />,
     errorElement: <RouteError />,
   },
 ]);
