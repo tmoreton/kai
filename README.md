@@ -30,7 +30,9 @@ npm start
 - **Web UI** — browser-based chat interface with SSE streaming
 - **20+ tools** — bash, file ops, web search/fetch, image generation, git, MCP servers, tasks
 - **Sub-agents** — spawn explorer, planner, and worker agents for complex tasks
-- **MCP support** — extend with any Model Context Protocol server
+- **Skills** — External skill system for integrations (data, YouTube, browser, email, social media, etc.)
+  - Install skills: `npx kai-skills install <skill>`
+  - Registry: https://www.npmjs.com/package/kai-skills
 - **Project-aware** — auto-detects project root and scopes memory per-project
 - **Self-improving agents** — workflows can include a review loop for quality iteration
 
@@ -70,6 +72,11 @@ src/
 │   ├── mcp.ts            # Model Context Protocol client
 │   ├── tasks.ts          # Task management
 │   └── index.ts          # Tool exports
+├── skills/
+│   ├── loader.ts         # External skill loader (~/.kai/skills/)
+│   ├── executor.ts       # Skill tool execution
+│   ├── types.ts          # Skill manifest types
+│   └── installer.ts      # Skill installation helper
 ├── agents/
 │   ├── db.ts             # SQLite agent database
 │   ├── daemon.ts         # Cron scheduler
@@ -177,23 +184,34 @@ kai mcp list               # List configured servers + tools
 |---------|-------------|
 | `/help` | Show all available commands |
 | `/clear` | Clear conversation (keep system prompt) |
-| `/cost` | Token usage + context breakdown |
-| `/cost compact` | Compress context to save tokens |
+| `/compact` | Compress context to save tokens |
 | `/sessions` | List recent sessions |
-| `/sessions rename <name>` | Rename current session |
 | `/soul` | View core memory + recall stats |
+| `/diff` | Show all changes made this session |
 | `/git` | Git status + changed files |
 | `/git diff` | Colorized diff (staged + unstaged) |
-| `/git commit [msg]` | AI-generated commit (add `--push` to push) |
+| `/git log [n]` | Recent commits (default 15) |
+| `/git undo [n] [hard]` | Undo last N commits + clear conversation |
+| `/git stash [msg]` | Stash uncommitted changes |
+| `/git commit [msg] [--push]` | AI-generated commit + optional push |
 | `/git pr [title]` | Create PR (branch + commit + push + open) |
 | `/git branch [name]` | List or create/switch branches |
 | `/agent` | List background agents |
 | `/agent run <id>` | Run an agent now |
 | `/agent output <id>` | View agent output |
 | `/agent info <id>` | Agent details + run history |
+| `/skill` | List loaded skills |
+| `/skill reload` | Reload all skills (hot reload) |
 | `/mcp` | List connected MCP servers + tools |
 | `/mcp add <name> <cmd>` | Add an MCP server |
 | `/mcp remove <name>` | Remove an MCP server |
+| `/doctor` | Run system diagnostics |
+| `/notify` | Show agent notifications |
+| `/notify --all` | Show all notifications |
+| `/export [path]` | Export session to markdown file |
+| `/plan` | Toggle plan mode |
+| `/review` | AI code review of current git changes |
+| `/security-review` | Security-focused audit of git changes |
 | `/exit` | Exit Kai |
 
 Custom commands can be added as markdown files in `.kai/commands/`.
@@ -214,13 +232,16 @@ Kai's LLM has access to these tools:
 | `web_fetch` | Fetch URL content (HTML → readable text) |
 | `web_search` | Web search via Tavily |
 | `generate_image` | Image generation via OpenRouter |
+| `take_screenshot` | Capture screen for vision analysis |
+| `analyze_image` | Analyze images with vision model |
 | `core_memory_read` | Read identity/context memory |
 | `core_memory_update` | Update persona, human, goals, scratchpad |
-| `recall_search` | Search past conversation history |
-| `archival_insert` | Store long-term knowledge |
-| `archival_search` | Search long-term knowledge |
+| `search_recall` | Search past conversation history |
+| `archival_memory_insert` | Store long-term knowledge |
+| `archival_memory_search` | Search long-term knowledge |
 | `spawn_agent` | Spawn subagents (explorer/planner/worker) |
-| `mcp__*` | Dynamic tools from configured MCP servers |
+| `spawn_swarm` | Spawn multiple agents in parallel |
+| `skill__*` | Dynamic tools from external skills (~/.kai/skills/) |
 
 ## Models
 
