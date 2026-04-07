@@ -1,6 +1,8 @@
 import type { ChatCompletionMessageParam } from "openai/resources/chat/completions";
 import nodemailer from "nodemailer";
 import { connect as tlsConnect } from "tls";
+import fs from "fs";
+import path from "path";
 import { getNotification, getAgent, createNotification } from "../../agents-core/db.js";
 import { createClient, getModelId } from "../../client.js";
 
@@ -161,6 +163,62 @@ export async function sendNotificationEmail(n: {
     const replyTo = process.env.IMAP_USER ?
       `Kai <${process.env.IMAP_USER}>` : undefined;
 
+    // Parse and prepare attachments
+    let attachmentList: string[] = [];
+    if (n.attachments) {
+      if (typeof n.attachments === "string") {
+        try {
+          const parsed = JSON.parse(n.attachments);
+          attachmentList = Array.isArray(parsed) ? parsed : [parsed];
+        } catch {
+          attachmentList = n.attachments.split(",").map(s => s.trim()).filter(Boolean);
+        }
+      } else if (Array.isArray(n.attachments)) {
+        attachmentList = n.attachments;
+      }
+    }
+
+    // Build nodemailer attachments with inline images
+    const mailAttachments: any[] = [];
+    const inlineImages: string[] = [];
+    let attachmentHtml = "";
+
+    for (let i = 0; i < attachmentList.length; i++) {
+      const filePath = attachmentList[i];
+      if (!filePath || !fs.existsSync(filePath)) continue;
+
+      const filename = path.basename(filePath);
+      const ext = path.extname(filePath).toLowerCase();
+      const isImage = [".png", ".jpg", ".jpeg", ".gif", ".webp"].includes(ext);
+      const cid = `image${i}`;
+
+      mailAttachments.push({
+        filename,
+        path: filePath,
+        cid: isImage ? cid : undefined,
+      });
+
+      if (isImage) {
+        inlineImages.push(`<img src="cid:${cid}" style="max-width:100%;border-radius:8px;margin:12px 0;" />`);
+      } else {
+        attachmentHtml += `<p style="margin:8px 0;"><a href="cid:${cid}" download style="color:#0066cc;">📎 ${filename}</a></p>`;
+      }
+    }
+
+    // Build HTML with inline images at the top
+    let html = buildHtml(n);
+    if (inlineImages.length > 0 || attachmentHtml) {
+      const attachmentsSection = `
+        <div style="margin:24px 0;padding:16px;background:#f8f8f8;border-radius:8px;">
+          <h3 style="margin:0 0 12px;font-size:14px;color:#666;">Attachments</h3>
+          ${inlineImages.join("\n")}
+          ${attachmentHtml}
+        </div>
+      `;
+      // Insert before the closing </div> of the main content
+      html = html.replace('</div>\n        </tr>', `${attachmentsSection}</div>\n        </tr>`);
+    }
+
     await transport.sendMail({
       from,
       to,
@@ -171,7 +229,8 @@ export async function sendNotificationEmail(n: {
         "X-Kai-Agent-Id": n.agentId || "",
       } : undefined,
       text: `${n.title}\n\n${n.body || ""}\n\n${n.agentId ? `kai agent run ${n.agentId}` : ""}\n\nReply to this email to send a message to the agent.`.trim(),
-      html: buildHtml(n),
+      html,
+      attachments: mailAttachments.length > 0 ? mailAttachments : undefined,
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);

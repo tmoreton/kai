@@ -21,7 +21,11 @@ interface SettingsErrorState {
 }
 
 export function SettingsView() {
-  const [activeTab, setActiveTab] = useState<TabType>('skills');
+  // Check URL params for initial tab
+  const urlParams = new URLSearchParams(window.location.search);
+  const initialTab = urlParams.get('tab') as TabType || 'skills';
+  
+  const [activeTab, setActiveTab] = useState<TabType>(initialTab);
   const [error, setError] = useState<SettingsErrorState | null>(null);
 
   const { isError, error: queryError, refetch } = useSuspenseQuery({

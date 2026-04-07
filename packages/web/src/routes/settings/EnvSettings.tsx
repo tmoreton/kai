@@ -1,15 +1,9 @@
 import { useState } from "react";
 import { useSuspenseQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Key, Plus, Trash2, Mail, Info, Eye, EyeOff } from "lucide-react";
+import { Key, Plus, Trash2, Mail, Info, Eye, EyeOff, ExternalLink } from "lucide-react";
 import { settingsQueries } from "../../api/queries";
 import { api } from "../../api/client";
 import { toast } from "../../components/Toast";
-
-const ENV_EXAMPLES = [
-  { key: 'ANTHROPIC_API_KEY', value: 'sk-ant-...', description: 'Claude API access' },
-  { key: 'OPENAI_API_KEY', value: 'sk-...', description: 'OpenAI API access' },
-  { key: 'GITHUB_PERSONAL_ACCESS_TOKEN', value: 'ghp_...', description: 'GitHub MCP server' },
-];
 
 const EMAIL_ENV_VARS = [
   { key: 'NOTIFICATION_EMAIL', description: 'Your email address to receive agent notifications' },
@@ -25,7 +19,6 @@ export function EnvSettings() {
   const queryClient = useQueryClient();
   const [newKey, setNewKey] = useState("");
   const [newValue, setNewValue] = useState("");
-  const [showExamples, setShowExamples] = useState(false);
   const [showEmailHelp, setShowEmailHelp] = useState(false);
 
   const setMutation = useMutation({
@@ -57,15 +50,76 @@ export function EnvSettings() {
   const entries = Object.entries(data.env);
   const [visibleSecrets, setVisibleSecrets] = useState<Record<string, boolean>>({});
 
-  // Check if email is configured
+  // Check configuration status
+  const hasOpenRouterKey = entries.some(([k]) => k === 'OPENROUTER_API_KEY');
   const hasEmailConfigured = entries.some(([k]) => k === 'NOTIFICATION_EMAIL');
+
+  const API_KEY_EXAMPLES = [
+    { 
+      key: 'OPENROUTER_API_KEY', 
+      value: 'sk-or-...', 
+      description: 'Required - Get at openrouter.ai/keys',
+      link: 'https://openrouter.ai/keys'
+    },
+    { 
+      key: 'TAVILY_API_KEY', 
+      value: 'tvly-...', 
+      description: 'Optional - Enables web search',
+      link: 'https://tavily.com'
+    },
+    { 
+      key: 'GITHUB_PERSONAL_ACCESS_TOKEN', 
+      value: 'ghp_...', 
+      description: 'Optional - GitHub MCP server',
+    },
+  ];
 
   return (
     <div className="space-y-6">
+      {/* API Key Section */}
+      <div className="space-y-4">
+        <h3 className="font-semibold text-foreground flex items-center gap-2">
+          <Key className="w-4 h-4" />
+          API Key
+        </h3>
+
+        <div className={`p-4 rounded-lg border ${hasOpenRouterKey ? 'bg-teal-50 border-teal-200' : 'bg-red-50 border-red-200'}`}>
+          <div className="flex items-start gap-3">
+            {hasOpenRouterKey ? (
+              <div className="w-6 h-6 rounded-full bg-teal-100 flex items-center justify-center flex-shrink-0">
+                <Key className="w-3 h-3 text-teal-600" />
+              </div>
+            ) : (
+              <Key className="w-5 h-5 text-red-500 flex-shrink-0" />
+            )}
+            <div className="flex-1">
+              <div className="font-medium text-sm mb-1">
+                {hasOpenRouterKey ? 'OpenRouter Connected' : 'OpenRouter API Key Required'}
+              </div>
+              <p className="text-xs text-muted-foreground mb-2">
+                {hasOpenRouterKey 
+                  ? 'Kimi K2.5 is ready to use.' 
+                  : 'Kai requires an OpenRouter API key to function. Get one at openrouter.ai'}
+              </p>
+              {!hasOpenRouterKey && (
+                <a 
+                  href="https://openrouter.ai/keys" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-xs font-medium text-red-600 hover:underline"
+                >
+                  Get API Key <ExternalLink className="w-3 h-3" />
+                </a>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Email Setup Section */}
-      <div className="space-y-3">
+      <div className="space-y-3 border-t pt-4">
         <div className="flex items-center justify-between">
-          <h3 className="font-semibold text-kai-text flex items-center gap-2">
+          <h3 className="font-semibold text-foreground flex items-center gap-2">
             <Mail className="w-4 h-4" />
             Email Notifications
           </h3>
@@ -109,39 +163,31 @@ export function EnvSettings() {
         )}
       </div>
 
+      {/* All Environment Variables */}
       <div className="border-t pt-4">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="font-semibold text-kai-text flex items-center gap-2">
-            <Key className="w-4 h-4" />
-            Environment Variables
-          </h3>
-          <button
-            onClick={() => setShowExamples(!showExamples)}
-            className="text-sm text-primary hover:underline"
-          >
-            {showExamples ? 'Hide examples' : 'Show examples'}
-          </button>
-        </div>
+        <h3 className="font-semibold text-foreground flex items-center gap-2 mb-4">
+          <Key className="w-4 h-4" />
+          All Environment Variables
+        </h3>
 
-        {showExamples && (
-          <div className="p-3 bg-kai-bg rounded-lg space-y-2 mb-4">
-            <p className="text-xs text-muted-foreground">Common examples (click to use):</p>
-            {ENV_EXAMPLES.map((ex) => (
-              <button
-                key={ex.key}
-                onClick={() => {
-                  setNewKey(ex.key);
-                  setNewValue(ex.value);
-                  setShowExamples(false);
-                }}
-                className="block w-full text-left px-2 py-1.5 text-sm hover:bg-accent/20 rounded"
-              >
-                <span className="font-mono text-primary">{ex.key}</span>
-                <span className="text-muted-foreground ml-2">-- {ex.description}</span>
-              </button>
-            ))}
-          </div>
-        )}
+        {/* Quick Add Examples */}
+        <div className="p-3 bg-muted rounded-lg space-y-2 mb-4">
+          <p className="text-xs text-muted-foreground">Quick add (click to use):</p>
+          {API_KEY_EXAMPLES.map((ex) => (
+            <button
+              key={ex.key}
+              onClick={() => {
+                setNewKey(ex.key);
+                setNewValue(ex.value);
+              }}
+              className="block w-full text-left px-2 py-1.5 text-sm hover:bg-accent/20 rounded"
+            >
+              <span className="font-mono text-primary">{ex.key}</span>
+              <span className="text-muted-foreground ml-2">-- {ex.description}</span>
+              {ex.link && <ExternalLink className="w-3 h-3 inline ml-1 text-muted-foreground" />}
+            </button>
+          ))}
+        </div>
 
         <div className="flex gap-2">
           <input
@@ -149,19 +195,19 @@ export function EnvSettings() {
             placeholder="KEY"
             value={newKey}
             onChange={(e) => setNewKey(e.target.value)}
-            className="px-3 py-2 bg-kai-bg border border-border rounded-lg text-sm font-mono"
+            className="px-3 py-2 bg-background border border-border rounded-lg text-sm font-mono"
           />
           <input
             type="text"
             placeholder="value"
             value={newValue}
             onChange={(e) => setNewValue(e.target.value)}
-            className="flex-1 px-3 py-2 bg-kai-bg border border-border rounded-lg text-sm font-mono"
+            className="flex-1 px-3 py-2 bg-background border border-border rounded-lg text-sm font-mono"
           />
           <button
             onClick={() => setMutation.mutate({ key: newKey, value: newValue })}
             disabled={!newKey || setMutation.isPending}
-            className="px-4 py-2 bg-kai-teal text-white rounded-lg text-sm hover:bg-primary/90 disabled:opacity-50"
+            className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm hover:bg-primary/90 disabled:opacity-50"
           >
             <Plus className="w-4 h-4" />
           </button>
@@ -176,7 +222,7 @@ export function EnvSettings() {
               : value;
             
             return (
-              <div key={key} className="flex items-center justify-between p-2 bg-kai-bg rounded-lg min-w-0">
+              <div key={key} className="flex items-center justify-between p-2 bg-muted rounded-lg min-w-0">
                 <div className="flex items-center gap-2 font-mono text-sm min-w-0 flex-1">
                   <span className="text-primary font-medium shrink-0">{key}</span>
                   <span className="text-muted-foreground shrink-0">=</span>
@@ -207,6 +253,7 @@ export function EnvSettings() {
             <div className="text-muted-foreground text-center py-8">
               <Key className="w-12 h-12 mx-auto mb-3 text-muted-foreground" />
               <p>No environment variables set</p>
+              <p className="text-xs mt-1">Add your OPENROUTER_API_KEY to get started</p>
             </div>
           )}
         </div>

@@ -14,11 +14,10 @@ export interface McpConfig {
 
 export interface KaiConfig {
   /**
-   * Primary chat model. Format: "provider:model-id" or just "model-id".
+   * Model override. Usually not needed — Kai uses Kimi K2.5 by default.
    * Examples:
-   *   "fireworks:accounts/fireworks/routers/kimi-k2p5-turbo"
-   *   "openrouter:moonshotai/kimi-k2.5"
-   *   "accounts/fireworks/routers/kimi-k2p5-turbo"  (defaults to fireworks)
+   *   "moonshotai/kimi-k2.5"  (OpenRouter default)
+   *   "accounts/fireworks/routers/kimi-k2p5-turbo"  (Fireworks, requires FIREWORKS_API_KEY)
    */
   model?: string;
   imageModel?: string;

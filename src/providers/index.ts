@@ -12,10 +12,13 @@ import {
 /**
  * Provider resolution.
  *
- * The config `model` field supports:
- *   "fireworks:accounts/fireworks/routers/kimi-k2p5-turbo"
- *   "openrouter:moonshotai/kimi-k2.5"
- *   "accounts/fireworks/routers/kimi-k2p5-turbo"  (no prefix → fireworks)
+ * Kai uses a primary/fallback provider model:
+ * - Primary: OpenRouter with Kimi K2.5 (OPENROUTER_API_KEY required)
+ * - Optional: Fireworks with Kimi K2.5 Turbo (FIREWORKS_API_KEY) - takes precedence if set
+ *
+ * The config `model` field can override the model ID:
+ *   "moonshotai/kimi-k2.5"  (OpenRouter default)
+ *   "accounts/fireworks/routers/kimi-k2p5-turbo"  (Fireworks)
  */
 
 export interface ResolvedProvider {
@@ -27,85 +30,97 @@ export interface ResolvedProvider {
 type ProviderName = "fireworks" | "openrouter";
 
 /**
- * Parse a "provider:model" string. If no prefix, defaults to fireworks.
+ * Get OpenRouter API key - required for Kai to function.
+ * On first run, this will trigger onboarding.
  */
-function parseModelSpec(spec: string): { provider: ProviderName; model: string } {
-  const colonIdx = spec.indexOf(":");
-  if (colonIdx > 0) {
-    const prefix = spec.substring(0, colonIdx).toLowerCase();
-    const model = spec.substring(colonIdx + 1);
-    if (prefix === "openrouter" || prefix === "fireworks") {
-      return { provider: prefix, model };
-    }
-  }
-  // No recognized prefix — default to fireworks
-  return { provider: "fireworks", model: spec };
-}
-
-function getFireworksKey(): string {
-  const key = process.env.FIREWORKS_API_KEY || "";
-  if (!key) {
-    console.error(chalk.red("\n  Error: FIREWORKS_API_KEY is not set."));
-    console.error(chalk.dim("  1. Get a key at https://fireworks.ai"));
-    console.error(chalk.dim("  2. Add it to your .env file: FIREWORKS_API_KEY=fw_...\n"));
-    process.exit(1);
-  }
-  return key;
-}
-
-function getOpenRouterKey(): string {
+export function getOpenRouterKey(): string {
   const key = process.env.OPENROUTER_API_KEY || "";
   if (!key) {
     console.error(chalk.red("\n  Error: OPENROUTER_API_KEY is not set."));
-    console.error(chalk.dim("  Add it to your .env file: OPENROUTER_API_KEY=sk-or-...\n"));
+    console.error(chalk.dim("  1. Get a free key at https://openrouter.ai/keys"));
+    console.error(chalk.dim("  2. Add it to your ~/.kai/.env file:"));
+    console.error(chalk.dim("     OPENROUTER_API_KEY=sk-or-...\n"));
+    console.error(chalk.dim("  Kai requires OpenRouter to function.\n"));
     process.exit(1);
   }
   return key;
 }
 
 /**
- * Resolve the primary chat provider based on config.
+ * Get Fireworks API key - optional, but takes precedence if present.
  */
-export function resolveProvider(): ResolvedProvider {
-  const config = getConfig();
-  const modelSpec = config.model || `fireworks:${DEFAULT_FIREWORKS_MODEL}`;
-  const { provider, model } = parseModelSpec(modelSpec);
-
-  if (provider === "openrouter") {
-    return {
-      client: new OpenAI({
-        apiKey: getOpenRouterKey(),
-        baseURL: config.openrouterBaseUrl || DEFAULT_OPENROUTER_BASE_URL,
-      }),
-      model,
-      providerName: "openrouter",
-    };
-  }
-
-  // Default: fireworks
-  return {
-    client: new OpenAI({
-      apiKey: getFireworksKey(),
-      baseURL: config.fireworksBaseUrl || DEFAULT_FIREWORKS_BASE_URL,
-    }),
-    model,
-    providerName: "fireworks",
-  };
+function getFireworksKey(): string | null {
+  return process.env.FIREWORKS_API_KEY || null;
 }
 
 /**
- * Build an OpenRouter fallback provider using Kimi K2.5.
+ * Build an OpenRouter provider using Kimi K2.5.
  */
-function buildOpenRouterFallback(): ResolvedProvider {
+function buildOpenRouterProvider(model?: string): ResolvedProvider {
   const config = getConfig();
   return {
     client: new OpenAI({
       apiKey: getOpenRouterKey(),
       baseURL: config.openrouterBaseUrl || DEFAULT_OPENROUTER_BASE_URL,
     }),
-    model: DEFAULT_OPENROUTER_MODEL,
+    model: model || config.model || DEFAULT_OPENROUTER_MODEL,
     providerName: "openrouter",
   };
+}
+
+/**
+ * Build a Fireworks provider using Kimi K2.5 Turbo.
+ */
+function buildFireworksProvider(model?: string): ResolvedProvider {
+  const config = getConfig();
+  const key = getFireworksKey();
+  if (!key) {
+    throw new Error("FIREWORKS_API_KEY not set");
+  }
+  return {
+    client: new OpenAI({
+      apiKey: key,
+      baseURL: config.fireworksBaseUrl || DEFAULT_FIREWORKS_BASE_URL,
+    }),
+    model: model || DEFAULT_FIREWORKS_MODEL,
+    providerName: "fireworks",
+  };
+}
+
+/**
+ * Resolve the primary chat provider.
+ *
+ * Priority:
+ * 1. If FIREWORKS_API_KEY is set, use Fireworks as primary (faster, cheaper)
+ * 2. Otherwise, use OpenRouter as primary (always works with just OpenRouter key)
+ *
+ * OpenRouter is always available as fallback if Fireworks is unreachable.
+ */
+export function resolveProvider(): ResolvedProvider {
+  const config = getConfig();
+
+  // If user explicitly set a model in config, respect it
+  if (config.model) {
+    // Check if it looks like a Fireworks model path
+    if (config.model.includes("fireworks") || config.model.includes("accounts/")) {
+      const key = getFireworksKey();
+      if (key) {
+        return buildFireworksProvider(config.model);
+      }
+      // Fall through to OpenRouter if Fireworks key not available
+    }
+    // Otherwise treat as OpenRouter model
+    return buildOpenRouterProvider(config.model);
+  }
+
+  // Default behavior: Fireworks takes precedence if key present
+  const fireworksKey = getFireworksKey();
+  if (fireworksKey) {
+    return buildFireworksProvider();
+  }
+
+  // OpenRouter is the default/fallback
+  return buildOpenRouterProvider();
 }
 
 /**
@@ -130,16 +145,9 @@ export async function resolveProviderWithFallback(): Promise<ResolvedProvider> {
     // Network error or timeout — fall through
   }
 
-  // Fireworks is down — try OpenRouter fallback
-  const orKey = process.env.OPENROUTER_API_KEY;
-  if (!orKey) {
-    console.error(chalk.yellow("\n  ⚠ Fireworks API is unreachable and OPENROUTER_API_KEY is not set."));
-    console.error(chalk.yellow("  Continuing with Fireworks (requests may fail).\n"));
-    return primary;
-  }
-
+  // Fireworks is down — fallback to OpenRouter
   console.error(chalk.yellow("  ⚠ Fireworks API is unreachable — falling back to OpenRouter (Kimi K2.5)\n"));
-  return buildOpenRouterFallback();
+  return buildOpenRouterProvider();
 }
 
 /**

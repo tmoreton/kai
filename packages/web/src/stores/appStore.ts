@@ -67,7 +67,7 @@ export const useAppStore = create<AppState>()(
       currentSessionId: null,
       streamingSessions: new Set(),
       commandPaletteOpen: false,
-      selectedModel: 'accounts/fireworks/models/deepseek-v3',
+      selectedModel: 'moonshotai/kimi-k2.5', // Default: Kimi K2.5 via OpenRouter
       selectedPersonaId: null,
       selectedAgentId: null,
       agentsViewMode: 'grouped',

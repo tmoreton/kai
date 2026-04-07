@@ -8,7 +8,7 @@ import { fileURLToPath } from "url";
 
 // Kai modules
 import { getModelId, getProviderName, initProvider } from "../client.js";
-import { DEFAULT_FIREWORKS_MODEL } from "../constants.js";
+import { DEFAULT_FIREWORKS_MODEL, DEFAULT_OPENROUTER_MODEL } from "../constants.js";
 import { getConfig } from "../config.js";
 import { getCwd } from "../tools/bash.js";
 import { initMcpServers } from "../tools/index.js";
@@ -107,6 +107,9 @@ export async function startServer(options: ServerOptions): Promise<void> {
       ui: ui,
       tailscale: tailscale,
       funnel: funnel,
+      // Include key status for onboarding
+      hasOpenRouterKey: !!process.env.OPENROUTER_API_KEY,
+      hasFireworksKey: !!process.env.FIREWORKS_API_KEY,
     });
   });
 
@@ -123,8 +126,11 @@ export async function startServer(options: ServerOptions): Promise<void> {
   // --- Model info ---
   app.get("/api/model", (c) => {
     const cfg = getConfig();
-    const model = cfg.model || DEFAULT_FIREWORKS_MODEL;
-    return c.json({ model, provider: "fireworks" });
+    const fireworksKey = process.env.FIREWORKS_API_KEY;
+    // Default: OpenRouter Kimi K2.5. Fireworks takes precedence if key present.
+    const model = cfg.model || (fireworksKey ? DEFAULT_FIREWORKS_MODEL : DEFAULT_OPENROUTER_MODEL);
+    const provider = fireworksKey && !cfg.model?.includes("openrouter") ? "fireworks" : "openrouter";
+    return c.json({ model, provider });
   });
 
   // Register route modules

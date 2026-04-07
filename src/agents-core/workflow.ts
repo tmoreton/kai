@@ -997,7 +997,7 @@ async function executeNotifyStep(step: WorkflowStep, ctx: WorkflowContext): Prom
   }
 
   // Also check for common file output variables in context
-  const fileVars = ["thumbnail", "thumbnail_path", "generated_images", "output_file", "script_file", "output_dir", "save_path"];
+  const fileVars = ["thumbnail", "thumbnail_path", "generated_images", "output_file", "script_file", "output_dir", "save_path", "path_a", "path_b", "path"];
   for (const varName of fileVars) {
     const val = ctx.vars[varName];
     if (!val || (typeof val === "string" && val.startsWith("${"))) continue;

@@ -107,18 +107,19 @@ export async function runDoctor(): Promise<void> {
   }
 
   // API Keys
-  const fireworksKey = process.env.FIREWORKS_API_KEY;
-  checks.push({
-    name: "FIREWORKS_API_KEY",
-    status: fireworksKey ? "ok" : "fail",
-    detail: fireworksKey ? `set (${fireworksKey.substring(0, 8)}...)` : "missing — required for LLM access",
-  });
-
+  // OpenRouter is now required, Fireworks is optional (takes precedence if present)
   const openrouterKey = process.env.OPENROUTER_API_KEY;
   checks.push({
     name: "OPENROUTER_API_KEY",
-    status: openrouterKey ? "ok" : "warn",
-    detail: openrouterKey ? `set (${openrouterKey.substring(0, 8)}...)` : "missing — image generation will not work",
+    status: openrouterKey ? "ok" : "fail",
+    detail: openrouterKey ? `set (${openrouterKey.substring(0, 8)}...)` : "missing — required. Get one at openrouter.ai/keys",
+  });
+
+  const fireworksKey = process.env.FIREWORKS_API_KEY;
+  checks.push({
+    name: "FIREWORKS_API_KEY",
+    status: fireworksKey ? "ok" : "warn",
+    detail: fireworksKey ? `set (${fireworksKey.substring(0, 8)}...) — primary provider` : "optional — speeds up responses if set",
   });
 
   const tavilyKey = process.env.TAVILY_API_KEY;

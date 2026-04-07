@@ -144,6 +144,18 @@ export function markAllStuckRunsFailed(agentId: string, staleMinutes = 30): numb
   return result.changes;
 }
 
+/**
+ * Delete old failed runs after a successful retry to prevent re-retry loops.
+ */
+export function deleteOldFailedRuns(agentId: string, keepHours = 1): number {
+  const cutoff = new Date(Date.now() - keepHours * 60 * 60 * 1000).toISOString();
+  const result = getDb().prepare(`
+    DELETE FROM runs
+    WHERE agent_id = ? AND status = 'failed' AND started_at < ?
+  `).run(agentId, cutoff);
+  return result.changes;
+}
+
 export function getLatestRuns(agentId: string, limit = 10): RunRecord[] {
   return getDb().prepare(
     "SELECT * FROM runs WHERE agent_id = ? ORDER BY started_at DESC LIMIT ?"
