@@ -122,10 +122,8 @@ export function LandingPage() {
   };
 
   const handleDownload = () => {
-    const url = getDownloadUrl();
-    if (url) {
-      window.location.href = url;
-    }
+    // Link to GitHub releases for all platforms
+    window.open(`https://github.com/${GITHUB_REPO}/releases/latest`, '_blank');
   };
 
   const features = [
@@ -258,7 +256,7 @@ export function LandingPage() {
           {/* Badge */}
           <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-teal-500/10 border border-teal-500/20 mb-8">
             <Sparkles className="w-4 h-4 text-teal-400" />
-            <span className="text-sm font-medium text-teal-400">Now Available for macOS</span>
+            <span className="text-sm font-medium text-teal-400">Now Available — macOS, Windows & Linux</span>
           </div>
 
           {/* Main Headline */}
@@ -282,11 +280,10 @@ export function LandingPage() {
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-12">
             <button
               onClick={handleDownload}
-              disabled={downloadInfo.loading}
-              className="group flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-teal-500 to-teal-600 hover:from-teal-400 hover:to-teal-500 rounded-xl font-semibold text-white shadow-lg shadow-teal-500/25 transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="group flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-teal-500 to-teal-600 hover:from-teal-400 hover:to-teal-500 rounded-xl font-semibold text-white shadow-lg shadow-teal-500/25 transition-all hover:scale-105"
             >
               <Download className="w-5 h-5 group-hover:animate-bounce" />
-              {downloadInfo.loading ? "Loading..." : "Download for Mac"}
+              Download Desktop App
               <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
             </button>
             <a
@@ -300,10 +297,32 @@ export function LandingPage() {
             </a>
           </div>
 
+          {/* Platform icons */}
+          <div className="flex items-center justify-center gap-6 mb-4">
+            <div className="flex items-center gap-2 text-sm text-slate-400">
+              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/>
+              </svg>
+              macOS
+            </div>
+            <div className="flex items-center gap-2 text-sm text-slate-400">
+              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.9-1.801"/>
+              </svg>
+              Windows
+            </div>
+            <div className="flex items-center gap-2 text-sm text-slate-400">
+              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12.504 0c-.155 0-.315.008-.48.021-4.226.333-3.105 4.807-3.17 6.298-.076 1.092-.3 1.953-1.05 3.02-.885 1.051-2.127 2.75-2.716 4.521-.278.832-.41 1.684-.287 2.489.117.779.444 1.485.877 2.059.784 1.038 1.93 1.78 3.204 2.145 1.353.388 2.853.136 4.258-.346 1.031-.363 2.048-.921 3.005-1.596 1.412-.993 2.491-2.288 3.233-3.752.7-1.381 1.055-2.874 1.055-4.407 0-1.809-.482-3.553-1.353-5.107-.726-1.302-1.782-2.426-3.053-3.251C15.495.857 14.063.265 12.504 0z"/>
+              </svg>
+              Linux
+            </div>
+          </div>
+
           {/* Version info */}
           {!downloadInfo.loading && downloadInfo.version && (
             <p className="text-sm text-slate-500">
-              Latest release: {downloadInfo.version} • Intel & Apple Silicon
+              Latest release: {downloadInfo.version}
             </p>
           )}
 
