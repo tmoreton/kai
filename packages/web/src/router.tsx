@@ -13,10 +13,10 @@ import { AgentDetail } from "./routes/AgentDetail";
 import { SettingsView } from "./routes/SettingsView";
 import { NotificationsView } from "./routes/NotificationsView";
 import { AgentEditor } from "./routes/AgentEditor";
-import { DocsView } from "./routes/DocsView";
 import { WorkflowView } from "./routes/WorkflowView";
 import { LandingPage } from "./routes/LandingPage";
 import { Onboarding } from "./routes/Onboarding";
+import { DocsView } from "./routes/DocsView";
 
 // Wrapper component to add ErrorBoundary to routes
 const withErrorBoundary = (Component: React.ComponentType) => (

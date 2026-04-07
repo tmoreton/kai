@@ -2,7 +2,7 @@
 
 AI coding assistant with persistent memory, background agents, and tool use. Powered by OpenRouter.
 
-> 📖 **Non-technical user?** Check out the [Simple Chat UI Guide](CHAT_UI_GUIDE.md) — no coding experience required!
+> 📖 **Full documentation:** https://kai-docs-three.vercel.app/ — guides for Web UI, CLI, and Skills
 
 ## Quick Start
 
