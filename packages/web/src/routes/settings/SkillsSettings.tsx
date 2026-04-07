@@ -113,11 +113,9 @@ export const version = "1.0.0";`);
     createMutation.mutate({ name: skillName, description: skillDescription, code: skillCode });
   };
 
-  // Get installed skill IDs for quick lookup
-  const installedSkillIds = new Set(settings.skills.map((s: Skill) => s.id));
-
-  // Available skills from registry (filter out installed)
-  const availableSkills = (availableData?.skills || []).filter((s: any) => !installedSkillIds.has(s.id));
+  // Available skills from registry (filter out already installed)
+  // API returns `installed` flag - use that instead of separate lookup
+  const availableSkills = (availableData?.skills || []).filter((s: any) => !s.installed);
 
   const installSkill = (skillId: string) => {
     // Use shorthand format: kai:skill-id

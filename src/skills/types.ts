@@ -44,7 +44,7 @@ export interface SkillConfigField {
 export interface SkillHandler {
   install?: (config: Record<string, any>) => Promise<void>;
   uninstall?: () => Promise<void>;
-  actions: Record<string, (params: Record<string, any>) => Promise<string>>;
+  actions: Record<string, (params: Record<string, any>, config: Record<string, any>) => Promise<string | { content: string }>>;
 }
 
 /**

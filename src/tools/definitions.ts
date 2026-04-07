@@ -336,12 +336,14 @@ export const toolDefinitions = [
     },
   },
   // === IMAGE GENERATION ===
+  // Note: generate_image is now provided by the openrouter skill
+  // Install with: kai skill install openrouter
   {
     type: "function" as const,
     function: {
       name: "generate_image",
       description:
-        "Generate images via OpenRouter (Nano Banana). Describe the scene naturally.",
+        "Generate images via OpenRouter (Gemini 3 Pro Image Preview). Describe the scene naturally. Install openrouter skill for full functionality.",
       parameters: {
         type: "object",
         properties: {
@@ -363,7 +365,7 @@ export const toolDefinitions = [
           },
           output_dir: {
             type: "string",
-            description: "Directory to save generated images. Leave empty to use the default ~/.kai/agent-output/thumbnails. Do NOT use ~/kai/ (without dot).",
+            description: "Directory to save generated images. Leave empty to use the default ~/.kai/agent-output/thumbnails.",
           },
         },
         required: ["prompt"],

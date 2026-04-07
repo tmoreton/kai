@@ -34,7 +34,7 @@ import {
 import { isPlanMode } from "./plan-mode.js";
 import { autoRoute, applyRoute } from "./auto-route.js";
 import { recordError, installGlobalErrorHandlers } from "./error-tracker.js";
-import { resolveFilePath, expandHome } from "./utils.js";
+import { resolveFilePath, expandHome, sleep } from "./utils.js";
 import { bootstrapBuiltinAgents } from "./agents-core/bootstrap.js";
 import { SLASH_COMMANDS, handleCommand } from "./repl-commands.js";
 import { startSpinner, stopSpinner, renderToolCard, renderAssistantMarker, clearLine, COLOR_THEME, MarkdownStreamBuffer } from "./render/stream.js";
@@ -71,6 +71,99 @@ export interface ReplOptions {
   sessionName?: string;
   autoApprove?: boolean;
   unleash?: boolean;
+}
+
+interface SelfHealResult {
+  success: boolean;
+  messages: any[];
+}
+
+/**
+ * Self-healing recovery for API connection errors.
+ * Tries: wait + retry → fallback provider → compact context → return failure
+ */
+async function attemptSelfHeal(
+  client: any,
+  originalMessages: any[],
+  originalInput: string,
+  options?: { signal?: AbortSignal }
+): Promise<SelfHealResult> {
+  const SELF_HEAL_MAX_RETRIES = 3;
+  const BACKOFF_DELAYS = [2000, 5000, 10000]; // Progressive backoff
+  
+  // Strategy 1: Retry with exponential backoff
+  for (let attempt = 0; attempt < SELF_HEAL_MAX_RETRIES; attempt++) {
+    if (options?.signal?.aborted) {
+      return { success: false, messages: originalMessages };
+    }
+    
+    if (attempt > 0) {
+      const delay = BACKOFF_DELAYS[attempt - 1] || 10000;
+      console.log(chalk.dim(`  ...retry ${attempt}/${SELF_HEAL_MAX_RETRIES} after ${delay}ms`));
+      await sleep(delay);
+    }
+    
+    try {
+      const messages = [...originalMessages];
+      const updatedMessages = await chat(client, messages, () => {}, { 
+        signal: options?.signal,
+        maxTurns: 5 // Limit tool calls during recovery
+      });
+      
+      // Success - return healed messages
+      return { success: true, messages: updatedMessages };
+    } catch (retryErr: unknown) {
+      const msg = retryErr instanceof Error ? retryErr.message : String(retryErr);
+      
+      // If it's not a connection error, don't keep retrying
+      const stillConnectionError = msg.includes("Connection error") || 
+                                   msg.includes("ECONNREFUSED") || 
+                                   msg.includes("ETIMEDOUT");
+      if (!stillConnectionError) {
+        break; // Different error, stop retrying
+      }
+      // Continue to next retry attempt
+    }
+  }
+  
+  // Strategy 2: Try to re-initialize provider with fallback
+  console.log(chalk.dim(`  ...trying provider fallback`));
+  try {
+    const { initProvider } = await import("./client.js");
+    const { resolveProviderWithFallback } = await import("./providers/index.js");
+    
+    // Force re-initialize with fallback
+    await initProvider();
+    
+    const messages = [...originalMessages];
+    const updatedMessages = await chat(client, messages, () => {}, { 
+      signal: options?.signal,
+      maxTurns: 5
+    });
+    
+    return { success: true, messages: updatedMessages };
+  } catch (fallbackErr) {
+    // Fallback also failed
+  }
+  
+  // Strategy 3: If context is large, try compacting and retrying once more
+  const contextTokens = estimateContextSize(originalMessages);
+  if (contextTokens > 100_000) {
+    console.log(chalk.dim(`  ...compacting context (${Math.round(contextTokens/1000)}k tokens)`));
+    try {
+      const compacted = compactMessages(originalMessages);
+      const updatedMessages = await chat(client, compacted, () => {}, { 
+        signal: options?.signal,
+        maxTurns: 5
+      });
+      return { success: true, messages: updatedMessages };
+    } catch (compactErr) {
+      // Compacted retry also failed
+    }
+  }
+  
+  // All strategies failed
+  return { success: false, messages: originalMessages };
 }
 
 export async function startRepl(options: ReplOptions = {}, initialPrompt?: string): Promise<void> {
@@ -488,9 +581,34 @@ export async function startRepl(options: ReplOptions = {}, initialPrompt?: strin
       session.messages = messages;
       saveSession(session);
     } catch (err: unknown) {
+      // Self-healing: auto-retry connection errors before showing user
+      const msg = err instanceof Error ? err.message : String(err);
+      const isConnectionError = msg.includes("Connection error") || 
+                                msg.includes("ECONNREFUSED") || 
+                                msg.includes("ETIMEDOUT") ||
+                                msg.includes("ENOTFOUND") ||
+                                msg.includes("network error") ||
+                                msg.includes("fetch failed");
+      
       // Ignore abort errors — user pressed Ctrl+C to stop
       if (err instanceof Error && (err.name === "AbortError" || err.message.includes("aborted"))) {
         // Chat was stopped by user — just re-prompt
+      } else if (isConnectionError) {
+        // Self-healing retry for connection errors
+        console.log(chalk.yellow(`\n  ⚠️ Connection issue detected. Attempting self-heal...\n`));
+        
+        const healed = await attemptSelfHeal(client, messages, input, { signal: chatAbort?.signal });
+        if (healed.success) {
+          console.log(chalk.green(`  ✓ Self-healed successfully\n`));
+          messages.length = 0;
+          messages.push(...healed.messages);
+          session.messages = messages;
+          saveSession(session);
+        } else {
+          console.error(chalk.red(`\n  Error: ${msg}\n`));
+          console.error(chalk.dim(`  Self-heal attempts failed. Try again in a moment.\n`));
+          recordError({ source: "repl", error: err, context: { sessionId: session.id, selfHealed: false } });
+        }
       } else {
         const msg = err instanceof Error ? err.message : String(err);
         console.error(chalk.red(`\n  Error: ${msg}\n`));

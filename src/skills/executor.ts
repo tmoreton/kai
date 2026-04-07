@@ -31,7 +31,7 @@ export async function tryExecuteSkillTool(
   }
 
   try {
-    const result = await actionFn(args as Record<string, any>);
+    const result = await actionFn(args as Record<string, any>, skill.config);
     // Skill handlers can return strings directly or { content: "..." } objects
     if (typeof result === "string") {
       return result;

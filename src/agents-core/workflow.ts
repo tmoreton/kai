@@ -24,6 +24,7 @@ import {
 import { saveCheckpoint, cleanupCheckpoints } from "../agents/checkpoint.js";
 import { resolveProvider, resolveProviderWithFallback, type ResolvedProvider } from "../providers/index.js";
 import { backoffDelay, sleep } from "../utils.js";
+import { getSkill } from "../skills/loader.js";
 import {
   RETRYABLE_STATUS_CODES,
   DEFAULT_OPENROUTER_MODEL,
@@ -778,8 +779,6 @@ async function executeLlmStep(step: WorkflowStep, ctx: WorkflowContext): Promise
 }
 
 async function executeSkillStep(step: WorkflowStep, ctx: WorkflowContext): Promise<any> {
-  const { getSkill } = await import("../skills/loader.js");
-  
   const skillId = step.skill || step.integration;
   if (!skillId) throw new Error("Skill step requires a 'skill' or 'integration' name");
 
@@ -809,7 +808,7 @@ async function executeSkillStep(step: WorkflowStep, ctx: WorkflowContext): Promi
     throw new Error(`Action "${toolName}" not found in skill "${skillId}" handler`);
   }
   
-  return await actionFn(params);
+  return await actionFn(params, skill.config);
 }
 
 /**

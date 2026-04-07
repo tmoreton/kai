@@ -277,7 +277,7 @@ function KaiApp({ options, initialPrompt, initSession, client, initMessages }: A
           onUsage: (input, output) => {
             recordUsage(input, output);
             const stats = getUsageStats();
-            const ctxTokens = estimateContextSize(updatedMessages);
+            const ctxTokens = estimateContextSize(msgs);
             const totalCtx = getContextWindowSize();
             setTokenInfo(`↑${fmt(stats.totalInput)} sent ↓${fmt(stats.totalOutput)} received • ${fmtPercent(ctxTokens, totalCtx)} context`);
           },

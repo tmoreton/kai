@@ -18,6 +18,31 @@ import type { SkillManifest, SkillHandler, LoadedSkill } from "./types.js";
 const skills = new Map<string, LoadedSkill>();
 
 /**
+ * Load environment variables from ~/.kai/.env file
+ * This makes vars set via the web UI available to skills
+ */
+function loadEnvFile(): Record<string, string> {
+  const envPath = path.join(ensureKaiDir(), ".env");
+  const vars: Record<string, string> = {};
+  try {
+    if (fs.existsSync(envPath)) {
+      const content = fs.readFileSync(envPath, "utf-8");
+      for (const line of content.split("\n")) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith("#")) continue;
+        const eq = trimmed.indexOf("=");
+        if (eq > 0) {
+          const key = trimmed.slice(0, eq).trim();
+          const value = trimmed.slice(eq + 1).trim();
+          vars[key] = value;
+        }
+      }
+    }
+  } catch {}
+  return vars;
+}
+
+/**
  * Get the skills directory path, creating it if needed.
  */
 export function skillsDir(): string {
@@ -35,7 +60,7 @@ export async function loadAllSkills(): Promise<void> {
 
   const entries = fs.readdirSync(dir, { withFileTypes: true });
   for (const entry of entries) {
-    if (!entry.isDirectory()) continue;
+    if (!entry.isDirectory() && !entry.isSymbolicLink()) continue;
     const skillPath = path.join(dir, entry.name);
     try {
       await loadSkill(skillPath);
@@ -109,12 +134,15 @@ export async function loadSkill(skillPath: string): Promise<LoadedSkill> {
     handler = { actions: {} };
   }
 
-  // Resolve config from environment variables
-  // Check order: field.env → bare key (e.g. SMTP_HOST) → default
+  // Resolve config from environment variables and ~/.kai/.env file
+  // Check order: field.env → bare key → env file → default
+  const envFileVars = loadEnvFile();
   const config: Record<string, any> = {};
   if (manifest.config_schema) {
     for (const [key, field] of Object.entries(manifest.config_schema)) {
-      const value = (field.env && process.env[field.env]) || process.env[key];
+      const value = (field.env && (process.env[field.env] || envFileVars[field.env])) || 
+                    process.env[key] || 
+                    envFileVars[key];
       if (value !== undefined) {
         config[key] = value;
       } else if (field.default !== undefined) {

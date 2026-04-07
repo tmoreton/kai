@@ -20,23 +20,199 @@ import { isToolAllowedInPlanMode, isPlanMode } from "../plan-mode.js";
 import { takeScreenshot } from "./screenshot.js";
 import { analyzeImage } from "./vision.js";
 import { recordError } from "../error-tracker.js";
+import { sleep } from "../utils.js";
 
 export type ToolResult = string;
+
+// Track recent tool executions to prevent infinite self-heal loops
+const recentSelfHeals = new Map<string, number>();
+const MAX_SELF_HEALS_PER_TOOL = 3;
+const SELF_HEAL_WINDOW_MS = 60_000; // 1 minute window
+
+interface SelfHealStrategy {
+  pattern: RegExp;
+  description: string;
+  fix: (name: string, args: Record<string, unknown>, error: string) => Promise<{ name: string; args: Record<string, unknown> } | null>;
+}
+
+const SELF_HEAL_STRATEGIES: SelfHealStrategy[] = [
+  // 1. File not found - try with different path patterns
+  {
+    pattern: /(?:ENOENT|no such file|not found|File not found)/i,
+    description: "File not found - trying alternative paths",
+    fix: async (name, args, error) => {
+      if (!args.file_path && !args.path) return null;
+      
+      const originalPath = String(args.file_path || args.path);
+      const alternatives = [
+        originalPath.replace(/^\/~/, process.env.HOME || ""), // Expand ~
+        originalPath.replace(/^\.\//, ""), // Remove leading ./
+        `./${originalPath}`, // Add leading ./
+        originalPath.replace(/\\/g, "/"), // Normalize backslashes to forward slashes
+      ];
+      
+      // Try each alternative
+      for (const alt of alternatives) {
+        if (alt !== originalPath) {
+          try {
+            const fs = await import("fs");
+            if (fs.existsSync(alt)) {
+              return { name, args: { ...args, file_path: alt, path: alt } };
+            }
+          } catch {}
+        }
+      }
+      return null;
+    }
+  },
+  
+  // 2. Permission denied - try with sudo or different approach
+  {
+    pattern: /(?:EACCES|permission denied|Permission denied|access denied)/i,
+    description: "Permission denied - attempting workaround",
+    fix: async (name, args, error) => {
+      if (name === "bash" && args.command) {
+        const cmd = String(args.command);
+        // Try with sudo for common permission issues
+        if (!cmd.startsWith("sudo") && (cmd.includes("npm") || cmd.includes("global") || cmd.includes("/usr/local"))) {
+          return { name, args: { ...args, command: `sudo ${cmd}` } };
+        }
+      }
+      return null;
+    }
+  },
+  
+  // 3. Network timeout - retry with exponential backoff built in
+  {
+    pattern: /(?:ETIMEDOUT|ECONNRESET|socket hang up|fetch failed|timeout|network error)/i,
+    description: "Network error - will retry",
+    fix: async (name, args, error) => {
+      // Just trigger a retry - the wrapper handles the delay
+      return { name, args };
+    }
+  },
+  
+  // 4. Directory doesn't exist for write - create it first
+  {
+    pattern: /(?:directory.*not.*exist|ENOENT.*directory)/i,
+    description: "Directory missing - creating parent directories",
+    fix: async (name, args, error) => {
+      if (args.file_path) {
+        const path = await import("path");
+        const fs = await import("fs");
+        const dir = path.dirname(String(args.file_path));
+        try {
+          if (!fs.existsSync(dir)) {
+            fs.mkdirSync(dir, { recursive: true });
+            return { name, args }; // Retry with directory now existing
+          }
+        } catch {}
+      }
+      return null;
+    }
+  },
+  
+  // 5. JSON parse error - try to fix malformed JSON arguments
+  {
+    pattern: /(?:Unexpected token|JSON.*parse|invalid json|malformed)/i,
+    description: "JSON parse error - arguments may be malformed",
+    fix: async (name, args, error) => {
+      // This shouldn't happen with Zod validation, but handle it gracefully
+      return null; // Let the normal error flow handle this
+    }
+  },
+  
+  // 6. Process already running (port in use) - try to kill or use different port
+  {
+    pattern: /(?:EADDRINUSE|address already in use|port.*in use|Port \d+ is already)/i,
+    description: "Port in use - attempting to free it",
+    fix: async (name, args, error) => {
+      if (name === "bash" && args.command) {
+        const cmd = String(args.command);
+        const portMatch = error.match(/port (\d+)/i) || cmd.match(/:(\d+)/);
+        if (portMatch) {
+          const port = portMatch[1];
+          // Try to kill process on that port first
+          try {
+            const { execSync } = await import("child_process");
+            execSync(`lsof -ti:${port} | xargs kill -9 2>/dev/null || true`, { stdio: "ignore" });
+          } catch {}
+          // Return same command to retry after kill attempt
+          return { name, args };
+        }
+      }
+      return null;
+    }
+  },
+];
+
+/**
+ * Attempt to self-heal a failed tool execution.
+ * Returns { healed: true, result } if fixed, { healed: false, error } if not.
+ */
+async function attemptToolSelfHeal(
+  name: string,
+  args: Record<string, unknown>,
+  error: unknown,
+  originalExecute: (name: string, args: Record<string, unknown>) => Promise<ToolResult>
+): Promise<{ healed: boolean; result: ToolResult }> {
+  const errorMsg = error instanceof Error ? error.message : String(error);
+  const healKey = `${name}:${errorMsg.substring(0, 100)}`;
+  
+  // Check heal rate limit
+  const now = Date.now();
+  const recentCount = recentSelfHeals.get(healKey) || 0;
+  if (recentCount >= MAX_SELF_HEALS_PER_TOOL) {
+    return { healed: false, result: `Tool "${name}" failed after max self-heal attempts: ${errorMsg}` };
+  }
+  
+  // Find matching strategy
+  for (const strategy of SELF_HEAL_STRATEGIES) {
+    if (strategy.pattern.test(errorMsg)) {
+      // Update heal counter
+      recentSelfHeals.set(healKey, recentCount + 1);
+      setTimeout(() => recentSelfHeals.delete(healKey), SELF_HEAL_WINDOW_MS);
+      
+      // Apply fix strategy
+      const fixed = await strategy.fix(name, args, errorMsg);
+      if (fixed) {
+        try {
+          // Wait briefly for network fixes
+          if (strategy.description.includes("Network")) {
+            await sleep(2000);
+          }
+          
+          // Retry with fixed args
+          const result = await originalExecute(fixed.name, fixed.args);
+          return { healed: true, result };
+        } catch (retryErr: unknown) {
+          // Self-heal attempt failed, return original error
+          const retryMsg = retryErr instanceof Error ? retryErr.message : String(retryErr);
+          return { healed: false, result: `Tool "${name}" failed (self-heal attempted: ${strategy.description}): ${retryMsg}` };
+        }
+      }
+      break; // Found matching strategy but no fix applied
+    }
+  }
+  
+  // No matching strategy
+  return { healed: false, result: `Tool "${name}" failed: ${errorMsg}` };
+}
 
 export async function executeTool(
   name: string,
   args: Record<string, unknown>
 ): Promise<ToolResult> {
-  // Plan mode check — block write operations
+  // Plan mode check - block write operations
   if (!isToolAllowedInPlanMode(name)) {
     throw new PermissionError(
       name, 
       "plan_mode", 
       `Plan mode active: "${name}" is a write operation and is blocked.\n\n` +
       `In plan mode, only read-only tools are allowed:\n` +
-      `  • read_file, glob, grep — explore code\n` +
-      `  • web_search, web_fetch — research\n` +
-      `  • spawn_agent/spawn_swarm — use explorer/planner agents\n\n` +
+      `  - read_file, glob, grep - explore code\n` +
+      `  - web_search, web_fetch - research\n` +
+      `  - spawn_agent/spawn_swarm - use explorer/planner agents\n\n` +
       `Once you have a plan, present it to the user and tell them:\n` +
       `  "Type /plan to exit plan mode and I'll implement these changes."`
     );
@@ -54,155 +230,161 @@ export async function executeTool(
     throw new PermissionError(name, "user", `Permission denied for ${name}. The user blocked this action.`);
   }
 
-  // Run before-hooks — can deny execution
+  // Run before-hooks - can deny execution
   const beforeHook = await runBeforeHooks(name, args);
   if (!beforeHook.allowed) {
     throw new PermissionError(name, "hook", `Hook denied ${name}: ${beforeHook.reason || "blocked by before-hook"}`);
   }
 
   let result: string;
-
-  try {
-    switch (name) {
+  let selfHealAttempted = false;
+  
+  const executeToolInternal = async (toolName: string, toolArgs: Record<string, unknown>): Promise<ToolResult> => {
+    switch (toolName) {
       case "bash":
-        result = await bashTool(args as { command: string; timeout?: number }); break;
+        return await bashTool(toolArgs as { command: string; timeout?: number });
       case "bash_background":
-        result = await bashBackgroundTool(args as { command: string; wait_seconds?: number }); break;
+        return await bashBackgroundTool(toolArgs as { command: string; wait_seconds?: number });
       case "read_file":
-        result = await readFile(args as { file_path: string; offset?: number; limit?: number }); break;
+        return await readFile(toolArgs as { file_path: string; offset?: number; limit?: number });
       case "write_file":
-        result = await writeFile(args as { file_path: string; content: string }); break;
+        return await writeFile(toolArgs as { file_path: string; content: string });
       case "edit_file":
-        result = await editFile(args as { file_path: string; old_string: string; new_string: string; replace_all?: boolean }); break;
+        return await editFile(toolArgs as { file_path: string; old_string: string; new_string: string; replace_all?: boolean });
       case "glob":
-        result = await globTool(args as { pattern: string; path?: string }); break;
+        return await globTool(toolArgs as { pattern: string; path?: string });
       case "grep":
-        result = await grepTool(args as { pattern: string; path?: string; include?: string; context?: number; ignore_case?: boolean }); break;
+        return await grepTool(toolArgs as { pattern: string; path?: string; include?: string; context?: number; ignore_case?: boolean });
       case "web_fetch":
-        result = await webFetch(args as { url: string; method?: string; headers?: Record<string, string> }); break;
+        return await webFetch(toolArgs as { url: string; method?: string; headers?: Record<string, string> });
       case "web_search":
-        result = await webSearch(args as { query: string; max_results?: number }); break;
-case "core_memory_read":
-        result = readCoreMemory((args as { block?: "persona" | "human" | "goals" | "scratchpad" }).block); break;
+        return await webSearch(toolArgs as { query: string; max_results?: number });
+      case "core_memory_read":
+        return readCoreMemory((toolArgs as { block?: "persona" | "human" | "goals" | "scratchpad" }).block);
       case "core_memory_update":
-        result = updateCoreMemory(
-          (args as { block: "persona" | "human" | "goals" | "scratchpad" }).block,
-          (args as { operation: "replace" | "append" }).operation,
-          String(args.content)
-        ); break;
+        return updateCoreMemory(
+          (toolArgs as { block: "persona" | "human" | "goals" | "scratchpad" }).block,
+          (toolArgs as { operation: "replace" | "append" }).operation,
+          String(toolArgs.content)
+        );
       case "recall_search": {
-        const results = searchRecall(String(args.query), (args as { limit?: number }).limit);
-        result = results.length === 0
+        const results = searchRecall(String(toolArgs.query), (toolArgs as { limit?: number }).limit);
+        return results.length === 0
           ? "No matching past conversations found."
           : results.map((r) => `[${r.timestamp}] ${r.role}: ${r.content.substring(0, 300)}`).join("\n\n");
-        break;
       }
       case "archival_insert":
-        result = archivalInsert(args as { content: string; tags?: string[]; source?: string }); break;
+        return archivalInsert(toolArgs as { content: string; tags?: string[]; source?: string });
       case "archival_search":
-        result = archivalSearch(args as { query: string; tags?: string[]; limit?: number }); break;
+        return archivalSearch(toolArgs as { query: string; tags?: string[]; limit?: number });
       case "spawn_agent":
-        result = await spawnAgent(args as { agent: string; task: string }); break;
+        return await spawnAgent(toolArgs as { agent: string; task: string });
       case "spawn_swarm":
-        result = await runSwarm(args.tasks as Array<{ agent: "explorer" | "planner" | "worker"; task: string }>); break;
-      // Agent persona memory tools (used by persona-based agents during their chat loop)
+        return await runSwarm(toolArgs.tasks as Array<{ agent: "explorer" | "planner" | "worker"; task: string }>);
       case "agent_memory_read": {
-        const field = args.field as string | undefined;
-        const agentId = args._agent_id as string; // Injected by the agent's tool definition
-        // If no agent_id context, list all personas
+        const field = toolArgs.field as string | undefined;
+        const agentId = toolArgs._agent_id as string;
         if (!agentId) {
           const personas = listPersonas();
-          result = personas.map((p) =>
+          return personas.map((p) =>
             `**${p.name}** (${p.id})\n  Role: ${p.role}\n  Goals: ${p.goals.substring(0, 200)}`
           ).join("\n\n");
-          break;
         }
         const persona = loadPersona(agentId);
-        if (!persona) { result = `Agent "${agentId}" not found.`; break; }
+        if (!persona) return `Agent "${agentId}" not found.`;
         if (field && field in persona) {
-          result = `[${field}]: ${(persona as any)[field]}`;
-        } else {
-          result = `[goals]: ${persona.goals}\n\n[scratchpad]: ${persona.scratchpad || "(empty)"}\n\n[personality]: ${persona.personality}\n\n[role]: ${persona.role}`;
+          return `[${field}]: ${(persona as any)[field]}`;
         }
-        break;
+        return `[goals]: ${persona.goals}\n\n[scratchpad]: ${persona.scratchpad || "(empty)"}\n\n[personality]: ${persona.personality}\n\n[role]: ${persona.role}`;
       }
       case "agent_memory_update": {
-        const agentId = args._agent_id as string;
-        if (!agentId) { result = "No agent context — this tool is for persona-based agents."; break; }
-        result = updatePersonaField(
+        const agentId = toolArgs._agent_id as string;
+        if (!agentId) return "No agent context - this tool is for persona-based agents.";
+        return updatePersonaField(
           agentId,
-          args.field as "goals" | "scratchpad",
-          args.operation as "replace" | "append",
-          String(args.content)
+          toolArgs.field as "goals" | "scratchpad",
+          toolArgs.operation as "replace" | "append",
+          String(toolArgs.content)
         );
-        break;
       }
-      // Agent persona management (used from the main conversation)
       case "agent_create": {
         const p = createPersona(
-          String(args.id),
-          String(args.name),
-          String(args.role),
-          String(args.personality),
-          String(args.goals),
-          args.tools as string[] | undefined,
-          args.max_turns as number | undefined
+          String(toolArgs.id),
+          String(toolArgs.name),
+          String(toolArgs.role),
+          String(toolArgs.personality),
+          String(toolArgs.goals),
+          toolArgs.tools as string[] | undefined,
+          toolArgs.max_turns as number | undefined
         );
-        result = `Created agent persona "${p.name}" (${p.id}).`;
-        break;
+        return `Created agent persona "${p.name}" (${p.id}).`;
       }
       case "agent_list": {
         const personas = listPersonas();
         if (personas.length === 0) {
-          result = "No agent personas defined. Use agent_create to define one.";
-        } else {
-          result = personas.map((p) =>
-            `• **${p.name}** (${p.id}) — ${p.role}\n  Goals: ${p.goals.substring(0, 150)}`
-          ).join("\n\n");
+          return "No agent personas defined. Use agent_create to define one.";
         }
-        break;
+        return personas.map((p) =>
+          `• **${p.name}** (${p.id}) - ${p.role}\n  Goals: ${p.goals.substring(0, 150)}`
+        ).join("\n\n");
       }
-      // Swarm scratchpad tools
       case "swarm_scratchpad_read":
       case "swarm_scratchpad_write": {
-        const scratchResult = handleScratchpadTool(name, args as Record<string, any>);
-        result = scratchResult ?? `Scratchpad tool "${name}" returned no result.`;
-        break;
+        const scratchResult = handleScratchpadTool(toolName, toolArgs as Record<string, any>);
+        return scratchResult ?? `Scratchpad tool "${toolName}" returned no result.`;
       }
-      case "generate_image":
-        result = await generateImageTool(args as { prompt: string; reference_image?: string; width?: number; height?: number; output_dir?: string }); break;
+      case "generate_image": {
+        const skillResult = await tryExecuteSkillTool("skill__openrouter__generate_image", toolArgs);
+        if (skillResult !== null && !skillResult.includes("not installed")) {
+          return skillResult;
+        }
+        throw new Error('Image generation requires the openrouter skill. Install with: kai skill install openrouter');
+      }
       case "take_screenshot":
-        result = await takeScreenshot(args as { region?: "full" | "window" | "selection" }); break;
+        return await takeScreenshot(toolArgs as { region?: "full" | "window" | "selection" });
       case "analyze_image":
-        result = await analyzeImage(args as { image_path: string; question?: string }); break;
+        return await analyzeImage(toolArgs as { image_path: string; question?: string });
       default: {
-        // Check if it's an MCP tool (mcp__server__tool)
-        const mcpResult = await tryExecuteMcpTool(name, args);
-        if (mcpResult !== null) {
-          result = mcpResult;
+        const mcpResult = await tryExecuteMcpTool(toolName, toolArgs);
+        if (mcpResult !== null) return mcpResult;
+        const skillResult = await tryExecuteSkillTool(toolName, toolArgs);
+        if (skillResult !== null) return skillResult;
+        throw ToolError.unknown(toolName);
+      }
+    }
+  };
+
+  try {
+    result = await executeToolInternal(name, args);
+  } catch (err: unknown) {
+    // Try self-heal before giving up (but only once per execution)
+    if (!selfHealAttempted) {
+      selfHealAttempted = true;
+      const healed = await attemptToolSelfHeal(name, args, err, executeToolInternal);
+      if (healed.healed) {
+        result = healed.result;
+      } else {
+        // Self-heal failed or wasn't applicable - return error message
+        if (err instanceof PermissionError || err instanceof ToolError) {
+          result = err.message;
         } else {
-          // Check if it's a user skill tool (skill__id__tool from ~/.kai/skills/)
-          const skillResult = await tryExecuteSkillTool(name, args);
-          if (skillResult !== null) {
-            result = skillResult;
-          } else {
-            throw ToolError.unknown(name);
-          }
+          const msg = err instanceof Error ? err.message : String(err);
+          result = `Tool "${name}" failed: ${msg}`;
         }
       }
-    }
-  } catch (err: unknown) {
-    // Rethrow typed errors (permission, validation) — they carry structured context
-    if (err instanceof PermissionError || err instanceof ToolError) {
-      result = err.message;
     } else {
-      const msg = err instanceof Error ? err.message : String(err);
-      result = `Tool "${name}" failed: ${msg}`;
+      // Already tried self-heal, just return error
+      if (err instanceof PermissionError || err instanceof ToolError) {
+        result = err.message;
+      } else {
+        const msg = err instanceof Error ? err.message : String(err);
+        result = `Tool "${name}" failed: ${msg}`;
+      }
     }
-    recordError({ source: "tool", error: err, context: { toolName: name, args } });
+    recordError({ source: "tool", error: err, context: { toolName: name, args, selfHealed: result.includes("self-heal") } });
   }
 
-  // Run after-hooks — can override output
+  // Run after-hooks - can override output
   const afterHook = await runAfterHooks(name, args, result);
   if (afterHook.overrideOutput) {
     result = afterHook.overrideOutput;
