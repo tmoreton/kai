@@ -44,8 +44,6 @@ export interface KaiConfig {
   // Provider endpoints (defaults used if omitted)
   fireworksBaseUrl?: string;
   openrouterBaseUrl?: string;
-  tavilyBaseUrl?: string;
-  youtubeBaseUrl?: string;
 }
 
 const CONFIG_PATHS = [

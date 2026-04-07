@@ -1,21 +1,29 @@
-import { WEB_CONTENT_LIMIT, FETCH_TIMEOUT_MS, DEFAULT_TAVILY_BASE_URL } from "../constants.js";
+import { WEB_CONTENT_LIMIT, FETCH_TIMEOUT_MS } from "../constants.js";
+import { tryExecuteSkillTool } from "../skills/executor.js";
 import { getConfig } from "../config.js";
 
 /**
  * Web Search Tool
  *
- * Uses Tavily API for web search.
- * Requires TAVILY_API_KEY in environment.
+ * Uses web-tools skill (Tavily) for web search.
+ * Falls back to hardcoded implementation if skill not installed.
  */
 export async function webSearch(args: {
   query: string;
   max_results?: number;
 }): Promise<string> {
+  // Try skill first
+  const skillResult = await tryExecuteSkillTool("skill__web-tools__search", args);
+  if (skillResult !== null && !skillResult.includes("not installed")) {
+    return skillResult;
+  }
+  
+  // Fallback to hardcoded Tavily
   const apiKey = process.env.TAVILY_API_KEY;
-  if (!apiKey) return "Error: TAVILY_API_KEY not set. Add it to ~/.kai/.env";
+  if (!apiKey) return "Error: TAVILY_API_KEY not set. Add it to ~/.kai/.env or install web-tools skill";
 
   const config = getConfig();
-  const tavilyUrl = config.tavilyBaseUrl || DEFAULT_TAVILY_BASE_URL;
+  const tavilyUrl = "https://api.tavily.com/search";
 
   try {
     const response = await fetch(tavilyUrl, {

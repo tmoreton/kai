@@ -60,8 +60,6 @@ export const DEFAULT_IMAGE_MODEL = "google/gemini-2.5-flash-image";
 // Provider endpoint defaults
 export const DEFAULT_FIREWORKS_BASE_URL = "https://api.fireworks.ai/inference/v1";
 export const DEFAULT_OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
-export const DEFAULT_TAVILY_BASE_URL = "https://api.tavily.com/search";
-export const DEFAULT_YOUTUBE_BASE_URL = "https://www.googleapis.com/youtube/v3";
 
 // Tools that sub-agents are never allowed to use (prevents recursive spawning, swarm bombs)
 export const AGENT_BLOCKED_TOOLS = new Set([

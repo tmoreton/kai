@@ -28,10 +28,16 @@ npm start
 - **Persistent memory** — soul (identity), archival (long-term knowledge), recall (conversation history)
 - **Background agents** — schedule autonomous workflows with cron via YAML definitions
 - **Web UI** — browser-based chat interface with SSE streaming
-- **20+ tools** — bash, file ops, web search/fetch, image generation, git, MCP servers, tasks
+- **20+ tools** — bash, file ops, web search/fetch, git, MCP servers, screenshot, vision
 - **Sub-agents** — spawn explorer, planner, and worker agents for complex tasks
-- **Skills** — External skill system for integrations (data, YouTube, browser, email, social media, etc.)
-  - Install skills: `npx kai-skills install <skill>`
+- **Skills** — External skill system for integrations:
+  - `openrouter` — Image generation (Gemini 3 Pro)
+  - `youtube` — YouTube analytics
+  - `browser` — Web automation
+  - `email` — Send notifications
+  - `data-storage` — JSON/Markdown files
+  - `docker`, `git`, `notion`, `slack`, `twitter`, etc.
+  - Install: `kai skill install <name>` or `npx kai-skills install <skill>`
   - Registry: https://www.npmjs.com/package/kai-skills
 - **Project-aware** — auto-detects project root and scopes memory per-project
 - **Self-improving agents** — workflows can include a review loop for quality iteration
@@ -68,28 +74,33 @@ src/
 │   ├── files.ts          # File read/write/edit
 │   ├── search.ts         # Glob & grep
 │   ├── web.ts            # Web fetch & Tavily search
-│   ├── image.ts          # Image generation (OpenRouter)
 │   ├── mcp.ts            # Model Context Protocol client
-│   ├── tasks.ts          # Task management
+│   ├── screenshot.ts     # Screen capture (macOS)
+│   ├── vision.ts         # Image analysis
 │   └── index.ts          # Tool exports
 ├── skills/
 │   ├── loader.ts         # External skill loader (~/.kai/skills/)
 │   ├── executor.ts       # Skill tool execution
 │   ├── types.ts          # Skill manifest types
 │   └── installer.ts      # Skill installation helper
-├── agents/
+├── agents-core/          # Background agent platform
 │   ├── db.ts             # SQLite agent database
-│   ├── daemon.ts         # Cron scheduler
+│   ├── daemon.ts         # Cron scheduler & event loop
 │   ├── manager.ts        # Agent CLI interface
 │   ├── workflow.ts       # YAML workflow engine
-│   └── integrations/     # Workflow integrations
-│       ├── data.ts       # JSON file read/write/append
-│       ├── youtube.ts    # YouTube Data API v3
-│       ├── web.ts        # Web search
-│       ├── image.ts      # Image generation
-│       └── mcp.ts        # MCP server access
+│   └── bootstrap.ts      # Agent initialization
+├── agents/               # Agent subsystems
+│   ├── event-bus.ts      # Event-driven triggers
+│   ├── scheduler.ts      # Cron & heartbeat
+│   ├── runner*.ts        # Agent execution
+│   └── watchers/         # File/email watchers
+├── skills/               # External skill system
+│   ├── loader.ts         # Skill discovery & loading (~/.kai/skills/)
+│   ├── executor.ts       # Skill tool execution
+│   ├── types.ts          # Skill manifest types
+│   └── installer.ts      # Skill installation helper
 ├── providers/
-│   └── index.ts          # OpenRouter provider
+│   └── index.ts          # LLM provider resolution (Fireworks/OpenRouter)
 └── web/
     ├── server.ts         # Hono HTTP server + SSE streaming
     └── public/
