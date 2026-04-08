@@ -13,7 +13,6 @@
     "LICENSE"
   ],
   "scripts": {
-    "prepare": "npm run build",
     "build": "npm run build:web && npm run build:server",
     "build:server": "tsc && node scripts/build-server.cjs",
     "build:web": "cd packages/web && npm install --legacy-peer-deps && npm run build",

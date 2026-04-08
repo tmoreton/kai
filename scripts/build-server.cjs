@@ -42,6 +42,17 @@ function copyFiles(srcPattern, destDir) {
   }
 }
 
+// Copy web UI dist files to dist/public so they're included in npm package
+const webDistSrc = 'packages/web/dist';
+const webDistDest = 'dist/public';
+if (fs.existsSync(webDistSrc)) {
+  removeDir(webDistDest);
+  copyDir(webDistSrc, webDistDest);
+  console.log('✓ Copied web UI to dist/public');
+} else {
+  console.warn('⚠ Web UI dist not found at', webDistSrc);
+}
+
 // Copy workflow files
 removeDir('dist/agents-core/builtin-workflows');
 ensureDir('dist/agents-core/builtin-workflows');
