@@ -5,6 +5,15 @@ import { gitInfo } from "./git.js";
 import { getCwd } from "./tools/bash.js";
 
 /**
+ * System Prompt Budget Enforcement
+ * - Total system prompt hard limit: 2000 tokens (~8000 chars)
+ * - Skill tool descriptions: max 50 chars each (handled in loader.ts)
+ * - Project profile: max 500 tokens (~2000 chars) (handled in project-profile.ts)
+ */
+
+const MAX_SYSTEM_PROMPT_LENGTH = 8000; // ~2000 tokens
+
+/**
  * Build the full system prompt with all context (profile, archival, git).
  * Cached per session — call invalidateSystemPromptCache() to rebuild.
  */
@@ -22,6 +31,11 @@ export function buildSystemPrompt(): string {
   }
   const git = gitInfo();
   if (git) systemContent += `\n\n# Git\n${git}`;
+
+  // Enforce hard limit on total system prompt size
+  if (systemContent.length > MAX_SYSTEM_PROMPT_LENGTH) {
+    systemContent = systemContent.slice(0, MAX_SYSTEM_PROMPT_LENGTH - 14) + "\n[TRUNCATED]";
+  }
 
   _cachedSystemPrompt = systemContent;
   return systemContent;

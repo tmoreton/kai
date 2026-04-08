@@ -6,7 +6,7 @@ import type {
 import { toolDefinitions, getMcpToolDefinitions } from "./tools/index.js";
 import { getSkillToolDefinitions } from "./skills/index.js";
 import { executeTool } from "./tools/executor.js";
-import { shouldCompact, compactMessages, invalidateContextCache, trackToolMetadata } from "./context.js";
+import { shouldCompact, compactMessages, truncateMessages, shouldTruncate, invalidateContextCache, trackToolMetadata } from "./context.js";
 import {
   MAX_TOKENS,
   MAX_TOOL_TURNS,
@@ -27,6 +27,69 @@ import { isToolAllowedInPlanMode } from "./plan-mode.js";
 import { startSpinner, stopSpinner } from "./render/stream.js";
 import { recordError } from "./error-tracker.js";
 import chalk from "chalk";
+
+// Keywords for intent-based tool filtering
+const READONLY_KEYWORDS = /\b(explore|find|search|read)\b/i;
+const WRITE_KEYWORDS = /\b(edit|write|fix|change|update)\b/i;
+
+// Read-only tools for exploration/intent gathering
+const READONLY_TOOL_NAMES = new Set([
+  "read_file", "glob", "grep", "web_fetch", "web_search",
+  "core_memory_read", "recall_search", "archival_search",
+  "spawn_agent", "spawn_swarm", "agent_list",
+]);
+
+// Write tools that modify state
+const WRITE_TOOL_NAMES = new Set([
+  "write_file", "edit_file", "bash", "bash_background",
+  "core_memory_update", "archival_insert",
+]);
+
+/**
+ * Filter tools based on conversation intent derived from the last user message.
+ * Returns a subset of tools appropriate for the detected intent.
+ */
+function filterToolsByIntent(
+  tools: ChatCompletionTool[],
+  messages: ChatCompletionMessageParam[]
+): ChatCompletionTool[] {
+  // Find the last user message
+  const lastUserMessage = [...messages].reverse().find(
+    (m): m is ChatCompletionMessageParam & { role: "user"; content: string } =>
+      m.role === "user" && typeof m.content === "string"
+  );
+
+  if (!lastUserMessage) {
+    // No user message found, return all tools
+    return tools;
+  }
+
+  const content = lastUserMessage.content.toLowerCase();
+
+  // Check for read-only intent
+  const hasReadonlyIntent = READONLY_KEYWORDS.test(content);
+  // Check for write intent
+  const hasWriteIntent = WRITE_KEYWORDS.test(content);
+
+  // If both or neither detected, return all tools
+  if (hasReadonlyIntent === hasWriteIntent) {
+    return tools;
+  }
+
+  // Filter to only read-only tools + always-included agent tools
+  if (hasReadonlyIntent && !hasWriteIntent) {
+    return tools.filter((tool) => {
+      // ChatCompletionTool is a union, check for function type
+      if (tool.type !== "function") return false;
+      const name = tool.function.name;
+      // Keep read-only tools and always-include tools
+      return READONLY_TOOL_NAMES.has(name);
+    });
+  }
+
+  // If write intent detected, return all tools (default behavior)
+  return tools;
+}
 
 let _resolved: ResolvedProvider | null = null;
 
@@ -87,7 +150,10 @@ export async function chat(
   onToken?: (token: string) => void,
   options?: { tools?: ChatCompletionTool[]; maxTurns?: number; signal?: AbortSignal; unleash?: boolean; onUsage?: (input: number, output: number) => void }
 ): Promise<ChatCompletionMessageParam[]> {
-  const activeTools = options?.tools ?? getCachedToolDefinitions();
+  const activeTools = filterToolsByIntent(
+    options?.tools ?? getCachedToolDefinitions(),
+    messages
+  );
   const unleash = options?.unleash ?? false;
   const maxTurns = unleash ? Infinity : (options?.maxTurns ?? MAX_TOOL_TURNS);
   const updatedMessages = [...messages];
@@ -98,11 +164,28 @@ export async function chat(
 
   // Auto-compact if context is getting large
   if (shouldCompact(updatedMessages)) {
-    const compacted = compactMessages(updatedMessages);
+    // First try tiered truncation for progressive context reduction
+    const truncated = truncateMessages(updatedMessages);
     updatedMessages.length = 0;
-    updatedMessages.push(...compacted);
+    updatedMessages.push(...truncated);
+    
+    // Only do full compaction if still over threshold after truncation
+    if (shouldCompact(updatedMessages)) {
+      const compacted = compactMessages(updatedMessages);
+      updatedMessages.length = 0;
+      updatedMessages.push(...compacted);
+      console.log(chalk.dim("  📦 Context auto-compacted to save tokens.\n"));
+    } else {
+      console.log(chalk.dim("  ✂️  Old messages truncated to save tokens.\n"));
+    }
     invalidateContextCache();
-    console.log(chalk.dim("  📦 Context auto-compacted to save tokens.\n"));
+  } else if (shouldTruncate(updatedMessages)) {
+    // Proactive tiered truncation when above 30% but below 60%
+    const truncated = truncateMessages(updatedMessages);
+    updatedMessages.length = 0;
+    updatedMessages.push(...truncated);
+    invalidateContextCache();
+    console.log(chalk.dim("  ✂️  Old messages truncated to save tokens.\n"));
   }
 
   let turns = 0;

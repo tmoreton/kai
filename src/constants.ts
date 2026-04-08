@@ -9,6 +9,9 @@ export const COMPACT_THRESHOLD = 0.60; // Compact at 60% to leave room
 export const COMPACT_RECENT_RATIO = 1 / 3;
 export const COMPACT_RECENT_MIN = 10;
 
+// Tiered truncation threshold - apply progressive truncation before full compaction
+export const TIERED_TRUNCATE_THRESHOLD = 0.30; // Start tiered truncation at 30%
+
 // Context budgets (tokens)
 export const TOOL_OUTPUT_CONTEXT_LIMIT = 1_000; // Max tokens per tool result in messages
 export const MEMORY_CONTEXT_BUDGET = 2_000; // Max tokens for memory injection

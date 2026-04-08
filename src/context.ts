@@ -1,9 +1,10 @@
-import type { ChatCompletionMessageParam } from "openai/resources/chat/completions";
+import type { ChatCompletionMessageParam, ChatCompletionContentPart } from "openai/resources/chat/completions";
 import {
   MAX_CONTEXT_TOKENS,
   COMPACT_THRESHOLD,
   COMPACT_RECENT_MIN,
   COMPACT_RECENT_RATIO,
+  TIERED_TRUNCATE_THRESHOLD,
 } from "./constants.js";
 import { getConfig } from "./config.js";
 import { getCachedFileIndex } from "./tools/file-cache.js";
@@ -126,6 +127,121 @@ export function shouldCompact(
 ): boolean {
   const estimated = estimateContextSize(messages);
   return estimated > MAX_CONTEXT_TOKENS * COMPACT_THRESHOLD;
+}
+
+/**
+ * Tiered truncation: Progressive context reduction before full compaction.
+ * 
+ * Tier 1 (messages 1-10 from end): Keep full length (recent critical context)
+ * Tier 2 (messages 11-20 from end): Truncate to 500 tokens (~2000 chars)
+ * Tier 3 (messages 21-30 from end): Truncate to 200 tokens (~800 chars)
+ * Tier 4 (messages 30+ from end): Summarize/compact (handled by compactMessages)
+ * 
+ * This is called when context exceeds TIERED_TRUNCATE_THRESHOLD (30%) to
+ * proactively reduce tokens before hitting the full compaction threshold (60%).
+ */
+export function truncateMessages(
+  messages: ChatCompletionMessageParam[]
+): ChatCompletionMessageParam[] {
+  if (messages.length <= 10) return messages;
+
+  const TIER_1_KEEP = 10; // Keep full length
+  const TIER_2_TRUNCATE = 2000; // chars ≈ 500 tokens
+  const TIER_3_TRUNCATE = 800; // chars ≈ 200 tokens
+  const TIER_2_START = 10; // Messages 11-20 (0-indexed: 10-19)
+  const TIER_2_END = 20; // Up to message 20
+  const TIER_3_START = 20; // Messages 21-30 (0-indexed: 20-29)
+  const TIER_3_END = 30; // Up to message 30
+
+  const result: ChatCompletionMessageParam[] = [];
+
+  // Calculate positions from the end (newest messages are at the end)
+  const totalMessages = messages.length;
+  
+  for (let i = 0; i < totalMessages; i++) {
+    const msg = messages[i];
+    const distanceFromEnd = totalMessages - i;
+
+    // Determine which tier this message falls into (counting from end)
+    if (distanceFromEnd <= TIER_1_KEEP) {
+      // Tier 1: Keep full length (recent 10 messages)
+      result.push(msg);
+    } else if (distanceFromEnd <= TIER_2_END) {
+      // Tier 2: Truncate to 500 tokens (messages 11-20 from end)
+      result.push(truncateMessage(msg, TIER_2_TRUNCATE));
+    } else if (distanceFromEnd <= TIER_3_END) {
+      // Tier 3: Truncate to 200 tokens (messages 21-30 from end)
+      result.push(truncateMessage(msg, TIER_3_TRUNCATE));
+    } else {
+      // Tier 4: These will be summarized by compactMessages
+      // Keep as-is for now - compactMessages will handle them
+      result.push(msg);
+    }
+  }
+
+  // Invalidate cache since we modified messages
+  invalidateContextCache();
+  return result;
+}
+
+/**
+ * Truncate a single message's content to maxChars.
+ */
+function truncateMessage(
+  msg: ChatCompletionMessageParam,
+  maxChars: number
+): ChatCompletionMessageParam {
+  if (typeof msg.content === "string") {
+    if (msg.content.length <= maxChars) return msg;
+    return {
+      ...msg,
+      content: msg.content.substring(0, maxChars) + "... [truncated]",
+    };
+  }
+  
+  // Handle array content (multimodal)
+  if (Array.isArray(msg.content)) {
+    let remainingChars = maxChars;
+    const truncatedContent: ChatCompletionContentPart[] = [];
+    
+    for (const part of msg.content) {
+      if ("text" in part && typeof (part as {text?: string}).text === "string") {
+        const textPart = part as { type: "text"; text: string };
+        const availableChars = Math.min(textPart.text.length, remainingChars);
+        if (availableChars <= 0) break;
+        
+        truncatedContent.push({
+          type: "text",
+          text: textPart.text.length > availableChars 
+            ? textPart.text.substring(0, availableChars) + "... [truncated]"
+            : textPart.text,
+        });
+        remainingChars -= availableChars;
+      } else {
+        // Non-text parts (images, etc.) - keep them but they still count toward budget
+        truncatedContent.push(part as ChatCompletionContentPart);
+      }
+    }
+    
+    return {
+      ...msg,
+      content: truncatedContent,
+    } as ChatCompletionMessageParam;
+  }
+  
+  return msg;
+}
+
+/**
+ * Check if tiered truncation should be applied based on context size.
+ */
+export function shouldTruncate(
+  messages: ChatCompletionMessageParam[]
+): boolean {
+  const estimated = estimateContextSize(messages);
+  // Apply truncation when above 30% but below full compaction threshold
+  return estimated > MAX_CONTEXT_TOKENS * TIERED_TRUNCATE_THRESHOLD &&
+         estimated <= MAX_CONTEXT_TOKENS * COMPACT_THRESHOLD;
 }
 
 export function compactMessages(

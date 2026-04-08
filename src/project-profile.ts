@@ -214,5 +214,13 @@ export function getProfileContext(): string {
     parts.push(`- Notes:\n${profile.notes.map((n) => `  - ${n}`).join("\n")}`);
   }
 
-  return parts.join("\n");
+  let context = parts.join("\n");
+  
+  // Enforce 2000 character limit (approx 500 tokens) for project profile
+  const MAX_PROFILE_LENGTH = 2000;
+  if (context.length > MAX_PROFILE_LENGTH) {
+    context = context.slice(0, MAX_PROFILE_LENGTH - 14) + "\n[TRUNCATED]";
+  }
+  
+  return context;
 }

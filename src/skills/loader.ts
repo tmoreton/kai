@@ -270,7 +270,7 @@ export function getSkillToolDefinitions(): ChatCompletionTool[] {
         type: "function",
         function: {
           name: skillToolName(skill.manifest.id, tool.name),
-          description: `[Skill: ${skill.manifest.name}] ${tool.description}`,
+          description: truncateSkillDescription(`[Skill: ${skill.manifest.name}] ${tool.description}`),
           parameters: {
             type: "object",
             properties,
@@ -289,6 +289,13 @@ export function getSkillToolDefinitions(): ChatCompletionTool[] {
  */
 export function skillToolName(skillId: string, toolName: string): string {
   return `skill__${skillId}__${toolName}`;
+}
+
+const MAX_SKILL_DESCRIPTION_LENGTH = 50;
+
+function truncateSkillDescription(description: string): string {
+  if (description.length <= MAX_SKILL_DESCRIPTION_LENGTH) return description;
+  return description.slice(0, MAX_SKILL_DESCRIPTION_LENGTH - 11) + " [TRUNCATED]";
 }
 
 /**
