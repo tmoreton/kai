@@ -57,11 +57,15 @@ mkdir -p "$RESOURCES"
 
 # --- Download and cache Node.js binary + headers ---
 mkdir -p "$NODE_CACHE"
-if [ ! -f "$NODE_CACHE/$NODE_TARBALL" ]; then
-  echo "==> Downloading Node.js ${NODE_VERSION} (${PLATFORM}-${NODE_ARCH})..."
-  curl -fSL "$NODE_URL" -o "$NODE_CACHE/$NODE_TARBALL"
-else
-  echo "==> Using cached Node.js ${NODE_VERSION}"
+
+# Skip tar.gz download for Windows (uses zip instead)
+if [ "$PLATFORM" != "win" ]; then
+  if [ ! -f "$NODE_CACHE/$NODE_TARBALL" ]; then
+    echo "==> Downloading Node.js ${NODE_VERSION} (${PLATFORM}-${NODE_ARCH})..."
+    curl -fSL "$NODE_URL" -o "$NODE_CACHE/$NODE_TARBALL"
+  else
+    echo "==> Using cached Node.js ${NODE_VERSION}"
+  fi
 fi
 
 HEADERS_TARBALL="node-${NODE_VERSION}-headers.tar.gz"
