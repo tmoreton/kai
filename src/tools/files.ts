@@ -30,7 +30,7 @@ export async function readFile(args: {
 }): Promise<string> {
   const fullPath = resolvePath(args.file_path);
   const offset = args.offset || 1;
-  const limit = args.limit || 2000;
+  const limit = args.limit || 500;
 
   // Check cache first — returns hit if file hasn't changed and same offset/limit
   const cached = getCachedRead(fullPath, offset, limit);
