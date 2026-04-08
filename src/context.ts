@@ -239,9 +239,9 @@ export function shouldTruncate(
   messages: ChatCompletionMessageParam[]
 ): boolean {
   const estimated = estimateContextSize(messages);
-  // Apply truncation when above 30% but below full compaction threshold
-  return estimated > MAX_CONTEXT_TOKENS * TIERED_TRUNCATE_THRESHOLD &&
-         estimated <= MAX_CONTEXT_TOKENS * COMPACT_THRESHOLD;
+  // Apply truncation when above 30% - this is a first-line defense
+  // Full compaction happens separately at 60%+
+  return estimated > MAX_CONTEXT_TOKENS * TIERED_TRUNCATE_THRESHOLD;
 }
 
 export function compactMessages(
