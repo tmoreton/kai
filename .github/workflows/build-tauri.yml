@@ -168,7 +168,6 @@ jobs:
           cache: 'npm'
       
       - name: Install Rust
-        shell: bash
         run: rustup update stable
       
       - name: Install dependencies
@@ -183,25 +182,31 @@ jobs:
           CI: true
       
       - name: Rename Windows artifacts
-        shell: bash
+        shell: powershell
         run: |
-          VERSION="${GITHUB_REF_NAME}"
+          $VERSION = $env:GITHUB_REF_NAME
           
           # Rename MSI
-          cd src-tauri/target/release/bundle/msi
-          for f in *.msi; do
-            NEW_NAME="Kai_${VERSION}_x64.msi"
-            mv "$f" "$NEW_NAME"
-          done
-          ls -la
+          $msiDir = "src-tauri\target\release\bundle\msi"
+          if (Test-Path $msiDir) {
+            cd $msiDir
+            Get-ChildItem *.msi | ForEach-Object {
+              $newName = "Kai_${VERSION}_x64.msi"
+              Rename-Item $_.Name $newName
+            }
+            Get-ChildItem
+          }
           
           # Rename NSIS
-          cd ../nsis
-          for f in *.exe; do
-            NEW_NAME="Kai_${VERSION}_x64-setup.exe"
-            mv "$f" "$NEW_NAME"
-          done
-          ls -la
+          $nsisDir = "..\nsis"
+          if (Test-Path $nsisDir) {
+            cd $nsisDir
+            Get-ChildItem *.exe | ForEach-Object {
+              $newName = "Kai_${VERSION}_x64-setup.exe"
+              Rename-Item $_.Name $newName
+            }
+            Get-ChildItem
+          }
         env:
           GITHUB_REF_NAME: ${{ github.ref_name }}
       
