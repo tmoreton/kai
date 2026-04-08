@@ -361,7 +361,7 @@ export async function uninstallSkill(skillId: string): Promise<void> {
   const entries = fs.readdirSync(dir, { withFileTypes: true });
 
   for (const entry of entries) {
-    if (!entry.isDirectory()) continue;
+    if (!entry.isDirectory() && !entry.isSymbolicLink()) continue;
     const manifestPath = path.join(dir, entry.name, "skill.yaml");
     if (!fs.existsSync(manifestPath)) continue;
 
