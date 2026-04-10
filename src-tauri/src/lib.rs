@@ -92,20 +92,14 @@ pub fn run() {
             debug_log!(log, "Node binary exists: {}", node_binary.exists());
             debug_log!(log, "Port: {}", port);
 
-            // Load env vars from all .env locations (same order as the Node app)
+            // Load env vars from ~/.kai/.env only (credentials should never be bundled)
             let home = dirs::home_dir().unwrap();
             let mut env_vars: HashMap<String, String> = HashMap::new();
 
-            // Load in reverse priority order (later overrides earlier)
-            // 1. resource dir .env (the original project .env bundled location)
-            let res_env = resource_dir.join(".env");
-            for (k, v) in read_dotenv(&res_env) { env_vars.insert(k, v); }
-
-            // 2. ~/.kai/.env (highest priority)
             let kai_env = home.join(".kai").join(".env");
             for (k, v) in read_dotenv(&kai_env) { env_vars.insert(k, v); }
 
-            debug_log!(log, "Loaded {} env vars from .env files", env_vars.len());
+            debug_log!(log, "Loaded {} env vars from ~/.kai/.env", env_vars.len());
 
             // Build the command with all env vars
             // Set cwd to home so sessions resolve the same as terminal usage

@@ -107,14 +107,7 @@ async function main() {
     fs.cpSync(webDist, path.join(RESOURCES, 'packages', 'web', 'dist'), { recursive: true });
   }
   
-  // Bundle .env
-  const envPath = path.join(ROOT, '.env');
-  if (fs.existsSync(envPath)) {
-    console.log('==> Bundling .env file...');
-    fs.copyFileSync(envPath, path.join(RESOURCES, '.env'));
-  } else {
-    fs.writeFileSync(path.join(RESOURCES, '.env'), '');
-  }
+  // NOTE: Not bundling .env file - credentials should be in ~/.kai/.env only
   
   // Install production dependencies
   console.log('==> Installing production dependencies...');
