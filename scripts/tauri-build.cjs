@@ -120,6 +120,21 @@ async function main() {
   console.log('==> Installing production dependencies...');
   execSync('npm install --omit=dev --ignore-scripts', { cwd: RESOURCES, stdio: 'inherit' });
   
+  // Remove problematic packages that cause signing issues
+  console.log('==> Removing dev-only packages...');
+  const packagesToRemove = [
+    'node-notifier',      // Has unsigned terminal-notifier.app
+    '@types/node-notifier' // Types only, not needed at runtime
+  ];
+  
+  for (const pkg of packagesToRemove) {
+    const pkgPath = path.join(RESOURCES, 'node_modules', pkg);
+    if (fs.existsSync(pkgPath)) {
+      console.log(`    Removing ${pkg}...`);
+      fs.rmSync(pkgPath, { recursive: true, force: true });
+    }
+  }
+  
   // Rebuild native addons (skip on Windows)
   if (!isWindows) {
     console.log('==> Rebuilding native addons...');

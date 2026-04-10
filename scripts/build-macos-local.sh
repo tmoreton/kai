@@ -54,10 +54,32 @@ echo ""
 echo "🔨 Building for Apple Silicon (ARM64)..."
 cargo tauri build --target aarch64-apple-darwin
 
+# Sign nested binaries in ARM64 build
+echo ""
+echo "🔏 Signing nested binaries in ARM64 build..."
+ARM64_APP="$PWD/src-tauri/target/aarch64-apple-darwin/release/bundle/macos/Kai.app"
+node scripts/after-sign.cjs "$ARM64_APP"
+
+# Re-sign the entire ARM64 app (deep sign)
+echo ""
+echo "🔏 Re-signing ARM64 app bundle..."
+codesign --deep --force --options runtime --sign "$IDENTITY" --timestamp "$ARM64_APP"
+
 # Build Intel
 echo ""
 echo "🔨 Building for Intel (x86_64)..."
 cargo tauri build --target x86_64-apple-darwin
+
+# Sign nested binaries in Intel build
+echo ""
+echo "🔏 Signing nested binaries in Intel build..."
+INTEL_APP="$PWD/src-tauri/target/x86_64-apple-darwin/release/bundle/macos/Kai.app"
+node scripts/after-sign.cjs "$INTEL_APP"
+
+# Re-sign the entire Intel app (deep sign)
+echo ""
+echo "🔏 Re-signing Intel app bundle..."
+codesign --deep --force --options runtime --sign "$IDENTITY" --timestamp "$INTEL_APP"
 
 # Rename artifacts with proper naming
 echo ""
