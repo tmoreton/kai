@@ -139,8 +139,14 @@ export async function loadSkill(skillPath: string): Promise<LoadedSkill> {
   const envFileVars = loadEnvFile();
   const config: Record<string, any> = {};
   if (manifest.config_schema) {
-    for (const [key, field] of Object.entries(manifest.config_schema)) {
-      const value = (field.env && (process.env[field.env] || envFileVars[field.env])) || 
+    // Handle both array format ([{key, ...}]) and object format ({key: {...}})
+    const schemaEntries = Array.isArray(manifest.config_schema)
+      ? manifest.config_schema.map((field: any) => [field.key || field.name, field])
+      : Object.entries(manifest.config_schema);
+    
+    for (const [key, field] of schemaEntries) {
+      const fieldEnv = field.env || field.key || key;
+      const value = (fieldEnv && (process.env[fieldEnv] || envFileVars[fieldEnv])) || 
                     process.env[key] || 
                     envFileVars[key];
       if (value !== undefined) {
@@ -148,7 +154,7 @@ export async function loadSkill(skillPath: string): Promise<LoadedSkill> {
       } else if (field.default !== undefined) {
         config[key] = field.default;
       } else if (field.required) {
-        console.warn(chalk.yellow(`  Skill "${manifest.id}": set ${field.env || key} to enable`));
+        console.warn(chalk.yellow(`  Skill "${manifest.id}": set ${fieldEnv || key} to enable`));
       }
     }
   }
