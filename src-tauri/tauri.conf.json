@@ -47,7 +47,25 @@
       "resources/packages": "packages"
     },
     "macOS": {
-      "minimumSystemVersion": "10.15"
+      "minimumSystemVersion": "10.15",
+      "signingIdentity": "Developer ID Application: Tim Moreton (49WV6F9T9G)",
+      "entitlements": "Entitlements.plist",
+      "hardenedRuntime": true,
+      "dmg": {
+        "background": "dmg-background.png",
+        "windowSize": {
+          "width": 660,
+          "height": 400
+        },
+        "appPosition": {
+          "x": 180,
+          "y": 170
+        },
+        "applicationFolderPosition": {
+          "x": 480,
+          "y": 170
+        }
+      }
     }
   },
   "plugins": {

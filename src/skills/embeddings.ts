@@ -17,6 +17,7 @@ import { getConfig } from "../config.js";
 import { DEFAULT_OPENROUTER_BASE_URL } from "../constants.js";
 import { ensureKaiDir } from "../config.js";
 import { RICH_TOOL_DESCRIPTIONS } from "../tools/tool-descriptions.js";
+import { getLoadedSkills, skillToolName } from "./loader.js";
 
 // Embedding cache
 interface ToolEmbedding {
@@ -155,7 +156,8 @@ export async function embedBatch(texts: string[]): Promise<number[][]> {
 
 /**
  * Build embedding text for a tool.
- * Uses rich descriptions for built-in tools, enhanced descriptions for skills.
+ * Uses rich descriptions for built-in tools, FULL original descriptions for skills.
+ * This is separate from the truncated descriptions sent to the LLM.
  */
 function buildEmbeddingText(tool: ChatCompletionTool): string {
   if (tool.type !== "function") return "";
@@ -167,11 +169,27 @@ function buildEmbeddingText(tool: ChatCompletionTool): string {
     return RICH_TOOL_DESCRIPTIONS[name];
   }
   
-  // For skills: enhance with domain context
+  // For skills: get the FULL original description from the manifest
+  // (not the truncated version sent to LLM)
   const parts = name.split("__");
   if (parts.length >= 3 && parts[0] === "skill") {
-    const domain = parts[1];
-    const action = parts[2];
+    const skillId = parts[1];
+    const toolName = parts[2];
+    
+    // Look up the original skill manifest for full description
+    const skill = getLoadedSkills().find(s => s.manifest.id === skillId);
+    if (skill) {
+      const originalTool = skill.manifest.tools.find(t => t.name === toolName);
+      if (originalTool) {
+        // Use full original description + domain context for better matching
+        // Include skill name and full original description for rich semantic matching
+        return `${skill.manifest.name} ${toolName}: ${originalTool.description}`;
+      }
+    }
+    
+    // Fallback to truncated description with domain context
+    const domain = skillId;
+    const action = toolName;
     const desc = fn.description || "";
     return `${domain} ${action}: ${desc}`;
   }

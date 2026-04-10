@@ -8,22 +8,25 @@ export {
   listMcpServers,
 } from "./mcp.js";
 
-// Truncate tool descriptions to save tokens
+// Truncate tool descriptions aggressively to save tokens
+// Each token costs money — be ruthless here
 function truncateToolDefs(tools: ChatCompletionTool[]): ChatCompletionTool[] {
   return tools.map(tool => {
     if (tool.type !== "function") return tool;
     const fn = tool.function;
-    // Truncate description to 120 chars max
-    const desc = fn.description?.slice(0, 120).replace(/\s+$/g, "") || "";
+    // Truncate description to 80 chars max (was 120)
+    const desc = fn.description?.slice(0, 80).replace(/\s+$/g, "") || "";
 
-    // Truncate parameter descriptions
+    // Truncate parameter descriptions to 40 chars max (was 60)
+    // Parameter names + types are self-documenting
     const params = fn.parameters as { properties?: Record<string, any>; required?: string[] } | undefined;
     if (params?.properties) {
       const newProps: Record<string, any> = {};
       for (const [key, val] of Object.entries(params.properties)) {
+        const paramDesc = val.description?.slice(0, 40).replace(/\s+$/g, "") || key;
         newProps[key] = {
           ...val,
-          description: val.description?.slice(0, 60).replace(/\s+$/g, "") || key,
+          description: paramDesc,
         };
       }
       return {

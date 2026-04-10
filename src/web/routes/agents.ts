@@ -349,6 +349,65 @@ export function registerAgentRoutes(app: Hono) {
     return c.json({ id, name: name.trim(), description: (description || "").trim(), schedule: cleanSchedule, enabled: true });
   });
 
+  app.patch("/api/agents/:id", async (c) => {
+    const agent = getAgent(c.req.param("id"));
+    if (!agent) return c.json({ error: "Agent not found" }, 404);
+
+    const body = await c.req.json().catch(() => ({})) as {
+      enabled?: boolean;
+      name?: string;
+      description?: string;
+      schedule?: string;
+      config?: Record<string, unknown>;
+    };
+
+    // Update agent in database
+    const updates: Record<string, unknown> = {};
+    if (typeof body.enabled === 'boolean') updates.enabled = body.enabled ? 1 : 0;
+    if (body.name) updates.name = body.name;
+    if (body.description !== undefined) updates.description = body.description;
+    if (body.schedule !== undefined) updates.schedule = body.schedule;
+    if (body.config) {
+      const currentConfig = JSON.parse(agent.config || "{}");
+      updates.config = JSON.stringify({ ...currentConfig, ...body.config });
+    }
+
+    // Save updates
+    saveAgent({
+      ...agent,
+      ...updates,
+    } as any);
+
+    return c.json({ 
+      id: agent.id, 
+      ...updates,
+      enabled: typeof updates.enabled === 'number' ? !!updates.enabled : agent.enabled,
+    });
+  });
+
+  app.post("/api/agents/:id/run", async (c) => {
+    const agent = getAgent(c.req.param("id"));
+    if (!agent) return c.json({ error: "Agent not found" }, 404);
+    if (!agent.enabled) {
+      return c.json({ error: "Agent is disabled. Enable it first." }, 400);
+    }
+
+    try {
+      // Run the agent (daemon loads workflow from agent record)
+      const result = await runAgent(agent.id);
+      if (result.success) {
+        return c.json({ success: true, message: "Agent run started" });
+      } else {
+        return c.json({ error: result.error || "Agent run failed" }, 500);
+      }
+    } catch (err) {
+      return c.json({ 
+        error: "Failed to start agent run", 
+        details: err instanceof Error ? err.message : String(err) 
+      }, 500);
+    }
+  });
+
   app.delete("/api/agents/:id", (c) => {
     const agent = getAgent(c.req.param("id"));
     if (!agent) return c.json({ error: "Agent not found" }, 404);

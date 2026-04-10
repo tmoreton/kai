@@ -95,6 +95,12 @@ function messageTokens(msg: ChatCompletionMessageParam): number {
 // Memoized context size: avoid O(n) rescan when message count hasn't changed
 let _cachedContextSize = 0;
 let _cachedMessageCount = -1;
+let _cachedToolDefSize = 0;
+
+/** Update the cached tool definition size (call when tools change) */
+export function updateToolDefSizeEstimate(toolCount: number, totalDefsSize: number): void {
+  _cachedToolDefSize = Math.ceil(totalDefsSize / 4); // Convert chars to tokens
+}
 
 export function estimateContextSize(
   messages: ChatCompletionMessageParam[]
@@ -108,8 +114,8 @@ export function estimateContextSize(
   for (const msg of messages) {
     total += messageTokens(msg);
   }
-  // Add ~5000 for tool definitions (always sent)
-  total += 5000;
+  // Add actual tool definition size (set by client.ts when tools are loaded)
+  total += _cachedToolDefSize || 8000; // Fallback to 8k if not set
 
   _cachedContextSize = total;
   _cachedMessageCount = messages.length;

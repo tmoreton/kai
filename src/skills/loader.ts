@@ -269,7 +269,7 @@ export function getSkillToolDefinitions(relevantCategories?: string[] | null): C
         properties[paramName] = {
           type: paramDef.type,
           // Truncate verbose parameter descriptions
-          description: truncateParamDescription(paramDef.description || paramName),
+          description: truncateParamDescription(paramDef.description || "", paramName),
         };
         if (paramDef.enum) {
           properties[paramName].enum = paramDef.enum;
@@ -297,16 +297,17 @@ export function getSkillToolDefinitions(relevantCategories?: string[] | null): C
   return defs;
 }
 
-// Truncate parameter descriptions to save tokens
-function truncateParamDescription(desc: string): string {
-  if (desc.length <= 40) return desc;
-  // Remove obvious phrases
+// Truncate parameter descriptions aggressively - types are self-documenting
+function truncateParamDescription(desc: string, paramName: string): string {
+  if (!desc || desc.length <= 20) return desc || paramName;
+  // Remove obvious phrases and filler words
   const cleaned = desc
-    .replace(/\b(The|A|An)\s+/gi, "")
-    .replace(/\b(optional|required)\s*/gi, "")
+    .replace(/\b(The|A|An|This|That)\s+/gi, "")
+    .replace(/\b(optional|required|the|to|for|of|in)\s*/gi, "")
+    .replace(/\s+/g, " ")
     .trim();
-  if (cleaned.length <= 40) return cleaned;
-  return cleaned.slice(0, 37) + "...";
+  if (cleaned.length <= 20) return cleaned;
+  return cleaned.slice(0, 17) + "...";
 }
 
 /**
@@ -316,7 +317,7 @@ export function skillToolName(skillId: string, toolName: string): string {
   return `skill__${skillId}__${toolName}`;
 }
 
-const MAX_SKILL_DESCRIPTION_LENGTH = 80;
+const MAX_SKILL_DESCRIPTION_LENGTH = 60;
 
 // Skill categories for intent-based filtering
 export const SKILL_CATEGORIES: Record<string, string[]> = {

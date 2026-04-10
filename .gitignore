@@ -50,6 +50,10 @@ tasks.json
 /agents/
 examples/
 
+# Research & documentation (working docs, not source)
+/research/
+CONTEXT_AUDIT.md
+
 # Temp
 /tmp/
 *.tmp

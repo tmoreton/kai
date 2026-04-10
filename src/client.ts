@@ -7,7 +7,7 @@ import { toolDefinitions, getMcpToolDefinitions } from "./tools/index.js";
 import { getSkillToolDefinitions, getRelevantSkillCategories, loadAllSkills } from "./skills/index.js";
 import { initToolEmbeddings, findToolsBySemanticSimilarity } from "./skills/embeddings.js";
 import { executeTool } from "./tools/executor.js";
-import { shouldCompact, compactMessages, truncateMessages, shouldTruncate, invalidateContextCache, trackToolMetadata } from "./context.js";
+import { shouldCompact, compactMessages, truncateMessages, shouldTruncate, invalidateContextCache, trackToolMetadata, updateToolDefSizeEstimate } from "./context.js";
 import {
   MAX_TOKENS,
   MAX_TOOL_TURNS,
@@ -149,11 +149,11 @@ async function getCachedToolDefinitions(messages?: ChatCompletionMessageParam[])
       matchedSkillNames = new Set(matches.map(m => m.tool));
       
       if (matches.length > 0) {
-        console.log(chalk.dim(`  🔍 Matched ${matches.length} skills`));
+        // console.log(chalk.dim(`  🔍 Matched ${matches.length} skills`));
       }
     } catch {
       // API failed - include all skills as fallback
-      console.log(chalk.dim("  ⚠️  Semantic search failed, using all skills"));
+      // console.log(chalk.dim("  ⚠️  Semantic search failed, using all skills"));
       return [...baseTools, ...allSkillTools];
     }
   }
@@ -179,7 +179,7 @@ async function getCachedToolDefinitions(messages?: ChatCompletionMessageParam[])
   // Count saved skills
   const saved = allSkillTools.length - (result.length - [...baseTools].filter(t => t.type === "function" && ALWAYS_INCLUDE_TOOLS.has(t.function.name)).length);
   if (saved > 0 && lastUserMessage) {
-    console.log(chalk.dim(`  🎯 Filtered ${saved} skills, using ${result.length} tools`));
+    // console.log(chalk.dim(`  🎯 Filtered ${saved} skills, using ${result.length} tools`));
   }
   
   return result;
@@ -236,6 +236,11 @@ export async function chat(
   options?: { tools?: ChatCompletionTool[]; maxTurns?: number; signal?: AbortSignal; unleash?: boolean; onUsage?: (input: number, output: number) => void }
 ): Promise<ChatCompletionMessageParam[]> {
   const toolDefs = await getCachedToolDefinitions(messages);
+  
+  // Track actual tool definition size for accurate context estimation
+  const toolDefJson = JSON.stringify(toolDefs);
+  updateToolDefSizeEstimate(toolDefs.length, toolDefJson.length);
+  
   const activeTools = filterToolsByIntent(
     options?.tools ?? toolDefs,
     messages
@@ -260,9 +265,9 @@ export async function chat(
       const compacted = compactMessages(updatedMessages);
       updatedMessages.length = 0;
       updatedMessages.push(...compacted);
-      console.log(chalk.dim("  📦 Context auto-compacted to save tokens.\n"));
+      // console.log(chalk.dim("  📦 Context auto-compacted to save tokens.\n"));
     } else {
-      console.log(chalk.dim("  ✂️  Old messages truncated to save tokens.\n"));
+      // console.log(chalk.dim("  ✂️  Old messages truncated to save tokens.\n"));
     }
     invalidateContextCache();
   } else if (shouldTruncate(updatedMessages)) {
@@ -271,7 +276,7 @@ export async function chat(
     updatedMessages.length = 0;
     updatedMessages.push(...truncated);
     invalidateContextCache();
-    console.log(chalk.dim("  ✂️  Old messages truncated to save tokens.\n"));
+    // console.log(chalk.dim("  ✂️  Old messages truncated to save tokens.\n"));
   }
 
   let turns = 0;
@@ -568,7 +573,7 @@ export async function chat(
       updatedMessages.length = 0;
       updatedMessages.push(...compacted);
       invalidateContextCache();
-      console.log(chalk.dim("  📦 Context auto-compacted to save tokens.\n"));
+      // console.log(chalk.dim("  📦 Context auto-compacted to save tokens.\n"));
     }
 
     // Classify tools as parallelizable (read-only, no side effects) vs sequential
