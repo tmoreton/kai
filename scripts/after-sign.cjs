@@ -14,7 +14,7 @@ if (!appPath) {
   process.exit(1);
 }
 
-const IDENTITY = process.env.APPLE_SIGNING_IDENTITY || 'Developer ID Application: Tim Moreton (49WV6F9T9G)';
+const IDENTITY = process.env.APPLE_SIGNING_IDENTITY || 'Developer ID Application: Tim Moreton (GVXC5FQ2RP)';
 
 function findBinaries(dir) {
   const results = [];

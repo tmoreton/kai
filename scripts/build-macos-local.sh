@@ -26,8 +26,8 @@ if ! security find-identity -v -p codesigning | grep -q "Developer ID"; then
     exit 1
 fi
 
-# Get signing identity
-IDENTITY=$(security find-identity -v -p codesigning 2>/dev/null | grep "Developer ID" | head -1 | sed 's/.*"\([^"]*\)".*/\1/')
+# Get signing identity (use Developer ID, not Apple Development)
+IDENTITY=$(security find-identity -v -p codesigning 2>/dev/null | grep "Developer ID Application" | head -1 | sed 's/.*"\([^"]*\)".*/\1/')
 echo "✅ Found signing identity: $IDENTITY"
 echo ""
 
@@ -81,25 +81,29 @@ echo ""
 echo "🔏 Re-signing Intel app bundle..."
 codesign --deep --force --options runtime --sign "$IDENTITY" --timestamp "$INTEL_APP"
 
-# Zip the .app bundles for distribution
+# Create DMGs from the signed .app bundles
 echo ""
-echo "📦 Zipping app bundles..."
+echo "📦 Creating DMGs..."
 
 ARM64_APP="src-tauri/target/aarch64-apple-darwin/release/bundle/macos/Kai.app"
 INTEL_APP="src-tauri/target/x86_64-apple-darwin/release/bundle/macos/Kai.app"
 
 if [ -d "$ARM64_APP" ]; then
-    echo "  Zipping ARM64 app..."
-    cd "$(dirname "$ARM64_APP")"
-    zip -r "../../../Kai_${VERSION}_aarch64.zip" Kai.app
-    cd -
+    echo "  Creating ARM64 DMG..."
+    npx create-dmg "$ARM64_APP" src-tauri/target/ --overwrite || true
+    # Rename if create-dmg succeeded
+    if [ -f "src-tauri/target/Kai ${VERSION}.dmg" ]; then
+        mv "src-tauri/target/Kai ${VERSION}.dmg" "src-tauri/target/Kai_${VERSION}_aarch64.dmg"
+    fi
 fi
 
 if [ -d "$INTEL_APP" ]; then
-    echo "  Zipping Intel app..."
-    cd "$(dirname "$INTEL_APP")"
-    zip -r "../../../Kai_${VERSION}_x86_64.zip" Kai.app
-    cd -
+    echo "  Creating Intel DMG..."
+    npx create-dmg "$INTEL_APP" src-tauri/target/ --overwrite || true
+    # Rename if create-dmg succeeded
+    if [ -f "src-tauri/target/Kai ${VERSION}.dmg" ]; then
+        mv "src-tauri/target/Kai ${VERSION}.dmg" "src-tauri/target/Kai_${VERSION}_x86_64.dmg"
+    fi
 fi
 
 echo ""
@@ -108,10 +112,10 @@ echo "✅ Build Complete!"
 echo "========================================"
 echo ""
 echo "Artifacts:"
-ls -lh src-tauri/target/*.zip 2>/dev/null || echo "  (No zip files found)"
+ls -lh src-tauri/target/*.dmg 2>/dev/null || echo "  (No DMG files found)"
 echo ""
 echo "Next steps:"
 echo "1. Test the builds locally"
 echo "2. Upload to GitHub release:"
-echo "   gh release upload ${VERSION} src-tauri/target/*.zip"
+echo "   gh release upload ${VERSION} src-tauri/target/*.dmg"
 echo ""

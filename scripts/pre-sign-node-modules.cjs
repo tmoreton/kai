@@ -9,7 +9,7 @@ const path = require('path');
 const { execSync } = require('child_process');
 
 const NODE_MODULES = path.join(__dirname, '..', 'node_modules');
-const IDENTITY = process.env.APPLE_SIGNING_IDENTITY || 'Developer ID Application: Tim Moreton (Q82WC4546X)';
+const IDENTITY = process.env.APPLE_SIGNING_IDENTITY || 'Developer ID Application: Tim Moreton (GVXC5FQ2RP)';
 
 function findBinaries(dir, patterns) {
   const results = [];
