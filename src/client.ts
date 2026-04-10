@@ -110,11 +110,25 @@ function getBaseToolDefinitions(): ChatCompletionTool[] {
   return _cachedBaseToolDefs;
 }
 
+// Core built-in tools that are ALWAYS available (no embedding needed)
+const ALWAYS_INCLUDE_TOOLS = new Set([
+  // File operations - essential for all coding
+  "bash", "bash_background", "read_file", "write_file", "edit_file", "glob", "grep",
+  // Web - commonly needed
+  "web_fetch", "web_search",
+  // Memory - always relevant
+  "core_memory_read", "core_memory_update", "recall_search", "archival_insert", "archival_search",
+  // Agents - core capability
+  "spawn_agent", "spawn_swarm", "agent_list", "agent_create",
+  // Media - if needed
+  "generate_image", "take_screenshot", "analyze_image",
+]);
+
 async function getCachedToolDefinitions(messages?: ChatCompletionMessageParam[]): Promise<ChatCompletionTool[]> {
   const baseTools = getBaseToolDefinitions();
   const allSkillTools = getSkillToolDefinitions(null);
 
-  // Find the last user message
+  // Find the last user message for intent detection
   const lastUserMessage = messages
     ? [...messages].reverse().find(
         (m): m is ChatCompletionMessageParam & { role: "user"; content: string } =>
@@ -122,29 +136,53 @@ async function getCachedToolDefinitions(messages?: ChatCompletionMessageParam[])
       )
     : undefined;
 
-  // Try semantic search for tool selection
+  // Semantic search only for SKILLS (not built-in tools)
+  // Built-in tools are always included
+  let matchedSkillNames = new Set<string>();
+  
   if (lastUserMessage) {
     try {
-      await initToolEmbeddings([...baseTools, ...allSkillTools]);
-      const matches = await findToolsBySemanticSimilarity(lastUserMessage.content, 15, 0.45);
-
-      if (matches.length >= 3) {
-        const matchedNames = new Set(matches.map(m => m.tool));
-        // Always include core tools + semantic matches
-        const coreNames = new Set(["bash", "read_file", "edit_file", "write_file", "glob", "grep"]);
-        const filtered = [...baseTools, ...allSkillTools].filter(t =>
-          t.type === "function" && (matchedNames.has(t.function.name) || coreNames.has(t.function.name))
-        );
-        console.log(chalk.dim(`  🔍 Using ${filtered.length} tools (semantic: ${matches.length})`));
-        return filtered;
+      // Only embed skills (not built-in tools) - saves tokens and API calls
+      await initToolEmbeddings(allSkillTools);
+      const matches = await findToolsBySemanticSimilarity(lastUserMessage.content, 20, 0.35);
+      
+      matchedSkillNames = new Set(matches.map(m => m.tool));
+      
+      if (matches.length > 0) {
+        console.log(chalk.dim(`  🔍 Matched ${matches.length} skills`));
       }
     } catch {
-      // API failed - fall back to all tools
+      // API failed - include all skills as fallback
+      console.log(chalk.dim("  ⚠️  Semantic search failed, using all skills"));
+      return [...baseTools, ...allSkillTools];
     }
   }
 
-  // Fallback: return all tools
-  return [...baseTools, ...allSkillTools];
+  // Combine: always-include built-ins + matched skills
+  const result: ChatCompletionTool[] = [];
+  
+  for (const tool of baseTools) {
+    if (tool.type === "function" && ALWAYS_INCLUDE_TOOLS.has(tool.function.name)) {
+      result.push(tool);
+    }
+  }
+  
+  for (const tool of allSkillTools) {
+    if (tool.type === "function") {
+      // Include if semantically matched or no query (include all)
+      if (!lastUserMessage || matchedSkillNames.has(tool.function.name)) {
+        result.push(tool);
+      }
+    }
+  }
+  
+  // Count saved skills
+  const saved = allSkillTools.length - (result.length - [...baseTools].filter(t => t.type === "function" && ALWAYS_INCLUDE_TOOLS.has(t.function.name)).length);
+  if (saved > 0 && lastUserMessage) {
+    console.log(chalk.dim(`  🎯 Filtered ${saved} skills, using ${result.length} tools`));
+  }
+  
+  return result;
 }
 
 /** Invalidate tool definition caches (call when skills reload) */

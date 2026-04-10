@@ -38,7 +38,7 @@ import { resolveFilePath, expandHome, sleep } from "./utils.js";
 import { bootstrapBuiltinAgents } from "./agents-core/bootstrap.js";
 import { SLASH_COMMANDS, handleCommand } from "./repl-commands.js";
 import { startSpinner, stopSpinner, renderToolCard, renderAssistantMarker, clearLine, COLOR_THEME, MarkdownStreamBuffer } from "./render/stream.js";
-import { recordUsage, migrateUsageFromJson } from "./usage.js";
+import { recordUsage } from "./usage.js";
 import { migrateFromJson } from "./db/projects-db.js";
 
 const IMAGE_EXTS = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"]);
@@ -185,16 +185,6 @@ export async function startRepl(options: ReplOptions = {}, initialPrompt?: strin
   if (bootstrapped > 0) {
     console.log(chalk.dim(`  Installed ${bootstrapped} built-in agent(s). Run /agent to see them.\n`));
   }
-
-  // Migrate legacy usage.json to SQLite (one-time, silent)
-  setTimeout(() => {
-    try {
-      const migrated = migrateUsageFromJson();
-      if (migrated.imported > 0) {
-        console.log(chalk.dim(`  Migrated ${migrated.imported} usage records to database.\n`));
-      }
-    } catch {}
-  }, 100);
 
   // Migrate legacy projects.json, settings.json, profiles to SQLite (one-time, silent)
   setTimeout(() => {
