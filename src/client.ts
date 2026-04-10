@@ -4,7 +4,8 @@ import type {
   ChatCompletionTool,
 } from "openai/resources/chat/completions";
 import { toolDefinitions, getMcpToolDefinitions } from "./tools/index.js";
-import { getSkillToolDefinitions } from "./skills/index.js";
+import { getSkillToolDefinitions, getRelevantSkillCategories, loadAllSkills } from "./skills/index.js";
+import { initToolEmbeddings, findToolsBySemanticSimilarity } from "./skills/embeddings.js";
 import { executeTool } from "./tools/executor.js";
 import { shouldCompact, compactMessages, truncateMessages, shouldTruncate, invalidateContextCache, trackToolMetadata } from "./context.js";
 import {
@@ -97,14 +98,93 @@ let _resolved: ResolvedProvider | null = null;
 const KIMI_TOKEN_PATTERN = /<\|(?:tool_calls?_(?:section_)?(?:begin|end)|tool_call_argument_(?:begin|end))\|>/g;
 
 // Cached tool definitions — rebuilt only when invalidated
-let _cachedToolDefs: ChatCompletionTool[] | null = null;
+// We cache base tools (built-in + MCP) separately from skills to enable intent-based filtering
+let _cachedBaseToolDefs: ChatCompletionTool[] | null = null;
+let _cachedSkillCategories: string[] | null = null;
+let _cachedFilteredTools: ChatCompletionTool[] | null = null;
 
-function getCachedToolDefinitions(): ChatCompletionTool[] {
-  if (_cachedToolDefs) return _cachedToolDefs;
+function getBaseToolDefinitions(): ChatCompletionTool[] {
+  if (_cachedBaseToolDefs) return _cachedBaseToolDefs;
   const mcpTools = getMcpToolDefinitions();
-  const userSkillTools = getSkillToolDefinitions();
-  _cachedToolDefs = [...toolDefinitions, ...mcpTools, ...userSkillTools] as ChatCompletionTool[];
-  return _cachedToolDefs;
+  _cachedBaseToolDefs = [...toolDefinitions, ...mcpTools] as ChatCompletionTool[];
+  return _cachedBaseToolDefs;
+}
+
+async function getCachedToolDefinitions(messages?: ChatCompletionMessageParam[]): Promise<ChatCompletionTool[]> {
+  const baseTools = getBaseToolDefinitions();
+
+  // Find the last user message for intent detection
+  const lastUserMessage = messages
+    ? [...messages].reverse().find(
+        (m): m is ChatCompletionMessageParam & { role: "user"; content: string } =>
+          m.role === "user" && typeof m.content === "string"
+      )
+    : undefined;
+
+  // Detect relevant skill categories from user intent
+  const relevantCategories = lastUserMessage
+    ? getRelevantSkillCategories(lastUserMessage.content)
+    : null;
+
+  // If categories detected, use keyword filtering
+  if (relevantCategories) {
+    const categoriesKey = relevantCategories.join(",");
+    if (_cachedFilteredTools && _cachedSkillCategories?.join(",") === categoriesKey) {
+      return _cachedFilteredTools;
+    }
+
+    const filteredSkills = getSkillToolDefinitions(relevantCategories);
+    _cachedSkillCategories = relevantCategories;
+    _cachedFilteredTools = [...baseTools, ...filteredSkills];
+
+    const allSkills = getSkillToolDefinitions(null);
+    const savings = allSkills.length - filteredSkills.length;
+    if (savings > 0) {
+      console.log(chalk.dim(`  🎯 Filtered ${savings} skills (${relevantCategories.join(", ")})`));
+    }
+    return _cachedFilteredTools;
+  }
+
+  // No keyword match - try semantic search for better tool selection
+  if (lastUserMessage && !relevantCategories) {
+    try {
+      // Ensure embeddings are initialized
+      const allSkillTools = getSkillToolDefinitions(null);
+      await initToolEmbeddings([...baseTools, ...allSkillTools]);
+
+      // Find semantically similar tools
+      const semanticMatches = await findToolsBySemanticSimilarity(lastUserMessage.content, 15, 0.6);
+
+      if (semanticMatches.length >= 5) {
+        const matchedNames = new Set(semanticMatches.map(m => m.tool));
+        const allTools = [...baseTools, ...allSkillTools];
+        const filtered = allTools.filter(t =>
+          t.type === "function" && matchedNames.has(t.function.name)
+        );
+
+        if (filtered.length >= 5) {
+          console.log(chalk.dim(`  🔍 Semantic match: ${filtered.length} tools (${Math.round(semanticMatches[0].score * 100)}% confidence)`));
+          return [...baseTools.slice(0, 10), ...filtered]; // Keep some base tools + semantic matches
+        }
+      }
+    } catch {
+      // Semantic search failed, fall through to all tools
+    }
+  }
+
+  // Default: use all skills
+  if (!_cachedFilteredTools || _cachedSkillCategories !== null) {
+    _cachedSkillCategories = null;
+    _cachedFilteredTools = [...baseTools, ...getSkillToolDefinitions(null)];
+  }
+  return _cachedFilteredTools;
+}
+
+/** Invalidate tool definition caches (call when skills reload) */
+export function invalidateToolCache(): void {
+  _cachedBaseToolDefs = null;
+  _cachedSkillCategories = null;
+  _cachedFilteredTools = null;
 }
 
 // When true, the spinner and streaming output pause to let the user type.
@@ -150,8 +230,9 @@ export async function chat(
   onToken?: (token: string) => void,
   options?: { tools?: ChatCompletionTool[]; maxTurns?: number; signal?: AbortSignal; unleash?: boolean; onUsage?: (input: number, output: number) => void }
 ): Promise<ChatCompletionMessageParam[]> {
+  const toolDefs = await getCachedToolDefinitions(messages);
   const activeTools = filterToolsByIntent(
-    options?.tools ?? getCachedToolDefinitions(),
+    options?.tools ?? toolDefs,
     messages
   );
   const unleash = options?.unleash ?? false;

@@ -12,6 +12,12 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: true
 
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+  actions: read
+
 env:
   CARGO_INCREMENTAL: 0
   RUST_BACKTRACE: short

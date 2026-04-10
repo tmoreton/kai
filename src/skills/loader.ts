@@ -247,13 +247,19 @@ export function setSkill(id: string, skill: LoadedSkill): void {
 }
 
 /**
- * Generate OpenAI-compatible tool definitions for all loaded skills.
+ * Generate OpenAI-compatible tool definitions for skills.
  * Tools are namespaced as skill__<id>__<tool_name>.
+ * If relevantCategories is provided, only skills matching those categories are included.
  */
-export function getSkillToolDefinitions(): ChatCompletionTool[] {
+export function getSkillToolDefinitions(relevantCategories?: string[] | null): ChatCompletionTool[] {
   const defs: ChatCompletionTool[] = [];
 
   for (const skill of skills.values()) {
+    // Filter by category if specified
+    if (relevantCategories && !shouldLoadSkill(skill.manifest.id, relevantCategories)) {
+      continue;
+    }
+
     for (const tool of skill.manifest.tools) {
       // Build OpenAI-schema parameters from skill tool definition
       const properties: Record<string, any> = {};
@@ -262,7 +268,8 @@ export function getSkillToolDefinitions(): ChatCompletionTool[] {
       for (const [paramName, paramDef] of Object.entries(tool.parameters || {})) {
         properties[paramName] = {
           type: paramDef.type,
-          description: paramDef.description || paramName,
+          // Truncate verbose parameter descriptions
+          description: truncateParamDescription(paramDef.description || paramName),
         };
         if (paramDef.enum) {
           properties[paramName].enum = paramDef.enum;
@@ -276,7 +283,7 @@ export function getSkillToolDefinitions(): ChatCompletionTool[] {
         type: "function",
         function: {
           name: skillToolName(skill.manifest.id, tool.name),
-          description: truncateSkillDescription(`[Skill: ${skill.manifest.name}] ${tool.description}`),
+          description: truncateSkillDescription(`[${skill.manifest.name}] ${tool.description}`),
           parameters: {
             type: "object",
             properties,
@@ -290,6 +297,18 @@ export function getSkillToolDefinitions(): ChatCompletionTool[] {
   return defs;
 }
 
+// Truncate parameter descriptions to save tokens
+function truncateParamDescription(desc: string): string {
+  if (desc.length <= 40) return desc;
+  // Remove obvious phrases
+  const cleaned = desc
+    .replace(/\b(The|A|An)\s+/gi, "")
+    .replace(/\b(optional|required)\s*/gi, "")
+    .trim();
+  if (cleaned.length <= 40) return cleaned;
+  return cleaned.slice(0, 37) + "...";
+}
+
 /**
  * Build a namespaced tool name: skill__<id>__<tool>
  */
@@ -297,11 +316,75 @@ export function skillToolName(skillId: string, toolName: string): string {
   return `skill__${skillId}__${toolName}`;
 }
 
-const MAX_SKILL_DESCRIPTION_LENGTH = 50;
+const MAX_SKILL_DESCRIPTION_LENGTH = 80;
+
+// Skill categories for intent-based filtering
+export const SKILL_CATEGORIES: Record<string, string[]> = {
+  coding: ["git", "docker", "database", "data-storage"],
+  social: ["youtube", "twitter", "instagram", "linkedin", "facebook", "tiktok", "threads", "bluesky", "slack"],
+  web: ["browser", "web-tools", "webhook"],
+  content: ["notion", "google-sheets", "email"],
+  ai: ["openrouter"],
+  dashboard: ["dashboard"],
+};
+
+// Map skill IDs to their categories for quick lookup
+export function getSkillCategory(skillId: string): string | null {
+  for (const [category, skills] of Object.entries(SKILL_CATEGORIES)) {
+    if (skills.includes(skillId)) return category;
+  }
+  return null;
+}
+
+// Intent keywords that trigger specific skill categories
+const CATEGORY_INTENT_KEYWORDS: Record<string, RegExp> = {
+  social: /\b(post|tweet|youtube|twitter|instagram|linkedin|social|upload|video|schedule|analytics|followers|engagement)\b/i,
+  web: /\b(browser|scrape|navigate|click|screenshot|web page|login|form|automation)\b/i,
+  content: /\b(notion|sheet|spreadsheet|email|send mail|document|draft)\b/i,
+  ai: /\b(image|generate|art|create image|draw|illustration)\b/i,
+  dashboard: /\b(dashboard|analytics|metrics|charts|stats|overview)\b/i,
+  coding: /\b(git|database|db|docker|container|sql|query|backup)\b/i,
+};
+
+/**
+ * Determine which skill categories are relevant based on user message intent.
+ * Returns array of category names, or null for all categories (no filter).
+ */
+export function getRelevantSkillCategories(message: string): string[] | null {
+  const content = message.toLowerCase();
+  const relevant: string[] = [];
+
+  // Check for social media keywords
+  if (CATEGORY_INTENT_KEYWORDS.social.test(content)) relevant.push("social");
+  if (CATEGORY_INTENT_KEYWORDS.web.test(content)) relevant.push("web");
+  if (CATEGORY_INTENT_KEYWORDS.content.test(content)) relevant.push("content");
+  if (CATEGORY_INTENT_KEYWORDS.ai.test(content)) relevant.push("ai");
+  if (CATEGORY_INTENT_KEYWORDS.dashboard.test(content)) relevant.push("dashboard");
+  if (CATEGORY_INTENT_KEYWORDS.coding.test(content)) relevant.push("coding");
+
+  // If no specific category detected, return null (load all)
+  return relevant.length > 0 ? relevant : null;
+}
+
+/**
+ * Check if a skill should be loaded based on detected categories.
+ */
+export function shouldLoadSkill(skillId: string, relevantCategories: string[] | null): boolean {
+  if (!relevantCategories) return true; // Load all if no filter
+  const category = getSkillCategory(skillId);
+  if (!category) return true; // Uncategorized skills always load
+  return relevantCategories.includes(category);
+}
 
 function truncateSkillDescription(description: string): string {
-  if (description.length <= MAX_SKILL_DESCRIPTION_LENGTH) return description;
-  return description.slice(0, MAX_SKILL_DESCRIPTION_LENGTH - 11) + " [TRUNCATED]";
+  // Remove verbose filler words
+  let cleaned = description
+    .replace(/\b(Use (this|for)|You can|This is|This will|Allows you to|Used to)\b/gi, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (cleaned.length <= MAX_SKILL_DESCRIPTION_LENGTH) return cleaned;
+  return cleaned.slice(0, MAX_SKILL_DESCRIPTION_LENGTH - 3) + "...";
 }
 
 /**
