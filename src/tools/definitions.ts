@@ -134,7 +134,7 @@ export const toolDefinitions = [
     function: {
       name: "grep",
       description:
-        "Search file contents using regex. Returns matching lines with context. Use for finding code patterns, function definitions, imports, etc.",
+        "Search file contents using regex. Returns matching lines with context. Use for finding code patterns, function definitions, imports, etc. Consider using find_symbol, goto_definition, find_references for semantic code search when available.",
       parameters: {
         type: "object",
         properties: {
@@ -160,6 +160,116 @@ export const toolDefinitions = [
           },
         },
         required: ["pattern"],
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "find_symbol",
+      description:
+        "Find symbols (functions, classes, interfaces, variables) by name across the codebase. Uses LSP for semantic search, falls back to grep if unavailable. Faster and more accurate than grep for finding code symbols.",
+      parameters: {
+        type: "object",
+        properties: {
+          name: {
+            type: "string",
+            description: "Symbol name to search for (exact or partial match)",
+          },
+          type: {
+            type: "string",
+            enum: ["function", "class", "interface", "variable", "constant", "import"],
+            description: "Filter by symbol type (optional)",
+          },
+          file: {
+            type: "string",
+            description: "Specific file to search in (optional)",
+          },
+          path: {
+            type: "string",
+            description: "Directory to search in (default: cwd)",
+          },
+        },
+        required: ["name"],
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "goto_definition",
+      description:
+        "Find the definition location of a symbol. Uses LSP for precise navigation, falls back to grep if unavailable. Much faster than grep for finding where functions, classes, or variables are defined.",
+      parameters: {
+        type: "object",
+        properties: {
+          name: {
+            type: "string",
+            description: "Symbol name to find definition for",
+          },
+          file: {
+            type: "string",
+            description: "File containing the symbol reference (helps narrow search)",
+          },
+          path: {
+            type: "string",
+            description: "Directory to search in (default: cwd)",
+          },
+        },
+        required: ["name"],
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "find_references",
+      description:
+        "Find all references to a symbol across the codebase. Uses LSP for semantic analysis, falls back to grep if unavailable. Finds actual usages, not just text matches.",
+      parameters: {
+        type: "object",
+        properties: {
+          name: {
+            type: "string",
+            description: "Symbol name to find references for",
+          },
+          file: {
+            type: "string",
+            description: "File containing the symbol (helps narrow search)",
+          },
+          path: {
+            type: "string",
+            description: "Directory to search in (default: cwd)",
+          },
+        },
+        required: ["name"],
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "list_symbols",
+      description:
+        "List all symbols in a specific file. Uses LSP for accurate parsing, falls back to grep if unavailable. Great for understanding what's exported or defined in a file.",
+      parameters: {
+        type: "object",
+        properties: {
+          file: {
+            type: "string",
+            description: "File path to list symbols from",
+          },
+          type: {
+            type: "string",
+            enum: ["function", "class", "interface", "variable"],
+            description: "Filter by symbol type (optional)",
+          },
+          path: {
+            type: "string",
+            description: "Base directory for relative file path (default: cwd)",
+          },
+        },
+        required: ["file"],
       },
     },
   },

@@ -11,6 +11,12 @@ export const RICH_TOOL_DESCRIPTIONS: Record<string, string> = {
   edit_file: "Modify, change, update existing files. Fix bugs, refactor code, update text, patch files. old_string must match exactly including whitespace and indentation. Always use read_file first to see current content.",
   glob: "Find, locate, discover files by pattern matching. Search for files using patterns like **/*.ts, src/**/*.test.js. Returns file paths sorted by modification time. Use for: finding all test files, locating config files, discovering components.",
   grep: "Search, find text patterns, regex search in file contents. Look for functions, imports, TODO comments, code patterns across entire codebase. Use for: finding where functions are defined, searching for specific code patterns, locating strings in files.",
+  
+  // LSP-based semantic code search - faster and more accurate than grep
+  find_symbol: "Find, locate, discover symbols by name across codebase. Semantic code search using LSP. Find functions, classes, interfaces, variables. Use for: finding where things are defined, locating exports, discovering API surface. Faster and more accurate than grep.",
+  goto_definition: "Navigate, jump, go to where a symbol is defined. Precise definition navigation using LSP. Use for: finding function implementations, class definitions, variable declarations. Much faster than searching with grep.",
+  find_references: "Find, discover, locate all usages of a symbol. Find actual code references using LSP, not just text matches. Use for: refactoring impact analysis, finding who uses a function, usage tracking. More accurate than grep.",
+  list_symbols: "List, enumerate, show all symbols in a file. See what's exported or defined. Use for: understanding API surface, exploring file contents, finding exports. Accurate parsing with LSP.",
 
   // Shell operations - enhanced with dev workflows
   bash: "Run, execute shell commands. Run build scripts, execute tests, install npm packages, compile code, run linters. Use for: npm run build, npm test, pip install, cargo build, make, gradle. Short commands only.",

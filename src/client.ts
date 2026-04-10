@@ -688,6 +688,25 @@ export async function chat(
           const lines = resultStr.split('\n').filter(l => l.trim());
           const fileCount = resultStr ? lines.length : 0;
           console.log(chalk.gray(`    ⎿  📁 ${fileCount} files`));
+        } else if (p.toolName === "find_symbol") {
+          // Compact display for find_symbol
+          const lines = resultStr.split('\n').filter(l => l.trim() && !l.startsWith('['));
+          const symbolCount = resultStr === "No symbols found." ? 0 : lines.length;
+          console.log(chalk.gray(`    ⎿  🔣 ${symbolCount} symbols`));
+        } else if (p.toolName === "goto_definition") {
+          // Compact display for goto_definition
+          const hasResult = !resultStr.includes("No matches") && !resultStr.includes("not found");
+          console.log(chalk.gray(`    ⎿  ➡️  ${hasResult ? "found" : "not found"}`));
+        } else if (p.toolName === "find_references") {
+          // Compact display for find_references
+          const match = resultStr.match(/Found (\d+) references/);
+          const refCount = match ? match[1] : (resultStr.includes("No references") ? 0 : "?");
+          console.log(chalk.gray(`    ⎿  🔗 ${refCount} refs`));
+        } else if (p.toolName === "list_symbols") {
+          // Compact display for list_symbols
+          const lines = resultStr.split('\n').filter(l => l.trim() && !l.startsWith('['));
+          const symbolCount = resultStr === "No symbols found." ? 0 : lines.length;
+          console.log(chalk.gray(`    ⎿  📋 ${symbolCount} symbols`));
         } else if (p.toolName === "bash" || p.toolName === "bash_background") {
           // Hide bash output completely
           console.log(chalk.gray(`    ⎿  ⚡ done`));

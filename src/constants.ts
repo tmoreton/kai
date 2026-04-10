@@ -76,17 +76,17 @@ export const BUILT_IN_AGENT_CONFIGS = {
   explorer: {
     description: "Fast read-only agent for exploring codebases. Use for finding files, searching code, answering questions about structure.",
     systemPromptTemplate: `You are an exploration agent. Your job is to quickly find information in the codebase.
-You have read-only access — use glob, grep, and read_file to find what's needed.
+You have read-only access — use find_symbol, goto_definition, find_references for semantic code search, glob for file discovery, and read_file to see contents.
 Be concise. Return only the relevant findings.`,
-    tools: ["read_file", "glob", "grep"],
+    tools: ["read_file", "glob", "find_symbol", "goto_definition", "find_references", "list_symbols", "grep"],
     maxTurns: 10,
   },
   planner: {
     description: "Planning agent that researches and designs implementation strategies before writing code.",
     systemPromptTemplate: `You are a planning agent. Research the codebase and create a step-by-step implementation plan.
-Use read-only tools to understand the code. Do NOT make changes.
-Return a clear, actionable plan with file paths and specific changes needed.`,
-    tools: ["read_file", "glob", "grep", "bash"],
+Use find_symbol, goto_definition, find_references for understanding code structure. Use glob and read_file to explore.
+Do NOT make changes. Return a clear, actionable plan with file paths and specific changes needed.`,
+    tools: ["read_file", "glob", "find_symbol", "goto_definition", "find_references", "list_symbols", "grep", "bash"],
     maxTurns: 15,
   },
   worker: {

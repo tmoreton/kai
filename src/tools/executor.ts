@@ -1,6 +1,7 @@
 import { bashTool, bashBackgroundTool } from "./bash.js";
 import { readFile, writeFile, editFile } from "./files.js";
 import { globTool, grepTool } from "./search.js";
+import { findSymbol, gotoDefinition, findReferences, listSymbols } from "../lsp/tools.js";
 import { webFetch, webSearch } from "./web.js";
 
 import { spawnAgent } from "../subagent.js";
@@ -255,6 +256,14 @@ export async function executeTool(
         return await globTool(toolArgs as { pattern: string; path?: string });
       case "grep":
         return await grepTool(toolArgs as { pattern: string; path?: string; include?: string; context?: number; ignore_case?: boolean });
+      case "find_symbol":
+        return await findSymbol(toolArgs as { name: string; type?: "function" | "class" | "interface" | "variable" | "constant" | "import"; file?: string; path?: string });
+      case "goto_definition":
+        return await gotoDefinition(toolArgs as { name: string; file?: string; path?: string });
+      case "find_references":
+        return await findReferences(toolArgs as { name: string; file?: string; path?: string });
+      case "list_symbols":
+        return await listSymbols(toolArgs as { file: string; type?: "function" | "class" | "interface" | "variable"; path?: string });
       case "web_fetch":
         return await webFetch(toolArgs as { url: string; method?: string; headers?: Record<string, string> });
       case "web_search":

@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { RouterProvider } from "react-router-dom";
 import { router } from "./router";
+import { Logo } from "./components/Logo";
 import "./index.css";
 
 // Extend Window interface for PWA types
@@ -131,23 +132,7 @@ function LoadingScreen() {
   return (
     <div className="h-screen w-full flex items-center justify-center bg-background">
       <div className="flex flex-col items-center gap-4">
-        <svg viewBox="0 0 32 32" className="w-10 h-10 animate-pulse">
-          <defs>
-            <linearGradient id="kai-logo" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0%" stopColor="#0D9488" />
-              <stop offset="100%" stopColor="#115E59" />
-            </linearGradient>
-          </defs>
-          <rect width="32" height="32" rx="8" fill="url(#kai-logo)" />
-          <path
-            d="M9 8v16M9 16l8-8M9 16l8 8"
-            stroke="white"
-            strokeWidth="2.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            fill="none"
-          />
-        </svg>
+        <Logo className="w-10 h-10 animate-pulse" />
         <p className="text-muted-foreground text-sm">Loading Kai...</p>
       </div>
     </div>
