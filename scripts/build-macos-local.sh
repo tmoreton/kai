@@ -40,9 +40,14 @@ echo ""
 echo "📥 Installing dependencies..."
 npm ci
 
-# Install Tauri CLI
-echo "📥 Installing Tauri CLI..."
+# Install Tauri CLI and required targets
+echo "📥 Installing Tauri CLI and targets..."
 cargo install tauri-cli --version "^2.0"
+
+# Ensure both ARM64 and Intel targets are installed
+echo "📦 Checking Rust targets..."
+rustup target add aarch64-apple-darwin 2>/dev/null || true
+rustup target add x86_64-apple-darwin 2>/dev/null || true
 
 # Pre-sign node_modules binaries
 echo "🔏 Pre-signing node_modules binaries..."
@@ -65,21 +70,28 @@ echo ""
 echo "🔏 Re-signing ARM64 app bundle..."
 codesign --deep --force --options runtime --sign "$IDENTITY" --timestamp "$ARM64_APP"
 
-# Build Intel
+# Build Intel (optional - requires Rosetta on Apple Silicon)
 echo ""
-echo "🔨 Building for Intel (x86_64)..."
-cargo tauri build --target x86_64-apple-darwin
-
-# Sign nested binaries in Intel build
-echo ""
-echo "🔏 Signing nested binaries in Intel build..."
-INTEL_APP="$PWD/src-tauri/target/x86_64-apple-darwin/release/bundle/macos/Kai.app"
-node scripts/after-sign.cjs "$INTEL_APP"
-
-# Re-sign the entire Intel app (deep sign)
-echo ""
-echo "🔏 Re-signing Intel app bundle..."
-codesign --deep --force --options runtime --sign "$IDENTITY" --timestamp "$INTEL_APP"
+if rustup target list --installed | grep -q "x86_64-apple-darwin"; then
+    echo "🔨 Building for Intel (x86_64)..."
+    cargo tauri build --target x86_64-apple-darwin || echo "⚠️ Intel build failed (may need Rosetta)"
+    
+    if [ -d "$PWD/src-tauri/target/x86_64-apple-darwin/release/bundle/macos/Kai.app" ]; then
+        # Sign nested binaries in Intel build
+        echo ""
+        echo "🔏 Signing nested binaries in Intel build..."
+        INTEL_APP="$PWD/src-tauri/target/x86_64-apple-darwin/release/bundle/macos/Kai.app"
+        node scripts/after-sign.cjs "$INTEL_APP"
+        
+        # Re-sign the entire Intel app (deep sign)
+        echo ""
+        echo "🔏 Re-signing Intel app bundle..."
+        codesign --deep --force --options runtime --sign "$IDENTITY" --timestamp "$INTEL_APP"
+    fi
+else
+    echo "⚠️ Skipping Intel build (x86_64-apple-darwin target not installed)"
+    echo "   To install: rustup target add x86_64-apple-darwin"
+fi
 
 # Create DMGs from the signed .app bundles
 echo ""
