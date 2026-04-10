@@ -76,63 +76,65 @@ export function AgentDetail() {
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
-      <div className="border-b border-border bg-card px-4 py-3">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => navigate('/agents')}
-            className="p-2 hover:bg-accent rounded-lg"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </button>
-
-          <div className="flex-1">
-            <h1 className="text-lg font-semibold">{agent.name}</h1>
-            <p className="text-sm text-muted-foreground">{agent.description}</p>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <Button
-              variant={agent.enabled ? "default" : "outline"}
-              size="sm"
-              onClick={() => agentsApi.update(agent.id, { enabled: !agent.enabled })}
+      <div className="border-b border-border bg-card">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 py-3">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => navigate('/agents')}
+              className="p-2 hover:bg-accent rounded-lg"
             >
-              {agent.enabled ? 'Enabled' : 'Disabled'}
-            </Button>
-            <Button size="sm" onClick={() => agentsApi.run(agent.id)}>
-              <Play className="w-4 h-4 mr-2" />
-              Run Now
-            </Button>
-          </div>
-        </div>
+              <ArrowLeft className="w-5 h-5" />
+            </button>
 
-        {/* Tabs */}
-        <div className="flex gap-1 mt-3">
-          <TabButton active={activeTab === 'chat'} onClick={() => setActiveTab('chat')}>
-            <MessageSquare className="w-4 h-4 mr-2" />
-            Chat
-          </TabButton>
-          <TabButton active={activeTab === 'workflows'} onClick={() => setActiveTab('workflows')}>
-            <FileCode2 className="w-4 h-4 mr-2" />
-            Workflow
-          </TabButton>
-          <TabButton active={activeTab === 'history'} onClick={() => setActiveTab('history')}>
-            <History className="w-4 h-4 mr-2" />
-            History
-          </TabButton>
-          <TabButton active={activeTab === 'memory'} onClick={() => setActiveTab('memory')}>
-            <Brain className="w-4 h-4 mr-2" />
-            Memory
-          </TabButton>
-          <TabButton active={activeTab === 'settings'} onClick={() => setActiveTab('settings')}>
-            <Settings className="w-4 h-4 mr-2" />
-            Settings
-          </TabButton>
+            <div className="flex-1 min-w-0">
+              <h1 className="text-lg font-semibold truncate">{agent.name}</h1>
+              <p className="text-sm text-muted-foreground truncate">{agent.description}</p>
+            </div>
+
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <Button
+                variant={agent.enabled ? "default" : "outline"}
+                size="sm"
+                onClick={() => agentsApi.update(agent.id, { enabled: !agent.enabled })}
+              >
+                {agent.enabled ? 'Enabled' : 'Disabled'}
+              </Button>
+              <Button size="sm" onClick={() => agentsApi.run(agent.id)}>
+                <Play className="w-4 h-4 mr-2" />
+                Run Now
+              </Button>
+            </div>
+          </div>
+
+          {/* Tabs */}
+          <div className="flex gap-1 mt-3">
+            <TabButton active={activeTab === 'chat'} onClick={() => setActiveTab('chat')}>
+              <MessageSquare className="w-4 h-4 mr-2" />
+              Chat
+            </TabButton>
+            <TabButton active={activeTab === 'workflows'} onClick={() => setActiveTab('workflows')}>
+              <FileCode2 className="w-4 h-4 mr-2" />
+              Workflow
+            </TabButton>
+            <TabButton active={activeTab === 'history'} onClick={() => setActiveTab('history')}>
+              <History className="w-4 h-4 mr-2" />
+              History
+            </TabButton>
+            <TabButton active={activeTab === 'memory'} onClick={() => setActiveTab('memory')}>
+              <Brain className="w-4 h-4 mr-2" />
+              Memory
+            </TabButton>
+            <TabButton active={activeTab === 'settings'} onClick={() => setActiveTab('settings')}>
+              <Settings className="w-4 h-4 mr-2" />
+              Settings
+            </TabButton>
+          </div>
         </div>
       </div>
 
       {/* Content */}
       <div className="flex-1 overflow-hidden">
-        <div className="h-full overflow-y-auto p-4 sm:p-6">
+        <div className="h-full overflow-y-auto px-4 sm:px-6 py-4">
           <div className="max-w-4xl mx-auto h-full">
             {activeTab === 'chat' && <AgentChat agent={agent} />}
             {activeTab === 'workflows' && <AgentWorkflow agent={agent} />}

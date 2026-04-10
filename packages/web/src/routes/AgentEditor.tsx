@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { 
@@ -24,7 +24,7 @@ import {
   StickyNote,
   UserCircle,
 } from "lucide-react";
-import { agentsApi, personasApi } from '../api/client';
+import { agentsApi } from '../api/client';
 import { agentsQueries } from '../api/queries';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -48,6 +48,7 @@ interface AgentTemplate {
   defaultSchedule?: string;
   defaultGoals?: string;
   defaultPersonality?: string;
+  defaultScratchpad?: string;
 }
 
 const AGENT_TEMPLATES: AgentTemplate[] = [
@@ -60,7 +61,7 @@ const AGENT_TEMPLATES: AgentTemplate[] = [
     suggestedTools: ['email', 'web-search', 'x-api'],
     examplePrompt: 'Check my email for content requests from the marketing team. Draft 3 Twitter posts and 1 LinkedIn post for each request. Research current trends if needed.',
     defaultSchedule: '0 9 * * 1-5',
-    defaultGoals: 'Increase engagement on social media channels\nMaintain consistent brand voice\nRespond to content requests within 24 hours',
+    defaultGoals: '• Increase engagement on social media channels\n• Maintain consistent brand voice\n• Respond to content requests within 24 hours',
     defaultPersonality: 'Professional but friendly social media expert. Upbeat tone, uses relevant hashtags, stays current with trends.',
   },
   {
@@ -70,8 +71,8 @@ const AGENT_TEMPLATES: AgentTemplate[] = [
     icon: <Mail className="w-6 h-6" />,
     category: 'marketing',
     suggestedTools: ['email', 'web-search'],
-    examplePrompt: 'Check my agent_memory for brand guidelines. Create a weekly newsletter with industry news, product updates, and a featured article.',
-    defaultGoals: 'Create engaging weekly newsletters\nMaintain consistent brand voice\nDrive email engagement and click-through rates',
+    examplePrompt: 'Create a weekly newsletter with industry news, product updates, and a featured article. Reference our brand voice and goals in your writing.',
+    defaultGoals: '• Create engaging weekly newsletters\n• Maintain consistent brand voice\n• Drive email engagement and click-through rates',
     defaultPersonality: 'Professional email marketer with excellent copywriting skills. Clear, concise, and compelling.',
   },
   {
@@ -81,10 +82,11 @@ const AGENT_TEMPLATES: AgentTemplate[] = [
     icon: <TrendingUp className="w-6 h-6" />,
     category: 'sales',
     suggestedTools: ['browser', 'notify'],
-    examplePrompt: 'Visit competitor1.com/pricing and competitor2.com/pricing weekly. Compare prices to our pricing stored in agent_memory. If changes detected, notify me and update my scratchpad with the comparison.',
+    examplePrompt: 'Visit competitor1.com/pricing and competitor2.com/pricing weekly. Compare to our current pricing. If changes detected, notify me and log the comparison.',
     defaultSchedule: '0 8 * * 1',
-    defaultGoals: 'Monitor competitor pricing weekly\nAlert on significant price changes\nMaintain competitive pricing intelligence',
+    defaultGoals: '• Monitor competitor pricing weekly\n• Alert on significant price changes\n• Maintain competitive pricing intelligence',
     defaultPersonality: 'Analytical and detail-oriented. Focuses on accurate data collection and clear reporting.',
+    defaultScratchpad: 'Our pricing:\n• Basic: $29/mo\n• Pro: $99/mo\n• Enterprise: Contact us',
   },
   {
     id: 'research-assistant',
@@ -93,8 +95,8 @@ const AGENT_TEMPLATES: AgentTemplate[] = [
     icon: <Search className="w-6 h-6" />,
     category: 'research',
     suggestedTools: ['web-search', 'web-fetch'],
-    examplePrompt: 'Research the latest trends in AI agents. Search for recent articles, visit 3-5 relevant pages, and create a summary report. Save key findings to my scratchpad for future reference.',
-    defaultGoals: 'Conduct thorough research on assigned topics\nProvide comprehensive summaries\nBuild a knowledge base in scratchpad',
+    examplePrompt: 'Research the latest trends in AI agents. Search for recent articles, visit 3-5 relevant pages, and create a summary report. Log key findings for future reference.',
+    defaultGoals: '• Conduct thorough research on assigned topics\n• Provide comprehensive summaries\n• Build a knowledge base in scratchpad',
     defaultPersonality: 'Thorough researcher who digs deep into topics. Provides well-sourced, comprehensive summaries.',
   },
   {
@@ -104,9 +106,10 @@ const AGENT_TEMPLATES: AgentTemplate[] = [
     icon: <Calendar className="w-6 h-6" />,
     category: 'marketing',
     suggestedTools: ['web-search'],
-    examplePrompt: 'Check my agent_memory for content strategy and goals. Create a 2-week content calendar with blog topics, social posts, and email campaigns. Update my scratchpad with the calendar.',
-    defaultGoals: 'Plan consistent content across all channels\nAlign content with business goals\nMaintain editorial calendar',
+    examplePrompt: 'Create a 2-week content calendar with blog topics, social posts, and email campaigns based on our strategy and target audience.',
+    defaultGoals: '• Plan consistent content across all channels\n• Align content with business goals\n• Maintain editorial calendar',
     defaultPersonality: 'Strategic content planner. Organized, creative, and always thinking several steps ahead.',
+    defaultScratchpad: 'Content Strategy:\n• Content pillars: AI tutorials, product updates, industry news\n• Target audience: Developers and indie hackers\n• Posting schedule: 3x/week blog, daily social',
   },
   {
     id: 'alert-monitor',
@@ -115,9 +118,9 @@ const AGENT_TEMPLATES: AgentTemplate[] = [
     icon: <Bell className="w-6 h-6" />,
     category: 'operations',
     suggestedTools: ['browser', 'email'],
-    examplePrompt: 'Check example.com/status every hour. If the status is not "operational", send me an email alert immediately. Log status checks in my scratchpad.',
+    examplePrompt: 'Check example.com/status every hour. If the status is not "operational", send me an email alert immediately. Maintain a status log.',
     defaultSchedule: '0 * * * *',
-    defaultGoals: 'Monitor critical systems 24/7\nAlert immediately on issues\nMaintain uptime logs',
+    defaultGoals: '• Monitor critical systems 24/7\n• Alert immediately on issues\n• Maintain uptime logs',
     defaultPersonality: 'Vigilant and reliable. Never misses a check, alerts promptly, keeps detailed records.',
   },
   {
@@ -127,9 +130,10 @@ const AGENT_TEMPLATES: AgentTemplate[] = [
     icon: <FileCode2 className="w-6 h-6" />,
     category: 'operations',
     suggestedTools: ['file-read'],
-    examplePrompt: 'When new commits are pushed, review the changed files for code quality issues, security concerns, and style violations. Check my scratchpad for coding standards.',
-    defaultGoals: 'Maintain code quality standards\nCatch security issues early\nEnforce consistent style',
+    examplePrompt: 'When new commits are pushed, review the changed files for code quality issues, security concerns, and style violations.',
+    defaultGoals: '• Maintain code quality standards\n• Catch security issues early\n• Enforce consistent style',
     defaultPersonality: 'Experienced code reviewer. Detail-oriented, constructive feedback, security-focused.',
+    defaultScratchpad: 'Coding Standards:\n• Use TypeScript for all new code\n• Maximum function length: 50 lines\n• Always include error handling\n• Write tests for new features',
   },
   {
     id: 'custom',
@@ -146,7 +150,7 @@ const AGENT_TEMPLATES: AgentTemplate[] = [
 // Types
 // ============================================
 
-type CreationStep = 'template' | 'describe' | 'review' | 'knowledge' | 'configure';
+type CreationStep = 'template' | 'describe' | 'review' | 'configure';
 
 interface GeneratedWorkflow {
   name: string;
@@ -179,7 +183,7 @@ export function AgentEditor() {
   const [schedule, setSchedule] = useState('');
   const [enableImmediately, setEnableImmediately] = useState(true);
   
-  // Agent memory/knowledge state
+  // Agent memory/knowledge state (now set in Describe step)
   const [agentGoals, setAgentGoals] = useState('');
   const [agentScratchpad, setAgentScratchpad] = useState('');
   const [agentPersonality, setAgentPersonality] = useState('');
@@ -199,26 +203,20 @@ export function AgentEditor() {
         prompt: description,
       });
       
-      // Create persona for this agent (stores goals, personality, scratchpad)
-      if (agentGoals || agentPersonality || agentRole) {
+      // Save agent memory directly to agent config (matches AgentDetail expectations)
+      if (agentGoals || agentPersonality || agentRole || agentScratchpad) {
         try {
-          const personaId = `persona-${agent.id}`;
-          await personasApi.create({
-            id: personaId,
-            name: agentName,
-            role: agentRole || selectedTemplate?.name || 'AI Assistant',
-            personality: agentPersonality || selectedTemplate?.defaultPersonality || '',
-            goals: agentGoals || selectedTemplate?.defaultGoals || '',
-            scratchpad: agentScratchpad || '',
-          });
-          
-          // Link persona to agent via config
           await agentsApi.update(agent.id, {
-            config: { personaId },
+            config: {
+              personality: agentPersonality || selectedTemplate?.defaultPersonality || '',
+              goals: agentGoals || selectedTemplate?.defaultGoals || '',
+              scratchpad: agentScratchpad || selectedTemplate?.defaultScratchpad || '',
+              role: agentRole || selectedTemplate?.name || 'AI Assistant',
+            },
           });
         } catch (err) {
-          console.error('Failed to create persona:', err);
-          // Don't fail the whole creation if persona fails
+          console.error('Failed to save agent memory:', err);
+          // Don't fail the whole creation if memory save fails
         }
       }
       
@@ -259,11 +257,15 @@ export function AgentEditor() {
     if (template.defaultPersonality) {
       setAgentPersonality(template.defaultPersonality);
     }
+    if (template.defaultScratchpad) {
+      setAgentScratchpad(template.defaultScratchpad);
+    }
     
     if (template.id === 'custom') {
       setDescription('');
       setAgentGoals('');
       setAgentPersonality('');
+      setAgentScratchpad('');
     } else {
       setDescription(template.examplePrompt);
     }
@@ -285,16 +287,14 @@ Create a YAML workflow based on the user's description. The workflow should:
 2. Use appropriate step types: llm (AI calls), skill (tool calls), shell (commands), notify (alerts)
 3. Chain outputs using {{step_name.output}} or {{step_name.result}} syntax
 4. Be practical and accomplish the user's goal
-5. Use skills from this list when relevant:
-   - email: gmail-search, check-new, send-email
-   - data: read, write, append (file operations)
-   - browser: web scraping, screenshots
-   - web-search: tavily-search for research
-   - x-api: post, draft, search for social media
-   - web-tools: HTTP requests
-   - agent_memory: agent_memory_read, agent_memory_update (for accessing agent's goals, scratchpad, personality)
 
-IMPORTANT: When the user mentions reading files like "brand guidelines", "strategy", or "pricing", use agent_memory_read instead of file-read. The agent stores its knowledge in goals and scratchpad fields.
+Available skills: email, data, browser, web-search, x-api, web-tools
+
+Built-in tools (always available):
+- agent_memory_read — Read agent's goals, scratchpad, and stored knowledge
+- agent_memory_update — Update agent's goals or scratchpad
+
+IMPORTANT: The agent stores its knowledge in goals and scratchpad fields. Use agent_memory_read to access this stored knowledge.
 
 Return ONLY valid YAML content, no markdown formatting or explanation. The YAML should have this structure:
 name: "Agent Name"
@@ -309,7 +309,7 @@ steps:
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           systemPrompt,
-          userPrompt: `Create a workflow for: ${description}\n\nAgent name: ${agentName || selectedTemplate.name}\nCategory: ${selectedTemplate.category}\n\nGoals:\n${agentGoals}\n\nPersonality:\n${agentPersonality}`,
+          userPrompt: `Create a workflow for: ${description}\n\nAgent name: ${agentName || selectedTemplate.name}\nCategory: ${selectedTemplate.category}\n\nRole: ${agentRole}\n\nGoals:\n${agentGoals}\n\nPersonality:\n${agentPersonality}\n\nKnowledge/Scratchpad:\n${agentScratchpad}`,
         }),
       });
 
@@ -341,8 +341,6 @@ steps:
   // Handle back navigation
   const handleBack = () => {
     if (currentStep === 'configure') {
-      setCurrentStep('knowledge');
-    } else if (currentStep === 'knowledge') {
       setCurrentStep('review');
     } else if (currentStep === 'review') {
       setCurrentStep('describe');
@@ -376,38 +374,36 @@ steps:
               {currentStep === 'template' && 'Choose a Template'}
               {currentStep === 'describe' && 'Describe Your Agent'}
               {currentStep === 'review' && 'Review Workflow'}
-              {currentStep === 'knowledge' && 'Agent Knowledge & Memory'}
               {currentStep === 'configure' && 'Configure Agent'}
             </h1>
             <p className="text-sm text-muted-foreground">
               {currentStep === 'template' && 'Select a starting point or build custom'}
-              {currentStep === 'describe' && 'Tell us what you want your agent to do'}
+              {currentStep === 'describe' && 'Describe tasks, set goals, and define knowledge'}
               {currentStep === 'review' && 'AI generated this workflow based on your description'}
-              {currentStep === 'knowledge' && 'Set goals, personality, and knowledge for your agent'}
               {currentStep === 'configure' && 'Final settings before creating'}
             </p>
           </div>
           
           {/* Progress indicators */}
           <div className="hidden sm:flex items-center gap-2">
-            {(['template', 'describe', 'review', 'knowledge', 'configure'] as CreationStep[]).map((step, i) => (
+            {(['template', 'describe', 'review', 'configure'] as CreationStep[]).map((step, i) => (
               <div key={step} className="flex items-center gap-2">
                 <div className={cn(
                   "w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-colors",
                   currentStep === step && "bg-primary text-primary-foreground",
-                  ['template', 'describe', 'review', 'knowledge', 'configure'].indexOf(currentStep) > i && "bg-green-500 text-white",
-                  currentStep !== step && ['template', 'describe', 'review', 'knowledge', 'configure'].indexOf(currentStep) < i && "bg-muted text-muted-foreground"
+                  ['template', 'describe', 'review', 'configure'].indexOf(currentStep) > i && "bg-green-500 text-white",
+                  currentStep !== step && ['template', 'describe', 'review', 'configure'].indexOf(currentStep) < i && "bg-muted text-muted-foreground"
                 )}>
-                  {['template', 'describe', 'review', 'knowledge', 'configure'].indexOf(currentStep) > i ? (
+                  {['template', 'describe', 'review', 'configure'].indexOf(currentStep) > i ? (
                     <CheckCircle2 className="w-4 h-4" />
                   ) : (
                     i + 1
                   )}
                 </div>
-                {i < 4 && (
+                {i < 3 && (
                   <div className={cn(
                     "w-8 h-0.5",
-                    ['template', 'describe', 'review', 'knowledge', 'configure'].indexOf(currentStep) > i ? "bg-green-500" : "bg-muted"
+                    ['template', 'describe', 'review', 'configure'].indexOf(currentStep) > i ? "bg-green-500" : "bg-muted"
                   )} />
                 )}
               </div>
@@ -428,8 +424,18 @@ steps:
         {currentStep === 'describe' && selectedTemplate && (
           <DescribeStep
             template={selectedTemplate}
+            agentName={agentName}
+            onAgentNameChange={setAgentName}
             description={description}
-            onChange={setDescription}
+            onDescriptionChange={setDescription}
+            goals={agentGoals}
+            onGoalsChange={setAgentGoals}
+            personality={agentPersonality}
+            onPersonalityChange={setAgentPersonality}
+            scratchpad={agentScratchpad}
+            onScratchpadChange={setAgentScratchpad}
+            role={agentRole}
+            onRoleChange={setAgentRole}
             onGenerate={handleGenerate}
             isGenerating={isGenerating}
           />
@@ -439,24 +445,8 @@ steps:
           <ReviewStep
             workflow={generatedWorkflow}
             onBack={() => setCurrentStep('describe')}
-            onContinue={() => setCurrentStep('knowledge')}
-            onEdit={() => setCurrentStep('describe')}
-          />
-        )}
-
-        {currentStep === 'knowledge' && (
-          <KnowledgeStep
-            agentName={agentName}
-            goals={agentGoals}
-            onGoalsChange={setAgentGoals}
-            personality={agentPersonality}
-            onPersonalityChange={setAgentPersonality}
-            scratchpad={agentScratchpad}
-            onScratchpadChange={setAgentScratchpad}
-            role={agentRole}
-            onRoleChange={setAgentRole}
-            onBack={() => setCurrentStep('review')}
             onContinue={() => setCurrentStep('configure')}
+            onEdit={() => setCurrentStep('describe')}
           />
         )}
         
@@ -580,31 +570,43 @@ function TemplateStep({
 }
 
 // ============================================
-// Description Step
+// Describe Step - Now includes Goals & Knowledge
 // ============================================
 
 function DescribeStep({
   template,
+  agentName,
+  onAgentNameChange,
   description,
-  onChange,
+  onDescriptionChange,
+  goals,
+  onGoalsChange,
+  personality,
+  onPersonalityChange,
+  scratchpad,
+  onScratchpadChange,
+  role,
+  onRoleChange,
   onGenerate,
   isGenerating,
 }: {
   template: AgentTemplate;
+  agentName: string;
+  onAgentNameChange: (v: string) => void;
   description: string;
-  onChange: (v: string) => void;
+  onDescriptionChange: (v: string) => void;
+  goals: string;
+  onGoalsChange: (v: string) => void;
+  personality: string;
+  onPersonalityChange: (v: string) => void;
+  scratchpad: string;
+  onScratchpadChange: (v: string) => void;
+  role: string;
+  onRoleChange: (v: string) => void;
   onGenerate: () => void;
   isGenerating: boolean;
 }) {
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-
-  // Auto-resize textarea
-  const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    onChange(e.target.value);
-    const textarea = e.target;
-    textarea.style.height = 'auto';
-    textarea.style.height = `${Math.max(150, textarea.scrollHeight)}px`;
-  };
+  const [activeTab, setActiveTab] = useState<'describe' | 'knowledge'>('describe');
 
   return (
     <div className="h-full overflow-y-auto p-4 sm:p-6">
@@ -620,74 +622,233 @@ function DescribeStep({
           </div>
         </div>
 
-        {/* Input area */}
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium mb-2">
-              Describe what you want this agent to do
-            </label>
-            <div className="relative">
-              <Textarea
-                ref={textareaRef}
-                value={description}
-                onChange={handleChange}
-                placeholder={template.id === 'custom' 
-                  ? "E.g., Check my email every morning for PR requests and draft professional responses..."
-                  : "Describe your specific needs (you can edit the example below)..."
-                }
-                className="min-h-[200px] resize-none"
-                disabled={isGenerating}
-              />
-              {isGenerating && (
-                <div className="absolute inset-0 bg-background/80 flex items-center justify-center rounded-lg">
-                  <div className="flex items-center gap-2 text-muted-foreground">
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                    <span>AI is designing your workflow...</span>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Suggested tools */}
-          {template.suggestedTools.length > 0 && (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        {/* Tab navigation */}
+        <div className="flex gap-2 mb-6">
+          <button
+            onClick={() => setActiveTab('describe')}
+            className={cn(
+              "px-4 py-2 rounded-lg text-sm font-medium transition-colors",
+              activeTab === 'describe'
+                ? "bg-primary text-primary-foreground"
+                : "bg-muted text-muted-foreground hover:bg-accent"
+            )}
+          >
+            <span className="flex items-center gap-2">
               <Sparkles className="w-4 h-4" />
-              <span>This agent may use: {template.suggestedTools.join(', ')}</span>
+              What to Do
+            </span>
+          </button>
+          <button
+            onClick={() => setActiveTab('knowledge')}
+            className={cn(
+              "px-4 py-2 rounded-lg text-sm font-medium transition-colors",
+              activeTab === 'knowledge'
+                ? "bg-primary text-primary-foreground"
+                : "bg-muted text-muted-foreground hover:bg-accent"
+            )}
+          >
+            <span className="flex items-center gap-2">
+              <Brain className="w-4 h-4" />
+              Goals & Knowledge
+            </span>
+          </button>
+        </div>
+
+        {/* Tab content */}
+        {activeTab === 'describe' ? (
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium mb-2">
+                Describe what you want this agent to do
+              </label>
+              <div className="relative">
+                <Textarea
+                  value={description}
+                  onChange={(e) => onDescriptionChange(e.target.value)}
+                  placeholder={template.id === 'custom' 
+                    ? "E.g., Check my email every morning for PR requests and draft professional responses..."
+                    : "Describe your specific needs (you can edit the example below)..."
+                  }
+                  className="min-h-[200px] resize-none"
+                  disabled={isGenerating}
+                />
+                {isGenerating && (
+                  <div className="absolute inset-0 bg-background/80 flex items-center justify-center rounded-lg">
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      <span>AI is designing your workflow...</span>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
-          )}
 
-          {/* Tips */}
-          <div className="p-4 bg-muted/50 rounded-lg">
-            <h4 className="text-sm font-medium mb-2">Tips for great results:</h4>
-            <ul className="text-sm text-muted-foreground space-y-1">
-              <li>• Be specific about triggers ("when email arrives", "every Monday")</li>
-              <li>• Mention specific tools ("search the web", "post to Twitter")</li>
-              <li>• Use agent_memory to store and retrieve knowledge (we'll set this up next)</li>
-              <li>• Describe the output you want ("send me a summary")</li>
-            </ul>
+            {/* Suggested tools */}
+            {template.suggestedTools.length > 0 && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Sparkles className="w-4 h-4" />
+                <span>This agent may use: {template.suggestedTools.join(', ')}</span>
+              </div>
+            )}
+
+            {/* Tips */}
+            <div className="p-4 bg-muted/50 rounded-lg">
+              <h4 className="text-sm font-medium mb-2">Tips for great results:</h4>
+              <ul className="text-sm text-muted-foreground space-y-1">
+                <li>• Be specific about triggers ("when email arrives", "every Monday")</li>
+                <li>• Mention specific tools ("search the web", "post to Twitter")</li>
+                <li>• Use agent_memory to access goals and knowledge (set in the next tab)</li>
+                <li>• Describe the output you want ("send me a summary")</li>
+              </ul>
+            </div>
+
+            {/* Next tab hint */}
+            <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <div className="flex items-start gap-3">
+                <Brain className="w-5 h-5 text-blue-600 mt-0.5" />
+                <div className="flex-1">
+                  <h4 className="font-medium text-blue-900 mb-1">Next: Define Goals & Knowledge</h4>
+                  <p className="text-sm text-blue-700">
+                    Click the "Goals & Knowledge" tab to set what this agent should know and achieve. 
+                    The agent will use this information during execution via agent_memory tools.
+                  </p>
+                </div>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => setActiveTab('knowledge')}
+                >
+                  Go to Knowledge
+                  <ArrowRight className="w-4 h-4 ml-2" />
+                </Button>
+              </div>
+            </div>
           </div>
+        ) : (
+          <div className="space-y-6">
+            {/* Agent Name */}
+            <div>
+              <label className="block text-sm font-medium mb-2 flex items-center gap-2">
+                <Bot className="w-4 h-4 text-muted-foreground" />
+                Agent Name
+              </label>
+              <Input
+                value={agentName}
+                onChange={(e) => onAgentNameChange(e.target.value)}
+                placeholder="e.g., Social Media Bot, Research Assistant"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                What you'll call this agent (can be changed later)
+              </p>
+            </div>
 
-          {/* Action buttons */}
-          <div className="flex justify-end gap-3 pt-4">
-            <Button
-              onClick={onGenerate}
-              disabled={!description.trim() || isGenerating}
-              size="lg"
-            >
-              {isGenerating ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Generating...
-                </>
-              ) : (
-                <>
-                  <Wand2 className="w-4 h-4 mr-2" />
-                  Generate Workflow
-                </>
-              )}
+            {/* Role */}
+            <div>
+              <label className="block text-sm font-medium mb-2 flex items-center gap-2">
+                <UserCircle className="w-4 h-4 text-muted-foreground" />
+                Role
+              </label>
+              <Input
+                value={role}
+                onChange={(e) => onRoleChange(e.target.value)}
+                placeholder="e.g., Marketing Manager, Research Analyst, Support Agent"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                The agent's job title or primary function
+              </p>
+            </div>
+
+            {/* Goals */}
+            <div>
+              <label className="block text-sm font-medium mb-2 flex items-center gap-2">
+                <Target className="w-4 h-4 text-muted-foreground" />
+                Goals
+              </label>
+              <Textarea
+                value={goals}
+                onChange={(e) => onGoalsChange(e.target.value)}
+                placeholder={`e.g.,\n• Increase social media engagement by 20%\n• Respond to all customer emails within 2 hours\n• Monitor competitors weekly and report changes`}
+                className="min-h-[120px] resize-none"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                What this agent is trying to achieve. These guide its decision-making. Use bullet points.
+              </p>
+            </div>
+
+            {/* Personality */}
+            <div>
+              <label className="block text-sm font-medium mb-2 flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-muted-foreground" />
+                Personality & Voice
+              </label>
+              <Textarea
+                value={personality}
+                onChange={(e) => onPersonalityChange(e.target.value)}
+                placeholder="e.g., Professional but friendly. Uses clear, concise language. Enthusiastic about helping users."
+                className="min-h-[100px] resize-none"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                How the agent communicates. Affects tone in emails, social posts, etc.
+              </p>
+            </div>
+
+            {/* Scratchpad - Working Notes */}
+            <div>
+              <label className="block text-sm font-medium mb-2 flex items-center gap-2">
+                <StickyNote className="w-4 h-4 text-muted-foreground" />
+                Knowledge Base / Scratchpad
+              </label>
+              <Textarea
+                value={scratchpad}
+                onChange={(e) => onScratchpadChange(e.target.value)}
+                placeholder={`e.g.,\n• Brand colors: #0D9488 (teal), #115E59 (dark teal)\n• Competitor pricing: Basic $29/mo, Pro $99/mo\n• Content pillars: AI tutorials, product updates, industry news`}
+                className="min-h-[150px] resize-none"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Key facts, reference data, and context the agent should remember. The agent can update this during execution. Use bullet points for easy reading.
+              </p>
+            </div>
+
+            {/* Info box */}
+            <div className="p-4 bg-purple-50 border border-purple-200 rounded-lg">
+              <h4 className="text-sm font-medium mb-2 flex items-center gap-2 text-purple-900">
+                <Brain className="w-4 h-4" />
+                How This Works in Your Workflow
+              </h4>
+              <ul className="text-sm text-purple-700 space-y-1">
+                <li>• Goals guide the agent's priorities and decisions</li>
+                <li>• Personality affects how it writes and communicates</li>
+                <li>• Scratchpad stores working notes and can be updated during workflows</li>
+                <li>• The workflow will use <code>agent_memory_read</code> to access this information</li>
+              </ul>
+            </div>
+          </div>
+        )}
+
+        {/* Action buttons */}
+        <div className="flex justify-end gap-3 pt-6 border-t mt-6">
+          {activeTab === 'knowledge' && (
+            <Button variant="outline" onClick={() => setActiveTab('describe')}>
+              Back to Description
             </Button>
-          </div>
+          )}
+          <Button
+            onClick={onGenerate}
+            disabled={!description.trim() || isGenerating}
+            size="lg"
+          >
+            {isGenerating ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Generating...
+              </>
+            ) : (
+              <>
+                <Wand2 className="w-4 h-4 mr-2" />
+                Generate Workflow
+              </>
+            )}
+          </Button>
         </div>
       </div>
     </div>
@@ -721,7 +882,7 @@ function ReviewStep({
             <div>
               <h3 className="font-medium text-green-900">Workflow Generated!</h3>
               <p className="text-sm text-green-700">
-                AI created a {workflow.steps.length}-step workflow based on your description
+                AI created a {workflow.steps.length}-step workflow based on your description and goals
               </p>
             </div>
           </div>
@@ -787,19 +948,10 @@ function ReviewStep({
             )}
           </div>
 
-          {/* Next step hint */}
-          <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-            <div className="flex items-start gap-3">
-              <Brain className="w-5 h-5 text-blue-600 mt-0.5" />
-              <div>
-                <h4 className="font-medium text-blue-900">Next: Set Up Agent Knowledge</h4>
-                <p className="text-sm text-blue-700">
-                  Next we'll define your agent's goals, personality, and knowledge base so it can 
-                  remember information and make decisions based on your preferences.
-                </p>
-              </div>
-            </div>
-          </div>
+          {/* Edit note */}
+          <p className="text-sm text-muted-foreground">
+            You can edit this workflow anytime after creation from the agent details page.
+          </p>
         </div>
       </div>
 
@@ -816,148 +968,7 @@ function ReviewStep({
             </Button>
           </div>
           <Button onClick={onContinue} size="lg">
-            Continue to Knowledge
-            <ArrowRight className="w-4 h-4 ml-2" />
-          </Button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ============================================
-// Knowledge Step (NEW)
-// ============================================
-
-function KnowledgeStep({
-  agentName,
-  goals,
-  onGoalsChange,
-  personality,
-  onPersonalityChange,
-  scratchpad,
-  onScratchpadChange,
-  role,
-  onRoleChange,
-  onBack,
-  onContinue,
-}: {
-  agentName: string;
-  goals: string;
-  onGoalsChange: (v: string) => void;
-  personality: string;
-  onPersonalityChange: (v: string) => void;
-  scratchpad: string;
-  onScratchpadChange: (v: string) => void;
-  role: string;
-  onRoleChange: (v: string) => void;
-  onBack: () => void;
-  onContinue: () => void;
-}) {
-  return (
-    <div className="h-full overflow-y-auto p-4 sm:p-6">
-      <div className="max-w-3xl mx-auto space-y-6">
-        {/* Header */}
-        <div className="flex items-start gap-4 p-4 bg-purple-50 border border-purple-200 rounded-xl">
-          <Brain className="w-6 h-6 text-purple-600 mt-1" />
-          <div>
-            <h3 className="font-semibold text-purple-900">Agent Memory & Knowledge</h3>
-            <p className="text-sm text-purple-700">
-              Define what {agentName || 'your agent'} knows, its goals, and how it should behave. 
-              This information will be stored in the agent's memory and accessible during workflow execution.
-            </p>
-          </div>
-        </div>
-
-        {/* Role */}
-        <div>
-          <label className="block text-sm font-medium mb-2 flex items-center gap-2">
-            <UserCircle className="w-4 h-4 text-muted-foreground" />
-            Role
-          </label>
-          <Input
-            value={role}
-            onChange={(e) => onRoleChange(e.target.value)}
-            placeholder="e.g., Marketing Manager, Research Analyst, Support Agent"
-          />
-          <p className="text-xs text-muted-foreground mt-1">
-            The agent's job title or primary function
-          </p>
-        </div>
-
-        {/* Goals */}
-        <div>
-          <label className="block text-sm font-medium mb-2 flex items-center gap-2">
-            <Target className="w-4 h-4 text-muted-foreground" />
-            Goals
-          </label>
-          <Textarea
-            value={goals}
-            onChange={(e) => onGoalsChange(e.target.value)}
-            placeholder={`e.g.,\n• Increase social media engagement by 20%\n• Respond to all customer emails within 2 hours\n• Monitor competitors weekly and report changes`}
-            className="min-h-[120px] resize-none"
-          />
-          <p className="text-xs text-muted-foreground mt-1">
-            What this agent is trying to achieve. These guide its decision-making.
-          </p>
-        </div>
-
-        {/* Personality */}
-        <div>
-          <label className="block text-sm font-medium mb-2 flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-muted-foreground" />
-            Personality & Voice
-          </label>
-          <Textarea
-            value={personality}
-            onChange={(e) => onPersonalityChange(e.target.value)}
-            placeholder="e.g., Professional but friendly. Uses clear, concise language. Enthusiastic about helping users."
-            className="min-h-[100px] resize-none"
-          />
-          <p className="text-xs text-muted-foreground mt-1">
-            How the agent communicates. Affects tone in emails, social posts, etc.
-          </p>
-        </div>
-
-        {/* Scratchpad - Working Notes */}
-        <div>
-          <label className="block text-sm font-medium mb-2 flex items-center gap-2">
-            <StickyNote className="w-4 h-4 text-muted-foreground" />
-            Initial Knowledge / Scratchpad
-          </label>
-          <Textarea
-            value={scratchpad}
-            onChange={(e) => onScratchpadChange(e.target.value)}
-            placeholder={`e.g.,\n• Brand colors: #0D9488 (teal), #115E59 (dark teal)\n• Competitor pricing: Basic $29/mo, Pro $99/mo\n• Content pillars: AI tutorials, product updates, industry news`}
-            className="min-h-[120px] resize-none"
-          />
-          <p className="text-xs text-muted-foreground mt-1">
-            Key facts, reference data, or context the agent should remember. The agent can update this during execution.
-          </p>
-        </div>
-
-        {/* Info box */}
-        <div className="p-4 bg-muted/50 rounded-lg">
-          <h4 className="text-sm font-medium mb-2 flex items-center gap-2">
-            <Brain className="w-4 h-4" />
-            How Agent Memory Works
-          </h4>
-          <ul className="text-sm text-muted-foreground space-y-1">
-            <li>• Goals guide the agent's priorities and decisions</li>
-            <li>• Personality affects how it writes and communicates</li>
-            <li>• Scratchpad stores working notes and can be updated during workflows</li>
-            <li>• The agent uses tools like <code>agent_memory_read</code> and <code>agent_memory_update</code> to access this</li>
-          </ul>
-        </div>
-
-        {/* Footer actions */}
-        <div className="flex justify-between pt-4">
-          <Button variant="outline" onClick={onBack}>
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Back
-          </Button>
-          <Button onClick={onContinue} size="lg">
-            Continue to Configure
+            Continue to Setup
             <ArrowRight className="w-4 h-4 ml-2" />
           </Button>
         </div>
