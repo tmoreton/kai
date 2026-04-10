@@ -17,6 +17,7 @@ import {
 } from "./sessions/manager.js";
 import { getRecallStats } from "./recall.js";
 import { loadSoul } from "./soul.js";
+import { clearUsageHistory } from "./usage.js";
 import fs from "fs";
 import path from "path";
 import { togglePlanMode } from "./plan-mode.js";
@@ -25,6 +26,7 @@ import { loadCustomCommands, formatCustomCommands } from "./commands.js";
 export const SLASH_COMMANDS = [
   { cmd: "/help", desc: "Show all commands" },
   { cmd: "/clear", desc: "Clear conversation" },
+  { cmd: "/clear-usage", desc: "Clear token usage history" },
   { cmd: "/compact", desc: "Compress context to save tokens" },
   { cmd: "/doctor", desc: "System diagnostics" },
   { cmd: "/export", desc: "Export session to markdown" },
@@ -279,6 +281,13 @@ export async function handleCommand(
     messages.length = 0;
     messages.push(systemMsg);
     console.log(chalk.dim("  Conversation cleared.\n"));
+    return "handled";
+  }
+
+  // === /clear-usage ===
+  if (cmd === "/clear-usage") {
+    const result = clearUsageHistory();
+    console.log(chalk.dim(`  Cleared ${result.deleted} usage records.\n`));
     return "handled";
   }
 
@@ -1022,6 +1031,7 @@ ${(gitDiff(false) || "(none)").substring(0, 2000)}`;
     console.log(
       chalk.dim(`
   /clear                  Clear conversation
+  /clear-usage            Clear token usage history
   /compact                Compress context to save tokens
   /doctor                 System diagnostics (check config, APIs, tools)
   /export [path]          Export session to markdown file
