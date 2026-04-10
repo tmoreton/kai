@@ -1,5 +1,5 @@
 #!/bin/bash
-# Build and sign Kai for macOS locally
+# Build, sign, and notarize Kai for macOS locally
 # This must be run on a Mac with Xcode command line tools and a valid Developer ID certificate
 
 set -e
@@ -30,18 +30,16 @@ fi
 IDENTITY=$(security find-identity -v -p codesigning 2>/dev/null | grep "Developer ID Application" | head -1 | sed 's/.*"\([^"]*\)".*/\1/')
 echo "✅ Found signing identity: $IDENTITY"
 
-# Check notarization credentials (support both APPLE_PASSWORD and APPLE_APP_SPECIFIC_PASSWORD)
+# Check notarization credentials
 NOTARY_PASSWORD="${APPLE_PASSWORD:-${APPLE_APP_SPECIFIC_PASSWORD:-}}"
-echo "Debug: APPLE_ID=${APPLE_ID:-'(empty)'}, PASSWORD=${NOTARY_PASSWORD:+'(set)'}, TEAM=${APPLE_TEAM_ID:-'(empty)'}"
 if [ -n "$APPLE_ID" ] && [ -n "$NOTARY_PASSWORD" ] && [ -n "$APPLE_TEAM_ID" ]; then
     echo "✅ Notarization credentials found"
-    export APPLE_PASSWORD="$NOTARY_PASSWORD"  # Ensure it's set for the notarytool commands
+    export APPLE_PASSWORD="$NOTARY_PASSWORD"
 else
     echo "⚠️  Notarization credentials missing"
     echo "   Set APPLE_ID, APPLE_PASSWORD (or APPLE_APP_SPECIFIC_PASSWORD), and APPLE_TEAM_ID"
     echo "   DMGs will require right-click → Open on first launch"
 fi
-echo ""
 
 # Get version from git tag or use "dev"
 VERSION=$(git describe --tags --exact-match 2>/dev/null || echo "dev")
@@ -82,23 +80,85 @@ echo ""
 echo "🔏 Re-signing ARM64 app bundle..."
 codesign --deep --force --options runtime --sign "$IDENTITY" --timestamp "$ARM64_APP"
 
+# NOTARIZE the ARM64 app
+if [ -n "$APPLE_ID" ] && [ -n "$NOTARY_PASSWORD" ] && [ -n "$APPLE_TEAM_ID" ]; then
+    echo ""
+    echo "🔐 Notarizing ARM64 app..."
+    
+    # Zip the app for notarization
+    ARM64_ZIP="$PWD/src-tauri/target/Kai_${VERSION}_aarch64.zip"
+    cd "$(dirname "$ARM64_APP")"
+    zip -r "$ARM64_ZIP" Kai.app
+    cd -
+    
+    # Submit for notarization
+    echo "  Submitting to Apple..."
+    xcrun notarytool submit "$ARM64_ZIP" \
+        --apple-id "$APPLE_ID" \
+        --password "$NOTARY_PASSWORD" \
+        --team-id "$APPLE_TEAM_ID" \
+        --wait
+    
+    # Staple ticket to the .app
+    echo ""
+    echo "📎 Stapling notarization ticket to app..."
+    xcrun stapler staple "$ARM64_APP"
+    
+    # Re-sign after stapling
+    codesign --deep --force --options runtime --sign "$IDENTITY" --timestamp "$ARM64_APP"
+    
+    rm "$ARM64_ZIP"
+else
+    echo "⚠️  Skipping ARM64 app notarization (credentials not set)"
+fi
+
 # Build Intel (optional - requires Rosetta on Apple Silicon)
 echo ""
 if rustup target list --installed | grep -q "x86_64-apple-darwin"; then
     echo "🔨 Building for Intel (x86_64)..."
     cargo tauri build --target x86_64-apple-darwin || echo "⚠️ Intel build failed (may need Rosetta)"
     
-    if [ -d "$PWD/src-tauri/target/x86_64-apple-darwin/release/bundle/macos/Kai.app" ]; then
+    INTEL_APP="$PWD/src-tauri/target/x86_64-apple-darwin/release/bundle/macos/Kai.app"
+    if [ -d "$INTEL_APP" ]; then
         # Sign nested binaries in Intel build
         echo ""
         echo "🔏 Signing nested binaries in Intel build..."
-        INTEL_APP="$PWD/src-tauri/target/x86_64-apple-darwin/release/bundle/macos/Kai.app"
         node scripts/after-sign.cjs "$INTEL_APP"
         
         # Re-sign the entire Intel app (deep sign)
         echo ""
         echo "🔏 Re-signing Intel app bundle..."
         codesign --deep --force --options runtime --sign "$IDENTITY" --timestamp "$INTEL_APP"
+        
+        # NOTARIZE the Intel app
+        if [ -n "$APPLE_ID" ] && [ -n "$NOTARY_PASSWORD" ] && [ -n "$APPLE_TEAM_ID" ]; then
+            echo ""
+            echo "🔐 Notarizing Intel app..."
+            
+            # Zip the app for notarization
+            INTEL_ZIP="$PWD/src-tauri/target/Kai_${VERSION}_x86_64.zip"
+            cd "$(dirname "$INTEL_APP")"
+            zip -r "$INTEL_ZIP" Kai.app
+            cd -
+            
+            # Submit for notarization
+            echo "  Submitting to Apple..."
+            xcrun notarytool submit "$INTEL_ZIP" \
+                --apple-id "$APPLE_ID" \
+                --password "$NOTARY_PASSWORD" \
+                --team-id "$APPLE_TEAM_ID" \
+                --wait
+            
+            # Staple ticket to the .app
+            echo ""
+            echo "📎 Stapling notarization ticket to app..."
+            xcrun stapler staple "$INTEL_APP"
+            
+            # Re-sign after stapling
+            codesign --deep --force --options runtime --sign "$IDENTITY" --timestamp "$INTEL_APP"
+            
+            rm "$INTEL_ZIP"
+        fi
     fi
 else
     echo "⚠️ Skipping Intel build (x86_64-apple-darwin target not installed)"
@@ -119,18 +179,6 @@ if [ -d "$ARM64_APP" ]; then
     if [ -f "src-tauri/target/Kai ${VERSION}.dmg" ]; then
         mv "src-tauri/target/Kai ${VERSION}.dmg" "src-tauri/target/Kai_${VERSION}_aarch64.dmg"
     fi
-    
-    # Notarize the DMG
-    ARM64_DMG="src-tauri/target/Kai_${VERSION}_aarch64.dmg"
-    NOTARY_PASSWORD="${APPLE_PASSWORD:-${APPLE_APP_SPECIFIC_PASSWORD:-}}"
-    if [ -f "$ARM64_DMG" ] && [ -n "$APPLE_ID" ] && [ -n "$NOTARY_PASSWORD" ] && [ -n "$APPLE_TEAM_ID" ]; then
-        echo ""
-        echo "🔐 Notarizing ARM64 DMG..."
-        xcrun notarytool submit "$ARM64_DMG" --apple-id "$APPLE_ID" --password "$NOTARY_PASSWORD" --team-id "$APPLE_TEAM_ID" --wait
-        echo ""
-        echo "📎 Stapling notarization ticket..."
-        xcrun stapler staple "$ARM64_DMG"
-    fi
 fi
 
 if [ -d "$INTEL_APP" ]; then
@@ -139,17 +187,6 @@ if [ -d "$INTEL_APP" ]; then
     # Rename with underscores (no spaces) for easier CLI usage
     if [ -f "src-tauri/target/Kai ${VERSION}.dmg" ]; then
         mv "src-tauri/target/Kai ${VERSION}.dmg" "src-tauri/target/Kai_${VERSION}_x86_64.dmg"
-    fi
-    
-    # Notarize the DMG
-    INTEL_DMG="src-tauri/target/Kai_${VERSION}_x86_64.dmg"
-    if [ -f "$INTEL_DMG" ] && [ -n "$APPLE_ID" ] && [ -n "$APPLE_PASSWORD" ] && [ -n "$APPLE_TEAM_ID" ]; then
-        echo ""
-        echo "🔐 Notarizing Intel DMG..."
-        xcrun notarytool submit "$INTEL_DMG" --apple-id "$APPLE_ID" --password "$APPLE_PASSWORD" --team-id "$APPLE_TEAM_ID" --wait
-        echo ""
-        echo "📎 Stapling notarization ticket..."
-        xcrun stapler staple "$INTEL_DMG"
     fi
 fi
 
