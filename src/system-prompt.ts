@@ -48,6 +48,13 @@ export function getSystemPrompt(cwd: string): string {
 - Platform: ${process.platform}
 - Date: ${new Date().toISOString().split("T")[0]}
 
+# Code Search (use semantic tools first)
+- find_symbol: Search for functions, classes, interfaces by name (FAST, semantic)
+- goto_definition: Find where a symbol is defined (precise navigation)
+- find_references: Find all usages of a symbol (accurate refs)
+- list_symbols: List exports/definitions in a file
+- grep: Text/regex search fallback when semantic tools don't apply
+
 # Core Memory
 ${coreMemory}`;
 }

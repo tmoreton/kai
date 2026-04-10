@@ -1,0 +1,91 @@
+#!/bin/bash
+# Build and sign Kai for macOS locally
+# This must be run on a Mac with Xcode command line tools and a valid Developer ID certificate
+
+set -e
+
+echo "========================================"
+echo "Kai macOS Local Build Script"
+echo "========================================"
+echo ""
+
+# Check prerequisites
+if ! command -v cargo &> /dev/null; then
+    echo "❌ Rust/Cargo not found. Install from https://rustup.rs"
+    exit 1
+fi
+
+if ! command -v node &> /dev/null; then
+    echo "❌ Node.js not found. Install from https://nodejs.org"
+    exit 1
+fi
+
+if ! security find-identity -v -p codesigning | grep -q "Developer ID"; then
+    echo "❌ No Developer ID certificate found in keychain."
+    echo "   You need a 'Developer ID Application' certificate from Apple."
+    exit 1
+fi
+
+# Get signing identity
+IDENTITY=$(security find-identity -v -p codesigning 2>/dev/null | grep "Developer ID" | head -1 | sed 's/.*"\([^"]*\)".*/\1/')
+echo "✅ Found signing identity: $IDENTITY"
+echo ""
+
+# Get version from git tag or use "dev"
+VERSION=$(git describe --tags --exact-match 2>/dev/null || echo "dev")
+echo "📦 Building version: $VERSION"
+echo ""
+
+# Install dependencies
+echo "📥 Installing dependencies..."
+npm ci
+
+# Install Tauri CLI
+echo "📥 Installing Tauri CLI..."
+cargo install tauri-cli --version "^2.0"
+
+# Pre-sign node_modules binaries
+echo "🔏 Pre-signing node_modules binaries..."
+export APPLE_SIGNING_IDENTITY="$IDENTITY"
+node scripts/pre-sign-node-modules.js
+
+# Build ARM64
+echo ""
+echo "🔨 Building for Apple Silicon (ARM64)..."
+cargo tauri build --target aarch64-apple-darwin
+
+# Build Intel
+echo ""
+echo "🔨 Building for Intel (x86_64)..."
+cargo tauri build --target x86_64-apple-darwin
+
+# Rename artifacts with proper naming
+echo ""
+echo "📦 Renaming artifacts..."
+cd src-tauri/target
+
+# Rename ARM64 DMG
+if [ -f "aarch64-apple-darwin/release/bundle/dmg/Kai_*.dmg" ]; then
+    mv aarch64-apple-darwin/release/bundle/dmg/Kai_*.dmg "../Kai_${VERSION}_aarch64.dmg"
+fi
+
+# Rename Intel DMG
+if [ -f "x86_64-apple-darwin/release/bundle/dmg/Kai_*.dmg" ]; then
+    mv x86_64-apple-darwin/release/bundle/dmg/Kai_*.dmg "../Kai_${VERSION}_x86_64.dmg"
+fi
+
+cd ../..
+
+echo ""
+echo "========================================"
+echo "✅ Build Complete!"
+echo "========================================"
+echo ""
+echo "Artifacts:"
+ls -lh src-tauri/target/*.dmg 2>/dev/null || echo "  (No DMG files found)"
+echo ""
+echo "Next steps:"
+echo "1. Test the builds locally"
+echo "2. Upload to GitHub release manually, or:"
+echo "   gh release upload <tag> src-tauri/target/*.dmg"
+echo ""
