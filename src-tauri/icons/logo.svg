@@ -1,12 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
-  <!-- Teal circle background - using the color from the screenshot -->
-  <circle cx="50" cy="50" r="50" fill="#4A9088"/>
-  
-  <!-- White >_ prompt -->
-  <g fill="white">
-    <!-- > greater than symbol -->
-    <path d="M35 32 L55 45 L35 58 L35 50 L45 45 L35 40 Z"/>
-    <!-- _ underscore -->
-    <rect x="35" y="62" width="25" height="5" rx="1"/>
-  </g>
+<svg viewBox="0 0 100 110" xmlns="http://www.w3.org/2000/svg" width="100" height="110" shape-rendering="crispEdges">
+  <circle cx="50" cy="50" r="50" fill="#5a9e8f" shape-rendering="auto" />
+  <!-- ">" chevron -->
+  <polyline points="38,30 54,44 38,58" fill="none" stroke="white" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" shape-rendering="auto" />
+  <!-- "_" underscore -->
+  <line x1="50" y1="67" x2="70" y2="67" stroke="white" stroke-width="4" stroke-linecap="round" shape-rendering="auto" />
 </svg>
