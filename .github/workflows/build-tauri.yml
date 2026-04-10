@@ -8,6 +8,11 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# Prevent duplicate runs when pushing a tag (tag push + branch push)
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   CARGO_INCREMENTAL: 0
   RUST_BACKTRACE: short
