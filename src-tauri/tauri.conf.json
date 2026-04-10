@@ -48,7 +48,6 @@
     },
     "macOS": {
       "minimumSystemVersion": "10.15",
-      "signingIdentity": "Developer ID Application: Tim Moreton (49WV6F9T9G)",
       "entitlements": "Entitlements.plist",
       "hardenedRuntime": true,
       "dmg": {
