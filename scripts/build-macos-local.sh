@@ -47,7 +47,7 @@ cargo install tauri-cli --version "^2.0"
 # Pre-sign node_modules binaries
 echo "🔏 Pre-signing node_modules binaries..."
 export APPLE_SIGNING_IDENTITY="$IDENTITY"
-node scripts/pre-sign-node-modules.js
+node scripts/pre-sign-node-modules.cjs
 
 # Build ARM64
 echo ""
