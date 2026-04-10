@@ -9,9 +9,14 @@
  * 2. Semantic fallback if keywords return < 5 results
  */
 
+import fs from "fs";
+import path from "path";
+import crypto from "crypto";
 import type { ChatCompletionTool } from "openai/resources/chat/completions";
 import { getConfig } from "../config.js";
 import { DEFAULT_OPENROUTER_BASE_URL } from "../constants.js";
+import { ensureKaiDir } from "../config.js";
+import { RICH_TOOL_DESCRIPTIONS } from "../tools/tool-descriptions.js";
 
 // Embedding cache
 interface ToolEmbedding {
@@ -20,8 +25,67 @@ interface ToolEmbedding {
   embedding: number[];
 }
 
+interface EmbeddingCache {
+  hash: string;
+  model: string;
+  embeddings: Record<string, ToolEmbedding>;
+  createdAt: string;
+}
+
 const toolEmbeddings = new Map<string, ToolEmbedding>();
-let embeddingModel = "openai/text-embedding-3-small"; // Cheap, good quality
+let embeddingModel = "openai/text-embedding-3-small";
+
+function getCachePath(): string {
+  return path.join(ensureKaiDir(), "embeddings-cache.json");
+}
+
+function computeToolsHash(tools: ChatCompletionTool[]): string {
+  const descriptions = tools
+    .filter((t): t is ChatCompletionTool & { type: "function" } => t.type === "function")
+    .map((t) => t.function.name + ":" + (RICH_TOOL_DESCRIPTIONS[t.function.name] || t.function.description || ""))
+    .sort()
+    .join("\n");
+  return crypto.createHash("md5").update(descriptions).digest("hex");
+}
+
+function loadCachedEmbeddings(tools: ChatCompletionTool[]): boolean {
+  try {
+    const cachePath = getCachePath();
+    if (!fs.existsSync(cachePath)) return false;
+
+    const cache: EmbeddingCache = JSON.parse(fs.readFileSync(cachePath, "utf-8"));
+    const currentHash = computeToolsHash(tools);
+
+    if (cache.hash !== currentHash || cache.model !== embeddingModel) {
+      console.log("  🔄 Tool descriptions changed, re-embedding...");
+      return false;
+    }
+
+    // Load from cache
+    for (const [name, data] of Object.entries(cache.embeddings)) {
+      toolEmbeddings.set(name, data);
+    }
+
+    console.log(`  💾 Loaded ${toolEmbeddings.size} cached embeddings`);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function saveCachedEmbeddings(tools: ChatCompletionTool[]): void {
+  try {
+    const cache: EmbeddingCache = {
+      hash: computeToolsHash(tools),
+      model: embeddingModel,
+      embeddings: Object.fromEntries(toolEmbeddings),
+      createdAt: new Date().toISOString(),
+    };
+    fs.writeFileSync(getCachePath(), JSON.stringify(cache), "utf-8");
+  } catch {
+    // Silent fail - not critical
+  }
+}
 
 /**
  * Generate embeddings for text using OpenRouter.
@@ -90,19 +154,50 @@ export async function embedBatch(texts: string[]): Promise<number[][]> {
 }
 
 /**
+ * Build embedding text for a tool.
+ * Uses rich descriptions for built-in tools, enhanced descriptions for skills.
+ */
+function buildEmbeddingText(tool: ChatCompletionTool): string {
+  if (tool.type !== "function") return "";
+  const fn = tool.function;
+  const name = fn.name;
+  
+  // Use rich description for built-in tools (better semantic matching)
+  if (RICH_TOOL_DESCRIPTIONS[name]) {
+    return RICH_TOOL_DESCRIPTIONS[name];
+  }
+  
+  // For skills: enhance with domain context
+  const parts = name.split("__");
+  if (parts.length >= 3 && parts[0] === "skill") {
+    const domain = parts[1];
+    const action = parts[2];
+    const desc = fn.description || "";
+    return `${domain} ${action}: ${desc}`;
+  }
+  
+  return fn.description || "";
+}
+
+/**
  * Initialize embeddings for all tools.
- * Call this after skills are loaded.
+ * Uses disk cache if available and tools haven't changed.
  */
 export async function initToolEmbeddings(tools: ChatCompletionTool[]): Promise<void> {
   if (toolEmbeddings.size > 0) return; // Already initialized
 
+  // Try loading from disk cache first
+  if (loadCachedEmbeddings(tools)) {
+    return;
+  }
+
   try {
-    // Build list of tool descriptions
+    // Build list of tool descriptions with rich text
     const toolList = tools
       .filter((t): t is ChatCompletionTool & { type: "function" } => t.type === "function")
       .map((t) => ({
         name: t.function.name,
-        description: t.function.description || "",
+        description: buildEmbeddingText(t),
       }))
       .filter((t) => t.description); // Skip tools without descriptions
 
@@ -112,7 +207,7 @@ export async function initToolEmbeddings(tools: ChatCompletionTool[]): Promise<v
     const descriptions = toolList.map((t) => t.description);
     const embeddings = await embedBatch(descriptions);
 
-    // Cache embeddings
+    // Cache in memory
     toolList.forEach((tool, i) => {
       toolEmbeddings.set(tool.name, {
         name: tool.name,
@@ -121,9 +216,11 @@ export async function initToolEmbeddings(tools: ChatCompletionTool[]): Promise<v
       });
     });
 
-    console.log(`  📊 Embedded ${toolEmbeddings.size} tools for semantic search`);
+    // Save to disk cache
+    saveCachedEmbeddings(tools);
+
+    console.log(`  📊 Embedded ${toolEmbeddings.size} tools (API call)`);
   } catch (err) {
-    // Fail silently - keyword search still works
     console.log("  ⚠️  Semantic search unavailable (embeddings failed)");
   }
 }
@@ -131,7 +228,7 @@ export async function initToolEmbeddings(tools: ChatCompletionTool[]): Promise<v
 /**
  * Calculate cosine similarity between two vectors.
  */
-function cosineSimilarity(a: number[], b: number[]): number {
+export function cosineSimilarity(a: number[], b: number[]): number {
   let dotProduct = 0;
   let normA = 0;
   let normB = 0;

@@ -99,46 +99,14 @@ export function getUsageStats(): { totalInput: number; totalOutput: number; dail
 }
 
 /**
- * Legacy migration: copy usage.json into SQLite (one-time).
+ * Clear all usage history from the database.
  */
-export function migrateUsageFromJson(): { imported: number } {
-  const fs = require("fs");
-  const path = require("path");
-  const kaiDir = ensureKaiDir();
-  const usagePath = path.join(kaiDir, "usage.json");
-
-  if (!fs.existsSync(usagePath)) {
-    return { imported: 0 };
-  }
-
+export function clearUsageHistory(): { deleted: number } {
+  const db = getDb();
   try {
-    const data = JSON.parse(fs.readFileSync(usagePath, "utf-8"));
-    if (!data.daily || !Array.isArray(data.daily)) {
-      return { imported: 0 };
-    }
-
-    const db = getDb();
-    const stmt = db.prepare(`
-      INSERT OR IGNORE INTO usage (date, metric, value, unit)
-      VALUES (?, ?, ?, ?)
-    `);
-
-    let imported = 0;
-    for (const day of data.daily) {
-      if (day.input > 0) {
-        stmt.run(day.date, "input_tokens", day.input, "tokens");
-        imported++;
-      }
-      if (day.output > 0) {
-        stmt.run(day.date, "output_tokens", day.output, "tokens");
-        imported++;
-      }
-    }
-
-    // Delete old file after successful migration
-    fs.unlinkSync(usagePath);
-    return { imported };
+    const result = db.prepare("DELETE FROM usage WHERE metric LIKE '%_tokens'").run();
+    return { deleted: result.changes };
   } catch {
-    return { imported: 0 };
+    return { deleted: 0 };
   }
 }

@@ -112,8 +112,9 @@ function getBaseToolDefinitions(): ChatCompletionTool[] {
 
 async function getCachedToolDefinitions(messages?: ChatCompletionMessageParam[]): Promise<ChatCompletionTool[]> {
   const baseTools = getBaseToolDefinitions();
+  const allSkillTools = getSkillToolDefinitions(null);
 
-  // Find the last user message for intent detection
+  // Find the last user message
   const lastUserMessage = messages
     ? [...messages].reverse().find(
         (m): m is ChatCompletionMessageParam & { role: "user"; content: string } =>
@@ -121,63 +122,29 @@ async function getCachedToolDefinitions(messages?: ChatCompletionMessageParam[])
       )
     : undefined;
 
-  // Detect relevant skill categories from user intent
-  const relevantCategories = lastUserMessage
-    ? getRelevantSkillCategories(lastUserMessage.content)
-    : null;
-
-  // If categories detected, use keyword filtering
-  if (relevantCategories) {
-    const categoriesKey = relevantCategories.join(",");
-    if (_cachedFilteredTools && _cachedSkillCategories?.join(",") === categoriesKey) {
-      return _cachedFilteredTools;
-    }
-
-    const filteredSkills = getSkillToolDefinitions(relevantCategories);
-    _cachedSkillCategories = relevantCategories;
-    _cachedFilteredTools = [...baseTools, ...filteredSkills];
-
-    const allSkills = getSkillToolDefinitions(null);
-    const savings = allSkills.length - filteredSkills.length;
-    if (savings > 0) {
-      console.log(chalk.dim(`  🎯 Filtered ${savings} skills (${relevantCategories.join(", ")})`));
-    }
-    return _cachedFilteredTools;
-  }
-
-  // No keyword match - try semantic search for better tool selection
-  if (lastUserMessage && !relevantCategories) {
+  // Try semantic search for tool selection
+  if (lastUserMessage) {
     try {
-      // Ensure embeddings are initialized
-      const allSkillTools = getSkillToolDefinitions(null);
       await initToolEmbeddings([...baseTools, ...allSkillTools]);
+      const matches = await findToolsBySemanticSimilarity(lastUserMessage.content, 15, 0.45);
 
-      // Find semantically similar tools
-      const semanticMatches = await findToolsBySemanticSimilarity(lastUserMessage.content, 15, 0.6);
-
-      if (semanticMatches.length >= 5) {
-        const matchedNames = new Set(semanticMatches.map(m => m.tool));
-        const allTools = [...baseTools, ...allSkillTools];
-        const filtered = allTools.filter(t =>
-          t.type === "function" && matchedNames.has(t.function.name)
+      if (matches.length >= 3) {
+        const matchedNames = new Set(matches.map(m => m.tool));
+        // Always include core tools + semantic matches
+        const coreNames = new Set(["bash", "read_file", "edit_file", "write_file", "glob", "grep"]);
+        const filtered = [...baseTools, ...allSkillTools].filter(t =>
+          t.type === "function" && (matchedNames.has(t.function.name) || coreNames.has(t.function.name))
         );
-
-        if (filtered.length >= 5) {
-          console.log(chalk.dim(`  🔍 Semantic match: ${filtered.length} tools (${Math.round(semanticMatches[0].score * 100)}% confidence)`));
-          return [...baseTools.slice(0, 10), ...filtered]; // Keep some base tools + semantic matches
-        }
+        console.log(chalk.dim(`  🔍 Using ${filtered.length} tools (semantic: ${matches.length})`));
+        return filtered;
       }
     } catch {
-      // Semantic search failed, fall through to all tools
+      // API failed - fall back to all tools
     }
   }
 
-  // Default: use all skills
-  if (!_cachedFilteredTools || _cachedSkillCategories !== null) {
-    _cachedSkillCategories = null;
-    _cachedFilteredTools = [...baseTools, ...getSkillToolDefinitions(null)];
-  }
-  return _cachedFilteredTools;
+  // Fallback: return all tools
+  return [...baseTools, ...allSkillTools];
 }
 
 /** Invalidate tool definition caches (call when skills reload) */
