@@ -131,13 +131,29 @@ async function main() {
   // Copy the system's compiled better-sqlite3 (matches system Node version)
   console.log('==> Copying compiled better-sqlite3 from system...');
   const systemSqlite = path.join(ROOT, 'node_modules', 'better-sqlite3', 'build', 'Release', 'better_sqlite3.node');
-  const bundledSqlite = path.join(RESOURCES, 'node_modules', 'better-sqlite3', 'build', 'Release', 'better_sqlite3.node');
+  const bundledSqliteDir = path.join(RESOURCES, 'node_modules', 'better-sqlite3', 'build', 'Release');
+  const bundledSqlite = path.join(bundledSqliteDir, 'better_sqlite3.node');
+  
   if (fs.existsSync(systemSqlite)) {
-    fs.mkdirSync(path.dirname(bundledSqlite), { recursive: true });
+    fs.mkdirSync(bundledSqliteDir, { recursive: true });
     fs.copyFileSync(systemSqlite, bundledSqlite);
     console.log('    Copied better_sqlite3.node');
   } else {
     console.log('    Warning: system better_sqlite3.node not found');
+  }
+  
+  // Remove test files that cause notarization warnings
+  console.log('==> Removing unnecessary test files...');
+  const testFiles = [
+    path.join(RESOURCES, 'node_modules', 'mammoth', 'test'),
+    path.join(RESOURCES, 'node_modules', 'better-sqlite3', 'test'),
+    path.join(RESOURCES, 'node_modules', 'better-sqlite3', 'build', 'Release', 'test_extension.node')
+  ];
+  for (const testPath of testFiles) {
+    if (fs.existsSync(testPath)) {
+      fs.rmSync(testPath, { recursive: true, force: true });
+      console.log(`    Removed ${path.relative(RESOURCES, testPath)}`);
+    }
   }
   
   console.log('==> Build script complete!');

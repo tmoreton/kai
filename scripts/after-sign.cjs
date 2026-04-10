@@ -38,7 +38,8 @@ function signFile(filePath) {
   const relativePath = path.relative(appPath, filePath);
   console.log(`  Signing: ${relativePath}`);
   try {
-    const cmd = `codesign --force --options runtime --sign "${IDENTITY}" --timestamp "${filePath}"`;
+    // Use --deep and --strict for proper signing
+    const cmd = `codesign --deep --force --strict --options runtime --sign "${IDENTITY}" --timestamp "${filePath}"`;
     execSync(cmd, { stdio: 'pipe' });
     return true;
   } catch (e) {
