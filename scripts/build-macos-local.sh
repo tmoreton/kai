@@ -64,10 +64,10 @@ echo "🔏 Pre-signing node_modules binaries..."
 export APPLE_SIGNING_IDENTITY="$IDENTITY"
 node scripts/pre-sign-node-modules.cjs
 
-# Build ARM64
+# Build ARM64 — unset APPLE_ID so Tauri doesn't auto-notarize (we do it manually after signing)
 echo ""
 echo "🔨 Building for Apple Silicon (ARM64)..."
-cargo tauri build --target aarch64-apple-darwin
+env -u APPLE_ID -u APPLE_TEAM_ID cargo tauri build --target aarch64-apple-darwin
 
 # Sign nested binaries in ARM64 build
 echo ""
@@ -116,7 +116,7 @@ fi
 echo ""
 if rustup target list --installed | grep -q "x86_64-apple-darwin"; then
     echo "🔨 Building for Intel (x86_64)..."
-    cargo tauri build --target x86_64-apple-darwin || echo "⚠️ Intel build failed (may need Rosetta)"
+    env -u APPLE_ID -u APPLE_TEAM_ID cargo tauri build --target x86_64-apple-darwin || echo "⚠️ Intel build failed (may need Rosetta)"
     
     INTEL_APP="$PWD/src-tauri/target/x86_64-apple-darwin/release/bundle/macos/Kai.app"
     if [ -d "$INTEL_APP" ]; then

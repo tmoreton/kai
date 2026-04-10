@@ -91,6 +91,16 @@ let failed = 0;
 let alreadySigned = 0;
 
 for (const file of files) {
+  // Always force-resign .node files — they may be signed with the wrong cert or missing --timestamp
+  if (file.endsWith('.node')) {
+    if (signFile(file)) {
+      success++;
+    } else {
+      failed++;
+    }
+    continue;
+  }
+
   if (verifySigned(file)) {
     alreadySigned++;
     console.log(`  ✓ Already signed: ${path.relative(NODE_MODULES, file)}`);

@@ -138,6 +138,17 @@ async function main() {
     fs.mkdirSync(bundledSqliteDir, { recursive: true });
     fs.copyFileSync(systemSqlite, bundledSqlite);
     console.log('    Copied better_sqlite3.node');
+
+    // Sign the .node file immediately after copying — must have Developer ID cert + secure timestamp
+    if (PLATFORM === 'darwin') {
+      const identity = process.env.APPLE_SIGNING_IDENTITY;
+      if (identity) {
+        console.log('    Signing better_sqlite3.node...');
+        execSync(`codesign --force --options runtime --sign "${identity}" --timestamp "${bundledSqlite}"`, { stdio: 'inherit' });
+      } else {
+        console.log('    Warning: APPLE_SIGNING_IDENTITY not set, skipping .node signing');
+      }
+    }
   } else {
     console.log('    Warning: system better_sqlite3.node not found');
   }
