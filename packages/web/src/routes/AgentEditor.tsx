@@ -284,17 +284,25 @@ export function AgentEditor() {
 
 Create a YAML workflow based on the user's description. The workflow should:
 1. Have a clear name and description matching what the user wants
-2. Use appropriate step types: llm (AI calls), skill (tool calls), shell (commands), notify (alerts)
+2. Use appropriate step types correctly (see below)
 3. Chain outputs using {{step_name.output}} or {{step_name.result}} syntax
 4. Be practical and accomplish the user's goal
 
-Available skills: email, data, browser, web-search, x-api, web-tools
+STEP TYPE USAGE (CRITICAL - common source of errors):
+- llm: AI generates text/code. To use ANY tool (skills, agent_memory, etc.), mention it in the prompt and the AI will call it.
+- skill: Directly calls installed skills (email, data, browser, web-search, x-api, web-tools). Use with 'skill' and 'action' fields.
+- shell: ONLY for shell commands like 'ls', 'curl', 'git'. NEVER use for tools or skills.
+- notify: Sends notifications to the user.
 
-Built-in tools (always available):
-- agent_memory_read — Read agent's goals, scratchpad, and stored knowledge
-- agent_memory_update — Update agent's goals or scratchpad
+Built-in tools (use in LLM prompts, NOT shell commands):
+- agent_memory_read — Mention in LLM prompt: "Check my memory using agent_memory_read"
+- agent_memory_update — Mention in LLM prompt: "Log this to my scratchpad using agent_memory_update"
 
-IMPORTANT: The agent stores its knowledge in goals and scratchpad fields. Use agent_memory_read to access this stored knowledge.
+COMMON MISTAKES TO AVOID:
+❌ WRONG: type: shell, command: agent_memory_read
+❌ WRONG: type: shell, command: browser_navigate
+✅ CORRECT: type: llm, prompt: "Check my memory using agent_memory_read, then..."
+✅ CORRECT: type: skill, skill: browser, action: navigate
 
 Return ONLY valid YAML content, no markdown formatting or explanation. The YAML should have this structure:
 name: "Agent Name"
@@ -309,7 +317,7 @@ steps:
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           systemPrompt,
-          userPrompt: `Create a workflow for: ${description}\n\nAgent name: ${agentName || selectedTemplate.name}\nCategory: ${selectedTemplate.category}\n\nRole: ${agentRole}\n\nGoals:\n${agentGoals}\n\nPersonality:\n${agentPersonality}\n\nKnowledge/Scratchpad:\n${agentScratchpad}`,
+          userPrompt: `Create a workflow for: ${(description || '').replace(/\n/g, ' ').replace(/:/g, ' -')}\n\nAgent name: ${agentName || selectedTemplate?.name || 'New Agent'}\nCategory: ${selectedTemplate?.category || 'general'}\n\nRole: ${agentRole || 'AI Assistant'}\n\nGoals:\n${(agentGoals || '- Automate tasks').replace(/\n/g, ' ')}\n\nPersonality:\n${(agentPersonality || 'Professional').replace(/\n/g, ' ')}\n\nKnowledge/Scratchpad:\n${(agentScratchpad || '- Key information').replace(/\n/g, ' ')}`,
         }),
       });
 
@@ -676,7 +684,7 @@ function DescribeStep({
                   <div className="absolute inset-0 bg-background/80 flex items-center justify-center rounded-lg">
                     <div className="flex items-center gap-2 text-muted-foreground">
                       <Loader2 className="w-5 h-5 animate-spin" />
-                      <span>AI is designing your workflow...</span>
+                      <span>Kai is designing your workflow...</span>
                     </div>
                   </div>
                 )}
