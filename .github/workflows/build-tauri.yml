@@ -152,8 +152,10 @@ jobs:
           
           # Sign additional binaries that Tauri didn't sign
           echo "Running after-sign hook to sign node_modules binaries..."
-          APP_PATH="src-tauri/target/${{ matrix.arch == 'aarch64' && 'aarch64-apple-darwin' || 'x86_64-apple-darwin' }}/release/bundle/macos/Kai.app"
-          node scripts/after-sign.js "$APP_PATH"
+          APP_PATH="$PWD/src-tauri/target/${{ matrix.arch == 'aarch64' && 'aarch64-apple-darwin' || 'x86_64-apple-darwin' }}/release/bundle/macos/Kai.app"
+          echo "App path: $APP_PATH"
+          ls -la "$APP_PATH" || echo "ERROR: App not found at expected path"
+          node scripts/after-sign.js "$APP_PATH" 2>&1 || echo "After-sign script failed"
         env:
           CI: true
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
