@@ -13,7 +13,7 @@ const { pipeline } = require('stream/promises');
 const ROOT = path.resolve(__dirname, '..');
 const RESOURCES = path.join(ROOT, 'src-tauri', 'resources');
 const NODE_CACHE = path.join(ROOT, 'src-tauri', '.node-cache');
-const NODE_VERSION = 'v22.14.0';  // LTS version with better prebuilt support
+const NODE_VERSION = 'v24.5.0';  // Match system Node.js version
 
 const PLATFORM = process.platform === 'win32' ? 'win' : 
                  process.platform === 'darwin' ? 'darwin' : 'linux';
