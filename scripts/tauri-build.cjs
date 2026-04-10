@@ -13,7 +13,7 @@ const { pipeline } = require('stream/promises');
 const ROOT = path.resolve(__dirname, '..');
 const RESOURCES = path.join(ROOT, 'src-tauri', 'resources');
 const NODE_CACHE = path.join(ROOT, 'src-tauri', '.node-cache');
-const NODE_VERSION = 'v22.16.0';
+const NODE_VERSION = 'v22.14.0';  // LTS version with better prebuilt support
 
 const PLATFORM = process.platform === 'win32' ? 'win' : 
                  process.platform === 'darwin' ? 'darwin' : 'linux';
@@ -128,9 +128,17 @@ async function main() {
     }
   }
   
-  // Use prebuilt binaries for native addons
-  // Rebuilding against bundled Node is complex; rely on better-sqlite3's prebuilds
-  console.log('==> Skipping native addon rebuild (using prebuilds)...');
+  // Copy the system's compiled better-sqlite3 (matches system Node version)
+  console.log('==> Copying compiled better-sqlite3 from system...');
+  const systemSqlite = path.join(ROOT, 'node_modules', 'better-sqlite3', 'build', 'Release', 'better_sqlite3.node');
+  const bundledSqlite = path.join(RESOURCES, 'node_modules', 'better-sqlite3', 'build', 'Release', 'better_sqlite3.node');
+  if (fs.existsSync(systemSqlite)) {
+    fs.mkdirSync(path.dirname(bundledSqlite), { recursive: true });
+    fs.copyFileSync(systemSqlite, bundledSqlite);
+    console.log('    Copied better_sqlite3.node');
+  } else {
+    console.log('    Warning: system better_sqlite3.node not found');
+  }
   
   console.log('==> Build script complete!');
 }
