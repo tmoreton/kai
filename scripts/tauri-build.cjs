@@ -135,16 +135,9 @@ async function main() {
     }
   }
   
-  // Rebuild native addons (skip on Windows)
-  if (!isWindows) {
-    console.log('==> Rebuilding native addons...');
-    const sqlitePath = path.join(RESOURCES, 'node_modules', 'better-sqlite3');
-    if (fs.existsSync(sqlitePath)) {
-      execSync('npm run build-release', { cwd: sqlitePath, stdio: 'inherit' });
-    }
-  } else {
-    console.log('==> Skipping native addon rebuild (using prebuilds for Windows)');
-  }
+  // Use prebuilt binaries for native addons
+  // Rebuilding against bundled Node is complex; rely on better-sqlite3's prebuilds
+  console.log('==> Skipping native addon rebuild (using prebuilds)...');
   
   console.log('==> Build script complete!');
 }
