@@ -50,8 +50,8 @@ function signFile(filePath) {
     // Deep sign (for .app bundles) or regular sign
     const isApp = filePath.endsWith('.app');
     const cmd = isApp
-      ? `codesign --deep --force --options runtime --sign "${IDENTITY}" --timestamp "${filePath}"`
-      : `codesign --force --options runtime --sign "${IDENTITY}" --timestamp "${filePath}"`;
+      ? `codesign --deep --force --options runtime --sign "${IDENTITY}" "${filePath}"`
+      : `codesign --force --options runtime --sign "${IDENTITY}" "${filePath}"`;
 
     execSync(cmd, { stdio: 'inherit' });
     return true;
