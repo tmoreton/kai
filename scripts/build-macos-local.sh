@@ -30,11 +30,15 @@ fi
 IDENTITY=$(security find-identity -v -p codesigning 2>/dev/null | grep "Developer ID Application" | head -1 | sed 's/.*"\([^"]*\)".*/\1/')
 echo "✅ Found signing identity: $IDENTITY"
 
-# Check notarization credentials
-if [ -n "$APPLE_ID" ] && [ -n "$APPLE_PASSWORD" ] && [ -n "$APPLE_TEAM_ID" ]; then
+# Check notarization credentials (support both APPLE_PASSWORD and APPLE_APP_SPECIFIC_PASSWORD)
+NOTARY_PASSWORD="${APPLE_PASSWORD:-${APPLE_APP_SPECIFIC_PASSWORD:-}}"
+echo "Debug: APPLE_ID=${APPLE_ID:-'(empty)'}, PASSWORD=${NOTARY_PASSWORD:+'(set)'}, TEAM=${APPLE_TEAM_ID:-'(empty)'}"
+if [ -n "$APPLE_ID" ] && [ -n "$NOTARY_PASSWORD" ] && [ -n "$APPLE_TEAM_ID" ]; then
     echo "✅ Notarization credentials found"
+    export APPLE_PASSWORD="$NOTARY_PASSWORD"  # Ensure it's set for the notarytool commands
 else
-    echo "⚠️  Notarization credentials missing (APPLE_ID, APPLE_PASSWORD, APPLE_TEAM_ID)"
+    echo "⚠️  Notarization credentials missing"
+    echo "   Set APPLE_ID, APPLE_PASSWORD (or APPLE_APP_SPECIFIC_PASSWORD), and APPLE_TEAM_ID"
     echo "   DMGs will require right-click → Open on first launch"
 fi
 echo ""
@@ -118,10 +122,11 @@ if [ -d "$ARM64_APP" ]; then
     
     # Notarize the DMG
     ARM64_DMG="src-tauri/target/Kai_${VERSION}_aarch64.dmg"
-    if [ -f "$ARM64_DMG" ] && [ -n "$APPLE_ID" ] && [ -n "$APPLE_PASSWORD" ] && [ -n "$APPLE_TEAM_ID" ]; then
+    NOTARY_PASSWORD="${APPLE_PASSWORD:-${APPLE_APP_SPECIFIC_PASSWORD:-}}"
+    if [ -f "$ARM64_DMG" ] && [ -n "$APPLE_ID" ] && [ -n "$NOTARY_PASSWORD" ] && [ -n "$APPLE_TEAM_ID" ]; then
         echo ""
         echo "🔐 Notarizing ARM64 DMG..."
-        xcrun notarytool submit "$ARM64_DMG" --apple-id "$APPLE_ID" --password "$APPLE_PASSWORD" --team-id "$APPLE_TEAM_ID" --wait
+        xcrun notarytool submit "$ARM64_DMG" --apple-id "$APPLE_ID" --password "$NOTARY_PASSWORD" --team-id "$APPLE_TEAM_ID" --wait
         echo ""
         echo "📎 Stapling notarization ticket..."
         xcrun stapler staple "$ARM64_DMG"
