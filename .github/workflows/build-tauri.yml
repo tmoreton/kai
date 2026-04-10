@@ -28,6 +28,8 @@ jobs:
     strategy:
       matrix:
         arch: [aarch64, x86_64]
+    env:
+      APPLE_CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
     
     steps:
       - name: Checkout repository
@@ -62,7 +64,6 @@ jobs:
       - name: Import Apple Developer Certificate
         if: env.APPLE_CERTIFICATE_BASE64 != ''
         env:
-          APPLE_CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
           APPLE_KEYCHAIN_PASSWORD: ${{ secrets.APPLE_KEYCHAIN_PASSWORD }}
         run: |
@@ -89,7 +90,6 @@ jobs:
         run: cargo tauri build --target ${{ matrix.arch == 'aarch64' && 'aarch64-apple-darwin' || 'x86_64-apple-darwin' }}
         env:
           CI: true
-          APPLE_CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
@@ -100,8 +100,6 @@ jobs:
         run: cargo tauri build --target ${{ matrix.arch == 'aarch64' && 'aarch64-apple-darwin' || 'x86_64-apple-darwin' }}
         env:
           CI: true
-          APPLE_CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
-          APPLE_SIGNING_IDENTITY: "-"
       
       - name: Rename DMG with arch
         run: |

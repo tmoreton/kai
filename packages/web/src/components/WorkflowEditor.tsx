@@ -40,7 +40,6 @@ export interface WorkflowStep {
   name: string;
   description?: string;
   // LLM step
-  model?: string;
   prompt?: string;
   systemPrompt?: string;
   // Skill step
@@ -68,13 +67,6 @@ const STEP_TYPES: { value: StepType; label: string; icon: React.ReactNode; descr
   { value: "skill", label: "Skill", icon: <Puzzle className="w-4 h-4" />, description: "Execute a skill tool" },
   { value: "shell", label: "Shell", icon: <Terminal className="w-4 h-4" />, description: "Run shell command" },
   { value: "notify", label: "Notify", icon: <Bell className="w-4 h-4" />, description: "Send notification" },
-];
-
-const DEFAULT_MODELS = [
-  { value: "gpt-4o", label: "GPT-4o" },
-  { value: "gpt-4o-mini", label: "GPT-4o Mini" },
-  { value: "claude-3-5-sonnet", label: "Claude 3.5 Sonnet" },
-  { value: "claude-3-haiku", label: "Claude 3 Haiku" },
 ];
 
 // Generate unique ID
@@ -110,7 +102,6 @@ function generateYAML(workflow: Workflow): string {
     
     switch (step.type) {
       case "llm":
-        if (step.model) lines.push(`    model: ${step.model}`);
         if (step.systemPrompt) {
           lines.push(`    system_prompt: |`);
           step.systemPrompt.split("\n").forEach(line => {
@@ -238,7 +229,6 @@ function parseYAML(yamlContent: string): Partial<Workflow> {
       else if (key === "type") currentStep.type = value as StepType;
       else if (key === "name") currentStep.name = value;
       else if (key === "description") currentStep.description = value;
-      else if (key === "model") currentStep.model = value;
       else if (key === "skill") currentStep.skill = value;
       else if (key === "tool") currentStep.tool = value;
       else if (key === "command") currentStep.command = value;
@@ -275,7 +265,7 @@ function createDefaultStep(type: StepType): WorkflowStep {
   
   switch (type) {
     case "llm":
-      return { ...base, model: "gpt-4o-mini", prompt: "", systemPrompt: "" };
+      return { ...base, prompt: "", systemPrompt: "" };
     case "skill":
       return { ...base, skill: "data", tool: "", parameters: {} };
     case "shell":
@@ -390,15 +380,6 @@ function StepEditor({ step, onUpdate, onRemove, isExpanded, onToggleExpand, inde
             {/* Type-Specific Fields */}
             {step.type === "llm" && (
               <>
-                <div>
-                  <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Model</label>
-                  <Select
-                    value={step.model || "gpt-4o-mini"}
-                    onChange={(e: React.ChangeEvent<HTMLSelectElement>) => handleChange({ model: e.target.value })}
-                    options={DEFAULT_MODELS}
-                    className="h-8 text-sm"
-                  />
-                </div>
                 <div>
                   <label className="text-xs font-medium text-muted-foreground mb-1.5 block">System Prompt</label>
                   <Textarea

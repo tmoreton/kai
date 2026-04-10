@@ -313,11 +313,17 @@ function AgentHistory({ agent }: { agent: Agent }) {
             ) : (
               <Clock className="w-5 h-5 text-yellow-500" />
             )}
-            <div>
+            <div className="flex-1 min-w-0">
               <p className="font-medium">Status: {agent.lastRun.status}</p>
               <p className="text-sm text-muted-foreground">
                 {new Date(agent.lastRun.startedAt).toLocaleString()}
               </p>
+              {agent.lastRun.error && (
+                <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded text-sm text-red-700">
+                  <p className="font-medium">Error:</p>
+                  <p className="font-mono text-xs break-words">{agent.lastRun.error}</p>
+                </div>
+              )}
             </div>
           </div>
         </div>
