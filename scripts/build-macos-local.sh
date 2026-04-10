@@ -90,7 +90,7 @@ INTEL_APP="src-tauri/target/x86_64-apple-darwin/release/bundle/macos/Kai.app"
 
 if [ -d "$ARM64_APP" ]; then
     echo "  Creating ARM64 DMG..."
-    npx create-dmg "$ARM64_APP" src-tauri/target/ --overwrite || true
+    npx create-dmg "$ARM64_APP" src-tauri/target/ --overwrite 2>&1 || true
     # Rename if create-dmg succeeded
     if [ -f "src-tauri/target/Kai ${VERSION}.dmg" ]; then
         mv "src-tauri/target/Kai ${VERSION}.dmg" "src-tauri/target/Kai_${VERSION}_aarch64.dmg"
@@ -99,7 +99,7 @@ fi
 
 if [ -d "$INTEL_APP" ]; then
     echo "  Creating Intel DMG..."
-    npx create-dmg "$INTEL_APP" src-tauri/target/ --overwrite || true
+    npx create-dmg "$INTEL_APP" src-tauri/target/ --overwrite 2>&1 || true
     # Rename if create-dmg succeeded
     if [ -f "src-tauri/target/Kai ${VERSION}.dmg" ]; then
         mv "src-tauri/target/Kai ${VERSION}.dmg" "src-tauri/target/Kai_${VERSION}_x86_64.dmg"
