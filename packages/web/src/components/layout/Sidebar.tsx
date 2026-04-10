@@ -22,6 +22,7 @@ import { useAppStore } from "../../stores/appStore";
 import { formatShortDate } from "../../lib/utils";
 import { useMobile } from "../../hooks/useMobile";
 import { toast } from "../../components/Toast";
+import { Logo } from "../Logo";
 import type { Session, Agent } from "../../types/api";
 
 interface SidebarSectionProps {
@@ -229,26 +230,7 @@ export function Sidebar() {
       <div className="flex items-center justify-between p-4">
         <div className="flex-1" />
         <div className="flex items-center gap-2 font-bold text-lg text-foreground">
-          <svg
-            viewBox="0 0 32 32"
-            className="w-7 h-7"
-          >
-            <defs>
-              <linearGradient id="kai-logo" x1="0" y1="0" x2="1" y2="1">
-                <stop offset="0%" stopColor="#0D9488" />
-                <stop offset="100%" stopColor="#115E59" />
-              </linearGradient>
-            </defs>
-            <rect width="32" height="32" rx="8" fill="url(#kai-logo)" />
-            <path
-              d="M9 8v16M9 16l8-8M9 16l8 8"
-              stroke="white"
-              strokeWidth="2.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              fill="none"
-            />
-          </svg>
+          <Logo className="w-7 h-7" />
           Kai
         </div>
         <div className="flex-1 flex justify-end">

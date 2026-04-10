@@ -6,6 +6,7 @@ import { CommandPalette } from "../CommandPalette";
 import { ToastProvider } from "../Toast";
 import { useAppStore } from "../../stores/appStore";
 import { useMobile } from "../../hooks/useMobile";
+import { Logo } from "../Logo";
 
 function AppHeader() {
   const { sidebarCollapsed, toggleSidebar, setSidebarOpen } = useAppStore();
@@ -31,23 +32,7 @@ function AppHeader() {
         </button>
       ) : null}
       <div className="flex items-center gap-2 font-semibold text-foreground">
-        <svg viewBox="0 0 32 32" className="w-6 h-6">
-          <defs>
-            <linearGradient id="kai-logo-header" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0%" stopColor="#0D9488" />
-              <stop offset="100%" stopColor="#115E59" />
-            </linearGradient>
-          </defs>
-          <rect width="32" height="32" rx="8" fill="url(#kai-logo-header)" />
-          <path
-            d="M9 8v16M9 16l8-8M9 16l8 8"
-            stroke="white"
-            strokeWidth="2.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            fill="none"
-          />
-        </svg>
+        <Logo className="w-6 h-6" />
         Kai
       </div>
     </div>
