@@ -29,6 +29,14 @@ fi
 # Get signing identity (use Developer ID, not Apple Development)
 IDENTITY=$(security find-identity -v -p codesigning 2>/dev/null | grep "Developer ID Application" | head -1 | sed 's/.*"\([^"]*\)".*/\1/')
 echo "✅ Found signing identity: $IDENTITY"
+
+# Check notarization credentials
+if [ -n "$APPLE_ID" ] && [ -n "$APPLE_PASSWORD" ] && [ -n "$APPLE_TEAM_ID" ]; then
+    echo "✅ Notarization credentials found"
+else
+    echo "⚠️  Notarization credentials missing (APPLE_ID, APPLE_PASSWORD, APPLE_TEAM_ID)"
+    echo "   DMGs will require right-click → Open on first launch"
+fi
 echo ""
 
 # Get version from git tag or use "dev"
@@ -103,31 +111,53 @@ INTEL_APP="src-tauri/target/x86_64-apple-darwin/release/bundle/macos/Kai.app"
 if [ -d "$ARM64_APP" ]; then
     echo "  Creating ARM64 DMG..."
     npx create-dmg "$ARM64_APP" src-tauri/target/ --overwrite 2>&1 || true
-    # Rename if create-dmg succeeded
+    # Rename with underscores (no spaces) for easier CLI usage
     if [ -f "src-tauri/target/Kai ${VERSION}.dmg" ]; then
         mv "src-tauri/target/Kai ${VERSION}.dmg" "src-tauri/target/Kai_${VERSION}_aarch64.dmg"
+    fi
+    
+    # Notarize the DMG
+    ARM64_DMG="src-tauri/target/Kai_${VERSION}_aarch64.dmg"
+    if [ -f "$ARM64_DMG" ] && [ -n "$APPLE_ID" ] && [ -n "$APPLE_PASSWORD" ] && [ -n "$APPLE_TEAM_ID" ]; then
+        echo ""
+        echo "🔐 Notarizing ARM64 DMG..."
+        xcrun notarytool submit "$ARM64_DMG" --apple-id "$APPLE_ID" --password "$APPLE_PASSWORD" --team-id "$APPLE_TEAM_ID" --wait
+        echo ""
+        echo "📎 Stapling notarization ticket..."
+        xcrun stapler staple "$ARM64_DMG"
     fi
 fi
 
 if [ -d "$INTEL_APP" ]; then
     echo "  Creating Intel DMG..."
     npx create-dmg "$INTEL_APP" src-tauri/target/ --overwrite 2>&1 || true
-    # Rename if create-dmg succeeded
+    # Rename with underscores (no spaces) for easier CLI usage
     if [ -f "src-tauri/target/Kai ${VERSION}.dmg" ]; then
         mv "src-tauri/target/Kai ${VERSION}.dmg" "src-tauri/target/Kai_${VERSION}_x86_64.dmg"
+    fi
+    
+    # Notarize the DMG
+    INTEL_DMG="src-tauri/target/Kai_${VERSION}_x86_64.dmg"
+    if [ -f "$INTEL_DMG" ] && [ -n "$APPLE_ID" ] && [ -n "$APPLE_PASSWORD" ] && [ -n "$APPLE_TEAM_ID" ]; then
+        echo ""
+        echo "🔐 Notarizing Intel DMG..."
+        xcrun notarytool submit "$INTEL_DMG" --apple-id "$APPLE_ID" --password "$APPLE_PASSWORD" --team-id "$APPLE_TEAM_ID" --wait
+        echo ""
+        echo "📎 Stapling notarization ticket..."
+        xcrun stapler staple "$INTEL_DMG"
     fi
 fi
 
 echo ""
 echo "========================================"
-echo "✅ Build Complete!"
+echo "✅ Build & Notarize Complete!"
 echo "========================================"
 echo ""
 echo "Artifacts:"
 ls -lh src-tauri/target/*.dmg 2>/dev/null || echo "  (No DMG files found)"
 echo ""
 echo "Next steps:"
-echo "1. Test the builds locally"
+echo "1. Test the builds locally (double-click should open without warning)"
 echo "2. Upload to GitHub release:"
 echo "   gh release upload ${VERSION} src-tauri/target/*.dmg"
 echo ""
