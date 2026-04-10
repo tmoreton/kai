@@ -485,9 +485,11 @@ export const agentsApi = {
     });
   },
 
-  run: (id: string): Promise<unknown> => {
+  run: (id: string): Promise<{ success: boolean; message?: string; agentId?: string; runId?: string; status?: string }> => {
+    // Use shorter timeout since runs are now async (server returns immediately)
     return fetchJson(`${API_BASE}/agents/${id}/run`, {
       method: 'POST',
+      timeout: 10000, // 10 seconds is plenty for the async trigger
     });
   },
 

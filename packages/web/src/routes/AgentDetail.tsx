@@ -29,7 +29,7 @@ import { cn } from '../lib/utils';
 import { toast } from '../components/Toast';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
-import type { Agent, ErrorState, Attachment } from '../types/api';
+import type { Agent, ErrorState, Attachment, AgentStep } from '../types/api';
 import { WorkflowEditor } from '../components/WorkflowEditor';
 import { AIWorkflowCreator } from '../components/AIWorkflowCreator';
 import { SmartChatInput } from '../components/SmartChatInput';
@@ -39,10 +39,15 @@ export function AgentDetail() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<'chat' | 'workflows' | 'history' | 'memory' | 'settings'>('chat');
   const [error, setError] = useState<ErrorState | null>(null);
+  const [isRunning, setIsRunning] = useState(false);
+  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [_runStatus, setRunStatus] = useState<{ steps: unknown[]; logs: string[] } | null>(null);
 
   const { data, isError, error: queryError } = useSuspenseQuery({
     ...agentsQueries.list(),
     retry: 2,
+    refetchInterval: isRunning ? 2000 : false, // Poll agents list when running
   });
 
   useEffect(() => {
@@ -61,6 +66,49 @@ export function AgentDetail() {
   }, [isError, queryError, error]);
 
   const agent = data?.agents.find((a: Agent) => a.id === agentId);
+
+  // Poll for run status when agent is running
+  useEffect(() => {
+    if (!isRunning || !agent) return;
+
+    const poll = async () => {
+      try {
+        const output = await agentsApi.getOutput(agent.id);
+        if (output?.run?.status !== 'running') {
+          setIsRunning(false);
+          if (output.run.status === 'completed') {
+            toast.success('Agent completed successfully');
+          } else if (output.run.status === 'failed') {
+            toast.error('Agent failed', output.run.error || 'Unknown error');
+          }
+        }
+        setRunStatus({ steps: output.steps || [], logs: [] });
+      } catch (err) {
+        console.error('Poll error:', err);
+      }
+    };
+
+    poll();
+    pollingRef.current = setInterval(poll, 2000);
+
+    return () => {
+      if (pollingRef.current) clearInterval(pollingRef.current);
+    };
+  }, [isRunning, agent?.id]);
+
+  const handleRun = async () => {
+    if (!agent) return;
+    setIsRunning(true);
+    toast.success('Agent started', 'Running workflow...');
+    setActiveTab('history');
+    
+    try {
+      await agentsApi.run(agent.id);
+    } catch (err) {
+      toast.error('Failed to start', err instanceof Error ? err.message : 'Unknown error');
+      setIsRunning(false);
+    }
+  };
 
   if (!agent) {
     return (
@@ -87,7 +135,15 @@ export function AgentDetail() {
             </button>
 
             <div className="flex-1 min-w-0">
-              <h1 className="text-lg font-semibold truncate">{agent.name}</h1>
+              <div className="flex items-center gap-2">
+                <h1 className="text-lg font-semibold truncate">{agent.name}</h1>
+                {isRunning && (
+                  <span className="flex items-center gap-1 text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
+                    <span className="w-2 h-2 bg-blue-600 rounded-full animate-pulse" />
+                    Running
+                  </span>
+                )}
+              </div>
               <p className="text-sm text-muted-foreground truncate">{agent.description}</p>
             </div>
 
@@ -99,9 +155,22 @@ export function AgentDetail() {
               >
                 {agent.enabled ? 'Enabled' : 'Disabled'}
               </Button>
-              <Button size="sm" onClick={() => agentsApi.run(agent.id)}>
-                <Play className="w-4 h-4 mr-2" />
-                Run Now
+              <Button 
+                size="sm" 
+                onClick={handleRun}
+                disabled={isRunning}
+              >
+                {isRunning ? (
+                  <>
+                    <Clock className="w-4 h-4 mr-2 animate-spin" />
+                    Running...
+                  </>
+                ) : (
+                  <>
+                    <Play className="w-4 h-4 mr-2" />
+                    Run Now
+                  </>
+                )}
               </Button>
             </div>
           </div>
@@ -300,35 +369,173 @@ function AgentWorkflow({ agent }: { agent: Agent }) {
 }
 
 function AgentHistory({ agent }: { agent: Agent }) {
+  const [runDetails, setRunDetails] = useState<{ steps: AgentStep[] } | null>(null);
+  const [logs, setLogs] = useState<Array<{ id: number; level: string; message: string; created_at: string }>>([]);
+  const [expandedSteps, setExpandedSteps] = useState<Set<number>>(new Set());
+  const [loading, setLoading] = useState(false);
+
+  // Fetch detailed output when viewing
+  useEffect(() => {
+    if (!agent.lastRun) return;
+    
+    const fetchDetails = async () => {
+      setLoading(true);
+      try {
+        const [output, logsData] = await Promise.all([
+          agentsApi.getOutput(agent.id),
+          agentsApi.getLogs(agent.id, 30)
+        ]);
+        setRunDetails(output);
+        setLogs(logsData as any[] || []);
+      } catch (err) {
+        console.error('Failed to fetch run details:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDetails();
+  }, [agent.id, agent.lastRun?.id]);
+
+  const toggleStep = (index: number) => {
+    const newSet = new Set(expandedSteps);
+    if (newSet.has(index)) newSet.delete(index);
+    else newSet.add(index);
+    setExpandedSteps(newSet);
+  };
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'completed': return <CheckCircle2 className="w-4 h-4 text-green-500" />;
+      case 'failed': return <XCircle className="w-4 h-4 text-red-500" />;
+      case 'running': return <Clock className="w-4 h-4 text-blue-500 animate-spin" />;
+      default: return <Clock className="w-4 h-4 text-muted-foreground" />;
+    }
+  };
+
+  if (!agent.lastRun) {
+    return <p className="text-muted-foreground">No runs yet</p>;
+  }
+
   return (
-    <div>
-      <h2 className="text-lg font-semibold mb-4">Run History</h2>
-      {agent.lastRun ? (
-        <div className="border rounded-lg p-4">
-          <div className="flex items-center gap-3">
-            {agent.lastRun.status === 'completed' ? (
-              <CheckCircle2 className="w-5 h-5 text-green-500" />
-            ) : agent.lastRun.status === 'failed' ? (
-              <XCircle className="w-5 h-5 text-red-500" />
-            ) : (
-              <Clock className="w-5 h-5 text-yellow-500" />
-            )}
-            <div className="flex-1 min-w-0">
-              <p className="font-medium">Status: {agent.lastRun.status}</p>
-              <p className="text-sm text-muted-foreground">
-                {new Date(agent.lastRun.startedAt).toLocaleString()}
-              </p>
-              {agent.lastRun.error && (
-                <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded text-sm text-red-700">
-                  <p className="font-medium">Error:</p>
-                  <p className="font-mono text-xs break-words">{agent.lastRun.error}</p>
-                </div>
-              )}
+    <div className="space-y-4">
+      {/* Run Summary Card */}
+      <div className="border rounded-lg p-4 bg-card">
+        <div className="flex items-center gap-3">
+          {agent.lastRun.status === 'completed' ? (
+            <CheckCircle2 className="w-6 h-6 text-green-500" />
+          ) : agent.lastRun.status === 'failed' ? (
+            <XCircle className="w-6 h-6 text-red-500" />
+          ) : (
+            <Clock className="w-6 h-6 text-yellow-500" />
+          )}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <p className="font-medium">{agent.lastRun.status === 'completed' ? 'Success' : agent.lastRun.status === 'failed' ? 'Failed' : 'In Progress'}</p>
+              {loading && <span className="text-xs text-muted-foreground">(loading details...)</span>}
             </div>
+            <p className="text-sm text-muted-foreground">
+              {new Date(agent.lastRun.startedAt).toLocaleString()}
+            </p>
           </div>
         </div>
-      ) : (
-        <p className="text-muted-foreground">No runs yet</p>
+
+        {/* Main Error */}
+        {agent.lastRun.error && (
+          <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg">
+            <p className="font-medium text-red-700 text-sm">Run Error:</p>
+            <p className="font-mono text-xs text-red-600 break-words mt-1">{agent.lastRun.error}</p>
+          </div>
+        )}
+      </div>
+
+      {/* Step-by-Step Breakdown */}
+      {runDetails?.steps && runDetails.steps.length > 0 && (
+        <div className="border rounded-lg overflow-hidden">
+          <div className="bg-muted px-4 py-2">
+            <p className="font-medium text-sm">Step-by-Step Execution</p>
+          </div>
+          <div className="divide-y">
+            {runDetails.steps.map((step, i) => (
+              <div key={i} className="bg-card">
+                <button
+                  onClick={() => toggleStep(i)}
+                  className="w-full px-4 py-3 flex items-center gap-3 hover:bg-accent/50 transition-colors text-left"
+                >
+                  {getStatusIcon(step.status)}
+                  <span className="font-mono text-sm text-muted-foreground w-6">{i + 1}</span>
+                  <span className="flex-1 font-medium text-sm">{step.name}</span>
+                  <span className={cn(
+                    "text-xs px-2 py-0.5 rounded",
+                    step.status === 'completed' && "bg-green-100 text-green-700",
+                    step.status === 'failed' && "bg-red-100 text-red-700",
+                    step.status === 'running' && "bg-blue-100 text-blue-700"
+                  )}>
+                    {step.status}
+                  </span>
+                </button>
+                
+                {expandedSteps.has(i) && (
+                  <div className="px-4 pb-3 pl-14">
+                    {/* Step Error */}
+                    {step.error && (
+                      <div className="p-2 bg-red-50 border border-red-200 rounded text-sm mb-2">
+                        <p className="font-medium text-red-700">Error:</p>
+                        <p className="font-mono text-xs text-red-600 break-words">{step.error}</p>
+                      </div>
+                    )}
+                    {/* Step Output */}
+                    {step.output && (
+                      <div className="mt-2">
+                        <p className="text-xs font-medium text-muted-foreground mb-1">Output:</p>
+                        <pre className="p-2 bg-muted rounded text-xs font-mono whitespace-pre-wrap max-h-40 overflow-y-auto">
+                          {step.output.substring(0, 2000)}
+                          {step.output.length > 2000 && '\n... (truncated)'}
+                        </pre>
+                      </div>
+                    )}
+                    {/* Tokens */}
+                    {step.tokensUsed && (
+                      <p className="text-xs text-muted-foreground mt-2">
+                        Tokens used: {step.tokensUsed.toLocaleString()}
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Recent Logs */}
+      {logs.length > 0 && (
+        <div className="border rounded-lg overflow-hidden">
+          <div className="bg-muted px-4 py-2">
+            <p className="font-medium text-sm">Recent Logs</p>
+          </div>
+          <div className="p-3 bg-black text-white font-mono text-xs max-h-48 overflow-y-auto">
+            {logs.slice(-20).map((log) => (
+              <div key={log.id} className={cn(
+                "py-0.5",
+                log.level === 'error' && "text-red-400",
+                log.level === 'warn' && "text-yellow-400",
+                log.level === 'info' && "text-blue-400",
+                log.level === 'debug' && "text-gray-400"
+              )}>
+                <span className="opacity-50">[{new Date(log.created_at).toLocaleTimeString()}]</span>{' '}
+                <span className="uppercase font-bold text-[10px]">{log.level}</span>: {log.message}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* No Details Warning */}
+      {!loading && !runDetails?.steps?.length && agent.lastRun.status !== 'running' && (
+        <div className="p-3 bg-yellow-50 border border-yellow-200 rounded text-sm text-yellow-700">
+          Step details not available for this run. The workflow may have been deleted or the run is too old.
+        </div>
       )}
     </div>
   );

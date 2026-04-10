@@ -165,8 +165,27 @@ export function registerAgentRoutes(app: Hono) {
 
   app.post("/api/agents/:id/run", async (c) => {
     const agentId = c.req.param("id");
-    const result = await runAgent(agentId);
-    return c.json(result);
+    const agent = getAgent(agentId);
+    if (!agent) return c.json({ error: "Agent not found" }, 404);
+    
+    // Get latest run to use as the new run ID
+    const latestRuns = getLatestRuns(agentId, 1);
+    const currentRun = latestRuns[0];
+    
+    // Trigger agent run asynchronously (fire-and-forget)
+    // Don't await the result - it can take minutes
+    runAgent(agentId).catch((err) => {
+      console.error(`Agent run failed for ${agentId}:`, err);
+    });
+    
+    // Return immediately with success and current/latest run info
+    return c.json({ 
+      success: true, 
+      message: "Agent run started",
+      agentId: agentId,
+      runId: currentRun?.id,
+      status: "running"
+    });
   });
 
   app.patch("/api/agents/:id", async (c) => {
