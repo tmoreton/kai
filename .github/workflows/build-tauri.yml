@@ -85,20 +85,22 @@ jobs:
           security find-identity -v -p codesigning build.keychain
       
       - name: Build Tauri app (signed)
-        if: secrets.APPLE_CERTIFICATE_BASE64 != ''
+        if: env.APPLE_CERTIFICATE_BASE64 != ''
         run: cargo tauri build --target ${{ matrix.arch == 'aarch64' && 'aarch64-apple-darwin' || 'x86_64-apple-darwin' }}
         env:
           CI: true
+          APPLE_CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
       
       - name: Build Tauri app (unsigned)
-        if: secrets.APPLE_CERTIFICATE_BASE64 == ''
+        if: env.APPLE_CERTIFICATE_BASE64 == ''
         run: cargo tauri build --target ${{ matrix.arch == 'aarch64' && 'aarch64-apple-darwin' || 'x86_64-apple-darwin' }}
         env:
           CI: true
+          APPLE_CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
           APPLE_SIGNING_IDENTITY: "-"
       
       - name: Rename DMG with arch

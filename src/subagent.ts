@@ -3,7 +3,8 @@ import type { ChatCompletionMessageParam, ChatCompletionTool } from "openai/reso
 import { chat, createClient } from "./client.js";
 import { toolDefinitions } from "./tools/index.js";
 import { getCwd } from "./tools/bash.js";
-import { loadPersona, buildAgentSystemPrompt, updatePersonaField, listPersonas } from "./agent-persona.js";
+import { buildAgentSystemPrompt } from "./agent-persona.js";
+import { getAgent, listAgents } from "./agents-core/db.js";
 import { BUILT_IN_AGENT_CONFIGS, AGENT_BLOCKED_TOOLS } from "./constants.js";
 import { getScratchpadToolDefs, getActiveScratchpad } from "./swarm.js";
 import chalk from "chalk";
@@ -153,11 +154,25 @@ export async function runPersonaAgent(
   onToken?: (token: string) => void,
   options?: { injectScratchpad?: boolean }
 ): Promise<string> {
-  const persona = loadPersona(agentId);
-  if (!persona) {
-    const available = listPersonas().map((p) => p.id);
-    return `Unknown agent persona: "${agentId}". Available: ${available.join(", ")}. Use agent_create to define a new one.`;
+  const agent = getAgent(agentId);
+  if (!agent) {
+    const available = listAgents().map((a) => a.id);
+    return `Unknown agent: "${agentId}". Available: ${available.join(", ")}. Use agent_create to define a new one.`;
   }
+
+  const config = typeof agent.config === "string" ? JSON.parse(agent.config) : (agent.config ?? {});
+  const persona = {
+    id: agent.id,
+    name: agent.name,
+    role: config.role || "AI Assistant",
+    personality: config.personality || "",
+    goals: config.goals || "",
+    scratchpad: config.scratchpad || "",
+    tools: config.tools || [],
+    maxTurns: config.maxTurns || 25,
+    createdAt: agent.created_at,
+    updatedAt: agent.updated_at,
+  };
 
   const client = createClient();
   const cwd = getCwd();
@@ -168,7 +183,7 @@ export async function runPersonaAgent(
     { role: "user", content: task },
   ];
 
-  // Build tool set: persona's allowed tools (or all) + agent memory tools
+  // Build tool set: agent's allowed tools (or all) + agent memory tools
   // Always block recursive agent spawning tools
   const agentMemoryTools = getAgentMemoryTools(agentId);
   let agentTools: ChatCompletionTool[];
@@ -238,15 +253,15 @@ export async function spawnAgent(args: {
     return runSubagent(builtin, args.task);
   }
 
-  // Then check persona-based agents
-  const persona = loadPersona(args.agent);
-  if (persona) {
+  // Then check DB agents
+  const agent = getAgent(args.agent);
+  if (agent) {
     return runPersonaAgent(args.agent, args.task);
   }
 
   // List available
-  const personaNames = listPersonas().map((p) => p.id);
-  const all = [...new Set([...BUILT_IN_AGENT_NAMES, ...personaNames])];
+  const agentNames = listAgents().map((a) => a.id);
+  const all = [...new Set([...BUILT_IN_AGENT_NAMES, ...agentNames])];
 
   return `Unknown agent: "${args.agent}". Available: ${all.join(", ")}`;
 }

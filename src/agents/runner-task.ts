@@ -7,7 +7,7 @@
 
 import { getAgent, addLog } from "../agents-core/db.js";
 import { parseWorkflow, executeWorkflow, type WorkflowDefinition, type WorkflowStep } from "../agents-core/workflow.js";
-import { loadPersona } from "../agent-persona.js";
+import { buildAgentSystemPrompt } from "../agent-persona.js";
 import { createClient, chat, getModelId } from "../client.js";
 import { ensureGlobalDir } from "../project.js";
 import type { ChatCompletionMessageParam } from "openai/resources/chat/completions";
@@ -71,10 +71,18 @@ export async function runUntilComplete(
     throw new Error(`Failed to load workflow from ${agent.workflow_path}`);
   }
 
-  // Load persona
-  const config = JSON.parse(agent.config || "{}");
-  const personaId = config.personaId || agentId;
-  const persona = loadPersona(personaId);
+  // Build persona from agent config (consolidated storage)
+  const agentConfig = JSON.parse(agent.config || "{}");
+  const persona = {
+    id: agent.id,
+    name: agent.name,
+    role: agentConfig.role || "AI Assistant",
+    personality: agentConfig.personality || "",
+    goals: agentConfig.goals || "",
+    scratchpad: agentConfig.scratchpad || "",
+    tools: agentConfig.tools || [],
+    maxTurns: agentConfig.maxTurns || 25,
+  };
 
   const client = createClient();
   

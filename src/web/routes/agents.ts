@@ -18,13 +18,12 @@ import {
 } from "../../agents-core/db.js";
 import { runAgent } from "../../agents-core/daemon.js";
 import { resumeRun, findInterruptedRunsForDisplay, getResumeStatus } from "../../agents/index.js";
-import { listPersonas, loadPersona, createPersona, updatePersonaField, addFileReference, removeFileReference, getFilePath } from "../../agent-persona.js";
+
 import { createClient, getModelId } from "../../client.js";
 import { buildSystemPrompt } from "../../system-prompt.js";
 import {
   generateSessionId,
   saveSession,
-  findSessionByPersona,
   type Session,
 } from "../../sessions/manager.js";
 import { getCwd } from "../../tools/bash.js";
@@ -63,22 +62,10 @@ function createNewSession(): Session {
   };
 }
 
-function buildPersonaContext(persona: { name: string; role?: string; personality?: string; goals?: string; scratchpad?: string }): string {
-  return [
-    `You are ${persona.name}.`,
-    persona.role ? `Role: ${persona.role}` : "",
-    persona.personality ? `\nPersonality:\n${persona.personality}` : "",
-    persona.goals ? `\nGoals:\n${persona.goals}` : "",
-    persona.scratchpad ? `\nWorking Notes (scratchpad):\n${persona.scratchpad}` : "",
-    "\nMaintain this persona throughout the conversation. Reference your goals and working notes as appropriate.",
-  ].filter(Boolean).join("\n");
-}
-
 export function registerAgentRoutes(app: Hono) {
   // --- Agents ---
   app.get("/api/agents", async (c) => {
     const agents = listAgents();
-    const personas = listPersonas();
 
     // Parse workflow files to get steps
     const YAML = await import("yaml");
@@ -135,99 +122,9 @@ export function registerAgentRoutes(app: Hono) {
           config: typeof a.config === 'string' ? JSON.parse(a.config || '{}') : (a.config || {}),
         };
       }),
-      personas: personas.map((p) => ({
-        id: p.id,
-        name: p.name,
-        role: p.role,
-        personality: p.personality,
-        goals: p.goals,
-        scratchpad: p.scratchpad,
-        tools: p.tools,
-        maxTurns: p.maxTurns,
-        files: p.files || [],
-      })),
     });
   });
 
-  // Persona CRUD endpoints
-  app.post("/api/personas", async (c) => {
-    const body = await c.req.json();
-    const { id, name, role, personality, goals, scratchpad, tools, maxTurns } = body;
-    if (!id || !name || !role || !personality || !goals) {
-      return c.json({ error: "Missing required fields" }, 400);
-    }
-    const persona = createPersona(id, name, role, personality, goals, tools, maxTurns);
-    if (scratchpad) {
-      updatePersonaField(id, "scratchpad", "replace", scratchpad);
-    }
-    return c.json({ id: persona.id, name: persona.name });
-  });
-
-  app.patch("/api/personas/:id", async (c) => {
-    const id = c.req.param("id");
-    const body = await c.req.json();
-    const { field, content, operation = "replace" } = body;
-    if (!field || !content) {
-      return c.json({ error: "Missing field or content" }, 400);
-    }
-    const result = updatePersonaField(id, field, operation, content);
-    return c.json({ result });
-  });
-
-  app.delete("/api/personas/:id", (c) => {
-    const id = c.req.param("id");
-    const dir = ensureGlobalDir("agents/personas");
-    const p = path.join(dir, `${id}.json`);
-    try {
-      if (fs.existsSync(p)) {
-        fs.unlinkSync(p);
-        return c.json({ deleted: true });
-      }
-      return c.json({ error: "Persona not found" }, 404);
-    } catch (e) {
-      return c.json({ error: String(e) }, 500);
-    }
-  });
-
-  // --- Persona File References ---
-  app.post("/api/personas/:id/files", async (c) => {
-    const id = c.req.param("id");
-    const persona = loadPersona(id);
-    if (!persona) return c.json({ error: "Persona not found" }, 404);
-
-    const formData = await c.req.formData();
-    const file = formData.get("file") as File | null;
-    const label = (formData.get("label") as string) || "";
-    if (!file) return c.json({ error: "No file provided" }, 400);
-
-    const buffer = Buffer.from(await file.arrayBuffer());
-    const ref = addFileReference(id, file.name, label || file.name, file.type || "application/octet-stream", buffer);
-    if (!ref) return c.json({ error: "Failed to save file" }, 500);
-
-    return c.json(ref);
-  });
-
-  app.delete("/api/personas/:id/files/:storedName", (c) => {
-    const id = c.req.param("id");
-    const storedName = c.req.param("storedName");
-    const removed = removeFileReference(id, storedName);
-    if (!removed) return c.json({ error: "File not found" }, 404);
-    return c.json({ deleted: true });
-  });
-
-  app.get("/api/personas/:id/files/:storedName", (c) => {
-    const id = c.req.param("id");
-    const storedName = c.req.param("storedName");
-    const filePath = getFilePath(id, storedName);
-    if (!fs.existsSync(filePath)) return c.json({ error: "File not found" }, 404);
-
-    const persona = loadPersona(id);
-    const ref = persona?.files?.find((f) => f.storedName === storedName);
-    const mimeType = ref?.mimeType || "application/octet-stream";
-
-    const data = fs.readFileSync(filePath);
-    return new Response(data, { headers: { "Content-Type": mimeType } });
-  });
 
   app.get("/api/agents/:id", (c) => {
     const agent = getAgent(c.req.param("id"));
@@ -665,72 +562,6 @@ export function registerAgentRoutes(app: Hono) {
     });
   });
 
-  // --- Persona Chat: Get or create persistent session ---
-  app.post("/api/personas/:id/chat", async (c) => {
-    const personaId = c.req.param("id");
-    const persona = loadPersona(personaId);
-    if (!persona) return c.json({ error: "Persona not found" }, 404);
-
-    let session = findSessionByPersona(personaId);
-
-    if (session) {
-      const personaContext = buildPersonaContext(persona);
-      const baseSystemPrompt = buildSystemPrompt();
-      session.messages[0] = {
-        role: "system",
-        content: `${baseSystemPrompt}\n\n---\n\n${personaContext}`
-      };
-      saveSession(session);
-      return c.json({ id: session.id, name: session.name, persona: persona.name, existing: true });
-    }
-
-    session = createNewSession();
-    session.name = `Chat with ${persona.name}`;
-    session.type = "agent";
-    session.personaId = personaId;
-
-    const personaContext = buildPersonaContext(persona);
-    const baseSystemPrompt = buildSystemPrompt();
-    session.messages[0] = {
-      role: "system",
-      content: `${baseSystemPrompt}\n\n---\n\n${personaContext}`
-    };
-
-    session.messages.push({
-      role: "assistant",
-      content: `Hi, I'm ${persona.name}. ${persona.role ? `I ${persona.role.toLowerCase().replace(/^i /, "").replace(/\.$/, "")}.` : "How can I help you today?"}`
-    });
-
-    saveSession(session);
-    return c.json({ id: session.id, name: session.name, persona: persona.name, existing: false });
-  });
-
-  // --- New Persona Chat: Force create fresh session ---
-  app.post("/api/personas/:id/chat/new", async (c) => {
-    const personaId = c.req.param("id");
-    const persona = loadPersona(personaId);
-    if (!persona) return c.json({ error: "Persona not found" }, 404);
-
-    const session = createNewSession();
-    session.name = `Chat with ${persona.name}`;
-    session.type = "agent";
-    session.personaId = personaId;
-
-    const personaContext = buildPersonaContext(persona);
-    const baseSystemPrompt = buildSystemPrompt();
-    session.messages[0] = {
-      role: "system",
-      content: `${baseSystemPrompt}\n\n---\n\n${personaContext}`
-    };
-
-    session.messages.push({
-      role: "assistant",
-      content: `Hi, I'm ${persona.name}. ${persona.role ? `I ${persona.role.toLowerCase().replace(/^i /, "").replace(/\.$/, "")}.` : "How can I help you today?"}`
-    });
-
-    saveSession(session);
-    return c.json({ id: session.id, name: session.name, persona: persona.name, existing: false });
-  });
 
   // --- Agent Detail Chat (simple request/response) ---
   app.post("/api/agent-chat", async (c) => {
@@ -739,19 +570,31 @@ export function registerAgentRoutes(app: Hono) {
     if (!agentId || !message) return c.json({ error: "Missing agentId or message" }, 400);
 
     const agent = getAgent(agentId);
-    const config = agent ? JSON.parse(agent.config || "{}") : {};
-    const personaId = config.personaId || agentId;
-    const persona = loadPersona(personaId);
-
+    if (!agent) return c.json({ error: "Agent not found" }, 404);
+    
+    const agentConfig = typeof agent.config === 'string' ? JSON.parse(agent.config || "{}") : (agent.config || {});
+    
     let systemPrompt: string;
-    if (persona) {
+    if (agentConfig.personality || agentConfig.role) {
+      // Build persona from agent config
+      const now = new Date().toISOString();
+      const persona = {
+        id: agent.id,
+        name: agent.name,
+        role: agentConfig.role || "AI Assistant",
+        personality: agentConfig.personality || "",
+        goals: agentConfig.goals || "",
+        scratchpad: agentConfig.scratchpad || "",
+        tools: agentConfig.tools || [],
+        maxTurns: agentConfig.maxTurns || 25,
+        createdAt: agent.created_at || now,
+        updatedAt: agent.updated_at || now,
+      };
       const { buildAgentSystemPrompt } = await import("../../agent-persona.js");
       const { getCwd } = await import("../../tools/bash.js");
       systemPrompt = buildAgentSystemPrompt(persona, getCwd());
-    } else if (agent) {
-      systemPrompt = `You are ${agent.name}. ${agent.description || ""}\nAnswer questions about your workflows, past runs, and status.`;
     } else {
-      return c.json({ error: "Agent not found" }, 404);
+      systemPrompt = `You are ${agent.name}. ${agent.description || ""}\nAnswer questions about your workflows, past runs, and status.`;
     }
 
     try {

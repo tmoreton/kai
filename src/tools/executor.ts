@@ -5,7 +5,8 @@ import { webFetch, webSearch } from "./web.js";
 
 import { spawnAgent } from "../subagent.js";
 import { runSwarm, handleScratchpadTool } from "../swarm.js";
-import { loadPersona, updatePersonaField, listPersonas, createPersona } from "../agent-persona.js";
+
+import { getAgent, saveAgent, listAgents } from "../agents-core/db.js";
 import { checkPermission } from "../permissions.js";
 import { runBeforeHooks, runAfterHooks } from "../hooks.js";
 import { ToolError, PermissionError } from "../errors.js";
@@ -284,48 +285,67 @@ export async function executeTool(
         const field = toolArgs.field as string | undefined;
         const agentId = toolArgs._agent_id as string;
         if (!agentId) {
-          const personas = listPersonas();
-          return personas.map((p) =>
-            `**${p.name}** (${p.id})\n  Role: ${p.role}\n  Goals: ${p.goals.substring(0, 200)}`
-          ).join("\n\n");
+          const agents = listAgents();
+          return agents.map((a) => {
+            const config = typeof a.config === "string" ? JSON.parse(a.config) : (a.config ?? {});
+            return `**${a.name}** (${a.id})\n  Role: ${config.role || "N/A"}\n  Goals: ${(config.goals || "").substring(0, 200)}`;
+          }).join("\n\n");
         }
-        const persona = loadPersona(agentId);
-        if (!persona) return `Agent "${agentId}" not found.`;
-        if (field && field in persona) {
-          return `[${field}]: ${(persona as any)[field]}`;
+        const agent = getAgent(agentId);
+        if (!agent) return `Agent "${agentId}" not found.`;
+        const config = typeof agent.config === "string" ? JSON.parse(agent.config) : (agent.config ?? {});
+        if (field && field in config) {
+          return `[${field}]: ${config[field]}`;
         }
-        return `[goals]: ${persona.goals}\n\n[scratchpad]: ${persona.scratchpad || "(empty)"}\n\n[personality]: ${persona.personality}\n\n[role]: ${persona.role}`;
+        return `[goals]: ${config.goals || "(empty)"}\n\n[scratchpad]: ${config.scratchpad || "(empty)"}\n\n[personality]: ${config.personality || "(empty)"}\n\n[role]: ${config.role || "(empty)"}`;
       }
       case "agent_memory_update": {
         const agentId = toolArgs._agent_id as string;
-        if (!agentId) return "No agent context - this tool is for persona-based agents.";
-        return updatePersonaField(
-          agentId,
-          toolArgs.field as "goals" | "scratchpad",
-          toolArgs.operation as "replace" | "append",
-          String(toolArgs.content)
-        );
+        if (!agentId) return "No agent context - this tool is for agents with memory.";
+        const agent = getAgent(agentId);
+        if (!agent) return `Agent "${agentId}" not found.`;
+        const config = typeof agent.config === "string" ? JSON.parse(agent.config) : (agent.config ?? {});
+        const field = toolArgs.field as "goals" | "scratchpad" | "personality" | "role";
+        const operation = toolArgs.operation as "replace" | "append";
+        const content = String(toolArgs.content);
+        if (operation === "append") {
+          config[field] = (config[field] || "") + "\n" + content;
+        } else {
+          config[field] = content;
+        }
+        saveAgent({ ...agent, config });
+        return `Updated ${field} (${operation}).`;
       }
       case "agent_create": {
-        const p = createPersona(
-          String(toolArgs.id),
-          String(toolArgs.name),
-          String(toolArgs.role),
-          String(toolArgs.personality),
-          String(toolArgs.goals),
-          toolArgs.tools as string[] | undefined,
-          toolArgs.max_turns as number | undefined
-        );
-        return `Created agent persona "${p.name}" (${p.id}).`;
+        const agentId = String(toolArgs.id);
+        const config = {
+          role: String(toolArgs.role),
+          personality: String(toolArgs.personality),
+          goals: String(toolArgs.goals),
+          scratchpad: "",
+          tools: toolArgs.tools as string[] | undefined,
+          maxTurns: toolArgs.max_turns as number | undefined,
+        };
+        saveAgent({
+          id: agentId,
+          name: String(toolArgs.name),
+          description: `Agent created via agent_create tool`,
+          workflow_path: "",
+          schedule: "",
+          enabled: 0,
+          config: JSON.stringify(config),
+        });
+        return `Created agent "${toolArgs.name}" (${agentId}).`;
       }
       case "agent_list": {
-        const personas = listPersonas();
-        if (personas.length === 0) {
-          return "No agent personas defined. Use agent_create to define one.";
+        const agents = listAgents();
+        if (agents.length === 0) {
+          return "No agents defined. Use agent_create to define one.";
         }
-        return personas.map((p) =>
-          `• **${p.name}** (${p.id}) - ${p.role}\n  Goals: ${p.goals.substring(0, 150)}`
-        ).join("\n\n");
+        return agents.map((a) => {
+          const config = typeof a.config === "string" ? JSON.parse(a.config) : (a.config ?? {});
+          return `• **${a.name}** (${a.id}) - ${config.role || "N/A"}\n  Goals: ${(config.goals || "").substring(0, 150)}`;
+        }).join("\n\n");
       }
       case "swarm_scratchpad_read":
       case "swarm_scratchpad_write": {

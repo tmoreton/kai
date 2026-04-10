@@ -9,8 +9,6 @@ import type {
   AgentDetail,
   AgentRun,
   AgentStep,
-  Persona,
-  FileRef,
   Project,
   Notification,
   Settings,
@@ -445,7 +443,6 @@ export const projectsApi = {
 
 export interface AgentsListResponse {
   agents: Agent[];
-  personas: Persona[];
 }
 
 export const agentsApi = {
@@ -462,7 +459,6 @@ export const agentsApi = {
     description?: string;
     schedule?: string;
     prompt: string;
-    personaId?: string;
   }): Promise<Agent> => {
     return fetchJson(`${API_BASE}/agents`, {
       method: 'POST',
@@ -541,98 +537,6 @@ export const agentsApi = {
       method: 'POST',
       body: JSON.stringify({ message, attachments }),
     });
-  },
-};
-
-// ============================================
-// Personas API
-// ============================================
-
-export const personasApi = {
-  create: (body: {
-    id: string;
-    name: string;
-    role: string;
-    personality: string;
-    goals: string;
-    scratchpad?: string;
-    tools?: string[];
-    maxTurns?: number;
-  }): Promise<{ id: string; name: string }> => {
-    return fetchJson(`${API_BASE}/personas`, {
-      method: 'POST',
-      body: JSON.stringify(body),
-    });
-  },
-
-  updateField: (id: string, body: {
-    field: string;
-    content: string;
-    operation?: 'replace' | 'append';
-  }): Promise<{ result: boolean }> => {
-    return fetchJson(`${API_BASE}/personas/${id}`, {
-      method: 'PATCH',
-      body: JSON.stringify(body),
-    });
-  },
-
-  delete: (id: string): Promise<{ deleted: boolean }> => {
-    return fetchJson(`${API_BASE}/personas/${id}`, {
-      method: 'DELETE',
-    });
-  },
-
-  uploadFile: async (id: string, file: File, label?: string): Promise<FileRef> => {
-    const formData = new FormData();
-    formData.append('file', file);
-    if (label) formData.append('label', label);
-
-    try {
-      const response = await fetchWithRetry<Response>(`${API_BASE}/personas/${id}/files`, {
-        method: 'POST',
-        body: formData,
-        // Don't set Content-Type - browser will set it with boundary for FormData
-      });
-
-      if (!response.ok) {
-        const text = await response.text();
-        throw new ApiError(text || 'Upload failed', response.status);
-      }
-
-      return await response.json();
-    } catch (error) {
-      return handleApiError(error, true);
-    }
-  },
-
-  deleteFile: (id: string, storedName: string): Promise<{ deleted: boolean }> => {
-    return fetchJson(`${API_BASE}/personas/${id}/files/${storedName}`, {
-      method: 'DELETE',
-    });
-  },
-
-  downloadFile: async (id: string, storedName: string): Promise<Blob> => {
-    try {
-      const response = await fetchWithRetry<Response>(
-        `${API_BASE}/personas/${id}/files/${storedName}`
-      );
-
-      if (!response.ok) {
-        throw new ApiError('File not found', response.status);
-      }
-
-      return await response.blob();
-    } catch (error) {
-      return handleApiError(error, true);
-    }
-  },
-
-  chat: (id: string): Promise<{ id: string; name: string; persona: Persona; existing: boolean }> => {
-    return fetchJson(`${API_BASE}/personas/${id}/chat`, { method: 'POST' });
-  },
-
-  chatNew: (id: string): Promise<{ id: string; name: string; persona: Persona; existing: boolean }> => {
-    return fetchJson(`${API_BASE}/personas/${id}/chat/new`, { method: 'POST' });
   },
 };
 
@@ -931,7 +835,6 @@ export const api = {
   sessions: sessionsApi,
   projects: projectsApi,
   agents: agentsApi,
-  personas: personasApi,
   notifications: notificationsApi,
   settings: settingsApi,
   core: coreApi,

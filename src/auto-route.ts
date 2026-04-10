@@ -8,7 +8,7 @@
 import OpenAI from "openai";
 import { getModelId } from "./client.js";
 import { setPlanMode, isPlanMode } from "./plan-mode.js";
-import { listPersonas } from "./agent-persona.js";
+import { listAgents } from "./agents-core/db.js";
 import chalk from "chalk";
 
 export interface RouteDecision {
@@ -69,21 +69,21 @@ const CODE_INDICATORS = [
   /\b(?:import|export|function|class|interface|type|const|let|var)\b/i,
 ];
 
-// Cached persona list + compiled regexes (avoid filesystem scan + regex compilation per message)
-let _personaCache: { personas: ReturnType<typeof listPersonas>; regexes: Map<string, RegExp>; cachedAt: number } | null = null;
-const PERSONA_CACHE_TTL = 30_000; // 30 seconds
+// Cached agents list + compiled regexes (avoid DB scan + regex compilation per message)
+let _agentCache: { agents: ReturnType<typeof listAgents>; regexes: Map<string, RegExp>; cachedAt: number } | null = null;
+const AGENT_CACHE_TTL = 30_000; // 30 seconds
 
-function getCachedPersonas() {
-  if (_personaCache && Date.now() - _personaCache.cachedAt < PERSONA_CACHE_TTL) {
-    return _personaCache;
+function getCachedAgents() {
+  if (_agentCache && Date.now() - _agentCache.cachedAt < AGENT_CACHE_TTL) {
+    return _agentCache;
   }
-  const personas = listPersonas();
+  const agents = listAgents();
   const regexes = new Map<string, RegExp>();
-  for (const p of personas) {
-    regexes.set(p.id, new RegExp(`\\b(?:${p.id}|${p.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})\\b`, "i"));
+  for (const a of agents) {
+    regexes.set(a.id, new RegExp(`\\b(?:${a.id}|${a.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})\\b`, "i"));
   }
-  _personaCache = { personas, regexes, cachedAt: Date.now() };
-  return _personaCache;
+  _agentCache = { agents, regexes, cachedAt: Date.now() };
+  return _agentCache;
 }
 
 /**
@@ -110,19 +110,19 @@ export function autoRouteHeuristic(userMessage: string): RouteDecision {
   // Check for code indicators first — these override delegation
   const isCodeTask = CODE_INDICATORS.some((p) => p.test(msg));
 
-  // Check for persona delegation (only if not a code task)
+  // Check for agent delegation (only if not a code task)
   if (!isCodeTask) {
-    const { personas, regexes } = getCachedPersonas();
-    for (const persona of personas) {
-      const nameMatch = regexes.get(persona.id)!.test(msg);
+    const { agents, regexes } = getCachedAgents();
+    for (const agent of agents) {
+      const nameMatch = regexes.get(agent.id)!.test(msg);
       const delegateMatch = DELEGATE_PATTERNS.some((p) => p.test(msg));
 
       if (nameMatch && delegateMatch) {
         return {
           strategy: "delegate",
-          reason: `task matches ${persona.name} agent`,
-          delegateTo: persona.id,
-          hint: `[AUTO-ROUTE: This task belongs to the "${persona.id}" agent. Use spawn_agent("${persona.id}", "<the user's full request>") to delegate this task to the specialized agent.]`,
+          reason: `task matches ${agent.name} agent`,
+          delegateTo: agent.id,
+          hint: `[AUTO-ROUTE: This task belongs to the "${agent.id}" agent. Use spawn_agent("${agent.id}", "<the user's full request>") to delegate this task to the specialized agent.]`,
         };
       }
     }

@@ -11,7 +11,7 @@
  */
 
 import { runSubagent, runPersonaAgent, type SubagentConfig } from "./subagent.js";
-import { loadPersona } from "./agent-persona.js";
+import { getAgent } from "./agents-core/db.js";
 import { getCwd } from "./tools/bash.js";
 import { BUILT_IN_AGENT_CONFIGS } from "./constants.js";
 import { createClient, getModelId } from "./client.js";
@@ -175,9 +175,9 @@ function launchAgent(agentType: string, task: string, index: number): Promise<st
     return runSubagent(config, task);
   }
 
-  // Persona-based agent
-  const persona = loadPersona(agentType);
-  if (persona) {
+  // DB agent
+  const agent = getAgent(agentType);
+  if (agent) {
     return runPersonaAgent(agentType, task, undefined, { injectScratchpad: true });
   }
 
