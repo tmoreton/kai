@@ -1,35 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#14B8A6"/>
-      <stop offset="50%" stop-color="#0D9488"/>
-      <stop offset="100%" stop-color="#115E59"/>
-    </linearGradient>
-    <linearGradient id="gloss" x1="0.5" y1="0" x2="0.5" y2="1">
-      <stop offset="0%" stop-color="white" stop-opacity="0.35"/>
-      <stop offset="50%" stop-color="white" stop-opacity="0.05"/>
-      <stop offset="100%" stop-color="white" stop-opacity="0"/>
-    </linearGradient>
-    <filter id="shadow" x="-10%" y="-10%" width="120%" height="130%">
-      <feDropShadow dx="0" dy="4" stdDeviation="8" flood-color="#0F766E" flood-opacity="0.5"/>
-    </filter>
-    <linearGradient id="k-stroke" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="white"/>
-      <stop offset="100%" stop-color="#E0F2F1"/>
-    </linearGradient>
-  </defs>
-  <!-- Background -->
-  <rect width="512" height="512" rx="118" fill="url(#bg)"/>
-  <!-- Inner border highlight -->
-  <rect x="3" y="3" width="506" height="506" rx="116" fill="none" stroke="white" stroke-opacity="0.15" stroke-width="2"/>
-  <!-- Glass highlight -->
-  <rect x="20" y="14" width="472" height="240" rx="100" fill="url(#gloss)"/>
-  <!-- K mark with shadow -->
-  <g filter="url(#shadow)">
-    <path d="M170 118v276" stroke="url(#k-stroke)" stroke-width="42" stroke-linecap="round"/>
-    <path d="M170 256l180-138" stroke="url(#k-stroke)" stroke-width="42" stroke-linecap="round" stroke-linejoin="round"/>
-    <path d="M170 256l180 138" stroke="url(#k-stroke)" stroke-width="42" stroke-linecap="round" stroke-linejoin="round"/>
-  </g>
-  <!-- Bottom edge subtle highlight -->
-  <rect x="20" y="498" width="472" height="3" rx="1.5" fill="white" opacity="0.08"/>
+<svg viewBox="0 0 100 110" xmlns="http://www.w3.org/2000/svg" width="100" height="110" shape-rendering="crispEdges">
+  <circle cx="50" cy="50" r="50" fill="#5a9e8f" shape-rendering="auto" />
+  <!-- ">" chevron -->
+  <polyline points="38,30 54,44 38,58" fill="none" stroke="white" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" shape-rendering="auto" />
+  <!-- "_" underscore -->
+  <line x1="50" y1="67" x2="70" y2="67" stroke="white" stroke-width="4" stroke-linecap="round" shape-rendering="auto" />
 </svg>
