@@ -65,7 +65,99 @@ interface GeneratedWorkflow {
   createSkills?: CreateSkill[];
 }
 
+// ============================================
+// Schedule Picker Component
+// ============================================
 
+const SCHEDULE_OPTIONS = [
+  { label: 'Manual only', value: '', description: 'Run when you click the button' },
+  { label: 'Every 5 minutes', value: '*/5 * * * *', description: 'Good for testing' },
+  { label: 'Every 15 minutes', value: '*/15 * * * *', description: 'Frequent monitoring' },
+  { label: 'Every 30 minutes', value: '*/30 * * * *', description: 'Regular checks' },
+  { label: 'Every hour', value: '0 * * * *', description: 'Hourly updates' },
+  { label: 'Every 2 hours', value: '0 */2 * * *', description: 'Bi-hourly tasks' },
+  { label: 'Every 6 hours', value: '0 */6 * * *', description: '4 times daily' },
+  { label: 'Every 12 hours', value: '0 */12 * * *', description: 'Twice daily' },
+  { label: 'Daily at 9am', value: '0 9 * * *', description: 'Morning routine' },
+  { label: 'Daily at 6pm', value: '0 18 * * *', description: 'Evening digest' },
+  { label: 'Weekdays at 9am', value: '0 9 * * 1-5', description: 'Monday-Friday' },
+  { label: 'Weekdays at 6pm', value: '0 18 * * 1-5', description: 'End of workday' },
+  { label: 'Weekly (Mondays)', value: '0 9 * * 1', description: 'Weekly planning' },
+  { label: 'Weekly (Fridays)', value: '0 17 * * 5', description: 'Weekly wrap-up' },
+  { label: 'Monthly (1st)', value: '0 9 1 * *', description: 'Monthly report' },
+];
+
+function SchedulePicker({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  const [customMode, setCustomMode] = useState(false);
+
+  // Check if current value matches a preset
+  const matchingPreset = SCHEDULE_OPTIONS.find(opt => opt.value === value);
+  const isCustom = value && !matchingPreset;
+
+  return (
+    <div className="space-y-3">
+      {/* Preset Grid */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+        {SCHEDULE_OPTIONS.map((option) => (
+          <button
+            key={option.value}
+            onClick={() => {
+              onChange(option.value);
+              setCustomMode(false);
+            }}
+            className={cn(
+              "p-3 rounded-lg border text-left transition-all",
+              value === option.value
+                ? "border-primary bg-primary/10 text-primary"
+                : "border-border hover:border-primary/50 hover:bg-muted/50"
+            )}
+          >
+            <div className="font-medium text-sm">{option.label}</div>
+            <div className="text-xs text-muted-foreground mt-0.5">{option.description}</div>
+          </button>
+        ))}
+      </div>
+
+      {/* Custom Input Toggle */}
+      <div className="flex items-center gap-2">
+        <button
+          onClick={() => setCustomMode(!customMode)}
+          className="text-sm text-primary hover:underline"
+        >
+          {customMode ? 'Hide custom cron' : 'Use custom cron expression'}
+        </button>
+        {(isCustom || customMode) && (
+          <span className="text-xs text-muted-foreground">
+            Current: <code className="bg-muted px-1.5 py-0.5 rounded">{value || '—'}</code>
+          </span>
+        )}
+      </div>
+
+      {/* Custom Input */}
+      {(isCustom || customMode) && (
+        <div className="space-y-2">
+          <Input
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder="e.g., 0 9 * * 1-5"
+            className="bg-muted/50 font-mono text-sm"
+          />
+          <p className="text-xs text-muted-foreground">
+            Cron format: minute hour day month weekday.{' '}
+            <a
+              href="https://crontab.guru/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-primary hover:underline"
+            >
+              Need help?
+            </a>
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ============================================
 // Main Component
@@ -611,15 +703,10 @@ export function AgentEditor() {
                         <Clock className="w-4 h-4 text-muted-foreground" />
                         Schedule (Optional)
                       </label>
-                      <Input
+                      <SchedulePicker
                         value={customSchedule || generatedWorkflow.schedule || ''}
-                        onChange={(e) => setCustomSchedule(e.target.value)}
-                        placeholder="e.g., 0 9 * * 1-5 (weekdays at 9am)"
-                        className="bg-muted/50"
+                        onChange={setCustomSchedule}
                       />
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Cron format. Leave empty to run manually only.
-                      </p>
                     </div>
                   </div>
                 )}
