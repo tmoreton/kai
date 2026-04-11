@@ -437,9 +437,9 @@ export function registerSettingsRoutes(app: Hono) {
   // Single file format: ~/.kai/soul/identity.json (plain text with ## headers)
   const SOUL_DIR = path.resolve(process.env.HOME || "~", ".kai/soul");
 
-  app.get("/api/settings/soul", (c) => {
+  app.get("/api/settings/soul", async (c) => {
     try {
-      const { loadSoul } = require("../../soul.js");
+      const { loadSoul } = await import("../../soul.js");
       const soul = loadSoul();
       const soulPath = path.join(SOUL_DIR, "identity.json");
       
@@ -462,7 +462,7 @@ export function registerSettingsRoutes(app: Hono) {
       const { content } = await c.req.json();
       if (content === undefined) return c.json({ error: "content is required" }, 400);
       
-      const { saveSoul, loadSoul } = require("../../soul.js");
+      const { saveSoul, loadSoul } = await import("../../soul.js");
       const soul = loadSoul();
       
       // Parse the plain text content and update soul
@@ -504,7 +504,7 @@ export function registerSettingsRoutes(app: Hono) {
   // Deprecated: Context is now part of soul file
   app.get("/api/settings/context", async (c) => {
     try {
-      const { loadSoul } = require("../../soul.js");
+      const { loadSoul } = await import("../../soul.js");
       const soul = loadSoul();
       const soulPath = path.join(SOUL_DIR, "identity.json");
       
@@ -528,7 +528,7 @@ export function registerSettingsRoutes(app: Hono) {
       const { content } = await c.req.json();
       if (content === undefined) return c.json({ error: "content is required" }, 400);
       
-      const { saveSoul, loadSoul } = require("../../soul.js");
+      const { saveSoul, loadSoul } = await import("../../soul.js");
       const soul = loadSoul();
       
       // Parse goals/scratchpad from plain text and update

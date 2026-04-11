@@ -313,21 +313,22 @@ function AgentWorkflow({ agent }: { agent: Agent }) {
 function AgentWorkflowEditor({ agent }: { agent: Agent }) {
   const [yaml, setYaml] = useState(() => {
     const stepsYaml = agent.steps?.map((step) => {
-      const lines = [`  - name: ${step.name}`, `    type: ${step.type}`];
-      if (step.skill) lines.push(`    skill: ${step.skill}`);
-      if (step.action) lines.push(`    action: ${step.action}`);
-      if (step.prompt) lines.push(`    prompt: |\n      ${step.prompt.replace(/\n/g, '\n      ')}`);
-      if (step.command) lines.push(`    command: ${step.command}`);
+      const lines = [`- name: ${step.name}`, `  type: ${step.type}`];
+      if (step.skill) lines.push(`  skill: ${step.skill}`);
+      if (step.action) lines.push(`  action: ${step.action}`);
+      if (step.prompt) lines.push(`  prompt: |\n    ${step.prompt.replace(/\n/g, '\n    ')}`);
+      if (step.command) lines.push(`  command: ${step.command}`);
       if (step.params && Object.keys(step.params).length > 0) {
-        lines.push(`    params:`);
+        lines.push(`  params:`);
         Object.entries(step.params).forEach(([k, v]) => {
-          lines.push(`      ${k}: ${JSON.stringify(v)}`);
+          lines.push(`    ${k}: ${JSON.stringify(v)}`);
         });
       }
       return lines.join('\n');
     }).join('\n') || '';
 
-    return `agent:\n  name: ${agent.name}\n  description: ${agent.description || ''}\n  steps:\n${stepsYaml}`;
+    // Backend expects flat structure (not nested under 'agent:')
+    return `name: "${agent.name.replace(/"/g, '\\"')}"\ndescription: "${(agent.description || '').replace(/"/g, '\\"')}"\nsteps:\n${stepsYaml}`;
   });
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -344,8 +345,10 @@ function AgentWorkflowEditor({ agent }: { agent: Agent }) {
       if (!parsed || typeof parsed !== 'object') {
         throw new Error('Invalid YAML: must be an object');
       }
-      if (!parsed.agent?.steps || !Array.isArray(parsed.agent.steps)) {
-        throw new Error('Invalid YAML: missing agent.steps array');
+      // Support both flat format (name/steps) and nested format (agent.name/agent.steps)
+      const hasSteps = (parsed.steps || parsed.agent?.steps) && Array.isArray(parsed.steps || parsed.agent?.steps);
+      if (!hasSteps) {
+        throw new Error('Invalid YAML: missing steps array');
       }
 
       // Save to backend
@@ -382,20 +385,20 @@ function AgentWorkflowEditor({ agent }: { agent: Agent }) {
                   setError(null);
                   // Reset to original
                   const stepsYaml = agent.steps?.map((step) => {
-                    const lines = [`  - name: ${step.name}`, `    type: ${step.type}`];
-                    if (step.skill) lines.push(`    skill: ${step.skill}`);
-                    if (step.action) lines.push(`    action: ${step.action}`);
-                    if (step.prompt) lines.push(`    prompt: |\n      ${step.prompt.replace(/\n/g, '\n      ')}`);
-                    if (step.command) lines.push(`    command: ${step.command}`);
+                    const lines = [`- name: ${step.name}`, `  type: ${step.type}`];
+                    if (step.skill) lines.push(`  skill: ${step.skill}`);
+                    if (step.action) lines.push(`  action: ${step.action}`);
+                    if (step.prompt) lines.push(`  prompt: |\n    ${step.prompt.replace(/\n/g, '\n    ')}`);
+                    if (step.command) lines.push(`  command: ${step.command}`);
                     if (step.params && Object.keys(step.params).length > 0) {
-                      lines.push(`    params:`);
+                      lines.push(`  params:`);
                       Object.entries(step.params).forEach(([k, v]) => {
-                        lines.push(`      ${k}: ${JSON.stringify(v)}`);
+                        lines.push(`    ${k}: ${JSON.stringify(v)}`);
                       });
                     }
                     return lines.join('\n');
                   }).join('\n') || '';
-                  setYaml(`agent:\n  name: ${agent.name}\n  description: ${agent.description || ''}\n  steps:\n${stepsYaml}`);
+                  setYaml(`name: "${agent.name.replace(/"/g, '\\"')}"\ndescription: "${(agent.description || '').replace(/"/g, '\\"')}"\nsteps:\n${stepsYaml}`);
                 }}
               >
                 Cancel
