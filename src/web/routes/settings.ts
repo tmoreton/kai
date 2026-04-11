@@ -264,6 +264,7 @@ export function registerSettingsRoutes(app: Hono) {
         author: s.author || "Kai",
         tags: s.tags || [],
         installed: installedIds.has(s.id),
+        configSchema: s.configSchema || {},
       }));
       
       return c.json({ skills: availableSkills });

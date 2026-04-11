@@ -187,14 +187,34 @@ export const version = "1.0.0";`);
                     <p className="text-sm text-muted-foreground mt-1">{skill.description}</p>
                     <div className="flex flex-wrap gap-1 mt-2">
                       {skill.tags?.map((tag: string) => (
-                        <span 
-                          key={tag} 
+                        <span
+                          key={tag}
                           className="text-xs bg-accent/20 text-accent-foreground px-1.5 py-0.5 rounded"
                         >
                           {tag}
                         </span>
                       ))}
                     </div>
+                    {/* Show required env vars */}
+                    {skill.configSchema && Object.keys(skill.configSchema).length > 0 && (
+                      <div className="mt-3 pt-3 border-t border-border">
+                        <p className="text-xs font-medium text-amber-600 mb-1">Required environment variables:</p>
+                        <div className="flex flex-wrap gap-2">
+                          {Object.entries(skill.configSchema).map(([key, schema]: [string, any]) => (
+                            <span
+                              key={key}
+                              className="text-xs bg-amber-50 text-amber-700 px-2 py-1 rounded border border-amber-200"
+                              title={schema.description || ''}
+                            >
+                              {key}
+                            </span>
+                          ))}
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Add these in Settings → Env before installing
+                        </p>
+                      </div>
+                    )}
                   </div>
                   <div className="flex items-center gap-2">
                     <Button

@@ -5,6 +5,7 @@ import chalk from "chalk";
 import type { ChatCompletionTool } from "openai/resources/chat/completions";
 import { ensureKaiDir } from "../config.js";
 import type { SkillManifest, SkillHandler, LoadedSkill } from "./types.js";
+import { installSkill } from "./installer.js";
 
 /**
  * Skill Loader
@@ -53,6 +54,7 @@ export function skillsDir(): string {
 
 /**
  * Load all skills from ~/.kai/skills/.
+ * Auto-installs default skills (openrouter) if API key is present.
  */
 export async function loadAllSkills(): Promise<void> {
   const dir = skillsDir();
@@ -67,6 +69,39 @@ export async function loadAllSkills(): Promise<void> {
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error(chalk.yellow(`  Warning: Failed to load skill "${entry.name}": ${msg}`));
+    }
+  }
+
+  // Auto-install skills that don't require API keys
+  const noKeySkills = ["git", "data-storage", "docker", "database", "webhook", "browser"];
+
+  for (const id of noKeySkills) {
+    if (!skills.has(id)) {
+      try {
+        console.log(chalk.blue(`  Auto-installing ${id} skill...`));
+        await installSkill(id);
+      } catch {
+        // Silent fail - lib/ may not be ready yet
+      }
+    }
+  }
+
+  // Auto-install skills based on detected API keys
+  const apiKeySkills: { id: string; envKey: string }[] = [
+    { id: "openrouter", envKey: "OPENROUTER_API_KEY" },
+    { id: "web-tools", envKey: "TAVILY_API_KEY" },
+    { id: "slack", envKey: "SLACK_BOT_TOKEN" },
+    { id: "youtube", envKey: "YOUTUBE_API_KEY" },
+  ];
+
+  for (const { id, envKey } of apiKeySkills) {
+    if (process.env[envKey] && !skills.has(id)) {
+      try {
+        console.log(chalk.blue(`  Auto-installing ${id} skill (API key detected)...`));
+        await installSkill(id);
+      } catch {
+        // Silent fail
+      }
     }
   }
 }
