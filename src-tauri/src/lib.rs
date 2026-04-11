@@ -6,6 +6,7 @@ use std::collections::HashMap;
 use std::net::TcpListener;
 use std::time::Duration;
 use std::io::Write;
+use std::process::Command;
 
 struct ServerProcess(Mutex<Option<CommandChild>>);
 
@@ -45,6 +46,39 @@ fn read_dotenv(path: &std::path::Path) -> HashMap<String, String> {
     vars
 }
 
+/// Check if Tailscale CLI is available and running
+fn is_tailscale_available() -> bool {
+    // Try common Tailscale paths
+    let tailscale_paths = [
+        "tailscale",
+        "/Applications/Tailscale.app/Contents/MacOS/Tailscale",
+        "/usr/bin/tailscale",
+    ];
+    
+    for path in &tailscale_paths {
+        // Check if we can run tailscale status --json successfully
+        let result = Command::new(path)
+            .args(["status", "--json"])
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .output();
+            
+        if let Ok(output) = result {
+            if output.status.success() {
+                // Parse JSON to check if running
+                if let Ok(json) = serde_json::from_slice::<serde_json::Value>(&output.stdout) {
+                    if let Some(backend_state) = json.get("BackendState") {
+                        if backend_state.as_str() == Some("Running") {
+                            return true;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    false
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let log_path = dirs::home_dir().unwrap().join(".kai").join("tauri.log");
@@ -66,6 +100,10 @@ pub fn run() {
 
     let mut log = log_file;
     debug_log!(log, "=== Kai Tauri starting ===");
+    
+    // Auto-detect Tailscale availability
+    let tailscale_available = is_tailscale_available();
+    debug_log!(log, "Tailscale detected: {}", tailscale_available);
 
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
@@ -112,13 +150,22 @@ pub fn run() {
                 cmd = cmd.env(key, value);
             }
 
+            // Build args - auto-enable Tailscale if detected
+            let mut args = vec![
+                server_script.to_str().unwrap().to_string(),
+                "server".to_string(),
+                "--port".to_string(),
+                port_str.clone(),
+                "--skip-build".to_string(),
+            ];
+            
+            if tailscale_available {
+                args.push("--tailscale".to_string());
+                debug_log!(log, "Auto-enabling Tailscale (--tailscale)");
+            }
+
             let (mut rx, child) = cmd
-                .args([
-                    server_script.to_str().unwrap(),
-                    "server",
-                    "--port", &port_str,
-                    "--skip-build",
-                ])
+                .args(args.iter().map(|s| s.as_str()).collect::<Vec<_>>())
                 .spawn()
                 .expect("failed to start Kai server");
 

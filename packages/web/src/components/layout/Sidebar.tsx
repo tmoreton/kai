@@ -15,6 +15,7 @@ import {
   X,
   ExternalLink,
 } from "lucide-react";
+import { open } from "@tauri-apps/plugin-shell";
 import { cn } from "../../lib/utils";
 import { sessionsQueries, agentsQueries } from "../../api/queries";
 import { api } from "../../api/client";
@@ -355,12 +356,10 @@ export function Sidebar() {
 
         {/* Static sections */}
         <button
-          onClick={() => {
-            // @ts-ignore
-            if (window.__TAURI__) {
-              // @ts-ignore
-              window.__TAURI__.shell.open('https://kai-docs-three.vercel.app/');
-            } else {
+          onClick={async () => {
+            try {
+              await open('https://kai-docs-three.vercel.app/');
+            } catch {
               window.open('https://kai-docs-three.vercel.app/', '_blank');
             }
           }}

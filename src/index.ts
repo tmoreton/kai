@@ -83,23 +83,40 @@ program
     if (!options.skipBuild) {
       const { execSync } = await import("child_process");
       const projectRoot = new URL("../", import.meta.url).pathname;
-      console.log("  Building web app...");
-      execSync("npm run build:web", { cwd: projectRoot, stdio: "inherit" });
-      console.log("  Building server...");
-      execSync("npm run build:server", { cwd: projectRoot, stdio: "inherit" });
-      // Re-exec with --skip-build so Node loads the freshly compiled code
-      // instead of using stale cached modules from before the rebuild
-      const args = process.argv.slice(2).filter(a => a !== "--skip-build");
-      args.push("--skip-build");
-      try {
-        execSync(`node ${projectRoot}dist/index.js ${args.join(" ")}`, {
-          cwd: projectRoot,
-          stdio: "inherit",
-        });
-      } catch (err: any) {
-        process.exit(err.status || 1);
+      
+      // Detect if running from a read-only app bundle (e.g., /Applications/Kai.app/)
+      // In this case, we assume the app bundle was pre-built and skip rebuild
+      let isAppBundle = projectRoot.includes("/Applications/") && projectRoot.includes(".app/Contents/");
+      if (!isAppBundle) {
+        // Check if the directory is writable
+        try {
+          fs.accessSync(projectRoot, fs.constants.W_OK);
+        } catch {
+          isAppBundle = true;
+        }
       }
-      return;
+      
+      if (isAppBundle) {
+        console.log(chalk.yellow("  Running from app bundle — using pre-built assets (skip with --skip-build)"));
+      } else {
+        console.log("  Building web app...");
+        execSync("npm run build:web", { cwd: projectRoot, stdio: "inherit" });
+        console.log("  Building server...");
+        execSync("npm run build:server", { cwd: projectRoot, stdio: "inherit" });
+        // Re-exec with --skip-build so Node loads the freshly compiled code
+        // instead of using stale cached modules from before the rebuild
+        const args = process.argv.slice(2).filter(a => a !== "--skip-build");
+        args.push("--skip-build");
+        try {
+          execSync(`node ${projectRoot}dist/index.js ${args.join(" ")}`, {
+            cwd: projectRoot,
+            stdio: "inherit",
+          });
+        } catch (err: any) {
+          process.exit(err.status || 1);
+        }
+        return;
+      }
     }
     const { startServer } = await import("./web/server.js");
     await startServer({
