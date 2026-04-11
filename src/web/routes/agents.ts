@@ -320,15 +320,23 @@ ${availableTools.map(s => `- ${s.id}: ${s.name} (${s.tools.join(', ')})`).join('
 AVAILABLE SKILLS (can be installed from registry):
 ${notInstalled.map(s => `- ${s.id}: ${s.name} - ${s.description}`).join('\n')}
 
-When analyzing the user's request:
-1. Check if existing installed skills can fulfill the need
-2. If a needed skill exists in the registry but isn't installed, suggest installing it
-3. If no existing or registry skill fits, design a new custom skill with tools/actions
+CRITICAL RULES for workflow steps:
+1. For "skill" type steps, you MUST include all required parameters:
+   - YouTube get_channel requires "channel_id" (the YouTube channel ID like "UC...")
+   - YouTube get_recent_uploads requires "channel_id"
+   - YouTube generate_channel_report requires "channel_id"
+   - If user says "my channel" or "own channel", use "mine" as channel_id for YouTube API
+   - Shell commands should be simple and safe (no rm -rf, destructive ops)
+   - Skill params go in a "params" object
+
+2. Check if existing installed skills can fulfill the need
+3. If a needed skill exists in the registry but isn't installed, suggest installing it
+4. If no existing or registry skill fits, design a new custom skill with tools/actions
 
 Generate a complete agent configuration with:
 1. A clear name for the agent
 2. A concise description
-3. A workflow with 2-5 logical steps (llm, skill, shell types)
+3. A workflow with 2-5 logical steps (llm, skill, shell types) with ALL required parameters filled
 4. Suggested schedule (if time-based triggers mentioned)
 5. Agent memory: role, goals, personality, scratchpad content
 6. List of tools/skills that will be needed
@@ -340,7 +348,7 @@ Respond in JSON format:
   "name": "Agent Name",
   "description": "What this agent does",
   "steps": [
-    { "name": "Step name", "type": "llm|skill|shell", "prompt"?: "...", "skill"?: "skillId", "action"?: "actionName", "command"?: "shell command" }
+    { "name": "Step name", "type": "llm|skill|shell", "prompt"?: "...", "skill"?: "skillId", "action"?: "actionName", "params"?: { "paramName": "value" }, "command"?: "shell command" }
   ],
   "schedule": "cron expression or null",
   "role": "Agent's job title",
@@ -388,7 +396,15 @@ Respond in JSON format:
           return `${base}\n    prompt: |\n${step.prompt.split('\n').map((l: string) => `      ${l}`).join('\n')}`;
         }
         if (step.type === 'skill' && step.skill) {
-          return `${base}\n    skill: ${step.skill}\n    action: ${step.action || 'default'}`;
+          let skillStep = `${base}\n    skill: ${step.skill}\n    action: ${step.action || 'default'}`;
+          // Add params if they exist
+          if (step.params && Object.keys(step.params).length > 0) {
+            const paramsYaml = Object.entries(step.params)
+              .map(([k, v]) => `      ${k}: ${typeof v === 'string' ? `"${v.replace(/"/g, '\\"')}"` : v}`)
+              .join('\n');
+            skillStep += `\n    params:\n${paramsYaml}`;
+          }
+          return skillStep;
         }
         if (step.type === 'shell' && step.command) {
           return `${base}\n    command: ${step.command}`;
