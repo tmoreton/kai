@@ -185,6 +185,11 @@ export function AgentEditor() {
   const [customSchedule, setCustomSchedule] = useState('');
   const [showAdvanced, setShowAdvanced] = useState(false);
   
+  // YAML editor state
+  const [showYamlEditor, setShowYamlEditor] = useState(false);
+  const [editedYaml, setEditedYaml] = useState('');
+  const [yamlError, setYamlError] = useState<string | null>(null);
+  
   // Create mutation
   const createMutation = useMutation({
     mutationFn: async () => {
@@ -589,7 +594,7 @@ export function AgentEditor() {
                             size="sm"
                             onClick={() => {
                               try {
-                                const parsed = YAML.load(editedYaml);
+                                const parsed = YAML.load(editedYaml) as Record<string, unknown>;
                                 if (!parsed || typeof parsed !== 'object') {
                                   throw new Error('YAML must be a valid object');
                                 }
@@ -600,7 +605,7 @@ export function AgentEditor() {
                                 setGeneratedWorkflow({
                                   ...generatedWorkflow,
                                   yaml: editedYaml,
-                                  steps: parsed.steps,
+                                  steps: parsed.steps as WorkflowStep[],
                                 });
                                 setYamlError(null);
                                 toast.success('YAML updated successfully');
