@@ -24,12 +24,16 @@ if (!fs.existsSync(kaiPkgPath)) {
   fs.writeFileSync(kaiPkgPath, '{"type":"module"}\n', "utf8");
 }
 
+// Read version from package.json
+const pkgPath = resolve(__dirname, "../package.json");
+const pkg = fs.existsSync(pkgPath) ? JSON.parse(fs.readFileSync(pkgPath, "utf8")) : { version: "1.0.0" };
+
 const program = new Command();
 
 program
   .name("kai")
   .description("AI coding assistant with persistent memory, background agents, and tool use")
-  .version("1.0.0");
+  .version(pkg.version);
 
 // --- Default: Interactive REPL (with optional initial prompt) ---
 program
