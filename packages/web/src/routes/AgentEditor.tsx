@@ -30,6 +30,7 @@ import { Switch } from '../components/ui/switch';
 import { toast } from '../components/Toast';
 import { cn } from '../lib/utils';
 import type { WorkflowStep } from '../components/WorkflowEditor';
+import { WorkflowStepEditor } from '../components/WorkflowStepEditor';
 import YAML from 'js-yaml';
 
 // ============================================
@@ -195,6 +196,30 @@ export function AgentEditor() {
     mutationFn: async () => {
       if (!generatedWorkflow) {
         throw new Error('No workflow generated');
+      }
+      
+      // Validate all steps before creating
+      const validationErrors: string[] = [];
+      for (const [index, step] of generatedWorkflow.steps.entries()) {
+        if (!step.name || step.name.trim().length < 2) {
+          validationErrors.push(`Step ${index + 1}: Name must be at least 2 characters`);
+        }
+        if (!step.type) {
+          validationErrors.push(`Step ${index + 1}: Type is required`);
+        }
+        if (step.type === 'llm' && (!step.prompt || step.prompt.trim().length < 10)) {
+          validationErrors.push(`Step ${index + 1} (${step.name}): LLM step must have a prompt (min 10 chars)`);
+        }
+        if (step.type === 'skill' && !step.skill) {
+          validationErrors.push(`Step ${index + 1} (${step.name}): Skill step must specify a skill ID`);
+        }
+        if (step.type === 'shell' && (!step.command || step.command.trim().length === 0)) {
+          validationErrors.push(`Step ${index + 1} (${step.name}): Shell step must have a command`);
+        }
+      }
+      
+      if (validationErrors.length > 0) {
+        throw new Error(`Validation failed:\n${validationErrors.join('\n')}`);
       }
       
       const name = agentName.trim() || generatedWorkflow.name;
@@ -623,30 +648,51 @@ export function AgentEditor() {
                         </div>
                       </div>
                     ) : (
-                      /* Visual Preview */
-                      <div className="space-y-3">
-                        {generatedWorkflow.steps.map((step, index) => (
-                          <div key={index} className="flex items-start gap-3 p-3 bg-muted/50 rounded-lg">
-                            <div className="w-6 h-6 rounded-full bg-primary/10 text-primary text-xs font-medium flex items-center justify-center shrink-0">
-                              {index + 1}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="font-medium text-sm">{step.name}</div>
-                              <div className="text-xs text-muted-foreground mt-1">
-                                {step.type === 'llm' && step.prompt && (
-                                  <span className="line-clamp-2">{step.prompt}</span>
-                                )}
-                                {step.type === 'skill' && step.skill && (
-                                  <span>Uses skill: {step.skill}</span>
-                                )}
-                                {step.type === 'shell' && step.command && (
-                                  <span>Command: {step.command}</span>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
+                      /* Editable Workflow Steps */
+                      <WorkflowStepEditor
+                        steps={generatedWorkflow.steps}
+                        onChange={(newSteps) => {
+                          // Rebuild YAML from updated steps
+                          const yamlSteps = newSteps.map((step) => {
+                            const base = `  - name: ${step.name}\n    type: ${step.type}`;
+                            if (step.type === 'llm' && step.prompt) {
+                              return `${base}\n    prompt: |\n${step.prompt.split('\n').map((l) => `      ${l}`).join('\n')}`;
+                            }
+                            if (step.type === 'skill' && step.skill) {
+                              let skillStep = `${base}\n    skill: ${step.skill}\n    tool: ${step.tool || 'default'}`;
+                              if (step.parameters && Object.keys(step.parameters).length > 0) {
+                                const paramsYaml = Object.entries(step.parameters)
+                                  .map(([k, v]) => `      ${k}: ${typeof v === 'string' ? `"${v.replace(/"/g, '\\"')}"` : v}`)
+                                  .join('\n');
+                                skillStep += `\n    parameters:\n${paramsYaml}`;
+                              }
+                              return skillStep;
+                            }
+                            if (step.type === 'shell' && step.command) {
+                              return `${base}\n    command: ${step.command}`;
+                            }
+                            if (step.type === 'notify' && step.message) {
+                              return `${base}\n    message: "${step.message.replace(/"/g, '\\"')}"${step.channel ? `\n    channel: "${step.channel}"` : ''}`;
+                            }
+                            return base;
+                          }).join('\n');
+
+                          const yaml = [
+                            `name: "${generatedWorkflow.name}"`,
+                            `description: "${generatedWorkflow.description}"`,
+                            generatedWorkflow.schedule ? `schedule: "${generatedWorkflow.schedule}"` : '',
+                            `steps:`,
+                            yamlSteps,
+                          ].filter(Boolean).join('\n') + '\n';
+
+                          setGeneratedWorkflow({
+                            ...generatedWorkflow,
+                            steps: newSteps,
+                            yaml,
+                          });
+                          setEditedYaml(yaml);
+                        }}
+                      />
                     )}
                   </div>
                 )}

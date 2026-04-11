@@ -27,40 +27,69 @@ interface AgentChatProps {
   agent: Agent;
 }
 
+interface ChatState {
+  messages: MessageWithTools[];
+  sessionId?: string;
+}
+
 export function AgentChat({ agent }: AgentChatProps) {
   const { isStreaming, startStreaming, stopStreaming } = useAppStore();
-  const [messages, setMessages] = useState<MessageWithTools[]>(() => {
-    // Load messages from localStorage
+  const [chatState, setChatState] = useState<ChatState>(() => {
+    // Load from localStorage
     const stored = localStorage.getItem(`agent-chat-${agent.id}`);
     if (stored) {
       try {
-        return JSON.parse(stored);
+        const parsed = JSON.parse(stored);
+        if (parsed && Array.isArray(parsed.messages)) {
+          return parsed;
+        }
       } catch {
         // Invalid stored data
       }
     }
-    // Welcome message
-    return [{
-      role: 'assistant',
-      content: `Hi! I'm ${agent.name}. I can help you understand my workflow, check my history, or answer questions about what I do. I also have access to all the same tools and skills as the main chat. What would you like to know?`,
-    }];
+    // Default state
+    return {
+      messages: [{
+        role: 'assistant',
+        content: `Hi! I'm ${agent.name}. I can help you understand my workflow, check my history, or answer questions about what I do. I also have access to all the same tools and skills as the main chat. What would you like to know?`,
+      }],
+      sessionId: undefined,
+    };
   });
+
+  // Destructure for convenience
+  const messages = chatState.messages;
+  const sessionId = chatState.sessionId;
+  
+  const setMessages = useCallback((newMessages: MessageWithTools[] | ((prev: MessageWithTools[]) => MessageWithTools[])) => {
+    setChatState(prev => ({
+      ...prev,
+      messages: typeof newMessages === 'function' ? newMessages(prev.messages) : newMessages,
+    }));
+  }, []);
+
+  const setSessionId = useCallback((newSessionId: string | undefined) => {
+    setChatState(prev => ({
+      ...prev,
+      sessionId: newSessionId,
+    }));
+  }, []);
+
   const [isThinking, setIsThinking] = useState(false);
   const [pendingToolCalls, setPendingToolCalls] = useState<Record<string, ToolCallWithStatus>>({});
   const [error, setError] = useState<ErrorState | null>(null);
   const [hasInitiallyScrolled, setHasInitiallyScrolled] = useState(false);
   const [isNearBottom, setIsNearBottom] = useState(true);
-  const [sessionId, setSessionId] = useState<string | undefined>(undefined);
   
   const abortControllerRef = useRef<AbortController | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const smartInputRef = useRef<import('./SmartChatInput').SmartChatInputRef>(null);
 
-  // Save messages to localStorage
+  // Save chat state to localStorage
   useEffect(() => {
-    localStorage.setItem(`agent-chat-${agent.id}`, JSON.stringify(messages));
-  }, [messages, agent.id]);
+    localStorage.setItem(`agent-chat-${agent.id}`, JSON.stringify(chatState));
+  }, [chatState, agent.id]);
 
   // Scroll to bottom when messages change
   useEffect(() => {

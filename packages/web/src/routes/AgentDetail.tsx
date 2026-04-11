@@ -18,6 +18,8 @@ import {
   StickyNote,
   UserCircle,
   Save,
+  Loader2,
+  Check,
 } from 'lucide-react';
 import { agentsQueries } from '../api/queries';
 import { agentsApi } from '../api/client';
@@ -321,13 +323,151 @@ function AgentWorkflow({ agent }: { agent: Agent }) {
 
       {/* YAML View */}
       {viewMode === 'yaml' && (
-        <div className="border rounded-lg overflow-hidden">
-          <pre className="p-4 text-sm bg-muted/50 overflow-x-auto">
-            <code className="text-foreground font-mono whitespace-pre">
-              {generateYaml()}
-            </code>
-          </pre>
+        <AgentWorkflowEditor agent={agent} />
+      )}
+    </div>
+  );
+}
+
+function AgentWorkflowEditor({ agent }: { agent: Agent }) {
+  const [yaml, setYaml] = useState(() => {
+    const stepsYaml = agent.steps?.map((step) => {
+      const lines = [`  - name: ${step.name}`, `    type: ${step.type}`];
+      if (step.skill) lines.push(`    skill: ${step.skill}`);
+      if (step.action) lines.push(`    action: ${step.action}`);
+      if (step.prompt) lines.push(`    prompt: |\n      ${step.prompt.replace(/\n/g, '\n      ')}`);
+      if (step.command) lines.push(`    command: ${step.command}`);
+      if (step.params && Object.keys(step.params).length > 0) {
+        lines.push(`    params:`);
+        Object.entries(step.params).forEach(([k, v]) => {
+          lines.push(`      ${k}: ${JSON.stringify(v)}`);
+        });
+      }
+      return lines.join('\n');
+    }).join('\n') || '';
+
+    return `agent:\n  name: ${agent.name}\n  description: ${agent.description || ''}\n  steps:\n${stepsYaml}`;
+  });
+  const [isEditing, setIsEditing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+
+  const handleSave = async () => {
+    setIsSaving(true);
+    setError(null);
+
+    try {
+      // Validate YAML
+      const parsed = YAML.load(yaml) as any;
+      if (!parsed || typeof parsed !== 'object') {
+        throw new Error('Invalid YAML: must be an object');
+      }
+      if (!parsed.agent?.steps || !Array.isArray(parsed.agent.steps)) {
+        throw new Error('Invalid YAML: missing agent.steps array');
+      }
+
+      // Save to backend
+      await agentsApi.updateWorkflow(agent.id, yaml);
+      
+      toast.success('Workflow saved successfully');
+      setIsEditing(false);
+      
+      // Refresh agent data
+      queryClient.invalidateQueries({ queryKey: ['agents'] });
+    } catch (err: any) {
+      setError(err.message || 'Failed to save workflow');
+      toast.error('Save failed', err.message || 'Invalid YAML');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return (
+    <div className="border rounded-lg overflow-hidden">
+      {/* Header with Edit/Save buttons */}
+      <div className="flex items-center justify-between p-3 bg-muted border-b">
+        <span className="text-sm font-medium">
+          {isEditing ? 'Editing Workflow YAML' : 'Workflow YAML (read-only)'}
+        </span>
+        <div className="flex items-center gap-2">
+          {isEditing ? (
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setIsEditing(false);
+                  setError(null);
+                  // Reset to original
+                  const stepsYaml = agent.steps?.map((step) => {
+                    const lines = [`  - name: ${step.name}`, `    type: ${step.type}`];
+                    if (step.skill) lines.push(`    skill: ${step.skill}`);
+                    if (step.action) lines.push(`    action: ${step.action}`);
+                    if (step.prompt) lines.push(`    prompt: |\n      ${step.prompt.replace(/\n/g, '\n      ')}`);
+                    if (step.command) lines.push(`    command: ${step.command}`);
+                    if (step.params && Object.keys(step.params).length > 0) {
+                      lines.push(`    params:`);
+                      Object.entries(step.params).forEach(([k, v]) => {
+                        lines.push(`      ${k}: ${JSON.stringify(v)}`);
+                      });
+                    }
+                    return lines.join('\n');
+                  }).join('\n') || '';
+                  setYaml(`agent:\n  name: ${agent.name}\n  description: ${agent.description || ''}\n  steps:\n${stepsYaml}`);
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleSave}
+                disabled={isSaving}
+                className="gap-1"
+              >
+                {isSaving ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Check className="w-4 h-4" />
+                )}
+                Save
+              </Button>
+            </>
+          ) : (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsEditing(true)}
+            >
+              <FileCode2 className="w-4 h-4 mr-2" />
+              Edit YAML
+            </Button>
+          )}
         </div>
+      </div>
+
+      {/* Error display */}
+      {error && (
+        <div className="p-3 bg-red-50 border-b border-red-200">
+          <div className="flex items-start gap-2">
+            <XCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
+            <span className="text-sm text-red-700">{error}</span>
+          </div>
+        </div>
+      )}
+
+      {/* YAML content */}
+      {isEditing ? (
+        <textarea
+          value={yaml}
+          onChange={(e) => setYaml(e.target.value)}
+          className="w-full h-[500px] p-4 text-sm font-mono bg-muted/50 resize-none focus:outline-none focus:ring-0"
+          spellCheck={false}
+        />
+      ) : (
+        <pre className="p-4 text-sm bg-muted/50 overflow-x-auto">
+          <code className="text-foreground font-mono whitespace-pre">{yaml}</code>
+        </pre>
       )}
     </div>
   );
