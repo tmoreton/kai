@@ -101,13 +101,19 @@ export function Onboarding() {
 
     setIsSubmitting(true);
     try {
-      await setEnvMutation.mutateAsync({ 
-        key: "OPENROUTER_API_KEY", 
-        value: apiKey.trim() 
-      });
-      toast.success("Success", `Welcome to Kai${name ? ', ' + name : ''}! Reloading...`);
-      // Reload to pick up new env vars in the server
-      setTimeout(() => window.location.href = "/chat", 800);
+      // Save API key
+      await api.settings.setEnv("OPENROUTER_API_KEY", apiKey.trim());
+      
+      // Reload provider to pick up new API key
+      await api.settings.reloadProvider();
+      
+      queryClient.invalidateQueries({ queryKey: settingsQueries.all() });
+      toast.success("Success", `Welcome to Kai${name ? ', ' + name : ''}!`);
+      // Navigate to chat - provider is now reloaded with new key
+      navigate("/chat");
+    } catch (err: any) {
+      const message = err instanceof Error ? err.message : "Failed to save API key";
+      toast.error("Error", message);
     } finally {
       setIsSubmitting(false);
     }

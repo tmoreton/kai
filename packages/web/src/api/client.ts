@@ -690,6 +690,11 @@ export const settingsApi = {
     });
   },
 
+  // Reload AI provider after API key changes
+  reloadProvider: (): Promise<{ ok: boolean }> => {
+    return fetchJson(`${API_BASE}/settings/reload-provider`, { method: 'POST' });
+  },
+
   // Soul (Identity)
   getSoul: (): Promise<{ content: string; path: string }> => {
     return fetchJson(`${API_BASE}/settings/soul`);

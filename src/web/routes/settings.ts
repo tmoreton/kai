@@ -346,13 +346,25 @@ export function registerSettingsRoutes(app: Hono) {
 
   app.post("/api/settings/env", async (c) => {
     try {
-      const { key, value } = await c.req.json();
+      const { key, value, reload } = await c.req.json();
       if (!key || typeof value !== "string") {
         return c.json({ error: "key and value are required" }, 400);
       }
+      
+      // Update env file
       const vars = readEnvFile();
       vars[key] = value;
       writeEnvFile(vars);
+      
+      // Also update current process env
+      process.env[key] = value;
+      
+      // Optionally reload provider (for API key changes)
+      if (reload && (key === "OPENROUTER_API_KEY" || key === "FIREWORKS_API_KEY")) {
+        const { reloadProvider } = await import("../../client.js");
+        await reloadProvider();
+      }
+      
       return c.json({ ok: true });
     } catch (err: any) {
       return c.json({ error: err.message }, 400);
@@ -511,6 +523,17 @@ export function registerSettingsRoutes(app: Hono) {
         }, 403);
       }
       
+      return c.json({ ok: true });
+    } catch (err: any) {
+      return c.json({ error: err.message }, 500);
+    }
+  });
+
+  // --- Provider reload (after API key change) ---
+  app.post("/api/settings/reload-provider", async (c) => {
+    try {
+      const { reloadProvider } = await import("../../client.js");
+      await reloadProvider();
       return c.json({ ok: true });
     } catch (err: any) {
       return c.json({ error: err.message }, 500);

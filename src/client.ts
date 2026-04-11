@@ -217,6 +217,15 @@ export async function initProvider(): Promise<void> {
   _resolved = await resolveProviderWithFallback();
 }
 
+/**
+ * Reload the provider after env vars change (e.g., after onboarding).
+ * Clears the cached provider and re-initializes with new API keys.
+ */
+export async function reloadProvider(): Promise<void> {
+  _resolved = null;
+  _resolved = await resolveProviderWithFallback();
+}
+
 export function createClient(): OpenAI {
   return getResolved().client;
 }

@@ -354,16 +354,22 @@ export function Sidebar() {
         </SidebarSection>
 
         {/* Static sections */}
-        <a
-          href="https://kai-docs-three.vercel.app/"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors"
+        <button
+          onClick={() => {
+            // @ts-ignore
+            if (window.__TAURI__) {
+              // @ts-ignore
+              window.__TAURI__.shell.open('https://kai-docs-three.vercel.app/');
+            } else {
+              window.open('https://kai-docs-three.vercel.app/', '_blank');
+            }
+          }}
+          className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors w-full text-left"
         >
           <BookOpen className="w-4 h-4" />
           <span>Docs</span>
           <ExternalLink className="w-3 h-3 ml-auto opacity-50" />
-        </a>
+        </button>
         <SidebarItem
           to="/settings"
           icon={<Settings className="w-4 h-4" />}
