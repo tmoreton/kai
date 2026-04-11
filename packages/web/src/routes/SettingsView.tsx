@@ -24,7 +24,6 @@ interface SettingsErrorState {
 // VPN Settings Tab wrapper with data fetching
 function VpnSettingsTab() {
   const queryClient = useQueryClient();
-  const [isLoading, setIsLoading] = useState(false);
   const [vpnData, setVpnData] = useState<{vpn?: {enabled: boolean; funnel: boolean}; tailscale?: any}>({});
 
   // Fetch VPN status on mount
