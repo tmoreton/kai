@@ -383,6 +383,17 @@ export function registerSettingsRoutes(app: Hono) {
     }
   });
 
+  // --- Provider Reload (for API key changes) ---
+  app.post("/api/settings/reload-provider", async (c) => {
+    try {
+      const { reloadProvider } = await import("../../client.js");
+      await reloadProvider();
+      return c.json({ ok: true });
+    } catch (err: any) {
+      return c.json({ error: err.message }, 500);
+    }
+  });
+
   // --- Soul/Memory File Editing ---
   const SOUL_DIR = path.resolve(process.env.HOME || "~", ".kai/soul");
 

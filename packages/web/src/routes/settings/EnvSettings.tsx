@@ -22,12 +22,22 @@ export function EnvSettings() {
   const [showEmailHelp, setShowEmailHelp] = useState(false);
 
   const setMutation = useMutation({
-    mutationFn: ({ key, value }: { key: string; value: string }) => api.settings.setEnv(key, value),
-    onSuccess: () => {
+    mutationFn: async ({ key, value }: { key: string; value: string }) => {
+      await api.settings.setEnv(key, value);
+      // Reload provider if API key changed
+      if (key === 'OPENROUTER_API_KEY' || key === 'FIREWORKS_API_KEY') {
+        await api.settings.reloadProvider();
+      }
+    },
+    onSuccess: (_, vars) => {
       queryClient.invalidateQueries({ queryKey: settingsQueries.all() });
       setNewKey("");
       setNewValue("");
-      toast.success('Environment variable set');
+      if (vars.key === 'OPENROUTER_API_KEY' || vars.key === 'FIREWORKS_API_KEY') {
+        toast.success('API key saved', 'Provider reloaded with new key');
+      } else {
+        toast.success('Environment variable set');
+      }
     },
     onError: (err) => {
       const message = err instanceof Error ? err.message : 'Failed to set variable';

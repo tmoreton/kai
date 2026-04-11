@@ -36,18 +36,6 @@ export function Onboarding() {
     staleTime: 0,
   });
 
-  const setEnvMutation = useMutation({
-    mutationFn: ({ key, value }: { key: string; value: string }) => 
-      api.settings.setEnv(key, value),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: settingsQueries.all() });
-    },
-    onError: (err) => {
-      const message = err instanceof Error ? err.message : "Failed to save key";
-      toast.error("Error", message);
-    },
-  });
-
   const saveProfileMutation = useMutation({
     mutationFn: async (profile: { name: string; role: string; context: string }) => {
       // Get current settings
