@@ -738,6 +738,18 @@ export const settingsApi = {
   uninstallCli: (): Promise<{ ok: boolean } | { error: string; needsSudo?: boolean }> => {
     return fetchJson(`${API_BASE}/settings/cli/uninstall`, { method: 'POST' });
   },
+
+  // VPN / Tailscale
+  getVpnStatus: (): Promise<{vpn?: {enabled: boolean; funnel: boolean}; tailscale?: any}> => {
+    return fetchJson(`${API_BASE}/settings/vpn`);
+  },
+
+  updateVpn: (settings: {enabled: boolean; funnel: boolean}): Promise<{ok: boolean}> => {
+    return fetchJson(`${API_BASE}/settings/vpn`, {
+      method: 'PATCH',
+      body: JSON.stringify(settings),
+    });
+  },
 };
 
 // ============================================
@@ -846,32 +858,3 @@ export const api = {
   settings: settingsApi,
   core: coreApi,
 };
-
-// Error classes are already exported above
-
-// Stub API methods for agent actions
-export const toggleAgent = async (id: string, enabled: boolean) => {
-  return fetchJson(`${API_BASE}/agents/${id}`, {
-    method: 'PATCH',
-    body: JSON.stringify({ enabled }),
-  });
-};
-
-export const runAgent = async (id: string) => {
-  return fetchJson(`${API_BASE}/agents/${id}/run`, {
-    method: 'POST',
-  });
-};
-
-
-  // VPN / Tailscale
-  getVpnStatus: (): Promise<{vpn?: {enabled: boolean; funnel: boolean}; tailscale?: any}> => {
-    return fetchJson(`${API_BASE}/settings/vpn`);
-  },
-
-  updateVpn: (settings: {enabled: boolean; funnel: boolean}): Promise<{ok: boolean}> => {
-    return fetchJson(`${API_BASE}/settings/vpn`, {
-      method: 'PATCH',
-      body: JSON.stringify(settings),
-    });
-  },
