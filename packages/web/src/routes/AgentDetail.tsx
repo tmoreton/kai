@@ -18,6 +18,8 @@ import {
   StickyNote,
   Bot,
   Save,
+  Info,
+  AlertCircle,
 } from 'lucide-react';
 import { agentsQueries } from '../api/queries';
 import { agentsApi } from '../api/client';
@@ -509,21 +511,48 @@ function AgentHistory({ agent }: { agent: Agent }) {
 function AgentMemory({ agent }: { agent: Agent }) {
   const queryClient = useQueryClient();
 
-  // Memory stored directly in agent config
-  const [memory, setMemory] = useState({
-    personality: (agent.config?.personality as string) || '',
-    goals: (agent.config?.goals as string) || '',
-    scratchpad: (agent.config?.scratchpad as string) || '',
-  });
+  // Build structured memory content from config
+  const buildMemoryContent = () => {
+    const personality = (agent.config?.personality as string) || '';
+    const goals = (agent.config?.goals as string) || '';
+    const scratchpad = (agent.config?.scratchpad as string) || '';
+
+    return `{
+  "personality": ${JSON.stringify(personality || "You are a helpful AI agent.").slice(1, -1)},
+  "goals": ${JSON.stringify(goals || "Help the user accomplish their tasks efficiently.").slice(1, -1)},
+  "scratchpad": ${JSON.stringify(scratchpad || "Use this space to store working notes and learnings.").slice(1, -1)}
+}`;
+  };
+
+  const [content, setContent] = useState(buildMemoryContent());
+
+  // Parse JSON and extract fields
+  const parseMemoryContent = (jsonContent: string): { personality: string; goals: string; scratchpad: string } | null => {
+    try {
+      const parsed = JSON.parse(jsonContent);
+      return {
+        personality: parsed.personality || '',
+        goals: parsed.goals || '',
+        scratchpad: parsed.scratchpad || '',
+      };
+    } catch {
+      return null;
+    }
+  };
 
   const updateMutation = useMutation({
     mutationFn: async () => {
+      const parsed = parseMemoryContent(content);
+      if (!parsed) {
+        throw new Error('Invalid JSON format');
+      }
+
       await agentsApi.update(agent.id, {
         config: {
           ...agent.config,
-          personality: memory.personality,
-          goals: memory.goals,
-          scratchpad: memory.scratchpad,
+          personality: parsed.personality,
+          goals: parsed.goals,
+          scratchpad: parsed.scratchpad,
         }
       });
     },
@@ -536,80 +565,55 @@ function AgentMemory({ agent }: { agent: Agent }) {
     },
   });
 
-  const hasChanges =
-    memory.personality !== (agent.config?.personality as string) ||
-    memory.goals !== (agent.config?.goals as string) ||
-    memory.scratchpad !== (agent.config?.scratchpad as string);
+  const isValidJson = parseMemoryContent(content) !== null;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-semibold flex items-center gap-2">
+          <h3 className="font-semibold text-kai-text flex items-center gap-2">
             <Brain className="w-5 h-5" />
             Agent Memory
-          </h2>
+          </h3>
           <p className="text-sm text-muted-foreground">
-            This agent's persistent memory, goals, and working notes
+            Edit the agent's identity, personality, goals, and knowledge
           </p>
         </div>
-        <Button
+        <button
           onClick={() => updateMutation.mutate()}
-          disabled={!hasChanges || updateMutation.isPending}
+          disabled={!isValidJson || updateMutation.isPending}
+          className="flex items-center gap-2 px-4 py-2 bg-kai-teal text-white rounded-lg text-sm font-medium hover:bg-primary/90 disabled:opacity-50"
         >
-          <Save className="w-4 h-4 mr-2" />
-          {updateMutation.isPending ? 'Saving...' : 'Save Changes'}
-        </Button>
+          <Save className="w-4 h-4" />
+          {updateMutation.isPending ? 'Saving...' : 'Save'}
+        </button>
       </div>
 
-      {/* Personality */}
-      <div className="space-y-2">
-        <label className="text-sm font-medium flex items-center gap-2">
-          <Bot className="w-4 h-4" />
-          Personality & Identity
-        </label>
-        <textarea
-          value={memory.personality}
-          onChange={(e) => setMemory({ ...memory, personality: e.target.value })}
-          className="w-full h-32 px-3 py-2 bg-card border border-border rounded-lg text-sm resize-none focus:border-primary outline-none"
-          placeholder="Who is this agent? Describe their personality, tone, and approach..."
-        />
-        <p className="text-xs text-muted-foreground">
-          How the agent behaves, speaks, and approaches tasks
-        </p>
-      </div>
+      {!isValidJson && (
+        <div className="bg-red-500/10 border border-red-500/50 rounded-lg p-3 flex items-start gap-2">
+          <AlertCircle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-medium text-red-500">Invalid JSON</p>
+            <p className="text-xs text-muted-foreground">Please fix the JSON syntax errors before saving.</p>
+          </div>
+        </div>
+      )}
 
-      {/* Goals */}
-      <div className="space-y-2">
-        <label className="text-sm font-medium flex items-center gap-2">
-          <Target className="w-4 h-4" />
-          Goals
-        </label>
-        <textarea
-          value={memory.goals}
-          onChange={(e) => setMemory({ ...memory, goals: e.target.value })}
-          className="w-full h-32 px-3 py-2 bg-card border border-border rounded-lg text-sm resize-none focus:border-primary outline-none"
-          placeholder="What is this agent trying to achieve?"
-        />
-        <p className="text-xs text-muted-foreground">
-          The agent's objectives and what it's working toward
-        </p>
-      </div>
+      <textarea
+        value={content}
+        onChange={(e) => setContent(e.target.value)}
+        className={cn(
+          "w-full h-96 px-3 py-2 bg-kai-bg border rounded-lg text-sm font-mono resize-none focus:outline-none",
+          isValidJson ? "border-border focus:border-primary" : "border-red-500/50 focus:border-red-500"
+        )}
+        placeholder={`{\n  "personality": "Who is this agent?",\n  "goals": "What are they trying to achieve?",\n  "scratchpad": "Working notes and context..."\n}`}
+      />
 
-      {/* Scratchpad */}
-      <div className="space-y-2">
-        <label className="text-sm font-medium flex items-center gap-2">
-          <StickyNote className="w-4 h-4" />
-          Working Notes (Scratchpad)
-        </label>
-        <textarea
-          value={memory.scratchpad}
-          onChange={(e) => setMemory({ ...memory, scratchpad: e.target.value })}
-          className="w-full h-40 px-3 py-2 bg-card border border-border rounded-lg text-sm resize-none focus:border-primary outline-none"
-          placeholder="Working notes, learnings, and context the agent should remember..."
-        />
-        <p className="text-xs text-muted-foreground">
-          Persistent working memory - the agent can update this during runs
+      <div className="flex items-start gap-2 text-xs text-muted-foreground">
+        <Info className="w-4 h-4 shrink-0 mt-0.5" />
+        <p>
+          Use JSON format with <code>personality</code>, <code>goals</code>, and <code>scratchpad</code> fields.
+          The agent can access this memory during workflows using the <code>agent_memory_read</code> tool.
         </p>
       </div>
     </div>
