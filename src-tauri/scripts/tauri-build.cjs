@@ -174,7 +174,7 @@ async function main() {
   
   // Sign the Node.js binary with Developer ID + JIT entitlements before bundling
   const identity = 'Developer ID Application: Tim Moreton (GVXC5FQ2RP)';
-  const nodeEntitlements = path.join(ROOT, 'NodeEntitlements.plist');
+  const nodeEntitlements = path.join(ROOT, 'src-tauri', 'NodeEntitlements.plist');
   
   if (PLATFORM === 'darwin') {
     const bundledNode = path.join(RESOURCES, 'node', 'node');
