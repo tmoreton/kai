@@ -133,11 +133,12 @@ async function installKaiSkill(skillId: string, dir: string): Promise<string> {
         }
 
         try {
-          // Set up sparse checkout for the specific skill
+          // Set up sparse checkout for the specific skill AND lib directory (for shared utilities)
           const skillSubdir = `skills/${skillId}`;
-          
+          const libSubdir = `lib`;
+
           exec(
-            `cd "${tempDir}" && git sparse-checkout set "${skillSubdir}"`,
+            `cd "${tempDir}" && git sparse-checkout set "${skillSubdir}" "${libSubdir}"`,
             { timeout: 30_000 },
             async (sparseErr) => {
               if (sparseErr) {
@@ -147,13 +148,21 @@ async function installKaiSkill(skillId: string, dir: string): Promise<string> {
                   if (!fs.existsSync(skillPath)) {
                     throw new Error(`Skill "${skillId}" not found in kai-skills repository`);
                   }
-                  
+
                   // Copy skill to destination
                   fs.cpSync(skillPath, destPath, { recursive: true });
-                  
+
+                  // Also copy lib directory for shared utilities
+                  const libSource = path.join(tempDir, libSubdir);
+                  const libDest = path.join(path.dirname(dir), 'lib');
+                  if (fs.existsSync(libSource)) {
+                    fs.mkdirSync(libDest, { recursive: true });
+                    fs.cpSync(libSource, libDest, { recursive: true, force: true });
+                  }
+
                   // Clean up temp dir
                   fs.rmSync(tempDir, { recursive: true, force: true });
-                  
+
                   // Load the skill
                   const skill = await loadSkill(destPath);
                   resolve(skill.manifest.id);
@@ -176,7 +185,15 @@ async function installKaiSkill(skillId: string, dir: string): Promise<string> {
 
                 // Copy skill to destination
                 fs.cpSync(skillPath, destPath, { recursive: true });
-                
+
+                // Copy lib directory for shared utilities (credentials, etc.)
+                const libSource = path.join(tempDir, libSubdir);
+                const libDest = path.join(path.dirname(dir), 'lib');
+                if (fs.existsSync(libSource)) {
+                  fs.mkdirSync(libDest, { recursive: true });
+                  fs.cpSync(libSource, libDest, { recursive: true, force: true });
+                }
+
                 // Clean up temp dir
                 fs.rmSync(tempDir, { recursive: true, force: true });
                 
