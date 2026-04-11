@@ -43,6 +43,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Build web and server
+        run: npm run build
+
       - name: Install Rust
         run: |
           rustup update stable
@@ -96,6 +99,9 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Build web and server
+        run: npm run build
 
       - name: Install Rust
         run: |
