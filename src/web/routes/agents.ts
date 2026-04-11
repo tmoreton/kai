@@ -376,22 +376,77 @@ Respond in JSON format:
       const client = createClient();
       const model = getModelId();
       
-      const response = await client.chat.completions.create({
-        model,
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: `Create an agent workflow for: ${description}` }
-        ],
-        response_format: { type: "json_object" },
-        temperature: 0.7,
-      });
+      // Retry logic for flaky generations
+      let lastError: Error | null = null;
+      let generated: any = null;
+      
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          const response = await client.chat.completions.create({
+            model,
+            messages: [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: `Create an agent workflow for: ${description}` }
+            ],
+            response_format: { type: "json_object" },
+            temperature: 0.3, // Lower temp for more consistent results
+          });
 
-      const content = response.choices[0]?.message?.content;
-      if (!content) {
-        throw new Error("No response from AI");
+          const content = response.choices[0]?.message?.content;
+          if (!content) {
+            throw new Error("No response from AI");
+          }
+
+          const parsed = JSON.parse(content);
+          
+          // Validate required fields
+          if (!parsed.name || typeof parsed.name !== 'string') {
+            throw new Error("Missing or invalid 'name' field");
+          }
+          if (!parsed.description || typeof parsed.description !== 'string') {
+            throw new Error("Missing or invalid 'description' field");
+          }
+          if (!Array.isArray(parsed.steps) || parsed.steps.length === 0) {
+            throw new Error("Missing or empty 'steps' array");
+          }
+          
+          // Validate each step has required fields
+          for (const step of parsed.steps) {
+            if (!step.name || typeof step.name !== 'string') {
+              throw new Error("Step missing 'name' field");
+            }
+            if (!step.type || !['llm', 'skill', 'shell', 'notify', 'parallel'].includes(step.type)) {
+              throw new Error(`Step has invalid 'type': ${step.type}`);
+            }
+            
+            // Validate type-specific fields
+            if (step.type === 'llm' && !step.prompt) {
+              throw new Error(`LLM step "${step.name}" missing 'prompt'`);
+            }
+            if (step.type === 'skill' && !step.skill) {
+              throw new Error(`Skill step "${step.name}" missing 'skill' ID`);
+            }
+            if (step.type === 'shell' && !step.command) {
+              throw new Error(`Shell step "${step.name}" missing 'command'`);
+            }
+          }
+          
+          // Valid - use this result
+          generated = parsed;
+          break;
+          
+        } catch (err) {
+          lastError = err instanceof Error ? err : new Error(String(err));
+          if (attempt < 2) {
+            console.log(`Workflow generation attempt ${attempt + 1} failed, retrying...`);
+            await new Promise(r => setTimeout(r, 500 * (attempt + 1))); // Exponential backoff
+          }
+        }
       }
-
-      const generated = JSON.parse(content);
+      
+      if (!generated) {
+        throw new Error(`Failed to generate valid workflow after 3 attempts: ${lastError?.message}`);
+      }
       
       // Generate YAML from the steps
       const yamlSteps = generated.steps.map((step: any) => {
@@ -416,10 +471,23 @@ Respond in JSON format:
         return base;
       }).join('\n');
 
+      // Helper to escape YAML strings properly
+      const escapeYaml = (str: string): string => {
+        if (!str) return '""';
+        // If contains special chars, use literal block scalar
+        if (str.includes('\n') || str.includes('"') || str.includes('\\')) {
+          // Remove trailing newlines and use literal block
+          const cleanStr = str.trimEnd();
+          return `|\n${cleanStr.split('\n').map(l => `  ${l}`).join('\n')}`;
+        }
+        // Simple string - just wrap in quotes and escape internal quotes
+        return `"${str.replace(/"/g, '\\"')}"`;
+      };
+
       const yaml = [
-        `name: "${generated.name}"`,
-        `description: "${generated.description}"`,
-        generated.schedule ? `schedule: "${generated.schedule}"` : '',
+        `name: ${escapeYaml(generated.name)}`,
+        `description: ${escapeYaml(generated.description)}`,
+        generated.schedule ? `schedule: ${escapeYaml(generated.schedule)}` : '',
         `steps:`,
         yamlSteps,
       ].filter(Boolean).join('\n') + '\n';

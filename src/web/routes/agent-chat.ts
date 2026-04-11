@@ -15,7 +15,7 @@ import { createClient, getModelId, summarizeArgs, rescueToolCallsFromText } from
 import { buildSystemPrompt } from "../../system-prompt.js";
 import { getCwd } from "../../tools/bash.js";
 import { toolDefinitions, getMcpToolDefinitions } from "../../tools/index.js";
-import { getSkillToolDefinitions } from "../../skills/index.js";
+import { getSkillToolDefinitions, getLoadedSkills } from "../../skills/index.js";
 import { executeTool } from "../../tools/executor.js";
 import { shouldCompact, compactMessages } from "../../context.js";
 import { ensureKaiDir } from "../../config.js";
@@ -481,8 +481,4 @@ async function chatForAgentWeb(
   return updatedMessages;
 }
 
-// Import getLoadedSkills
-function getLoadedSkills() {
-  const { getLoadedSkills: getSkills } = require("../../skills/loader.js");
-  return getSkills();
-}
+

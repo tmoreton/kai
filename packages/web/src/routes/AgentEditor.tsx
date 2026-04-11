@@ -296,11 +296,15 @@ export function AgentEditor() {
         body: JSON.stringify({ description }),
       });
       
+      const result = await response.json();
+      
       if (!response.ok) {
-        throw new Error('Failed to generate workflow');
+        throw new Error(result.error || 'Failed to generate workflow');
       }
       
-      const result = await response.json();
+      if (result.error) {
+        throw new Error(result.error);
+      }
       
       setGeneratedWorkflow({
         name: result.name,
