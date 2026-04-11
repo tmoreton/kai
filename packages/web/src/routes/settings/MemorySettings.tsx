@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
-import { useSuspenseQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Save, Brain, Target, StickyNote, UserCircle, Info } from "lucide-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Save, Brain, Target, StickyNote, UserCircle, Info, Loader2 } from "lucide-react";
 import { settingsQueries } from "../../api/queries";
 import { api } from "../../api/client";
 import { toast } from "../../components/Toast";
@@ -52,19 +52,25 @@ function buildSoulContent(sections: Record<string, string>): string {
 export function MemorySettings() {
   const queryClient = useQueryClient();
   
-  const { data: soulData } = useSuspenseQuery(settingsQueries.soul());
+  // Use regular useQuery instead of useSuspenseQuery to avoid suspense boundary issues
+  const { data: soulData, isLoading, error } = useQuery({
+    ...settingsQueries.soul(),
+    retry: 2,
+  });
   
-  // Parse initial soul sections
-  const initialSections = parseSoulContent(soulData.content);
-  const [soulSections, setSoulSections] = useState(initialSections);
+  const [soulSections, setSoulSections] = useState<Record<string, string>>({
+    personality: "",
+    goals: "",
+    human: "",
+    scratchpad: "",
+  });
   
-  // Track if data has changed
-  const hasChanges = JSON.stringify(soulSections) !== JSON.stringify(initialSections);
-  
-  // Update state when data changes
+  // Update state when data loads
   useEffect(() => {
-    setSoulSections(parseSoulContent(soulData.content));
-  }, [soulData.content]);
+    if (soulData?.content) {
+      setSoulSections(parseSoulContent(soulData.content));
+    }
+  }, [soulData?.content]);
 
   const soulMutation = useMutation({
     mutationFn: (content: string) => api.settings.updateSoul(content),
@@ -81,6 +87,29 @@ export function MemorySettings() {
   const handleSave = () => {
     soulMutation.mutate(buildSoulContent(soulSections));
   };
+
+  // Show loading state
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="w-8 h-8 animate-spin text-kai-teal" />
+      </div>
+    );
+  }
+
+  // Show error state
+  if (error) {
+    return (
+      <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+        <p className="text-red-700">Failed to load memory: {error instanceof Error ? error.message : "Unknown error"}</p>
+      </div>
+    );
+  }
+
+  // Track changes from initial data
+  const hasChanges = soulData?.content 
+    ? JSON.stringify(soulSections) !== JSON.stringify(parseSoulContent(soulData.content))
+    : false;
 
   return (
     <div className="space-y-8">
@@ -108,7 +137,7 @@ export function MemorySettings() {
       <div className="flex items-start gap-3 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm">
         <Info className="w-4 h-4 text-blue-500 mt-0.5 flex-shrink-0" />
         <p className="text-blue-700">
-          All content is saved to <code className="font-mono text-xs bg-blue-100 px-1 py-0.5 rounded">{soulData.path}</code>. 
+          All content is saved to <code className="font-mono text-xs bg-blue-100 px-1 py-0.5 rounded">{soulData?.path || "~/.kai/soul/identity.json"}</code>. 
           This replaces the old context JSON files with simple plain text sections.
         </p>
       </div>

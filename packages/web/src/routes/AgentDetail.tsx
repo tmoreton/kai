@@ -30,6 +30,7 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import type { Agent, ErrorState, AgentStep } from '../types/api';
 import { AgentChat } from '../components/AgentChat';
+import * as YAML from 'js-yaml';
 
 export function AgentDetail() {
   const { agentId } = useParams<{ agentId: string }>();
@@ -230,26 +231,6 @@ function TabButton({ active, onClick, children }: { active: boolean; onClick: ()
 
 function AgentWorkflow({ agent }: { agent: Agent }) {
   const [viewMode, setViewMode] = useState<'pretty' | 'yaml'>('pretty');
-
-  // Generate YAML from agent steps
-  const generateYaml = () => {
-    const stepsYaml = agent.steps?.map((step) => {
-      const lines = [`  - name: ${step.name}`, `    type: ${step.type}`];
-      if (step.skill) lines.push(`    skill: ${step.skill}`);
-      if (step.action) lines.push(`    action: ${step.action}`);
-      if (step.prompt) lines.push(`    prompt: |\n      ${step.prompt.replace(/\n/g, '\n      ')}`);
-      if (step.command) lines.push(`    command: ${step.command}`);
-      if (step.params && Object.keys(step.params).length > 0) {
-        lines.push(`    params:`);
-        Object.entries(step.params).forEach(([k, v]) => {
-          lines.push(`      ${k}: ${JSON.stringify(v)}`);
-        });
-      }
-      return lines.join('\n');
-    }).join('\n') || '';
-
-    return `agent:\n  name: ${agent.name}\n  description: ${agent.description || ''}\n  steps:\n${stepsYaml}`;
-  };
 
   if (!agent.steps || agent.steps.length === 0) {
     return (
