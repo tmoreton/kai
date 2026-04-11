@@ -109,61 +109,25 @@ async function main() {
   
   // NOTE: Not bundling .env file - credentials should be in ~/.kai/.env only
   
-  // Install production dependencies
-  console.log('==> Installing production dependencies...');
-  execSync('npm install --omit=dev --ignore-scripts', { cwd: RESOURCES, stdio: 'inherit' });
-  
-  // Remove problematic packages that cause signing issues
-  console.log('==> Removing dev-only packages...');
-  const packagesToRemove = [
-    'node-notifier',      // Has unsigned terminal-notifier.app
-    '@types/node-notifier' // Types only, not needed at runtime
-  ];
-  
-  for (const pkg of packagesToRemove) {
-    const pkgPath = path.join(RESOURCES, 'node_modules', pkg);
-    if (fs.existsSync(pkgPath)) {
-      console.log(`    Removing ${pkg}...`);
-      fs.rmSync(pkgPath, { recursive: true, force: true });
-    }
-  }
-  
-  // Copy the system's compiled better-sqlite3 (matches system Node version)
-  console.log('==> Copying compiled better-sqlite3 from system...');
-  const systemSqlite = path.join(ROOT, 'node_modules', 'better-sqlite3', 'build', 'Release', 'better_sqlite3.node');
-  const bundledSqliteDir = path.join(RESOURCES, 'node_modules', 'better-sqlite3', 'build', 'Release');
-  const bundledSqlite = path.join(bundledSqliteDir, 'better_sqlite3.node');
-  
-  if (fs.existsSync(systemSqlite)) {
-    fs.mkdirSync(bundledSqliteDir, { recursive: true });
-    fs.copyFileSync(systemSqlite, bundledSqlite);
-    console.log('    Copied better_sqlite3.node');
-
-    // Sign the .node file immediately after copying — must have Developer ID cert + secure timestamp
-    if (PLATFORM === 'darwin') {
-      const identity = process.env.APPLE_SIGNING_IDENTITY;
-      if (identity) {
-        console.log('    Signing better_sqlite3.node...');
-        execSync(`codesign --force --options runtime --sign "${identity}" --timestamp "${bundledSqlite}"`, { stdio: 'inherit' });
-      } else {
-        console.log('    Warning: APPLE_SIGNING_IDENTITY not set, skipping .node signing');
+  // Sign the Node.js binary with Developer ID before bundling
+  // This is required for notarization - embedded binaries must be signed
+  if (PLATFORM === 'darwin') {
+    const bundledNode = path.join(RESOURCES, 'node', 'node');
+    const identity = 'Developer ID Application: Tim Moreton (GVXC5FQ2RP)';
+    console.log('==> Signing Node.js binary with Developer ID...');
+    try {
+      // Strip any existing signature first
+      try {
+        execSync(`codesign --remove-signature "${bundledNode}"`, { stdio: 'ignore' });
+      } catch (e) {
+        // May not be signed yet, that's ok
       }
-    }
-  } else {
-    console.log('    Warning: system better_sqlite3.node not found');
-  }
-  
-  // Remove test files that cause notarization warnings
-  console.log('==> Removing unnecessary test files...');
-  const testFiles = [
-    path.join(RESOURCES, 'node_modules', 'mammoth', 'test'),
-    path.join(RESOURCES, 'node_modules', 'better-sqlite3', 'test'),
-    path.join(RESOURCES, 'node_modules', 'better-sqlite3', 'build', 'Release', 'test_extension.node')
-  ];
-  for (const testPath of testFiles) {
-    if (fs.existsSync(testPath)) {
-      fs.rmSync(testPath, { recursive: true, force: true });
-      console.log(`    Removed ${path.relative(RESOURCES, testPath)}`);
+      // Sign with hardened runtime and secure timestamp (required for notarization)
+      execSync(`codesign --force --options runtime --sign "${identity}" --timestamp "${bundledNode}"`, { stdio: 'inherit' });
+      console.log('    ✓ Node.js binary signed successfully');
+    } catch (e) {
+      console.error('    ✗ Failed to sign Node.js binary:', e.message);
+      process.exit(1);
     }
   }
   

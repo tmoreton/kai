@@ -7,7 +7,7 @@
     "frontendDist": "http://localhost:3141",
     "devUrl": "http://localhost:3141",
     "beforeDevCommand": "npm run dev -- server --port 3141",
-    "beforeBuildCommand": "node scripts/tauri-build.cjs"
+    "beforeBuildCommand": "node /Users/tmoreton/Code/kai/scripts/tauri-build.cjs"
   },
   "app": {
     "windows": [
@@ -30,7 +30,7 @@
   },
   "bundle": {
     "active": true,
-    "targets": "app",
+    "targets": ["app", "dmg"],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -42,14 +42,14 @@
     "resources": {
       "resources/node": "node",
       "resources/dist": "dist",
-      "resources/node_modules": "node_modules",
       "resources/package.json": "package.json",
       "resources/packages": "packages"
     },
     "macOS": {
       "minimumSystemVersion": "10.15",
       "entitlements": "Entitlements.plist",
-      "hardenedRuntime": true
+      "hardenedRuntime": true,
+      "signingIdentity": "Developer ID Application: Tim Moreton (GVXC5FQ2RP)"
     }
   },
   "plugins": {
