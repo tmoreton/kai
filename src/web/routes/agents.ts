@@ -590,12 +590,46 @@ Respond in JSON format:
       return c.json({ error: "yaml field is required" }, 400);
     }
 
-    // Validate YAML parses correctly
+    // Validate YAML parses correctly and has required structure
+    let parsed: any;
     try {
       const YAML = await import("yaml");
-      YAML.parse(yamlContent);
+      parsed = YAML.parse(yamlContent);
     } catch (e) {
-      return c.json({ error: `Invalid YAML: ${e instanceof Error ? e.message : String(e)}` }, 400);
+      return c.json({ error: `Invalid YAML syntax: ${e instanceof Error ? e.message : String(e)}` }, 400);
+    }
+
+    // Support both flat format and nested agent format
+    const workflow = parsed.agent || parsed;
+    
+    // Validate required workflow structure
+    if (!workflow.name) {
+      return c.json({ error: "Invalid workflow: missing 'name' field" }, 400);
+    }
+    if (!workflow.steps || !Array.isArray(workflow.steps) || workflow.steps.length === 0) {
+      return c.json({ error: "Invalid workflow: missing or empty 'steps' array" }, 400);
+    }
+    
+    // Validate each step has required fields
+    for (let i = 0; i < workflow.steps.length; i++) {
+      const step = workflow.steps[i];
+      if (!step.name) {
+        return c.json({ error: `Invalid workflow: step ${i + 1} missing 'name'` }, 400);
+      }
+      if (!step.type) {
+        return c.json({ error: `Invalid workflow: step ${i + 1} (${step.name}) missing 'type'` }, 400);
+      }
+      
+      // Validate type-specific fields
+      if (step.type === 'llm' && !step.prompt) {
+        return c.json({ error: `Invalid workflow: LLM step "${step.name}" missing 'prompt'` }, 400);
+      }
+      if (step.type === 'skill' && !step.skill) {
+        return c.json({ error: `Invalid workflow: skill step "${step.name}" missing 'skill' ID` }, 400);
+      }
+      if (step.type === 'shell' && !step.command) {
+        return c.json({ error: `Invalid workflow: shell step "${step.name}" missing 'command'` }, 400);
+      }
     }
 
     fs.writeFileSync(agent.workflow_path, yamlContent, "utf-8");
