@@ -6,6 +6,7 @@ use std::collections::HashMap;
 use std::net::TcpListener;
 use std::time::Duration;
 use std::io::Write;
+use std::process::Command;
 
 struct ServerProcess(Mutex<Option<CommandChild>>);
 
@@ -43,6 +44,109 @@ fn read_dotenv(path: &std::path::Path) -> HashMap<String, String> {
         }
     }
     vars
+}
+
+/// Check if Tailscale is installed
+fn is_tailscale_installed() -> bool {
+    let paths = ["tailscale", "/Applications/Tailscale.app/Contents/MacOS/Tailscale"];
+    for path in paths {
+        if Command::new("which").arg(path).output().map(|o| o.status.success()).unwrap_or(false) {
+            return true;
+        }
+        if std::path::Path::new(path).exists() {
+            return true;
+        }
+    }
+    false
+}
+
+/// Get Tailscale status
+/// Returns: (installed, logged_in, running, hostname, dns_name)
+fn get_tailscale_status() -> (bool, bool, bool, Option<String>, Option<String>) {
+    // Check if CLI is available (installed)
+    let cli_available = is_tailscale_installed();
+    if !cli_available {
+        return (false, false, false, None, None);
+    }
+    
+    // Try to get status
+    let output = match Command::new("tailscale")
+        .args(["status", "--json"])
+        .output() {
+        Ok(o) => o,
+        Err(_) => return (true, false, false, None, None),
+    };
+    
+    if !output.status.success() {
+        // CLI works but status failed - likely not logged in
+        return (true, false, false, None, None);
+    }
+    
+    let json: serde_json::Value = match serde_json::from_slice(&output.stdout) {
+        Ok(j) => j,
+        Err(_) => return (true, false, false, None, None),
+    };
+    
+    // Check backend state - "Running" means logged in and connected
+    let backend_state = json["BackendState"].as_str().unwrap_or("");
+    let running = backend_state == "Running";
+    let logged_in = running || backend_state == "Starting" || backend_state == "NoState";
+    
+    let hostname = json["Self"]["HostName"].as_str().map(|s| s.to_string());
+    let dns_name = json["Self"]["DNSName"].as_str().map(|s| s.trim_end_matches('.').to_string());
+    
+    (true, logged_in, running, hostname, dns_name)
+}
+
+/// Start Tailscale serve or funnel
+fn start_tailscale(port: u16, funnel: bool) -> Result<String, String> {
+    let command = if funnel { "funnel" } else { "serve" };
+    
+    let output = Command::new("tailscale")
+        .args([command, "--bg", &port.to_string()])
+        .output()
+        .map_err(|e| format!("Failed to run tailscale {}: {}", command, e))?;
+    
+    if output.status.success() {
+        let (_, _, _, _, dns_name) = get_tailscale_status();
+        let url = dns_name.map(|dns| format!("https://{}", dns))
+            .unwrap_or_else(|| format!("https://tailscale:{}.ts.net", port));
+        Ok(url)
+    } else {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        Err(format!("Tailscale {} failed: {}", command, stderr))
+    }
+}
+
+// Tauri commands for Tailscale
+
+#[tauri::command]
+fn tailscale_status() -> serde_json::Value {
+    let (_installed, logged_in, running, hostname, dns_name) = get_tailscale_status();
+    
+    serde_json::json!({
+        "installed": _installed,
+        "logged_in": logged_in,
+        "running": running,
+        "hostname": hostname,
+        "dns_name": dns_name
+    })
+}
+
+#[tauri::command]
+fn tailscale_start_serve(port: u16) -> Result<String, String> {
+    start_tailscale(port, false)
+}
+
+#[tauri::command]
+fn tailscale_start_funnel(port: u16) -> Result<String, String> {
+    start_tailscale(port, true)
+}
+
+#[tauri::command]
+fn tailscale_stop() {
+    let _ = Command::new("tailscale").args(["serve", "reset"]).output();
+    let _ = Command::new("tailscale").args(["funnel", "reset"]).output();
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -150,14 +254,33 @@ pub fn run() {
                 }
             });
 
-            // Wait for server then show window
+            // Wait for server then configure networking and show window
             let handle = app.handle().clone();
             std::thread::spawn(move || {
                 if wait_for_server(port, 30) {
                     std::thread::sleep(Duration::from_millis(500));
+                    
+                    // Check for Tailscale and auto-configure if running
+                    let mut final_url = format!("http://localhost:{}", port);
+                    let (installed, _, running, _, dns_name) = get_tailscale_status();
+                    
+                    if installed && running {
+                        // Try to start Tailscale serve for this port
+                        match start_tailscale(port, false) {
+                            Ok(tailscale_url) => {
+                                debug_log!(log, "Tailscale serve started: {}", tailscale_url);
+                                final_url = tailscale_url;
+                            }
+                            Err(e) => {
+                                debug_log!(log, "Failed to start Tailscale serve: {}", e);
+                            }
+                        }
+                    } else if installed {
+                        debug_log!(log, "Tailscale installed but not running (not logged in)");
+                    }
+                    
                     if let Some(window) = handle.get_webview_window("main") {
-                        let url = format!("http://localhost:{}", port);
-                        let _ = window.navigate(url.parse::<url::Url>().unwrap());
+                        let _ = window.navigate(final_url.parse::<url::Url>().unwrap());
                         let _ = window.show();
                         let _ = window.set_focus();
                     }
@@ -178,6 +301,12 @@ pub fn run() {
 
             Ok(())
         })
+        .invoke_handler(tauri::generate_handler![
+            tailscale_status,
+            tailscale_start_serve,
+            tailscale_start_funnel,
+            tailscale_stop
+        ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(|app_handle, event| {

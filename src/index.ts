@@ -67,6 +67,12 @@ program
   });
 
 // --- Server (Web UI + Agent Daemon + API) ---
+function isRunningFromAppBundle(): boolean {
+  // Detect if running from inside a macOS .app bundle
+  const execPath = process.execPath;
+  return execPath.includes('/Applications/') && execPath.includes('.app/Contents/');
+}
+
 program
   .command("start")
   .alias("server")
@@ -80,6 +86,13 @@ program
   .option("--funnel", "Expose via Tailscale Funnel to the public internet")
   .option("--skip-build", "Skip rebuild step")
   .action(async (options) => {
+    // Auto-skip build when running from app bundle (can't write to it)
+    const fromAppBundle = isRunningFromAppBundle();
+    if (fromAppBundle && !options.skipBuild) {
+      console.log(chalk.yellow("  Running from app bundle — skipping build (pre-built web UI)..."));
+      options.skipBuild = true;
+    }
+
     if (!options.skipBuild) {
       const { execSync } = await import("child_process");
       const projectRoot = new URL("../", import.meta.url).pathname;

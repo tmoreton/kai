@@ -59,6 +59,9 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
 
+      - name: Prepare Tauri resources
+        run: node scripts/tauri-build.cjs
+
       - name: Build Tauri app
         run: cargo tauri build --target x86_64-unknown-linux-gnu --bundles appimage,deb
 
@@ -110,6 +113,9 @@ jobs:
 
       - name: Install Tauri CLI
         run: cargo install tauri-cli --version "^2.0"
+
+      - name: Prepare Tauri resources
+        run: node scripts/tauri-build.cjs
 
       - name: Build Tauri app
         run: cargo tauri build --target x86_64-pc-windows-msvc --bundles msi,nsis

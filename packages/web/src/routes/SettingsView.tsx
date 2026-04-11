@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useSuspenseQuery } from "@tanstack/react-query";
-import { Server, Puzzle, Key, Brain, FileText, Terminal, RotateCcw, AlertCircle } from "lucide-react";
+import { Server, Puzzle, Key, Brain, FileText, Terminal, RotateCcw, AlertCircle, Globe } from "lucide-react";
 import { settingsQueries } from "../api/queries";
 import { ApiError, NetworkError, TimeoutError } from "../api/client";
 import { cn } from "../lib/utils";
@@ -12,8 +12,9 @@ import { EnvSettings } from "./settings/EnvSettings";
 import { SoulSettings } from "./settings/SoulSettings";
 import { ContextSettings } from "./settings/ContextSettings";
 import { CliSettings } from "./settings/CliSettings";
+import { TailscaleSettings } from "./settings/TailscaleSettings";
 
-type TabType = 'skills' | 'mcp' | 'env' | 'soul' | 'context' | 'cli';
+type TabType = 'skills' | 'mcp' | 'env' | 'soul' | 'context' | 'cli' | 'network';
 
 interface SettingsErrorState {
   message: string;
@@ -104,6 +105,10 @@ export function SettingsView() {
           <TabButton active={activeTab === 'cli'} onClick={() => setActiveTab('cli')} icon={<Terminal className="w-4 h-4" />}>
             CLI
           </TabButton>
+          <TabButton active={activeTab === 'network'} onClick={() => setActiveTab('network')} icon={<Globe className="w-4 h-4" />}>
+            <span className="hidden sm:inline">Network</span>
+            <span className="sm:hidden">Net</span>
+          </TabButton>
         </div>
 
         <div className="bg-card border border-border rounded-xl p-3 sm:p-4 md:p-6">
@@ -113,6 +118,7 @@ export function SettingsView() {
           {activeTab === 'soul' && <SoulSettings />}
           {activeTab === 'context' && <ContextSettings />}
           {activeTab === 'cli' && <CliSettings />}
+          {activeTab === 'network' && <TailscaleSettings port={3141} />}
         </div>
       </div>
     </div>

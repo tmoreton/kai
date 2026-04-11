@@ -99,12 +99,17 @@ async function main() {
   fs.cpSync(path.join(ROOT, 'dist'), path.join(RESOURCES, 'dist'), { recursive: true });
   fs.copyFileSync(path.join(ROOT, 'package.json'), path.join(RESOURCES, 'package.json'));
   
-  // Copy web frontend build
+  // Copy web frontend build - create packages dir first for tauri resources
   const webDist = path.join(ROOT, 'packages', 'web', 'dist');
   if (fs.existsSync(webDist)) {
     console.log('==> Bundling web frontend...');
+    // Create empty packages dir first to satisfy tauri.conf.json resource mapping
+    fs.mkdirSync(path.join(RESOURCES, 'packages'), { recursive: true });
     fs.mkdirSync(path.join(RESOURCES, 'packages', 'web'), { recursive: true });
     fs.cpSync(webDist, path.join(RESOURCES, 'packages', 'web', 'dist'), { recursive: true });
+  } else {
+    // Still need to create empty packages dir for tauri resource validation
+    fs.mkdirSync(path.join(RESOURCES, 'packages'), { recursive: true });
   }
   
   // NOTE: Not bundling .env file - credentials should be in ~/.kai/.env only

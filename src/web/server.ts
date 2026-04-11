@@ -31,10 +31,37 @@ import { registerChatRoutes } from "./routes/chat.js";
 import { registerTranscribeRoutes } from "./routes/transcribe.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-// Serve the web app - try dist/public first (for npm install), fallback to packages/web/dist (dev)
-const publicDir = fs.existsSync(path.resolve(__dirname, "../public"))
-  ? path.resolve(__dirname, "../public")
-  : path.resolve(__dirname, "../../packages/web/dist");
+
+// Detect if running from Tauri app bundle
+const execPath = process.execPath;
+const isTauriBundle = execPath.includes('/Applications/') && execPath.includes('.app/Contents/');
+
+// Serve the web app - multiple possible locations
+function resolvePublicDir(): string {
+  // 1. Tauri app bundle: Resources/packages/web/dist
+  if (isTauriBundle) {
+    const tauriWebDist = path.resolve(execPath, '../../../Resources/packages/web/dist');
+    if (fs.existsSync(tauriWebDist)) {
+      return tauriWebDist;
+    }
+  }
+  
+  // 2. npm install: dist/public
+  const npmPublic = path.resolve(__dirname, "../public");
+  if (fs.existsSync(npmPublic)) {
+    return npmPublic;
+  }
+  
+  // 3. Dev mode: packages/web/dist
+  const devPublic = path.resolve(__dirname, "../../packages/web/dist");
+  if (fs.existsSync(devPublic)) {
+    return devPublic;
+  }
+  
+  throw new Error("Web UI not found. Run 'npm run build:web' first.");
+}
+
+const publicDir = resolvePublicDir();
 
 // Track whether we started the daemon in-process
 let daemonStartedInProcess = false;
