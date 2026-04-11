@@ -720,24 +720,25 @@ interface ChatMessage {
 }
 
 function AgentChat({ agent }: { agent: Agent }) {
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-
-  // Load messages from localStorage on mount
-  useEffect(() => {
+  const [messages, setMessages] = useState<ChatMessage[]>(() => {
+    // Load messages immediately from localStorage
     const stored = localStorage.getItem(`agent-chat-${agent.id}`);
     if (stored) {
-      setMessages(JSON.parse(stored));
-    } else {
-      // Welcome message
-      setMessages([{
-        role: 'assistant',
-        content: `Hi! I'm ${agent.name}. I can help you understand my workflow, check my history, or answer questions about what I do. What would you like to know?`,
-        timestamp: Date.now(),
-      }]);
+      try {
+        return JSON.parse(stored);
+      } catch {
+        // Invalid stored data, fall through to welcome message
+      }
     }
-  }, [agent.id, agent.name]);
+    // Welcome message
+    return [{
+      role: 'assistant',
+      content: `Hi! I'm ${agent.name}. I can help you understand my workflow, check my history, or answer questions about what I do. What would you like to know?`,
+      timestamp: Date.now(),
+    }];
+  });
+  const [isLoading, setIsLoading] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Save messages to localStorage
   useEffect(() => {

@@ -31,6 +31,10 @@ import { getCwd } from "../../tools/bash.js";
 import { ensureKaiDir } from "../../config.js";
 import { ensureGlobalDir } from "../../project.js";
 import { getLoadedSkills, getSkillToolDefinitions } from "../../skills/loader.js";
+import { toolDefinitions, getMcpToolDefinitions } from "../../tools/index.js";
+import { executeTool } from "../../tools/executor.js";
+import { MAX_TOKENS, MAX_TOOL_TURNS } from "../../constants.js";
+import type { ChatCompletionTool, ChatCompletionMessageParam } from "openai/resources/chat/completions";
 
 function inferAttachmentType(filePath: string): 'image' | 'markdown' | 'file' {
   const ext = path.extname(filePath).toLowerCase();
@@ -912,6 +916,13 @@ ${tools?.map(t => `    // ${t.description}
     // Parse agent config to get personality/goals
     const agentConfig = typeof agent.config === 'string' ? JSON.parse(agent.config || "{}") : (agent.config || {});
     
+    // Get available skills for this agent
+    const availableSkills = getLoadedSkills();
+    const skillDescriptions = availableSkills.map(s => {
+      const tools = s.manifest.tools.map(t => `- ${t.name}: ${t.description}`).join('\n  ');
+      return `- ${s.manifest.name}: ${s.manifest.description || 'No description'}\n  Tools:\n  ${tools}`;
+    }).join('\n\n');
+    
     // Build system prompt from config or fallback to simple prompt
     let systemPrompt: string;
     if (agentConfig.personality || agentConfig.goals) {
@@ -930,13 +941,23 @@ ${agentConfig.scratchpad || "No notes yet."}
 - Enabled: ${agent.enabled ? "Yes" : "No"}
 - Schedule: ${agent.schedule || "Not scheduled"}
 
-You are autonomous. Complete tasks fully without asking for permission. Be concise and direct. Update your working notes with important findings.`;
+# Available Skills & Tools
+You have access to these skills and can use their tools when needed:
+
+${skillDescriptions || "No skills available."}
+
+You are autonomous. Complete tasks fully without asking for permission. Be concise and direct. Update your working notes with important findings. USE your available skills when appropriate - don't ask the user to do things you can do yourself.`;
     } else {
       // Fallback for agents without personality/goals
       systemPrompt = `You are ${agent.name}. ${agent.description || ""}
 
 You help the user understand your workflow, check your run history, and manage your settings.
 Be concise and helpful. If you don't know something, say so.
+
+# Available Skills & Tools
+You have access to these skills and can use their tools when needed:
+
+${skillDescriptions || "No skills available."}
 
 Current status: ${agent.enabled ? "Enabled" : "Disabled"}`;
     }
@@ -945,7 +966,7 @@ Current status: ${agent.enabled ? "Enabled" : "Disabled"}`;
       const client = createClient();
       
       // Build messages array
-      const messages: any[] = [
+      const messages: ChatCompletionMessageParam[] = [
         { role: "system", content: systemPrompt },
       ];
       
@@ -972,17 +993,71 @@ Current status: ${agent.enabled ? "Enabled" : "Disabled"}`;
         messages.push({ role: "user", content: message });
       }
       
-      const response = await client.chat.completions.create({
-        model: getModelId(),
-        messages,
-        max_tokens: 4096,
-      });
-
-      const text = response.choices[0]?.message?.content
-        || (response.choices[0]?.message as any)?.reasoning || "";
+      // Set up tools for execution
+      const mcpTools = getMcpToolDefinitions();
+      const skillTools = getSkillToolDefinitions();
+      const activeTools = [...toolDefinitions, ...mcpTools, ...skillTools] as ChatCompletionTool[];
+      
+      // Tool execution loop (like main chat)
+      let turns = 0;
+      let finalResponse = "";
+      
+      while (turns < MAX_TOOL_TURNS) {
+        turns++;
+        
+        const response = await client.chat.completions.create({
+          model: getModelId(),
+          messages,
+          tools: activeTools,
+          tool_choice: "auto",
+          max_tokens: MAX_TOKENS,
+        });
+        
+        const choice = response.choices[0];
+        const assistantMsg = choice?.message;
+        
+        if (!assistantMsg) break;
+        
+        // Add assistant message to history
+        messages.push(assistantMsg);
+        
+        // Check if there are tool calls
+        if (assistantMsg.tool_calls && assistantMsg.tool_calls.length > 0) {
+          // Execute each tool call
+          for (const toolCall of assistantMsg.tool_calls) {
+            // Handle both streaming and non-streaming formats
+            const func = (toolCall as any).function;
+            const toolName = func?.name;
+            const toolArgs = func?.arguments || "{}";
+            const toolId = toolCall.id || `call-${Date.now()}`;
+            
+            if (!toolName) continue;
+            
+            // Execute the tool
+            let result: string;
+            try {
+              const args = JSON.parse(toolArgs);
+              result = await executeTool(toolName, args);
+            } catch (err: any) {
+              result = `Error: ${err?.message || String(err)}`;
+            }
+            
+            // Add tool result to messages
+            messages.push({
+              role: "tool",
+              tool_call_id: toolId,
+              content: result,
+            });
+          }
+        } else {
+          // No tool calls - we have the final response
+          finalResponse = assistantMsg.content || "";
+          break;
+        }
+      }
       
       return c.json({ 
-        response: text, 
+        response: finalResponse || "No response generated", 
         sessionId: generateSessionId() 
       });
     } catch (err: unknown) {

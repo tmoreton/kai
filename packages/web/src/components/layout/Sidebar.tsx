@@ -12,9 +12,7 @@ import {
   ChevronDown,
   PanelLeftClose,
   X,
-  ExternalLink,
 } from "lucide-react";
-import { open } from "@tauri-apps/plugin-shell";
 import { cn } from "../../lib/utils";
 import { sessionsQueries, agentsQueries } from "../../api/queries";
 import { api } from "../../api/client";

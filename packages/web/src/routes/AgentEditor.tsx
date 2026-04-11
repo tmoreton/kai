@@ -18,6 +18,8 @@ import {
   ChevronUp,
   Download,
   Plus,
+  FileCode,
+  AlertCircle,
 } from "lucide-react";
 import { agentsApi } from '../api/client';
 import { agentsQueries } from '../api/queries';
@@ -28,6 +30,7 @@ import { Switch } from '../components/ui/switch';
 import { toast } from '../components/Toast';
 import { cn } from '../lib/utils';
 import type { WorkflowStep } from '../components/WorkflowEditor';
+import YAML from 'js-yaml';
 
 // ============================================
 // Types
@@ -505,7 +508,7 @@ export function AgentEditor() {
                 />
               </div>
 
-              {/* Workflow Preview */}
+              {/* Workflow Preview / YAML Editor */}
               <div className="border rounded-lg overflow-hidden">
                 <button
                   onClick={() => setShowPreview(!showPreview)}
@@ -518,36 +521,124 @@ export function AgentEditor() {
                       ({generatedWorkflow.steps.length} steps)
                     </span>
                   </div>
-                  {showPreview ? (
-                    <ChevronUp className="w-4 h-4" />
-                  ) : (
-                    <ChevronDown className="w-4 h-4" />
-                  )}
+                  <div className="flex items-center gap-2">
+                    {showPreview && (
+                      <span className="text-xs text-muted-foreground">
+                        {showYamlEditor ? 'Editing YAML' : 'Visual Preview'}
+                      </span>
+                    )}
+                    {showPreview ? (
+                      <ChevronUp className="w-4 h-4" />
+                    ) : (
+                      <ChevronDown className="w-4 h-4" />
+                    )}
+                  </div>
                 </button>
                 
                 {showPreview && (
                   <div className="p-4 space-y-3">
-                    {generatedWorkflow.steps.map((step, index) => (
-                      <div key={index} className="flex items-start gap-3 p-3 bg-muted/50 rounded-lg">
-                        <div className="w-6 h-6 rounded-full bg-primary/10 text-primary text-xs font-medium flex items-center justify-center shrink-0">
-                          {index + 1}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="font-medium text-sm">{step.name}</div>
-                          <div className="text-xs text-muted-foreground mt-1">
-                            {step.type === 'llm' && step.prompt && (
-                              <span className="line-clamp-2">{step.prompt}</span>
-                            )}
-                            {step.type === 'skill' && step.skill && (
-                              <span>Uses skill: {step.skill}</span>
-                            )}
-                            {step.type === 'shell' && step.command && (
-                              <span>Command: {step.command}</span>
-                            )}
+                    {/* Toggle between preview and YAML editor */}
+                    <div className="flex items-center gap-2 mb-4">
+                      <Button
+                        variant={!showYamlEditor ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setShowYamlEditor(false)}
+                      >
+                        Visual Preview
+                      </Button>
+                      <Button
+                        variant={showYamlEditor ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => {
+                          setShowYamlEditor(true);
+                          setEditedYaml(generatedWorkflow.yaml);
+                          setYamlError(null);
+                        }}
+                      >
+                        <FileCode className="w-4 h-4 mr-2" />
+                        Edit YAML
+                      </Button>
+                    </div>
+
+                    {showYamlEditor ? (
+                      /* YAML Editor */
+                      <div className="space-y-3">
+                        <Textarea
+                          value={editedYaml}
+                          onChange={(e) => {
+                            setEditedYaml(e.target.value);
+                            setYamlError(null);
+                          }}
+                          placeholder="Enter workflow YAML..."
+                          className="min-h-[400px] font-mono text-sm bg-muted/50"
+                        />
+                        {yamlError && (
+                          <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-lg">
+                            <AlertCircle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+                            <div className="text-sm text-red-700">
+                              <strong>YAML Error:</strong> {yamlError}
+                            </div>
                           </div>
+                        )}
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-muted-foreground">
+                            Edit the YAML directly. Make sure to keep the steps array valid.
+                          </span>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              try {
+                                const parsed = YAML.load(editedYaml);
+                                if (!parsed || typeof parsed !== 'object') {
+                                  throw new Error('YAML must be a valid object');
+                                }
+                                if (!Array.isArray(parsed.steps)) {
+                                  throw new Error('YAML must have a "steps" array');
+                                }
+                                // Update the workflow with validated YAML
+                                setGeneratedWorkflow({
+                                  ...generatedWorkflow,
+                                  yaml: editedYaml,
+                                  steps: parsed.steps,
+                                });
+                                setYamlError(null);
+                                toast.success('YAML updated successfully');
+                              } catch (err: any) {
+                                setYamlError(err.message || 'Invalid YAML');
+                              }
+                            }}
+                          >
+                            Apply Changes
+                          </Button>
                         </div>
                       </div>
-                    ))}
+                    ) : (
+                      /* Visual Preview */
+                      <div className="space-y-3">
+                        {generatedWorkflow.steps.map((step, index) => (
+                          <div key={index} className="flex items-start gap-3 p-3 bg-muted/50 rounded-lg">
+                            <div className="w-6 h-6 rounded-full bg-primary/10 text-primary text-xs font-medium flex items-center justify-center shrink-0">
+                              {index + 1}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="font-medium text-sm">{step.name}</div>
+                              <div className="text-xs text-muted-foreground mt-1">
+                                {step.type === 'llm' && step.prompt && (
+                                  <span className="line-clamp-2">{step.prompt}</span>
+                                )}
+                                {step.type === 'skill' && step.skill && (
+                                  <span>Uses skill: {step.skill}</span>
+                                )}
+                                {step.type === 'shell' && step.command && (
+                                  <span>Command: {step.command}</span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
