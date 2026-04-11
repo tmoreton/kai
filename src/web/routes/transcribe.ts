@@ -1,8 +1,4 @@
 import { Hono } from "hono";
-import { execSync } from "child_process";
-import fs from "fs";
-import path from "path";
-import os from "os";
 
 // Whisper API configuration
 const WHISPER_API_URL = "https://api.openai.com/v1/audio/transcriptions";
@@ -23,104 +19,67 @@ export function registerTranscribeRoutes(app: Hono) {
       const arrayBuffer = await audioFile.arrayBuffer();
       const buffer = Buffer.from(arrayBuffer);
 
-      // Try OpenAI Whisper first, fall back to OpenRouter
+      // Try OpenRouter first (cheaper: $0.003/min), fall back to OpenAI Whisper
       let transcription: string | null = null;
       let error: string | null = null;
 
-      // Try OpenAI if key exists
-      const openaiKey = process.env.OPENAI_API_KEY;
-      if (openaiKey) {
+      // Try OpenRouter first with cheaper gpt-4o-mini-transcribe model ($0.003/min)
+      const openrouterKey = process.env.OPENROUTER_API_KEY;
+      if (openrouterKey) {
         try {
           const formData = new FormData();
           formData.append("file", new Blob([buffer]), "audio.webm");
-          formData.append("model", "whisper-1");
+          formData.append("model", "openai/gpt-4o-mini-transcribe");
           formData.append("language", "en");
 
-          const response = await fetch(WHISPER_API_URL, {
+          const response = await fetch(OPENROUTER_API_URL, {
             method: "POST",
             headers: {
-              Authorization: `Bearer ${openaiKey}`,
+              Authorization: `Bearer ${openrouterKey}`,
+              "HTTP-Referer": "https://kai-ai.app",
+              "X-Title": "Kai AI",
             },
             body: formData,
           });
 
           if (response.ok) {
             const data = await response.json();
-            transcription = data.text;
+            transcription = data.text || data.choices?.[0]?.text;
           } else {
-            error = `OpenAI: ${await response.text()}`;
+            error = `OpenRouter: ${await response.text()}`;
           }
         } catch (err) {
-          error = err instanceof Error ? err.message : "OpenAI request failed";
+          error = err instanceof Error ? err.message : "OpenRouter request failed";
         }
       }
 
-      // Try OpenRouter if OpenAI failed or no key
+      // Fall back to OpenAI Whisper if OpenRouter failed or no key
       if (!transcription) {
-        const openrouterKey = process.env.OPENROUTER_API_KEY;
-        if (openrouterKey) {
+        const openaiKey = process.env.OPENAI_API_KEY;
+        if (openaiKey) {
           try {
             const formData = new FormData();
             formData.append("file", new Blob([buffer]), "audio.webm");
-            formData.append("model", "openai/whisper-1");
+            formData.append("model", "whisper-1");
             formData.append("language", "en");
 
-            const response = await fetch(OPENROUTER_API_URL, {
+            const response = await fetch(WHISPER_API_URL, {
               method: "POST",
               headers: {
-                Authorization: `Bearer ${openrouterKey}`,
-                "HTTP-Referer": "https://kai-ai.app",
-                "X-Title": "Kai AI",
+                Authorization: `Bearer ${openaiKey}`,
               },
               body: formData,
             });
 
             if (response.ok) {
               const data = await response.json();
-              transcription = data.text || data.choices?.[0]?.text;
+              transcription = data.text;
             } else {
-              error = `OpenRouter: ${await response.text()}`;
+              error = `OpenAI: ${await response.text()}`;
             }
           } catch (err) {
-            error = err instanceof Error ? err.message : "OpenRouter request failed";
+            error = err instanceof Error ? err.message : "OpenAI request failed";
           }
-        }
-      }
-
-      // Last resort: try local whisper if installed
-      if (!transcription) {
-        try {
-          const tempDir = os.tmpdir();
-          const inputPath = path.join(tempDir, `kai-audio-${Date.now()}.webm`);
-          const outputPath = path.join(tempDir, `kai-audio-${Date.now()}.wav`);
-
-          // Write audio file
-          fs.writeFileSync(inputPath, buffer);
-
-          // Convert to wav using ffmpeg if available
-          try {
-            execSync(`ffmpeg -i "${inputPath}" -ar 16000 -ac 1 -c:a pcm_s16le "${outputPath}"`, {
-              stdio: "pipe",
-              timeout: 30000,
-            });
-
-            // Try running local whisper
-            const result = execSync(`whisper "${outputPath}" --language en --model tiny --output_format txt 2>&1`, {
-              encoding: "utf-8",
-              stdio: "pipe",
-              timeout: 60000,
-            });
-
-            transcription = result.trim();
-
-            // Cleanup
-            fs.unlinkSync(inputPath);
-            fs.unlinkSync(outputPath);
-          } catch {
-            // ffmpeg or whisper not available
-          }
-        } catch {
-          // Local transcription failed
         }
       }
 
