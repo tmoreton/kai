@@ -53,11 +53,52 @@ export function skillsDir(): string {
 }
 
 /**
+ * Ensure lib/credentials.js exists for skills that need it.
+ * Clones just the lib directory from kai-skills repo.
+ */
+async function ensureLibCredentials(): Promise<void> {
+  const libDir = path.join(ensureKaiDir(), "lib");
+  const credPath = path.join(libDir, "credentials.js");
+
+  if (fs.existsSync(credPath)) return;
+
+  try {
+    const { execSync } = await import("child_process");
+    const tempDir = path.join(ensureKaiDir(), `.temp-lib-${Date.now()}`);
+
+    // Clone just the lib directory
+    execSync(
+      `git clone --depth 1 --filter=blob:none --sparse "https://github.com/tmoreton/kai-skills.git" "${tempDir}"`,
+      { timeout: 60_000, stdio: "pipe" }
+    );
+    execSync(
+      `cd "${tempDir}" && git sparse-checkout set lib`,
+      { timeout: 30_000, stdio: "pipe" }
+    );
+
+    // Copy lib directory
+    const libSource = path.join(tempDir, "lib");
+    if (fs.existsSync(libSource)) {
+      fs.mkdirSync(libDir, { recursive: true });
+      fs.cpSync(libSource, libDir, { recursive: true, force: true });
+    }
+
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  } catch {
+    // Silent fail - manual install will work
+  }
+}
+
+/**
  * Load all skills from ~/.kai/skills/.
  * Auto-installs default skills (openrouter) if API key is present.
  */
 export async function loadAllSkills(): Promise<void> {
   const dir = skillsDir();
+
+  // Ensure lib/credentials.js exists before installing skills
+  await ensureLibCredentials();
+
   if (!fs.existsSync(dir)) return;
 
   const entries = fs.readdirSync(dir, { withFileTypes: true });
@@ -80,6 +121,11 @@ export async function loadAllSkills(): Promise<void> {
       try {
         console.log(chalk.blue(`  Auto-installing ${id} skill...`));
         await installSkill(id);
+        // Load the newly installed skill
+        const skillPath = path.join(dir, id);
+        if (fs.existsSync(skillPath)) {
+          await loadSkill(skillPath);
+        }
       } catch {
         // Silent fail - lib/ may not be ready yet
       }
@@ -89,9 +135,8 @@ export async function loadAllSkills(): Promise<void> {
   // Auto-install skills based on detected API keys
   const apiKeySkills: { id: string; envKey: string }[] = [
     { id: "openrouter", envKey: "OPENROUTER_API_KEY" },
-    { id: "web-tools", envKey: "TAVILY_API_KEY" },
-    { id: "slack", envKey: "SLACK_BOT_TOKEN" },
     { id: "youtube", envKey: "YOUTUBE_API_KEY" },
+    { id: "twitter", envKey: "X_API_KEY" },
   ];
 
   for (const { id, envKey } of apiKeySkills) {
@@ -99,6 +144,10 @@ export async function loadAllSkills(): Promise<void> {
       try {
         console.log(chalk.blue(`  Auto-installing ${id} skill (API key detected)...`));
         await installSkill(id);
+        const skillPath = path.join(dir, id);
+        if (fs.existsSync(skillPath)) {
+          await loadSkill(skillPath);
+        }
       } catch {
         // Silent fail
       }

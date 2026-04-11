@@ -10,10 +10,7 @@ import {
   Settings,
   FileCode2,
   History,
-  Edit,
   MessageSquare,
-  Sparkles,
-  Mail,
   Copy,
   Trash2,
   Brain,
@@ -30,8 +27,6 @@ import { toast } from '../components/Toast';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import type { Agent, ErrorState, Attachment, AgentStep } from '../types/api';
-import { WorkflowEditor } from '../components/WorkflowEditor';
-import { AIWorkflowCreator } from '../components/AIWorkflowCreator';
 import { SmartChatInput } from '../components/SmartChatInput';
 
 export function AgentDetail() {
@@ -232,103 +227,34 @@ function TabButton({ active, onClick, children }: { active: boolean; onClick: ()
 }
 
 function AgentWorkflow({ agent }: { agent: Agent }) {
-  const [isEditing, setIsEditing] = useState(false);
-  const [isCreating, setIsCreating] = useState(!agent.steps || agent.steps.length === 0);
-  const navigate = useNavigate();
+  const [viewMode, setViewMode] = useState<'pretty' | 'yaml'>('pretty');
 
-  // Convert agent steps to WorkflowEditor format
-  const workflowSteps = agent.steps?.map((step, i) => ({
-    id: String(i),
-    type: step.type as any,
-    name: step.name,
-    skill: step.skill,
-    tool: step.action,
-    prompt: step.prompt,
-    command: step.command,
-    parameters: step.params as any,
-  })) || [];
+  // Generate YAML from agent steps
+  const generateYaml = () => {
+    const stepsYaml = agent.steps?.map((step) => {
+      const lines = [`  - name: ${step.name}`, `    type: ${step.type}`];
+      if (step.skill) lines.push(`    skill: ${step.skill}`);
+      if (step.action) lines.push(`    action: ${step.action}`);
+      if (step.prompt) lines.push(`    prompt: |\n      ${step.prompt.replace(/\n/g, '\n      ')}`);
+      if (step.command) lines.push(`    command: ${step.command}`);
+      if (step.params && Object.keys(step.params).length > 0) {
+        lines.push(`    params:`);
+        Object.entries(step.params).forEach(([k, v]) => {
+          lines.push(`      ${k}: ${JSON.stringify(v)}`);
+        });
+      }
+      return lines.join('\n');
+    }).join('\n') || '';
 
-  const workflow = {
-    id: agent.id,
-    name: agent.name,
-    description: agent.description || '',
-    version: '1.0.0',
-    steps: workflowSteps,
+    return `agent:\n  name: ${agent.name}\n  description: ${agent.description || ''}\n  steps:\n${stepsYaml}`;
   };
-
-  const handleSave = async (_updatedWorkflow: any, yamlContent: string) => {
-    try {
-      await agentsApi.updateWorkflow(agent.id, yamlContent);
-      toast.success('Workflow saved');
-      setIsEditing(false);
-      setIsCreating(false);
-      // Refresh the page to show updated steps
-      navigate(0);
-    } catch (err) {
-      toast.error('Failed to save workflow');
-    }
-  };
-
-  const handleWorkflowGenerated = async (yaml: string, _workflow: any) => {
-    try {
-      await agentsApi.updateWorkflow(agent.id, yaml);
-      toast.success('Workflow created!');
-      setIsCreating(false);
-      // Refresh to show the new workflow
-      navigate(0);
-    } catch (err) {
-      toast.error('Failed to save workflow');
-    }
-  };
-
-  // AI Workflow Creation Mode
-  if (isCreating) {
-    return (
-      <div className="h-full">
-        <AIWorkflowCreator
-          agentName={agent.name}
-          agentDescription={agent.description}
-          onWorkflowGenerated={handleWorkflowGenerated}
-          onCancel={() => setIsCreating(false)}
-        />
-      </div>
-    );
-  }
-
-  if (isEditing) {
-    return (
-      <div className="h-full flex flex-col">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold">Edit Workflow</h2>
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={() => setIsEditing(false)}>
-              Cancel
-            </Button>
-            <Button variant="outline" onClick={() => setIsCreating(true)}>
-              AI Assist
-            </Button>
-          </div>
-        </div>
-        <div className="flex-1 overflow-auto border rounded-lg">
-          <WorkflowEditor
-            initialWorkflow={workflow}
-            onSave={handleSave}
-          />
-        </div>
-      </div>
-    );
-  }
 
   if (!agent.steps || agent.steps.length === 0) {
     return (
       <div className="h-full flex items-center justify-center">
         <div className="text-center">
           <FileCode2 className="w-12 h-12 mx-auto mb-3 text-muted-foreground" />
-          <p className="text-muted-foreground mb-4">No workflow steps defined</p>
-          <Button onClick={() => setIsCreating(true)}>
-            <Sparkles className="w-4 h-4 mr-2" />
-            Create with AI
-          </Button>
+          <p className="text-muted-foreground">No workflow steps defined</p>
         </div>
       </div>
     );
@@ -336,34 +262,73 @@ function AgentWorkflow({ agent }: { agent: Agent }) {
 
   return (
     <div className="space-y-4">
+      {/* View Toggle */}
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold">Workflow Steps</h2>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={() => setIsCreating(true)}>
-            <Sparkles className="w-4 h-4 mr-2" />
-            AI Assist
-          </Button>
-          <Button variant="outline" onClick={() => setIsEditing(true)}>
-            <Edit className="w-4 h-4 mr-2" />
-            Edit
-          </Button>
+        <h2 className="text-lg font-semibold">Workflow Steps ({agent.steps.length})</h2>
+        <div className="flex gap-1 bg-muted rounded-lg p-1">
+          <button
+            onClick={() => setViewMode('pretty')}
+            className={cn(
+              "px-3 py-1.5 text-sm font-medium rounded-md transition-colors",
+              viewMode === 'pretty' 
+                ? "bg-background text-foreground shadow-sm" 
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            Pretty
+          </button>
+          <button
+            onClick={() => setViewMode('yaml')}
+            className={cn(
+              "px-3 py-1.5 text-sm font-medium rounded-md transition-colors",
+              viewMode === 'yaml' 
+                ? "bg-background text-foreground shadow-sm" 
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            YAML
+          </button>
         </div>
       </div>
-      <div className="space-y-2">
-        {agent.steps.map((step, i) => (
-          <div key={i} className="border rounded-lg p-4 bg-card">
-            <div className="flex items-center gap-3">
-              <span className="text-sm font-mono text-muted-foreground">{i + 1}</span>
-              <div className="flex-1">
-                <h3 className="font-medium">{step.name}</h3>
-                <p className="text-sm text-muted-foreground">Type: {step.type}</p>
+
+      {/* Pretty View */}
+      {viewMode === 'pretty' && (
+        <div className="space-y-3">
+          {agent.steps.map((step, i) => (
+            <div key={i} className="border rounded-lg p-4 bg-card">
+              <div className="flex items-start gap-3">
+                <span className="flex-shrink-0 w-6 h-6 rounded-full bg-primary/10 text-primary text-xs font-medium flex items-center justify-center">
+                  {i + 1}
+                </span>
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-medium text-sm">{step.name}</h3>
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    <Badge variant="secondary">{step.type}</Badge>
+                    {step.skill && <Badge variant="outline">Skill: {step.skill}</Badge>}
+                    {step.action && <Badge variant="outline">Action: {step.action}</Badge>}
+                  </div>
+                  {step.prompt && (
+                    <p className="text-xs text-muted-foreground mt-2 line-clamp-3">
+                      {step.prompt}
+                    </p>
+                  )}
+                </div>
               </div>
-              {step.skill && <Badge>Skill: {step.skill}</Badge>}
-              {step.action && <Badge>Action: {step.action}</Badge>}
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
+
+      {/* YAML View */}
+      {viewMode === 'yaml' && (
+        <div className="border rounded-lg overflow-hidden">
+          <pre className="p-4 text-sm bg-muted/50 overflow-x-auto">
+            <code className="text-foreground font-mono whitespace-pre">
+              {generateYaml()}
+            </code>
+          </pre>
+        </div>
+      )}
     </div>
   );
 }
@@ -653,9 +618,6 @@ function AgentMemory({ agent }: { agent: Agent }) {
 
 function AgentSettings({ agent }: { agent: Agent }) {
   const [schedule, setSchedule] = useState(agent.schedule || '');
-  const [emailNotifications, setEmailNotifications] = useState(
-    (agent as any).config?.emailNotifications !== false // default true
-  );
   const [isSaving, setIsSaving] = useState(false);
 
   const handleSave = async () => {
@@ -663,7 +625,6 @@ function AgentSettings({ agent }: { agent: Agent }) {
     try {
       await agentsApi.update(agent.id, { 
         schedule: schedule || undefined,
-        config: { emailNotifications }
       });
       toast.success('Settings saved');
     } catch (err) {
@@ -695,29 +656,6 @@ function AgentSettings({ agent }: { agent: Agent }) {
         <p className="text-xs text-muted-foreground">
           Cron expression or natural language (e.g., "daily at 9am", "every 30 minutes")
         </p>
-      </div>
-
-      {/* Notifications */}
-      <div className="space-y-3 border-t pt-4">
-        <h3 className="text-sm font-medium flex items-center gap-2">
-          <Mail className="w-4 h-4" />
-          Notifications
-        </h3>
-        
-        <label className="flex items-center gap-3 p-3 border rounded-lg hover:bg-accent/50 cursor-pointer transition-colors">
-          <input
-            type="checkbox"
-            checked={emailNotifications}
-            onChange={(e) => setEmailNotifications(e.target.checked)}
-            className="w-4 h-4 rounded border-border"
-          />
-          <div className="flex-1">
-            <p className="text-sm font-medium">Email notifications</p>
-            <p className="text-xs text-muted-foreground">
-              Send email when this agent completes successfully
-            </p>
-          </div>
-        </label>
       </div>
 
       {/* Agent Info */}
@@ -764,9 +702,14 @@ function AgentSettings({ agent }: { agent: Agent }) {
   );
 }
 
-function Badge({ children }: { children: React.ReactNode }) {
+function Badge({ children, variant = 'default' }: { children: React.ReactNode; variant?: 'default' | 'secondary' | 'outline' }) {
+  const variantClasses = {
+    default: 'bg-muted',
+    secondary: 'bg-secondary text-secondary-foreground',
+    outline: 'border border-border bg-transparent',
+  };
   return (
-    <span className="px-2 py-1 bg-muted rounded text-xs">{children}</span>
+    <span className={cn("px-2 py-0.5 rounded text-xs", variantClasses[variant])}>{children}</span>
   );
 }
 

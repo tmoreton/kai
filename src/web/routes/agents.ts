@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import fs from "fs";
 import path from "path";
+import YAML from "yaml";
 import {
   listAgents,
   getAgent,
@@ -29,6 +30,7 @@ import {
 import { getCwd } from "../../tools/bash.js";
 import { ensureKaiDir } from "../../config.js";
 import { ensureGlobalDir } from "../../project.js";
+import { getLoadedSkills, getSkillToolDefinitions } from "../../skills/loader.js";
 
 function inferAttachmentType(filePath: string): 'image' | 'markdown' | 'file' {
   const ext = path.extname(filePath).toLowerCase();
@@ -265,6 +267,153 @@ export function registerAgentRoutes(app: Hono) {
     return c.json({ id, name: name.trim(), description: (description || "").trim(), schedule: cleanSchedule, enabled: true });
   });
 
+  // Generate workflow from natural language description
+  app.post("/api/agents/generate", async (c) => {
+    const body = await c.req.json().catch(() => ({}));
+    const { description } = body as { description?: string };
+
+    if (!description || !description.trim()) {
+      return c.json({ error: "Description is required" }, 400);
+    }
+
+    try {
+      // Get available skills/tools for context
+      const loadedSkills = getLoadedSkills();
+      const availableTools = loadedSkills.map(s => ({
+        id: s.manifest.id,
+        name: s.manifest.name,
+        description: s.manifest.description || '',
+        tools: s.manifest.tools.map(t => t.name),
+      }));
+
+      // Get available skill registry (skills that can be installed)
+      const registrySkills = [
+        { id: 'youtube', name: 'YouTube', description: 'Search, download, and analyze YouTube videos' },
+        { id: 'twitter', name: 'Twitter/X', description: 'Post tweets, read timelines, analyze engagement' },
+        { id: 'browser', name: 'Browser', description: 'Web scraping, screenshots, form automation' },
+        { id: 'notion', name: 'Notion', description: 'Read/write Notion pages and databases' },
+        { id: 'slack', name: 'Slack', description: 'Send messages, read channels' },
+        { id: 'github', name: 'GitHub', description: 'Read repos, create issues, analyze code' },
+        { id: 'linear', name: 'Linear', description: 'Issue tracking and project management' },
+        { id: 'stripe', name: 'Stripe', description: 'Payment processing and customer management' },
+        { id: 'supabase', name: 'Supabase', description: 'Database operations and auth' },
+        { id: 'airtable', name: 'Airtable', description: 'Spreadsheet-style database operations' },
+        { id: 'gmail', name: 'Gmail', description: 'Read and send emails' },
+        { id: 'google-sheets', name: 'Google Sheets', description: 'Read/write spreadsheet data' },
+        { id: 'openrouter', name: 'OpenRouter', description: 'Access to 100+ AI models' },
+        { id: 'perplexity', name: 'Perplexity', description: 'AI-powered web search' },
+        { id: 'serp', name: 'SerpAPI', description: 'Google search results' },
+        { id: 'tavily', name: 'Tavily', description: 'AI search engine for research' },
+        { id: 'firecrawl', name: 'Firecrawl', description: 'Website scraping and crawling' },
+        { id: 'replicate', name: 'Replicate', description: 'Run AI models (image gen, etc)' },
+      ];
+
+      const installedIds = new Set(loadedSkills.map(s => s.manifest.id));
+      const notInstalled = registrySkills.filter(s => !installedIds.has(s.id));
+
+      // Build the system prompt for workflow generation
+      const systemPrompt = `You are an expert AI agent designer. Your task is to convert natural language descriptions into structured AI agent workflows.
+
+AVAILABLE SKILLS (already installed):
+${availableTools.map(s => `- ${s.id}: ${s.name} (${s.tools.join(', ')})`).join('\n')}
+
+AVAILABLE SKILLS (can be installed from registry):
+${notInstalled.map(s => `- ${s.id}: ${s.name} - ${s.description}`).join('\n')}
+
+When analyzing the user's request:
+1. Check if existing installed skills can fulfill the need
+2. If a needed skill exists in the registry but isn't installed, suggest installing it
+3. If no existing or registry skill fits, design a new custom skill with tools/actions
+
+Generate a complete agent configuration with:
+1. A clear name for the agent
+2. A concise description
+3. A workflow with 2-5 logical steps (llm, skill, shell types)
+4. Suggested schedule (if time-based triggers mentioned)
+5. Agent memory: role, goals, personality, scratchpad content
+6. List of tools/skills that will be needed
+7. Skills to install from registry (if any)
+8. New custom skills to create (if no existing skill fits)
+
+Respond in JSON format:
+{
+  "name": "Agent Name",
+  "description": "What this agent does",
+  "steps": [
+    { "name": "Step name", "type": "llm|skill|shell", "prompt"?: "...", "skill"?: "skillId", "action"?: "actionName", "command"?: "shell command" }
+  ],
+  "schedule": "cron expression or null",
+  "role": "Agent's job title",
+  "goals": "Bullet list of goals",
+  "personality": "Communication style description",
+  "scratchpad": "Reference data and context",
+  "suggestedTools": ["tool1", "tool2"],
+  "installSkills": ["skill-id-1", "skill-id-2"],
+  "createSkills": [
+    {
+      "id": "custom-skill-id",
+      "name": "Skill Name",
+      "description": "What this skill does",
+      "tools": [
+        { "name": "toolName", "description": "What this tool does", "parameters": { "paramName": { "type": "string", "description": "param desc", "required": true } } }
+      ]
+    }
+  ]
+}`;
+
+      const client = createClient();
+      const model = getModelId();
+      
+      const response = await client.chat.completions.create({
+        model,
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: `Create an agent workflow for: ${description}` }
+        ],
+        response_format: { type: "json_object" },
+        temperature: 0.7,
+      });
+
+      const content = response.choices[0]?.message?.content;
+      if (!content) {
+        throw new Error("No response from AI");
+      }
+
+      const generated = JSON.parse(content);
+      
+      // Generate YAML from the steps
+      const yamlSteps = generated.steps.map((step: any) => {
+        const base = `  - name: ${step.name}\n    type: ${step.type}`;
+        if (step.type === 'llm' && step.prompt) {
+          return `${base}\n    prompt: |\n${step.prompt.split('\n').map((l: string) => `      ${l}`).join('\n')}`;
+        }
+        if (step.type === 'skill' && step.skill) {
+          return `${base}\n    skill: ${step.skill}\n    action: ${step.action || 'default'}`;
+        }
+        if (step.type === 'shell' && step.command) {
+          return `${base}\n    command: ${step.command}`;
+        }
+        return base;
+      }).join('\n');
+
+      const yaml = [
+        `name: "${generated.name}"`,
+        `description: "${generated.description}"`,
+        generated.schedule ? `schedule: "${generated.schedule}"` : '',
+        `steps:`,
+        yamlSteps,
+      ].filter(Boolean).join('\n') + '\n';
+
+      return c.json({
+        ...generated,
+        yaml,
+      });
+    } catch (err: any) {
+      console.error("Failed to generate workflow:", err);
+      return c.json({ error: err.message || "Failed to generate workflow" }, 500);
+    }
+  });
+
   app.patch("/api/agents/:id", async (c) => {
     const agent = getAgent(c.req.param("id"));
     if (!agent) return c.json({ error: "Agent not found" }, 404);
@@ -471,6 +620,104 @@ export function registerAgentRoutes(app: Hono) {
     const runs = getLatestRuns(agent.id, 1);
     if (runs.length === 0) return c.json({ error: "No runs" }, 404);
     return c.json({ recap: runs[0].recap || null, run: runs[0] });
+  });
+
+  // --- Skills: Install from registry ---
+  app.post("/api/skills/install", async (c) => {
+    const body = await c.req.json().catch(() => ({}));
+    const { skillId } = body as { skillId?: string };
+    
+    if (!skillId) {
+      return c.json({ error: "skillId is required" }, 400);
+    }
+
+    try {
+      // Import the skill installer
+      const { installSkill } = await import("../../skills/installer.js");
+      await installSkill(skillId);
+      return c.json({ success: true, skillId });
+    } catch (err: any) {
+      console.error(`Failed to install skill ${skillId}:`, err);
+      return c.json({ error: err.message || "Failed to install skill" }, 500);
+    }
+  });
+
+  // --- Skills: Create custom skill ---
+  app.post("/api/skills/create", async (c) => {
+    const body = await c.req.json().catch(() => ({}));
+    const { id, name, description, tools } = body as {
+      id?: string;
+      name?: string;
+      description?: string;
+      tools?: Array<{
+        name: string;
+        description: string;
+        parameters?: Record<string, any>;
+      }>;
+    };
+    
+    if (!id || !name) {
+      return c.json({ error: "id and name are required" }, 400);
+    }
+
+    try {
+      const skillsDir = path.join(ensureKaiDir(), "skills");
+      if (!fs.existsSync(skillsDir)) {
+        fs.mkdirSync(skillsDir, { recursive: true });
+      }
+
+      const skillDir = path.join(skillsDir, id);
+      if (fs.existsSync(skillDir)) {
+        return c.json({ error: `Skill ${id} already exists` }, 409);
+      }
+
+      fs.mkdirSync(skillDir, { recursive: true });
+
+      // Create skill.yaml manifest
+      const manifest = {
+        id,
+        name,
+        description: description || `Custom skill: ${name}`,
+        version: "1.0.0",
+        tools: tools?.map(t => ({
+          name: t.name,
+          description: t.description,
+          parameters: t.parameters || {},
+        })) || [],
+      };
+
+      fs.writeFileSync(
+        path.join(skillDir, "skill.yaml"),
+        YAML.stringify(manifest)
+      );
+
+      // Create basic handler.js template
+      const handlerCode = `// Custom skill: ${name}
+// Generated by AI agent workflow
+
+export default {
+  actions: {
+${tools?.map(t => `    // ${t.description}
+    ${t.name}: async (params, config) => {
+      // Implement your tool logic here
+      return \`Executed ${t.name} with: \${JSON.stringify(params)}\`;
+    },`).join('\n') || ''}
+  }
+};
+`;
+
+      fs.writeFileSync(path.join(skillDir, "handler.js"), handlerCode);
+
+      return c.json({ 
+        success: true, 
+        skillId: id, 
+        path: skillDir,
+        message: `Skill ${name} created. Edit handler.js to implement your logic.`
+      });
+    } catch (err: any) {
+      console.error(`Failed to create skill ${id}:`, err);
+      return c.json({ error: err.message || "Failed to create skill" }, 500);
+    }
   });
 
   // --- Notifications ---
