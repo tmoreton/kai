@@ -60,7 +60,8 @@ export async function startServer(options: ServerOptions): Promise<void> {
   // Auto-approve tools in web mode (no readline available)
   setPermissionMode("auto");
 
-  // Initialize provider (with fallback check), MCP servers, and skills before any interaction
+  // Initialize provider, MCP servers, and skills (best effort)
+  // Provider init may fail if no API key — onboarding UI will handle this
   await Promise.allSettled([initProvider(), initMcpServers(), loadAllSkills()]);
 
   // Start agent daemon in-process if requested

@@ -31,19 +31,17 @@ type ProviderName = "fireworks" | "openrouter";
 
 /**
  * Get OpenRouter API key - required for Kai to function.
- * On first run, this will trigger onboarding.
+ * Returns empty string if not set (onboarding will handle it).
  */
 export function getOpenRouterKey(): string {
-  const key = process.env.OPENROUTER_API_KEY || "";
-  if (!key) {
-    console.error(chalk.red("\n  Error: OPENROUTER_API_KEY is not set."));
-    console.error(chalk.dim("  1. Get a free key at https://openrouter.ai/keys"));
-    console.error(chalk.dim("  2. Add it to your ~/.kai/.env file:"));
-    console.error(chalk.dim("     OPENROUTER_API_KEY=sk-or-...\n"));
-    console.error(chalk.dim("  Kai requires OpenRouter to function.\n"));
-    process.exit(1);
-  }
-  return key;
+  return process.env.OPENROUTER_API_KEY || "";
+}
+
+/**
+ * Check if OpenRouter API key is configured.
+ */
+export function hasOpenRouterKey(): boolean {
+  return !!process.env.OPENROUTER_API_KEY;
 }
 
 /**
