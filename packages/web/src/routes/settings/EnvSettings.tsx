@@ -24,9 +24,15 @@ export function EnvSettings() {
   const setMutation = useMutation({
     mutationFn: async ({ key, value }: { key: string; value: string }) => {
       await api.settings.setEnv(key, value);
-      // Reload provider if API key changed
+      // Reload provider if API key changed - wait for it to complete
       if (key === 'OPENROUTER_API_KEY' || key === 'FIREWORKS_API_KEY') {
-        await api.settings.reloadProvider();
+        try {
+          await api.settings.reloadProvider();
+          // Small delay to ensure provider is fully ready
+          await new Promise(r => setTimeout(r, 500));
+        } catch (e) {
+          console.error('Failed to reload provider:', e);
+        }
       }
     },
     onSuccess: (_, vars) => {
@@ -34,7 +40,7 @@ export function EnvSettings() {
       setNewKey("");
       setNewValue("");
       if (vars.key === 'OPENROUTER_API_KEY' || vars.key === 'FIREWORKS_API_KEY') {
-        toast.success('API key saved', 'Provider reloaded with new key');
+        toast.success('API key saved', 'Provider reloaded - ready to use!');
       } else {
         toast.success('Environment variable set');
       }

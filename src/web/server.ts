@@ -28,6 +28,7 @@ import { registerSessionRoutes } from "./routes/sessions.js";
 import { registerAgentRoutes } from "./routes/agents.js";
 import { registerSettingsRoutes } from "./routes/settings.js";
 import { registerChatRoutes } from "./routes/chat.js";
+import { registerTranscribeRoutes } from "./routes/transcribe.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // Serve the web app - try dist/public first (for npm install), fallback to packages/web/dist (dev)

@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
+import { useAudioRecorder } from './useAudioRecorder';
 
 // Type definitions for Web Speech API
 interface SpeechRecognitionEvent extends Event {
@@ -54,35 +55,49 @@ declare global {
   }
 }
 
+export type VoiceInputMode = 'speech-api' | 'audio-recorder' | null;
+
 export interface VoiceInputState {
   isListening: boolean;
   transcript: string;
   interimTranscript: string;
   isSupported: boolean;
   error: string | null;
+  mode: VoiceInputMode;
+  recordingTime: number;
 }
 
 export interface VoiceInputActions {
   startListening: () => void;
   stopListening: () => void;
   resetTranscript: () => void;
+  requestMicrophonePermission: () => Promise<boolean>;
 }
+
+const WHISPER_API_URL = '/api/transcribe';
 
 export function useVoiceInput(): VoiceInputState & VoiceInputActions {
   const [isListening, setIsListening] = useState(false);
   const [transcript, setTranscript] = useState('');
   const [interimTranscript, setInterimTranscript] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [mode, setMode] = useState<VoiceInputMode>(null);
   
   const recognitionRef = useRef<SpeechRecognition | null>(null);
+  const audioRecorder = useAudioRecorder();
 
   // Check for browser support
-  const isSupported = typeof window !== 'undefined' && 
+  const speechApiSupported = typeof window !== 'undefined' && 
     !!(window.SpeechRecognition || window.webkitSpeechRecognition);
+  
+  const mediaRecorderSupported = typeof window !== 'undefined' &&
+    !!navigator.mediaDevices?.getUserMedia;
+  
+  const isSupported = speechApiSupported || mediaRecorderSupported;
 
-  // Initialize recognition instance
+  // Initialize speech recognition if available
   useEffect(() => {
-    if (!isSupported) return;
+    if (!speechApiSupported) return;
 
     const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognitionAPI) return;
@@ -90,12 +105,13 @@ export function useVoiceInput(): VoiceInputState & VoiceInputActions {
     const recognition = new SpeechRecognitionAPI();
     recognition.continuous = true;
     recognition.interimResults = true;
-    recognition.lang = 'en-US'; // Default language, can be made configurable
+    recognition.lang = 'en-US';
     recognition.maxAlternatives = 1;
 
     recognition.onstart = () => {
       setIsListening(true);
       setError(null);
+      setMode('speech-api');
     };
 
     recognition.onend = () => {
@@ -123,6 +139,17 @@ export function useVoiceInput(): VoiceInputState & VoiceInputActions {
     };
 
     recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
+      // If permission denied, try audio recorder fallback
+      if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+        if (mediaRecorderSupported) {
+          // Fall back to audio recorder
+          setMode('audio-recorder');
+          setError(null);
+          // Don't set error - we'll try audio recorder
+          return;
+        }
+      }
+      
       let errorMessage = 'An error occurred with speech recognition';
       
       switch (event.error) {
@@ -135,14 +162,8 @@ export function useVoiceInput(): VoiceInputState & VoiceInputActions {
         case 'audio-capture':
           errorMessage = 'No microphone detected. Please check your audio settings.';
           break;
-        case 'not-allowed':
-          errorMessage = 'Microphone access denied. Please allow microphone permissions.';
-          break;
         case 'network':
           errorMessage = 'Network error occurred. Please check your connection.';
-          break;
-        case 'service-not-allowed':
-          errorMessage = 'Speech recognition service is not allowed.';
           break;
         case 'bad-grammar':
           errorMessage = 'Grammar error in speech recognition.';
@@ -156,11 +177,6 @@ export function useVoiceInput(): VoiceInputState & VoiceInputActions {
       
       setError(errorMessage);
       setIsListening(false);
-      
-      // Don't log permission errors as they're expected if user denies
-      if (event.error !== 'not-allowed' && event.error !== 'no-speech') {
-        console.error('Speech recognition error:', event.error, event.message);
-      }
     };
 
     recognitionRef.current = recognition;
@@ -174,49 +190,108 @@ export function useVoiceInput(): VoiceInputState & VoiceInputActions {
         }
       }
     };
-  }, [isSupported]);
+  }, [speechApiSupported, mediaRecorderSupported]);
+
+  // Handle audio recorder completion - transcribe with Whisper
+  useEffect(() => {
+    if (mode === 'audio-recorder' && audioRecorder.audioBlob) {
+      transcribeAudio(audioRecorder.audioBlob);
+    }
+  }, [audioRecorder.audioBlob, mode]);
+
+  const transcribeAudio = async (blob: Blob) => {
+    try {
+      setError(null);
+      
+      const formData = new FormData();
+      formData.append('audio', blob, 'recording.webm');
+      
+      const response = await fetch(WHISPER_API_URL, {
+        method: 'POST',
+        body: formData,
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Transcription failed: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      
+      if (data.text) {
+        setTranscript((prev) => prev + ' ' + data.text.trim());
+      }
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Transcription failed';
+      setError(`Transcription error: ${errorMsg}`);
+    }
+  };
+
+  const requestMicrophonePermission = useCallback(async (): Promise<boolean> => {
+    // Try audio recorder permission request first (most reliable)
+    const granted = await audioRecorder.requestPermission();
+    
+    if (granted) {
+      setError(null);
+    }
+    
+    return granted;
+  }, [audioRecorder]);
 
   const startListening = useCallback(() => {
-    if (!recognitionRef.current || !isSupported) {
-      setError('Speech recognition is not supported in this browser');
-      return;
-    }
-
     setError(null);
     setInterimTranscript('');
     
-    try {
-      recognitionRef.current.start();
-    } catch (err) {
-      // If already started, stop and restart
+    // Try Web Speech API first (faster, real-time)
+    if (speechApiSupported && recognitionRef.current && mode !== 'audio-recorder') {
       try {
-        recognitionRef.current.stop();
-        setTimeout(() => {
-          recognitionRef.current?.start();
-        }, 100);
-      } catch {
-        setError('Failed to start speech recognition');
+        recognitionRef.current.start();
+        return;
+      } catch (err) {
+        // If start fails, fall back to audio recorder
+        console.log('Speech API failed, falling back to audio recorder');
       }
     }
-  }, [isSupported]);
+    
+    // Fall back to audio recorder
+    if (mediaRecorderSupported) {
+      setMode('audio-recorder');
+      audioRecorder.startRecording();
+    } else {
+      setError('Voice input is not supported in this browser. Please use Chrome, Safari, or the desktop app.');
+    }
+  }, [speechApiSupported, mediaRecorderSupported, mode, audioRecorder]);
 
   const stopListening = useCallback(() => {
-    if (!recognitionRef.current) return;
-    
-    try {
-      recognitionRef.current.stop();
-    } catch {
-      // Ignore stop errors
+    if (mode === 'speech-api' && recognitionRef.current) {
+      try {
+        recognitionRef.current.stop();
+      } catch {
+        // Ignore stop errors
+      }
+    } else if (mode === 'audio-recorder') {
+      audioRecorder.stopRecording();
     }
+    
     setIsListening(false);
     setInterimTranscript('');
-  }, []);
+  }, [mode, audioRecorder]);
 
   const resetTranscript = useCallback(() => {
     setTranscript('');
     setInterimTranscript('');
     setError(null);
-  }, []);
+    audioRecorder.resetRecording();
+  }, [audioRecorder]);
+
+  // Sync listening state with audio recorder
+  useEffect(() => {
+    if (mode === 'audio-recorder') {
+      setIsListening(audioRecorder.isRecording);
+      if (audioRecorder.error && !error) {
+        setError(audioRecorder.error);
+      }
+    }
+  }, [mode, audioRecorder.isRecording, audioRecorder.error, error]);
 
   return {
     isListening,
@@ -224,8 +299,11 @@ export function useVoiceInput(): VoiceInputState & VoiceInputActions {
     interimTranscript,
     isSupported,
     error,
+    mode,
+    recordingTime: audioRecorder.recordingTime,
     startListening,
     stopListening,
     resetTranscript,
+    requestMicrophonePermission,
   };
 }

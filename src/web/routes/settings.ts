@@ -418,6 +418,12 @@ export function registerSettingsRoutes(app: Hono) {
   // --- Provider Reload (for API key changes) ---
   app.post("/api/settings/reload-provider", async (c) => {
     try {
+      // Re-read env file to ensure process.env is up to date
+      const vars = readEnvFile();
+      for (const [k, v] of Object.entries(vars)) {
+        process.env[k] = v;
+      }
+      
       const { reloadProvider } = await import("../../client.js");
       await reloadProvider();
       return c.json({ ok: true });
@@ -529,24 +535,14 @@ export function registerSettingsRoutes(app: Hono) {
       fs.mkdirSync(wrapperDir, { recursive: true });
       fs.writeFileSync(wrapperPath, wrapper, { mode: 0o755 });
       
-      // Try to remove existing symlink (might be broken or need sudo)
-      let needsSudo = false;
-      try { 
-        fs.unlinkSync(CLI_SYMLINK_PATH); 
-      } catch (err: any) {
-        if (err.code === "EACCES" || err.code === "EPERM") {
-          needsSudo = true;
-        }
-        // If it's a broken symlink, we might still be able to overwrite it
-        try {
-          fs.rmSync(CLI_SYMLINK_PATH, { force: true });
-        } catch {}
-      }
+      // Try to remove existing symlink (might be broken or need sudo) - silently ignore errors
+      try { fs.unlinkSync(CLI_SYMLINK_PATH); } catch {}
+      try { fs.rmSync(CLI_SYMLINK_PATH, { force: true }); } catch {}
       
       try {
         fs.symlinkSync(wrapperPath, CLI_SYMLINK_PATH);
       } catch (err: any) {
-        if (err.code === "EACCES" || err.code === "EPERM" || needsSudo) {
+        if (err.code === "EACCES" || err.code === "EPERM") {
           return c.json({ 
             error: "Permission denied. Try running: sudo ln -sf ~/.kai/bin/kai /usr/local/bin/kai", 
             needsSudo: true 

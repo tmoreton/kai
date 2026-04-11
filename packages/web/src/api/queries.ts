@@ -7,10 +7,18 @@ import { api } from './client';
 
 // Default stale times by data criticality
 const STALE_TIMES = {
-  critical: 30000,    // 30s - chat sessions, current messages
-  frequent: 60000,   // 1m - agent lists, notifications
-  standard: 5 * 60000, // 5m - settings, personas
-  static: 30 * 60000, // 30m - model info, core status
+  critical: 5000,     // 5s - chat sessions, current messages
+  frequent: 10000,    // 10s - agent lists, notifications
+  standard: 30000,    // 30s - settings, personas
+  static: 60000,      // 1m - model info, core status
+} as const;
+
+// Auto-refresh intervals for real-time data
+const REFETCH_INTERVALS = {
+  critical: 5000,     // 5s - very frequent
+  frequent: 10000,    // 10s - frequent
+  standard: 30000,    // 30s - standard
+  static: 60000,      // 1m - static
 } as const;
 
 // Default retry configuration
@@ -34,6 +42,7 @@ export const sessionsQueries = {
       queryKey: [...sessionsQueries.all(), type ?? 'all'],
       queryFn: () => api.sessions.list(type),
       staleTime: STALE_TIMES.frequent,
+      refetchInterval: REFETCH_INTERVALS.frequent,
       ...defaultRetryConfig,
     }),
 
@@ -41,12 +50,13 @@ export const sessionsQueries = {
     queryOptions({
       queryKey: [...sessionsQueries.all(), id],
       queryFn: () => api.sessions.get(id),
-      staleTime: STALE_TIMES.critical, // Chat data changes frequently but don't over-fetch
+      staleTime: STALE_TIMES.critical,
+      refetchInterval: REFETCH_INTERVALS.critical,
       ...defaultRetryConfig,
     }),
 };
 
-// Projects
+// Projects - auto-refresh for new folders
 export const projectsQueries = {
   all: () => ['projects'] as const,
 
@@ -54,7 +64,8 @@ export const projectsQueries = {
     queryOptions({
       queryKey: projectsQueries.all(),
       queryFn: () => api.projects.list(),
-      staleTime: STALE_TIMES.standard,
+      staleTime: STALE_TIMES.frequent,
+      refetchInterval: REFETCH_INTERVALS.frequent,
       ...defaultRetryConfig,
     }),
 };
@@ -68,7 +79,7 @@ export const agentsQueries = {
       queryKey: agentsQueries.all(),
       queryFn: () => api.agents.list(),
       staleTime: STALE_TIMES.frequent,
-      // Removed: refetchInterval - rely on manual invalidation instead of polling
+      refetchInterval: REFETCH_INTERVALS.frequent,
       ...defaultRetryConfig,
     }),
 
@@ -103,6 +114,7 @@ export const agentsQueries = {
       queryKey: [...agentsQueries.all(), id, 'logs', limit],
       queryFn: () => api.agents.getLogs(id, limit),
       staleTime: STALE_TIMES.frequent,
+      refetchInterval: REFETCH_INTERVALS.frequent,
       ...defaultRetryConfig,
     }),
 
@@ -127,6 +139,7 @@ export const agentsQueries = {
       queryKey: [...agentsQueries.all(), id, 'interrupted'],
       queryFn: () => api.agents.getInterruptedRuns(id),
       staleTime: STALE_TIMES.frequent,
+      refetchInterval: REFETCH_INTERVALS.frequent,
       ...defaultRetryConfig,
     }),
 
@@ -135,6 +148,7 @@ export const agentsQueries = {
       queryKey: [...agentsQueries.all(), agentId, 'runs', runId, 'checkpoint'],
       queryFn: () => api.agents.getCheckpointStatus(agentId, runId),
       staleTime: STALE_TIMES.frequent,
+      refetchInterval: REFETCH_INTERVALS.frequent,
       ...defaultRetryConfig,
     }),
 };
@@ -148,8 +162,7 @@ export const notificationsQueries = {
       queryKey: [...notificationsQueries.all(), limit],
       queryFn: () => api.notifications.list(limit),
       staleTime: STALE_TIMES.frequent,
-      // Removed: refetchInterval - notifications should use WebSocket or manual refresh
-      // to avoid polling overhead
+      refetchInterval: REFETCH_INTERVALS.frequent,
       ...defaultRetryConfig,
     }),
 };
@@ -187,6 +200,7 @@ export const settingsQueries = {
       queryKey: [...settingsQueries.all(), 'env'],
       queryFn: () => api.settings.getEnv(),
       staleTime: STALE_TIMES.standard,
+      refetchInterval: REFETCH_INTERVALS.standard,
       ...defaultRetryConfig,
     }),
 
