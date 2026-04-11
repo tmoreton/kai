@@ -358,9 +358,9 @@ export function Sidebar() {
         <button
           onClick={async () => {
             try {
-              await open('https://kai-docs-three.vercel.app/');
+              await open('https://kaiskills.com');
             } catch {
-              window.open('https://kai-docs-three.vercel.app/', '_blank');
+              window.open('https://kaiskills.com', '_blank');
             }
           }}
           className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors w-full text-left"
