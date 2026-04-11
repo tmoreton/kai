@@ -28,6 +28,7 @@ import { registerSessionRoutes } from "./routes/sessions.js";
 import { registerAgentRoutes } from "./routes/agents.js";
 import { registerSettingsRoutes } from "./routes/settings.js";
 import { registerChatRoutes } from "./routes/chat.js";
+import { registerAgentChatRoutes } from "./routes/agent-chat.js";
 import { registerTranscribeRoutes } from "./routes/transcribe.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -142,6 +143,7 @@ export async function startServer(options: ServerOptions): Promise<void> {
   registerAgentRoutes(app);
   registerSettingsRoutes(app);
   registerChatRoutes(app);
+  registerAgentChatRoutes(app);
 
   // --- Serve local images ---
   app.get("/api/image", (c) => {

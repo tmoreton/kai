@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useSuspenseQuery, useQueryClient } from "@tanstack/react-query";
-import { Server, Puzzle, Key, Brain, FileText, Terminal, RotateCcw, AlertCircle, Shield } from "lucide-react";
+import { Server, Puzzle, Key, Brain, Terminal, RotateCcw, AlertCircle, Shield } from "lucide-react";
 import { settingsQueries } from "../api/queries";
 import { ApiError, NetworkError, TimeoutError, settingsApi } from "../api/client";
 import { cn } from "../lib/utils";
@@ -9,12 +9,11 @@ import { Button } from "../components/ui/button";
 import { McpSettings } from "./settings/McpSettings";
 import { SkillsSettings } from "./settings/SkillsSettings";
 import { EnvSettings } from "./settings/EnvSettings";
-import { SoulSettings } from "./settings/SoulSettings";
-import { ContextSettings } from "./settings/ContextSettings";
+import { MemorySettings } from "./settings/MemorySettings";
 import { CliSettings } from "./settings/CliSettings";
 import { VpnSettings } from "./settings/VpnSettings";
 
-type TabType = 'skills' | 'mcp' | 'env' | 'soul' | 'context' | 'cli' | 'vpn';
+type TabType = 'skills' | 'mcp' | 'env' | 'memory' | 'cli' | 'vpn';
 
 interface SettingsErrorState {
   message: string;
@@ -121,11 +120,8 @@ export function SettingsView() {
             <span className="hidden sm:inline">Environment</span>
             <span className="sm:hidden">Env</span>
           </TabButton>
-          <TabButton active={activeTab === 'soul'} onClick={() => setActiveTab('soul')} icon={<Brain className="w-4 h-4" />}>
-            Soul
-          </TabButton>
-          <TabButton active={activeTab === 'context'} onClick={() => setActiveTab('context')} icon={<FileText className="w-4 h-4" />}>
-            Context
+          <TabButton active={activeTab === 'memory'} onClick={() => setActiveTab('memory')} icon={<Brain className="w-4 h-4" />}>
+            Memory
           </TabButton>
           <TabButton active={activeTab === 'cli'} onClick={() => setActiveTab('cli')} icon={<Terminal className="w-4 h-4" />}>
             CLI
@@ -139,8 +135,7 @@ export function SettingsView() {
           {activeTab === 'mcp' && <McpSettings />}
           {activeTab === 'skills' && <SkillsSettings />}
           {activeTab === 'env' && <EnvSettings />}
-          {activeTab === 'soul' && <SoulSettings />}
-          {activeTab === 'context' && <ContextSettings />}
+          {activeTab === 'memory' && <MemorySettings />}
           {activeTab === 'cli' && <CliSettings />}
           {activeTab === 'vpn' && <VpnSettingsTab />}
         </div>

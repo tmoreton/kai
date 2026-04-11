@@ -297,6 +297,88 @@ export const chatApi = {
   },
 };
 
+// Agent streaming chat - same capabilities as main chat
+export async function* streamAgentChat(
+  agentId: string,
+  request: ChatRequest,
+  signal?: AbortSignal
+): AsyncGenerator<{
+  event: string;
+  data: unknown;
+}> {
+  const timeoutMs = 120000; // 2 minutes for streaming
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  // Combine external signal with our controller
+  if (signal) {
+    signal.addEventListener('abort', () => controller.abort());
+  }
+
+  try {
+    const response = await fetch(`${API_BASE}/agents/${agentId}/stream-chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(request),
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      const text = await response.text();
+      throw new ApiError(text || response.statusText, response.status);
+    }
+
+    if (!response.body) {
+      throw new Error('No response body');
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      let currentEvent: string | null = null;
+      for (const line of lines) {
+        if (line.startsWith('event: ')) {
+          currentEvent = line.substring(7).trim();
+        } else if (line.startsWith('data: ') && currentEvent) {
+          try {
+            const data = JSON.parse(line.substring(6));
+            yield { event: currentEvent, data };
+          } catch {
+            yield { event: currentEvent, data: line.substring(6) };
+          }
+        }
+      }
+    }
+  } catch (error) {
+    clearTimeout(timeoutId);
+    
+    if (error instanceof ApiError) {
+      throw error;
+    }
+    
+    if (controller.signal.aborted) {
+      throw new TimeoutError(timeoutMs);
+    }
+    
+    if (error instanceof TypeError) {
+      throw new NetworkError('Connection lost during streaming. Please try again.');
+    }
+    
+    throw error;
+  }
+}
+
 // Streaming chat using fetch with ReadableStream
 export async function* streamChat(
   request: ChatRequest,
@@ -538,6 +620,25 @@ export const agentsApi = {
     return fetchJson(`${API_BASE}/agents/${id}/chat`, {
       method: 'POST',
       body: JSON.stringify({ message, attachments }),
+    });
+  },
+
+  // New streaming chat that matches main chat capabilities
+  streamChat: (
+    id: string,
+    request: ChatRequest,
+    signal?: AbortSignal
+  ): AsyncGenerator<{
+    event: string;
+    data: unknown;
+  }> => {
+    return streamAgentChat(id, request, signal);
+  },
+
+  stopStreaming: (id: string, sessionId: string): Promise<{ stopped: boolean }> => {
+    return fetchJson(`${API_BASE}/agents/${id}/chat/stop`, {
+      method: 'POST',
+      body: JSON.stringify({ sessionId }),
     });
   },
 };
