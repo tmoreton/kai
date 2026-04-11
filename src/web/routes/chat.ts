@@ -405,11 +405,11 @@ async function chatForWeb(
         continue;
       }
 
-      const resultStr = await executeTool(toolName, args);
+      const resultStr = await executeTool(toolName, args, tc.id);
 
-      const { getLastDiff } = await import("../../tools/files.js");
+      const { getDiffForToolCall } = await import("../../tools/files.js");
       const isFileOp = toolName === "write_file" || toolName === "edit_file";
-      const diff = isFileOp ? getLastDiff() : "";
+      const diff = isFileOp ? getDiffForToolCall(tc.id) : "";
 
       const contextCharLimit = TOOL_OUTPUT_CONTEXT_LIMIT * 4;
       let contextContent = resultStr;

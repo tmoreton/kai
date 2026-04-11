@@ -151,18 +151,37 @@ async function parseDocument(filePath: string, ext: string, sizeKB: number): Pro
   return text;
 }
 
-// Store the last diff for display by the client
-let _lastDiff = "";
-export function getLastDiff(): string {
-  const d = _lastDiff;
-  _lastDiff = "";
-  return d;
+// Track diffs per tool call ID to handle multiple file operations
+const _diffs = new Map<string, string>();
+
+export function setDiffForToolCall(toolCallId: string, diff: string): void {
+  _diffs.set(toolCallId, diff);
 }
 
-export async function writeFile(args: {
-  file_path: string;
-  content: string;
-}): Promise<string> {
+export function getDiffForToolCall(toolCallId: string): string {
+  const diff = _diffs.get(toolCallId) || "";
+  _diffs.delete(toolCallId);
+  return diff;
+}
+
+// Legacy support for single-diff access
+export function getLastDiff(): string {
+  // Returns the most recent diff for backward compatibility
+  // Note: This only works reliably when there's one file operation
+  const entries = Array.from(_diffs.entries());
+  if (entries.length === 0) return "";
+  const [lastKey, lastDiff] = entries[entries.length - 1];
+  _diffs.delete(lastKey);
+  return lastDiff;
+}
+
+export async function writeFile(
+  args: {
+    file_path: string;
+    content: string;
+  },
+  toolCallId?: string
+): Promise<string> {
   if (!args.file_path) {
     return "Error: file_path is required for write_file.";
   }
@@ -187,7 +206,10 @@ export async function writeFile(args: {
 
     // Generate diff for display
     const relativePath = path.relative(getCwd(), fullPath) || fullPath;
-    _lastDiff = generateDiff(relativePath, oldContent, args.content);
+    const diff = generateDiff(relativePath, oldContent, args.content);
+    if (diff && toolCallId) {
+      setDiffForToolCall(toolCallId, diff);
+    }
 
     return `File written successfully: ${fullPath}`;
   } catch (err: unknown) {
@@ -196,12 +218,15 @@ export async function writeFile(args: {
   }
 }
 
-export async function editFile(args: {
-  file_path: string;
-  old_string: string;
-  new_string: string;
-  replace_all?: boolean;
-}): Promise<string> {
+export async function editFile(
+  args: {
+    file_path: string;
+    old_string: string;
+    new_string: string;
+    replace_all?: boolean;
+  },
+  toolCallId?: string
+): Promise<string> {
   const fullPath = resolvePath(args.file_path);
 
   try {
@@ -227,7 +252,10 @@ export async function editFile(args: {
 
     // Generate diff for display
     const relativePath = path.relative(getCwd(), fullPath) || fullPath;
-    _lastDiff = generateDiff(relativePath, oldContent, newContent);
+    const diff = generateDiff(relativePath, oldContent, newContent);
+    if (diff && toolCallId) {
+      setDiffForToolCall(toolCallId, diff);
+    }
 
     return `File edited successfully: ${fullPath}`;
   } catch (err: unknown) {

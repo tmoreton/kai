@@ -22,7 +22,7 @@ import {
 } from "./constants.js";
 import { backoffDelay, sleep } from "./utils.js";
 import { resolveProvider, resolveProviderWithFallback, type ResolvedProvider } from "./providers/index.js";
-import { getLastDiff } from "./tools/files.js";
+import { getLastDiff, getDiffForToolCall } from "./tools/files.js";
 import { renderColorDiff } from "./diff.js";
 import { isToolAllowedInPlanMode } from "./plan-mode.js";
 import { startSpinner, stopSpinner } from "./render/stream.js";
@@ -650,7 +650,7 @@ export async function chat(
       for (let batch = 0; batch < deduped.length; batch += MAX_PARALLEL) {
         const slice = deduped.slice(batch, batch + MAX_PARALLEL);
         const batchResults = await Promise.allSettled(
-          slice.map((p) => executeTool(p.toolName, p.args))
+          slice.map((p) => executeTool(p.toolName, p.args, p.tc.id))
         );
         dedupedResults.push(...batchResults);
       }
@@ -805,7 +805,7 @@ export async function chat(
           : null;
 
         trackToolMetadata(p.toolName, p.args);
-        const resultStr: string = await executeTool(p.toolName, p.args);
+        const resultStr: string = await executeTool(p.toolName, p.args, p.tc.id);
 
         if (toolSpinner) {
           stopSpinner(toolSpinner, null);
@@ -813,7 +813,7 @@ export async function chat(
 
         // Display tool output — show diff for file operations
         const isFileOp = p.toolName === "write_file" || p.toolName === "edit_file";
-        const diff = isFileOp ? getLastDiff() : "";
+        const diff = isFileOp ? getDiffForToolCall(p.tc.id) : "";
 
         if (diff) {
           console.log(chalk.gray(`    ⎿  ${resultStr}`));

@@ -202,7 +202,8 @@ async function attemptToolSelfHeal(
 
 export async function executeTool(
   name: string,
-  args: Record<string, unknown>
+  args: Record<string, unknown>,
+  toolCallId?: string
 ): Promise<ToolResult> {
   // Plan mode check - block write operations
   if (!isToolAllowedInPlanMode(name)) {
@@ -249,9 +250,9 @@ export async function executeTool(
       case "read_file":
         return await readFile(toolArgs as { file_path: string; offset?: number; limit?: number });
       case "write_file":
-        return await writeFile(toolArgs as { file_path: string; content: string });
+        return await writeFile(toolArgs as { file_path: string; content: string }, toolCallId);
       case "edit_file":
-        return await editFile(toolArgs as { file_path: string; old_string: string; new_string: string; replace_all?: boolean });
+        return await editFile(toolArgs as { file_path: string; old_string: string; new_string: string; replace_all?: boolean }, toolCallId);
       case "glob":
         return await globTool(toolArgs as { pattern: string; path?: string });
       case "grep":
