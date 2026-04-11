@@ -590,7 +590,7 @@ export const settingsApi = {
     return fetchJson(`${API_BASE}/settings`);
   },
 
-  update: (updates: { autoCompact?: boolean; maxTokens?: number }): Promise<{ ok: boolean }> => {
+  update: (updates: { autoCompact?: boolean; maxTokens?: number; profile?: { name?: string; role?: string; context?: string } }): Promise<{ ok: boolean }> => {
     return fetchJson(`${API_BASE}/settings`, {
       method: 'PATCH',
       body: JSON.stringify(updates),

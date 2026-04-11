@@ -85,10 +85,18 @@ export function registerSettingsRoutes(app: Hono) {
   app.patch("/api/settings", async (c) => {
     try {
       const updates = await c.req.json();
-      const allowed: Record<string, any> = {};
-      if ("autoCompact" in updates) allowed.autoCompact = updates.autoCompact;
-      if ("maxTokens" in updates) allowed.maxTokens = updates.maxTokens;
-      saveUserConfig(allowed);
+      const config = readUserConfig();
+      
+      // Allow profile updates
+      if (updates.profile) {
+        config.profile = { ...config.profile, ...updates.profile };
+      }
+      
+      // Other config updates
+      if ("autoCompact" in updates) config.autoCompact = updates.autoCompact;
+      if ("maxTokens" in updates) config.maxTokens = updates.maxTokens;
+      
+      saveUserConfig(config);
       return c.json({ ok: true });
     } catch (err: any) {
       return c.json({ error: err.message }, 400);
@@ -125,6 +133,48 @@ export function registerSettingsRoutes(app: Hono) {
       return c.json({ ok: true });
     } catch (err: any) {
       return c.json({ error: err.message }, 400);
+    }
+  });
+
+  // --- Environment variable management ---
+  app.post("/api/settings/env", async (c) => {
+    try {
+      const { key, value } = await c.req.json();
+      if (!key || value === undefined) {
+        return c.json({ error: "key and value are required" }, 400);
+      }
+      
+      // Save to ~/.kai/.env
+      const envPath = path.resolve(process.env.HOME || "~", ".kai/.env");
+      let envContent = "";
+      try {
+        if (fs.existsSync(envPath)) {
+          envContent = fs.readFileSync(envPath, "utf-8");
+        }
+      } catch {}
+      
+      // Update or add the key
+      const lines = envContent.split("\n");
+      let found = false;
+      const newLines = lines.map(line => {
+        if (line.startsWith(`${key}=`)) {
+          found = true;
+          return `${key}=${value}`;
+        }
+        return line;
+      });
+      if (!found) {
+        newLines.push(`${key}=${value}`);
+      }
+      
+      fs.writeFileSync(envPath, newLines.join("\n"), "utf-8");
+      
+      // Also update current process env for immediate use
+      process.env[key] = value;
+      
+      return c.json({ ok: true });
+    } catch (err: any) {
+      return c.json({ error: err.message }, 500);
     }
   });
 

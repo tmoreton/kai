@@ -43,6 +43,16 @@ export interface KaiConfig {
   // Provider endpoints (defaults used if omitted)
   fireworksBaseUrl?: string;
   openrouterBaseUrl?: string;
+  
+  /** User profile for personalization */
+  profile?: {
+    /** User's name */
+    name?: string;
+    /** What the user does (e.g., "Full-stack developer", "Data scientist") */
+    role?: string;
+    /** Current project context */
+    context?: string;
+  };
 }
 
 const CONFIG_PATHS = [
