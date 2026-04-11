@@ -434,12 +434,23 @@ export function registerSettingsRoutes(app: Hono) {
   });
 
   // --- Soul/Memory File Editing ---
+  // Single file format: ~/.kai/soul/identity.json (plain text with ## headers)
   const SOUL_DIR = path.resolve(process.env.HOME || "~", ".kai/soul");
 
   app.get("/api/settings/soul", (c) => {
     try {
+      const { loadSoul } = require("../../soul.js");
+      const soul = loadSoul();
       const soulPath = path.join(SOUL_DIR, "identity.json");
-      const content = fs.existsSync(soulPath) ? fs.readFileSync(soulPath, "utf-8") : JSON.stringify({ persona: { content: "" }, human: { content: "" } }, null, 2);
+      
+      // Build plain text content from soul object
+      const parts: string[] = [];
+      if (soul.personality?.content) parts.push(`## Personality\n${soul.personality.content}`);
+      if (soul.goals?.content) parts.push(`## Goals\n${soul.goals.content}`);
+      if (soul.human?.content) parts.push(`## Human\n${soul.human.content}`);
+      if (soul.scratchpad?.content) parts.push(`## Scratchpad\n${soul.scratchpad.content}`);
+      const content = parts.join("\n\n") || "## Personality\n\n## Goals\n\n## Human\n\n## Scratchpad";
+      
       return c.json({ content, path: soulPath });
     } catch (err: any) {
       return c.json({ error: err.message }, 500);
@@ -450,32 +461,63 @@ export function registerSettingsRoutes(app: Hono) {
     try {
       const { content } = await c.req.json();
       if (content === undefined) return c.json({ error: "content is required" }, 400);
-      const soulPath = path.join(SOUL_DIR, "identity.json");
-      fs.mkdirSync(SOUL_DIR, { recursive: true });
-      fs.writeFileSync(soulPath, content, "utf-8");
+      
+      const { saveSoul, loadSoul } = require("../../soul.js");
+      const soul = loadSoul();
+      
+      // Parse the plain text content and update soul
+      const lines = content.split("\n");
+      let currentSection = "";
+      let currentContent: string[] = [];
+      
+      for (const line of lines) {
+        const headerMatch = line.match(/^##?\s*(\w+)$/);
+        if (headerMatch) {
+          if (currentSection && currentContent.length > 0) {
+            const sectionKey = currentSection.toLowerCase() as keyof typeof soul;
+            if (soul[sectionKey]) {
+              soul[sectionKey].content = currentContent.join("\n").trim();
+            }
+          }
+          currentSection = headerMatch[1].toLowerCase();
+          currentContent = [];
+        } else if (currentSection) {
+          currentContent.push(line);
+        }
+      }
+      
+      // Don't forget the last section
+      if (currentSection && currentContent.length > 0) {
+        const sectionKey = currentSection.toLowerCase() as keyof typeof soul;
+        if (soul[sectionKey]) {
+          soul[sectionKey].content = currentContent.join("\n").trim();
+        }
+      }
+      
+      saveSoul(soul);
       return c.json({ ok: true });
     } catch (err: any) {
       return c.json({ error: err.message }, 500);
     }
   });
 
+  // Deprecated: Context is now part of soul file
   app.get("/api/settings/context", async (c) => {
     try {
-      const { getProjectId, ensureProjectDir, ensureGlobalDir } = await import("../../project.js");
-      const projectId = getProjectId();
-      const isGlobal = projectId === "__global__";
-      const globalDir = ensureGlobalDir("soul");
-      const globalPath = path.join(globalDir, "context.json");
-      let hasProjectContext = false;
-      let projectPath = "";
-      if (!isGlobal) {
-        const projectDir = ensureProjectDir("soul", projectId);
-        projectPath = path.join(projectDir, "context.json");
-        hasProjectContext = fs.existsSync(projectPath);
-      }
-      const activePath = hasProjectContext ? projectPath : globalPath;
-      const content = fs.existsSync(activePath) ? fs.readFileSync(activePath, "utf-8") : "{}";
-      return c.json({ content, path: activePath, hasProjectContext, globalPath });
+      const { loadSoul } = require("../../soul.js");
+      const soul = loadSoul();
+      const soulPath = path.join(SOUL_DIR, "identity.json");
+      
+      // Return goals+scratchpad as "context" for backwards compatibility
+      const contextContent = `## Goals\n${soul.goals.content}\n\n## Scratchpad\n${soul.scratchpad.content}`;
+      
+      return c.json({ 
+        content: contextContent, 
+        path: soulPath, 
+        hasProjectContext: false, 
+        globalPath: soulPath,
+        isProject: false 
+      });
     } catch (err: any) {
       return c.json({ error: err.message }, 500);
     }
@@ -483,35 +525,42 @@ export function registerSettingsRoutes(app: Hono) {
 
   app.put("/api/settings/context", async (c) => {
     try {
-      const { content, scope } = await c.req.json();
+      const { content } = await c.req.json();
       if (content === undefined) return c.json({ error: "content is required" }, 400);
-      const { getProjectId, ensureProjectDir, ensureGlobalDir } = await import("../../project.js");
-      const projectId = getProjectId();
-      const targetDir = scope === "project" && projectId !== "__global__"
-        ? ensureProjectDir("soul", projectId)
-        : ensureGlobalDir("soul");
-      const targetPath = path.join(targetDir, "context.json");
-      fs.mkdirSync(targetDir, { recursive: true });
-      fs.writeFileSync(targetPath, content, "utf-8");
-      return c.json({ ok: true, path: targetPath });
-    } catch (err: any) {
-      return c.json({ error: err.message }, 500);
-    }
-  });
-
-  app.delete("/api/settings/context", async (c) => {
-    try {
-      const { getProjectId, ensureProjectDir } = await import("../../project.js");
-      const projectId = getProjectId();
-      if (projectId === "__global__") {
-        return c.json({ error: "Cannot delete global context" }, 400);
+      
+      const { saveSoul, loadSoul } = require("../../soul.js");
+      const soul = loadSoul();
+      
+      // Parse goals/scratchpad from plain text and update
+      const lines = content.split("\n");
+      let currentSection = "";
+      let currentContent: string[] = [];
+      
+      for (const line of lines) {
+        const headerMatch = line.match(/^##?\s*(\w+)$/);
+        if (headerMatch) {
+          if (currentSection && currentContent.length > 0) {
+            const sectionKey = currentSection.toLowerCase();
+            if (sectionKey === "goals" || sectionKey === "scratchpad") {
+              soul[sectionKey].content = currentContent.join("\n").trim();
+            }
+          }
+          currentSection = headerMatch[1].toLowerCase();
+          currentContent = [];
+        } else if (currentSection) {
+          currentContent.push(line);
+        }
       }
-      const projectDir = ensureProjectDir("soul", projectId);
-      const projectPath = path.join(projectDir, "context.json");
-      if (fs.existsSync(projectPath)) {
-        fs.unlinkSync(projectPath);
+      
+      if (currentSection) {
+        const sectionKey = currentSection.toLowerCase();
+        if (sectionKey === "goals" || sectionKey === "scratchpad") {
+          soul[sectionKey].content = currentContent.join("\n").trim();
+        }
       }
-      return c.json({ ok: true });
+      
+      saveSoul(soul);
+      return c.json({ ok: true, path: path.join(SOUL_DIR, "identity.json") });
     } catch (err: any) {
       return c.json({ error: err.message }, 500);
     }

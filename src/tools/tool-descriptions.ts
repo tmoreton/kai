@@ -33,7 +33,7 @@ export const RICH_TOOL_DESCRIPTIONS: Record<string, string> = {
   agent_create: "Define, create new custom persona agents with persistent identity, goals, and memory. Build specialist agents for specific domains like marketing, analytics, devops. Agents remember context across sessions.",
 
   // Memory - enhanced with specific use cases
-  core_memory_read: "Read, view persistent memory blocks. Access stored information about: persona (AI identity), human (user preferences and facts), goals (current objectives), scratchpad (working notes). Always loaded in context.",
+  core_memory_read: "Read, view persistent memory blocks. Access stored information about: personality (AI identity), human (user preferences and facts), goals (current objectives), scratchpad (working notes). Always loaded in context.",
   core_memory_update: "Save, store, update persistent memory. Record user preferences in [human] block, set objectives in [goals], track progress in [scratchpad]. Use when learning about user habits, preferences, or setting new targets.",
   recall_search: "Search, lookup past conversation history. Find what was discussed in previous sessions. Use for: remembering decisions, finding previous code discussions, recalling user instructions from earlier chats.",
   archival_insert: "Archive, store long-term knowledge permanently. Save facts, research findings, API patterns, user preferences worth remembering indefinitely. Check before web search - you might already know the answer.",

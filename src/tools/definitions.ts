@@ -515,13 +515,13 @@ export const toolDefinitions = [
     function: {
       name: "core_memory_read",
       description:
-        "Read your core memory blocks (persona, human, goals, scratchpad). Core memory is always in context but use this to inspect the full content.",
+        "Read your core memory blocks (personality, human, goals, scratchpad). Core memory is always in context but use this to inspect the full content.",
       parameters: {
         type: "object",
         properties: {
           block: {
             type: "string",
-            enum: ["persona", "human", "goals", "scratchpad"],
+            enum: ["personality", "human", "goals", "scratchpad"],
             description: "Which block to read (omit for all)",
           },
         },
@@ -539,7 +539,7 @@ export const toolDefinitions = [
         properties: {
           block: {
             type: "string",
-            enum: ["persona", "human", "goals", "scratchpad"],
+            enum: ["personality", "human", "goals", "scratchpad"],
             description: "Which block to update",
           },
           operation: {

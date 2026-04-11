@@ -91,11 +91,11 @@ export const generateImageSchema = z.object({
 });
 
 export const coreMemoryReadSchema = z.object({
-  block: z.enum(["persona", "human", "goals", "scratchpad"]).optional(),
+  block: z.enum(["personality", "human", "goals", "scratchpad"]).optional(),
 });
 
 export const coreMemoryUpdateSchema = z.object({
-  block: z.enum(["persona", "human", "goals", "scratchpad"]),
+  block: z.enum(["personality", "human", "goals", "scratchpad"]),
   operation: z.enum(["replace", "append"]),
   content: z.string(),
 });

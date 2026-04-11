@@ -1,13 +1,22 @@
 import fs from "fs";
 import path from "path";
-import { getProjectId, ensureProjectDir, ensureGlobalDir } from "./project.js";
+import { ensureGlobalDir } from "./project.js";
 
 /**
  * The Soul: Kai's persistent identity and working context.
  *
- * Split into two parts:
- *   IDENTITY (global) — persona + human — who Kai is and who the user is
- *   CONTEXT (per-project) — goals + scratchpad — current work state
+ * Single file format (~/.kai/soul/identity.json):
+ *   ## Personality
+ *   Content here...
+ *
+ *   ## Goals
+ *   Content here...
+ *
+ *   ## Human
+ *   Content here...
+ *
+ *   ## Scratchpad
+ *   Content here...
  */
 
 export interface CoreMemoryBlock {
@@ -16,22 +25,22 @@ export interface CoreMemoryBlock {
   maxTokens: number;
 }
 
-export interface Identity {
-  persona: CoreMemoryBlock;
-  human: CoreMemoryBlock;
-}
-
-export interface ProjectContext {
+export interface Soul {
+  personality: CoreMemoryBlock;
   goals: CoreMemoryBlock;
+  human: CoreMemoryBlock;
   scratchpad: CoreMemoryBlock;
 }
 
-export type Soul = Identity & ProjectContext;
-
-const DEFAULT_IDENTITY: Identity = {
-  persona: {
-    key: "persona",
-    content: `I am Kai, an AI coding assistant. I am direct, concise, and focused on getting things done. I write clean code, verify my work, and explain my reasoning briefly. I use tools proactively — I search before guessing, read before editing, and test after changing. I track my work with tasks and remember important context across sessions.`,
+const DEFAULT_SOUL: Soul = {
+  personality: {
+    key: "personality",
+    content: `I am Kai, an AI coding assistant. I am direct, concise, and focused on getting things done. I write clean code, verify my work, and explain my reasoning briefly. I use tools proactively — I search before guessing, read before editing, and test after changing.`,
+    maxTokens: 500,
+  },
+  goals: {
+    key: "goals",
+    content: `No active goals set yet.`,
     maxTokens: 500,
   },
   human: {
@@ -39,157 +48,159 @@ const DEFAULT_IDENTITY: Identity = {
     content: `No information about the user yet. I will update this as I learn about them.`,
     maxTokens: 500,
   },
-};
-
-const DEFAULT_CONTEXT: ProjectContext = {
-  goals: {
-    key: "goals",
-    content: `No active goals.`,
-    maxTokens: 300,
-  },
   scratchpad: {
     key: "scratchpad",
-    content: `Empty.`,
-    maxTokens: 500,
+    content: `Empty working notes.`,
+    maxTokens: 800,
   },
 };
 
-// --- File paths ---
-
-function identityPath(): string {
+// --- File path ---
+function soulPath(): string {
   const dir = ensureGlobalDir("soul");
   return path.join(dir, "identity.json");
 }
 
-function projectContextPath(projectId?: string): string {
-  const dir = ensureProjectDir("soul", projectId);
-  return path.join(dir, "context.json");
-}
+// --- Parse plain text format with ## headers ---
+function parseSoulContent(content: string): Soul {
+  const sections: Record<string, string> = {
+    personality: "",
+    goals: "",
+    human: "",
+    scratchpad: "",
+  };
 
-// --- In-memory caches to avoid repeated blocking file reads ---
-let _cachedIdentity: Identity | null = null;
-let _cachedProjectCtx: { ctx: ProjectContext; projectId: string | undefined } | null = null;
+  const lines = content.split("\n");
+  let currentSection = "";
+  let currentContent: string[] = [];
 
-// --- Load/Save ---
-
-export function loadIdentity(): Identity {
-  if (_cachedIdentity) return _cachedIdentity;
-
-  try {
-    const p = identityPath();
-    if (fs.existsSync(p)) {
-      const data = JSON.parse(fs.readFileSync(p, "utf-8"));
-      _cachedIdentity = {
-        persona: { ...DEFAULT_IDENTITY.persona, ...data.persona },
-        human: { ...DEFAULT_IDENTITY.human, ...data.human },
-      };
-      return _cachedIdentity;
+  for (const line of lines) {
+    const headerMatch = line.match(/^##?\s*(\w+)$/);
+    if (headerMatch) {
+      if (currentSection && currentContent.length > 0) {
+        sections[currentSection] = currentContent.join("\n").trim();
+      }
+      currentSection = headerMatch[1].toLowerCase();
+      currentContent = [];
+    } else if (currentSection) {
+      currentContent.push(line);
     }
-  } catch {}
-
-  _cachedIdentity = { ...DEFAULT_IDENTITY };
-  return _cachedIdentity;
-}
-
-function saveIdentity(identity: Identity): void {
-  _cachedIdentity = identity;
-  fs.writeFileSync(identityPath(), JSON.stringify(identity, null, 2), "utf-8");
-}
-
-export function loadProjectContext(projectId?: string): ProjectContext {
-  if (_cachedProjectCtx && _cachedProjectCtx.projectId === projectId) {
-    return _cachedProjectCtx.ctx;
   }
 
+  if (currentSection && currentContent.length > 0) {
+    sections[currentSection] = currentContent.join("\n").trim();
+  }
+
+  return {
+    personality: { ...DEFAULT_SOUL.personality, content: sections.personality || DEFAULT_SOUL.personality.content },
+    goals: { ...DEFAULT_SOUL.goals, content: sections.goals || DEFAULT_SOUL.goals.content },
+    human: { ...DEFAULT_SOUL.human, content: sections.human || DEFAULT_SOUL.human.content },
+    scratchpad: { ...DEFAULT_SOUL.scratchpad, content: sections.scratchpad || DEFAULT_SOUL.scratchpad.content },
+  };
+}
+
+// --- Build plain text format from Soul ---
+function buildSoulContent(soul: Soul): string {
+  const parts: string[] = [];
+  if (soul.personality.content) parts.push(`## Personality\n${soul.personality.content}`);
+  if (soul.goals.content) parts.push(`## Goals\n${soul.goals.content}`);
+  if (soul.human.content) parts.push(`## Human\n${soul.human.content}`);
+  if (soul.scratchpad.content) parts.push(`## Scratchpad\n${soul.scratchpad.content}`);
+  return parts.join("\n\n");
+}
+
+// --- In-memory cache ---
+let _cachedSoul: Soul | null = null;
+let _cachedContent: string | null = null;
+
+// --- Load/Save ---
+export function loadSoul(): Soul {
+  const filePath = soulPath();
+  
   try {
-    const p = projectContextPath(projectId);
-    if (fs.existsSync(p)) {
-      const data = JSON.parse(fs.readFileSync(p, "utf-8"));
-      const ctx = {
-        goals: { ...DEFAULT_CONTEXT.goals, ...data.goals },
-        scratchpad: { ...DEFAULT_CONTEXT.scratchpad, ...data.scratchpad },
-      };
-      _cachedProjectCtx = { ctx, projectId };
-      return ctx;
+    if (fs.existsSync(filePath)) {
+      const content = fs.readFileSync(filePath, "utf-8");
+      // Check if it's the new plain text format
+      if (content.includes("##")) {
+        if (_cachedContent === content && _cachedSoul) {
+          return _cachedSoul;
+        }
+        _cachedContent = content;
+        _cachedSoul = parseSoulContent(content);
+        return _cachedSoul;
+      }
+      // Old JSON format - try to migrate
+      try {
+        const data = JSON.parse(content);
+        const migrated: Soul = {
+          personality: { ...DEFAULT_SOUL.personality, content: data.persona?.content || "" },
+          human: { ...DEFAULT_SOUL.human, content: data.human?.content || "" },
+          goals: { ...DEFAULT_SOUL.goals, content: data.goals?.content || "" },
+          scratchpad: { ...DEFAULT_SOUL.scratchpad, content: data.scratchpad?.content || "" },
+        };
+        // Save in new format
+        saveSoul(migrated);
+        return migrated;
+      } catch {
+        // Invalid JSON, return defaults
+        return { ...DEFAULT_SOUL };
+      }
     }
   } catch {}
 
-  const ctx = { ...DEFAULT_CONTEXT };
-  _cachedProjectCtx = { ctx, projectId };
-  return ctx;
+  // File doesn't exist, create with defaults
+  const defaults = { ...DEFAULT_SOUL };
+  saveSoul(defaults);
+  return defaults;
 }
 
-function saveProjectContext(ctx: ProjectContext, projectId?: string): void {
-  _cachedProjectCtx = { ctx, projectId };
-  fs.writeFileSync(
-    projectContextPath(projectId),
-    JSON.stringify(ctx, null, 2),
-    "utf-8"
-  );
+export function saveSoul(soul: Soul): void {
+  _cachedSoul = soul;
+  _cachedContent = buildSoulContent(soul);
+  fs.writeFileSync(soulPath(), _cachedContent, "utf-8");
 }
 
 // --- Public API ---
 
-export function loadSoul(projectId?: string): Soul {
-  const identity = loadIdentity();
-  const context = loadProjectContext(projectId);
-  return { ...identity, ...context };
-}
-
 export function updateCoreMemory(
   block: keyof Soul,
   operation: "replace" | "append",
-  content: string,
-  projectId?: string
+  content: string
 ): string {
-  // Route to the right storage
-  if (block === "persona" || block === "human") {
-    const identity = loadIdentity();
-    const mem = identity[block];
-    if (operation === "replace") {
-      mem.content = content;
-    } else {
-      mem.content += "\n" + content;
-    }
-    const charLimit = mem.maxTokens * 4;
-    if (mem.content.length > charLimit) {
-      mem.content = mem.content.substring(mem.content.length - charLimit);
-    }
-    saveIdentity(identity);
+  const soul = loadSoul();
+  const mem = soul[block];
+  
+  if (operation === "replace") {
+    mem.content = content;
   } else {
-    const ctx = loadProjectContext(projectId);
-    const mem = ctx[block as "goals" | "scratchpad"];
-    if (operation === "replace") {
-      mem.content = content;
-    } else {
-      mem.content += "\n" + content;
-    }
-    const charLimit = mem.maxTokens * 4;
-    if (mem.content.length > charLimit) {
-      mem.content = mem.content.substring(mem.content.length - charLimit);
-    }
-    saveProjectContext(ctx, projectId);
+    mem.content += "\n" + content;
   }
-
-  const scope = (block === "persona" || block === "human") ? "global" : "project";
-  return `Core memory [${block}] updated (${scope}).`;
+  
+  // Trim if too long (maxTokens * ~4 chars per token)
+  const charLimit = mem.maxTokens * 4;
+  if (mem.content.length > charLimit) {
+    mem.content = mem.content.substring(mem.content.length - charLimit);
+  }
+  
+  saveSoul(soul);
+  return `Core memory [${block}] updated.`;
 }
 
-export function getCoreMemoryContext(projectId?: string): string {
-  const soul = loadSoul(projectId);
+export function getCoreMemoryContext(): string {
+  const soul = loadSoul();
 
   return `
 <core_memory>
-<persona>
-${soul.persona.content}
-</persona>
+<personality>
+${soul.personality.content}
+</personality>
 <human>
 ${soul.human.content}
 </human>
-<goals scope="project">
+<goals>
 ${soul.goals.content}
 </goals>
-<scratchpad scope="project">
+<scratchpad>
 ${soul.scratchpad.content}
 </scratchpad>
 </core_memory>`;
@@ -198,13 +209,27 @@ ${soul.scratchpad.content}
 export function readCoreMemory(block?: keyof Soul): string {
   const soul = loadSoul();
   if (block) {
-    const scope = (block === "persona" || block === "human") ? "global" : "project";
-    return `[${block}] (${scope}): ${soul[block].content}`;
+    return `[${block}]: ${soul[block].content}`;
   }
   return Object.entries(soul)
-    .map(([key, val]) => {
-      const scope = (key === "persona" || key === "human") ? "global" : "project";
-      return `[${key}] (${scope}): ${val.content}`;
-    })
+    .map(([key, val]) => `[${key}]: ${val.content}`)
     .join("\n\n");
+}
+
+// For backwards compatibility
+export function loadIdentity() {
+  const soul = loadSoul();
+  return {
+    persona: soul.personality,
+    human: soul.human,
+  };
+}
+
+// For backwards compatibility  
+export function loadProjectContext() {
+  const soul = loadSoul();
+  return {
+    goals: soul.goals,
+    scratchpad: soul.scratchpad,
+  };
 }

@@ -270,10 +270,10 @@ export async function executeTool(
       case "web_search":
         return await webSearch(toolArgs as { query: string; max_results?: number });
       case "core_memory_read":
-        return readCoreMemory((toolArgs as { block?: "persona" | "human" | "goals" | "scratchpad" }).block);
+        return readCoreMemory((toolArgs as { block?: "personality" | "human" | "goals" | "scratchpad" }).block);
       case "core_memory_update":
         return updateCoreMemory(
-          (toolArgs as { block: "persona" | "human" | "goals" | "scratchpad" }).block,
+          (toolArgs as { block: "personality" | "human" | "goals" | "scratchpad" }).block,
           (toolArgs as { operation: "replace" | "append" }).operation,
           String(toolArgs.content)
         );
