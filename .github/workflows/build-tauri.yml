@@ -57,20 +57,20 @@ jobs:
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
 
       - name: Build Tauri app
-        run: cargo tauri build --target x86_64-unknown-linux-gnu
+        run: cargo tauri build --target x86_64-unknown-linux-gnu --bundles appimage,deb
 
       - name: Rename artifacts
         run: |
-          cd src-tauri/target/x86_64-unknown-linux-gnu/release/bundle
-          for f in appimage/*.AppImage deb/*.deb; do
+          BUNDLE_DIR="src-tauri/target/x86_64-unknown-linux-gnu/release/bundle"
+          VERSION="${GITHUB_REF_NAME:-dev}"
+          for f in "$BUNDLE_DIR"/appimage/*.AppImage "$BUNDLE_DIR"/deb/*.deb; do
             [ -f "$f" ] || continue
-            VERSION="${GITHUB_REF_NAME}"
             EXT="${f##*.}"
-            NEW_NAME="Kai_${VERSION}_amd64.${EXT}"
+            NEW_NAME="$BUNDLE_DIR/Kai_${VERSION}_amd64.${EXT}"
             echo "Renaming $f to $NEW_NAME"
             mv "$f" "$NEW_NAME"
           done
-          ls -la
+          ls -la "$BUNDLE_DIR"
 
       - name: Upload Linux artifacts
         uses: actions/upload-artifact@v4
@@ -106,7 +106,7 @@ jobs:
         run: cargo install tauri-cli --version "^2.0"
 
       - name: Build Tauri app
-        run: cargo tauri build --target x86_64-pc-windows-msvc
+        run: cargo tauri build --target x86_64-pc-windows-msvc --bundles msi,nsis
 
       - name: Upload Windows artifacts
         uses: actions/upload-artifact@v4

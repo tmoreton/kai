@@ -38,8 +38,8 @@ function signFile(filePath) {
   const relativePath = path.relative(appPath, filePath);
   console.log(`  Signing: ${relativePath}`);
   try {
-    // Use --deep and --strict for proper signing
-    const cmd = `codesign --deep --force --strict --options runtime --sign "${IDENTITY}" --timestamp "${filePath}"`;
+    // Sign individual binaries — no --deep or --strict (those are for app bundles only)
+    const cmd = `codesign --force --options runtime --sign "${IDENTITY}" --timestamp "${filePath}"`;
     execSync(cmd, { stdio: 'pipe' });
     return true;
   } catch (e) {
@@ -61,6 +61,12 @@ if (!fs.existsSync(nodeModulesPath)) {
 }
 
 const binaries = findBinaries(nodeModulesPath);
+
+const nodeBinaryPath = path.join(appPath, 'Contents', 'Resources', 'node', 'node');
+if (fs.existsSync(nodeBinaryPath)) {
+  binaries.push(nodeBinaryPath);
+}
+
 console.log(`\nFound ${binaries.length} binaries to sign\n`);
 
 let success = 0;

@@ -75,10 +75,10 @@ echo "🔏 Signing nested binaries in ARM64 build..."
 ARM64_APP="$PWD/src-tauri/target/aarch64-apple-darwin/release/bundle/macos/Kai.app"
 node scripts/after-sign.cjs "$ARM64_APP"
 
-# Re-sign the entire ARM64 app (deep sign)
+# Re-sign the entire ARM64 app (deep sign with entitlements)
 echo ""
 echo "🔏 Re-signing ARM64 app bundle..."
-codesign --deep --force --options runtime --sign "$IDENTITY" --timestamp "$ARM64_APP"
+codesign --deep --force --options runtime --entitlements "$PWD/src-tauri/Entitlements.plist" --sign "$IDENTITY" --timestamp "$ARM64_APP"
 
 # NOTARIZE the ARM64 app
 if [ -n "$APPLE_ID" ] && [ -n "$NOTARY_PASSWORD" ] && [ -n "$APPLE_TEAM_ID" ]; then
@@ -104,9 +104,9 @@ if [ -n "$APPLE_ID" ] && [ -n "$NOTARY_PASSWORD" ] && [ -n "$APPLE_TEAM_ID" ]; t
     echo "📎 Stapling notarization ticket to app..."
     xcrun stapler staple "$ARM64_APP"
     
-    # Re-sign after stapling
-    codesign --deep --force --options runtime --sign "$IDENTITY" --timestamp "$ARM64_APP"
-    
+    # Re-sign after stapling (with entitlements)
+    codesign --deep --force --options runtime --entitlements "$PWD/src-tauri/Entitlements.plist" --sign "$IDENTITY" --timestamp "$ARM64_APP"
+
     rm "$ARM64_ZIP"
 else
     echo "⚠️  Skipping ARM64 app notarization (credentials not set)"
@@ -125,10 +125,10 @@ if rustup target list --installed | grep -q "x86_64-apple-darwin"; then
         echo "🔏 Signing nested binaries in Intel build..."
         node scripts/after-sign.cjs "$INTEL_APP"
         
-        # Re-sign the entire Intel app (deep sign)
+        # Re-sign the entire Intel app (deep sign with entitlements)
         echo ""
         echo "🔏 Re-signing Intel app bundle..."
-        codesign --deep --force --options runtime --sign "$IDENTITY" --timestamp "$INTEL_APP"
+        codesign --deep --force --options runtime --entitlements "$PWD/src-tauri/Entitlements.plist" --sign "$IDENTITY" --timestamp "$INTEL_APP"
         
         # NOTARIZE the Intel app
         if [ -n "$APPLE_ID" ] && [ -n "$NOTARY_PASSWORD" ] && [ -n "$APPLE_TEAM_ID" ]; then
@@ -154,8 +154,8 @@ if rustup target list --installed | grep -q "x86_64-apple-darwin"; then
             echo "📎 Stapling notarization ticket to app..."
             xcrun stapler staple "$INTEL_APP"
             
-            # Re-sign after stapling
-            codesign --deep --force --options runtime --sign "$IDENTITY" --timestamp "$INTEL_APP"
+            # Re-sign after stapling (with entitlements)
+            codesign --deep --force --options runtime --entitlements "$PWD/src-tauri/Entitlements.plist" --sign "$IDENTITY" --timestamp "$INTEL_APP"
             
             rm "$INTEL_ZIP"
         fi
