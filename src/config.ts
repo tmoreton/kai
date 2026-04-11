@@ -53,6 +53,13 @@ export interface KaiConfig {
     /** Current project context */
     context?: string;
   };
+  /** VPN / Remote Access settings */
+  vpn?: {
+    /** Enable Tailscale auto-detection and serve (default: true) */
+    enabled?: boolean;
+    /** Use Tailscale Funnel to expose to public internet (default: false) */
+    funnel?: boolean;
+  };
 }
 
 const CONFIG_PATHS = [

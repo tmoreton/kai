@@ -449,13 +449,12 @@ export function registerSettingsRoutes(app: Hono) {
     try {
       const { content } = await c.req.json();
       if (content === undefined) return c.json({ error: "content is required" }, 400);
-      JSON.parse(content);
       const soulPath = path.join(SOUL_DIR, "identity.json");
       fs.mkdirSync(SOUL_DIR, { recursive: true });
       fs.writeFileSync(soulPath, content, "utf-8");
       return c.json({ ok: true });
     } catch (err: any) {
-      return c.json({ error: err.message }, 400);
+      return c.json({ error: err.message }, 500);
     }
   });
 
@@ -485,18 +484,17 @@ export function registerSettingsRoutes(app: Hono) {
     try {
       const { content, scope } = await c.req.json();
       if (content === undefined) return c.json({ error: "content is required" }, 400);
-      JSON.parse(content);
       const { getProjectId, ensureProjectDir, ensureGlobalDir } = await import("../../project.js");
       const projectId = getProjectId();
-      const targetDir = scope === "project" && projectId !== "__global__" 
-        ? ensureProjectDir("soul", projectId) 
+      const targetDir = scope === "project" && projectId !== "__global__"
+        ? ensureProjectDir("soul", projectId)
         : ensureGlobalDir("soul");
       const targetPath = path.join(targetDir, "context.json");
       fs.mkdirSync(targetDir, { recursive: true });
       fs.writeFileSync(targetPath, content, "utf-8");
       return c.json({ ok: true, path: targetPath });
     } catch (err: any) {
-      return c.json({ error: err.message }, 400);
+      return c.json({ error: err.message }, 500);
     }
   });
 
@@ -633,6 +631,45 @@ export function registerSettingsRoutes(app: Hono) {
       });
     } catch (err: any) {
       return c.json({ temp: 72, condition: "Sunny", icon: "☀️", location: "Local", mock: true, error: err.message }, 200);
+    }
+  });
+
+  // --- VPN / Tailscale Settings ---
+  app.get("/api/settings/vpn", async (c) => {
+    try {
+      const config = readUserConfig();
+      const { getTailscaleStatus } = await import("../../tailscale.js");
+      const tsStatus = getTailscaleStatus();
+      // Build URL if running
+      let tailscaleUrl: string | null = null;
+      if (tsStatus.running) {
+        tailscaleUrl = tsStatus.dnsName
+          ? `https://${tsStatus.dnsName}`
+          : tsStatus.tailscaleIp
+          ? `https://${tsStatus.tailscaleIp}`
+          : null;
+      }
+      return c.json({
+        vpn: config.vpn || { enabled: true, funnel: false },
+        tailscale: { ...tsStatus, url: tailscaleUrl },
+      });
+    } catch (err: any) {
+      return c.json({ error: err.message }, 500);
+    }
+  });
+
+  app.patch("/api/settings/vpn", async (c) => {
+    try {
+      const { enabled, funnel } = await c.req.json();
+      saveUserConfig({
+        vpn: {
+          enabled: enabled !== undefined ? enabled : true,
+          funnel: funnel !== undefined ? funnel : false,
+        }
+      });
+      return c.json({ ok: true });
+    } catch (err: any) {
+      return c.json({ error: err.message }, 500);
     }
   });
 }

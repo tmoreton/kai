@@ -863,8 +863,15 @@ export const runAgent = async (id: string) => {
   });
 };
 
-export const deleteAgent = async (id: string) => {
-  return fetchJson(`${API_BASE}/agents/${id}`, {
-    method: 'DELETE',
-  });
-};
+
+  // VPN / Tailscale
+  getVpnStatus: (): Promise<{vpn?: {enabled: boolean; funnel: boolean}; tailscale?: any}> => {
+    return fetchJson(`${API_BASE}/settings/vpn`);
+  },
+
+  updateVpn: (settings: {enabled: boolean; funnel: boolean}): Promise<{ok: boolean}> => {
+    return fetchJson(`${API_BASE}/settings/vpn`, {
+      method: 'PATCH',
+      body: JSON.stringify(settings),
+    });
+  },

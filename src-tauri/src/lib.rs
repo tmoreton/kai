@@ -7,6 +7,7 @@ use std::net::TcpListener;
 use std::time::Duration;
 use std::io::Write;
 use std::process::Command;
+use std::path::Path;
 
 struct ServerProcess(Mutex<Option<CommandChild>>);
 
@@ -30,7 +31,7 @@ fn wait_for_server(port: u16, timeout_secs: u64) -> bool {
 }
 
 /// Read a .env file and return key=value pairs
-fn read_dotenv(path: &std::path::Path) -> HashMap<String, String> {
+fn read_dotenv(path: &Path) -> HashMap<String, String> {
     let mut vars = HashMap::new();
     if let Ok(content) = std::fs::read_to_string(path) {
         for line in content.lines() {
@@ -46,9 +47,19 @@ fn read_dotenv(path: &std::path::Path) -> HashMap<String, String> {
     vars
 }
 
+/// Read user config from ~/.kai/settings.json
+fn read_user_config(home: &Path) -> serde_json::Value {
+    let config_path = home.join(".kai").join("settings.json");
+    if let Ok(content) = std::fs::read_to_string(&config_path) {
+        if let Ok(json) = serde_json::from_str(&content) {
+            return json;
+        }
+    }
+    serde_json::Value::Object(serde_json::Map::new())
+}
+
 /// Check if Tailscale CLI is available and running
 fn is_tailscale_available() -> bool {
-    // Try common Tailscale paths
     let tailscale_paths = [
         "tailscale",
         "/Applications/Tailscale.app/Contents/MacOS/Tailscale",
@@ -56,7 +67,6 @@ fn is_tailscale_available() -> bool {
     ];
     
     for path in &tailscale_paths {
-        // Check if we can run tailscale status --json successfully
         let result = Command::new(path)
             .args(["status", "--json"])
             .stdout(std::process::Stdio::piped())
@@ -65,7 +75,6 @@ fn is_tailscale_available() -> bool {
             
         if let Ok(output) = result {
             if output.status.success() {
-                // Parse JSON to check if running
                 if let Ok(json) = serde_json::from_slice::<serde_json::Value>(&output.stdout) {
                     if let Some(backend_state) = json.get("BackendState") {
                         if backend_state.as_str() == Some("Running") {
@@ -100,9 +109,20 @@ pub fn run() {
 
     let mut log = log_file;
     debug_log!(log, "=== Kai Tauri starting ===");
+
+    let home = dirs::home_dir().unwrap();
+    let config = read_user_config(&home);
     
-    // Auto-detect Tailscale availability
-    let tailscale_available = is_tailscale_available();
+    // Check if VPN/Tailscale is enabled in config (default: true)
+    let vpn_enabled = config.get("vpn")
+        .and_then(|v| v.get("enabled"))
+        .and_then(|v| v.as_bool())
+        .unwrap_or(true);
+    
+    debug_log!(log, "VPN enabled in config: {}", vpn_enabled);
+    
+    // Only auto-detect Tailscale if VPN is enabled
+    let tailscale_available = if vpn_enabled { is_tailscale_available() } else { false };
     debug_log!(log, "Tailscale detected: {}", tailscale_available);
 
     tauri::Builder::default()
@@ -130,17 +150,13 @@ pub fn run() {
             debug_log!(log, "Node binary exists: {}", node_binary.exists());
             debug_log!(log, "Port: {}", port);
 
-            // Load env vars from ~/.kai/.env only (credentials should never be bundled)
-            let home = dirs::home_dir().unwrap();
-            let mut env_vars: HashMap<String, String> = HashMap::new();
-
+            // Load env vars from ~/.kai/.env
             let kai_env = home.join(".kai").join(".env");
+            let mut env_vars: HashMap<String, String> = HashMap::new();
             for (k, v) in read_dotenv(&kai_env) { env_vars.insert(k, v); }
-
             debug_log!(log, "Loaded {} env vars from ~/.kai/.env", env_vars.len());
 
-            // Build the command with all env vars
-            // Set cwd to home so sessions resolve the same as terminal usage
+            // Build the command
             let shell = app.shell();
             let mut cmd = shell.command(node_binary.to_str().unwrap());
             cmd = cmd.current_dir(&home);
@@ -150,7 +166,7 @@ pub fn run() {
                 cmd = cmd.env(key, value);
             }
 
-            // Build args - auto-enable Tailscale if detected
+            // Build args
             let mut args = vec![
                 server_script.to_str().unwrap().to_string(),
                 "server".to_string(),
@@ -159,7 +175,8 @@ pub fn run() {
                 "--skip-build".to_string(),
             ];
             
-            if tailscale_available {
+            // Only add --tailscale if VPN is enabled AND Tailscale is available
+            if vpn_enabled && tailscale_available {
                 args.push("--tailscale".to_string());
                 debug_log!(log, "Auto-enabling Tailscale (--tailscale)");
             }

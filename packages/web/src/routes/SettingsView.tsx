@@ -1,8 +1,8 @@
 import { useState } from "react";
-import { useSuspenseQuery } from "@tanstack/react-query";
-import { Server, Puzzle, Key, Brain, FileText, Terminal, RotateCcw, AlertCircle } from "lucide-react";
+import { useSuspenseQuery, useQueryClient } from "@tanstack/react-query";
+import { Server, Puzzle, Key, Brain, FileText, Terminal, RotateCcw, AlertCircle, Shield } from "lucide-react";
 import { settingsQueries } from "../api/queries";
-import { ApiError, NetworkError, TimeoutError } from "../api/client";
+import { ApiError, NetworkError, TimeoutError, settingsApi } from "../api/client";
 import { cn } from "../lib/utils";
 import { toast } from "../components/Toast";
 import { Button } from "../components/ui/button";
@@ -12,12 +12,39 @@ import { EnvSettings } from "./settings/EnvSettings";
 import { SoulSettings } from "./settings/SoulSettings";
 import { ContextSettings } from "./settings/ContextSettings";
 import { CliSettings } from "./settings/CliSettings";
+import { VpnSettings } from "./settings/VpnSettings";
 
-type TabType = 'skills' | 'mcp' | 'env' | 'soul' | 'context' | 'cli';
+type TabType = 'skills' | 'mcp' | 'env' | 'soul' | 'context' | 'cli' | 'vpn';
 
 interface SettingsErrorState {
   message: string;
   type: 'error' | 'warning';
+}
+
+// VPN Settings Tab wrapper with data fetching
+function VpnSettingsTab() {
+  const queryClient = useQueryClient();
+  const [isLoading, setIsLoading] = useState(false);
+  const [vpnData, setVpnData] = useState<{vpn?: {enabled: boolean; funnel: boolean}; tailscale?: any}>({});
+
+  // Fetch VPN status on mount
+  useState(() => {
+    settingsApi.getVpnStatus().then(data => setVpnData(data)).catch(() => {});
+  });
+
+  const handleUpdate = async (settings: {enabled: boolean; funnel: boolean}) => {
+    await settingsApi.updateVpn(settings);
+    queryClient.invalidateQueries({ queryKey: ['settings'] });
+    return Promise.resolve();
+  };
+
+  return (
+    <VpnSettings
+      vpn={vpnData.vpn}
+      tailscale={vpnData.tailscale}
+      onUpdate={handleUpdate}
+    />
+  );
 }
 
 export function SettingsView() {
@@ -104,6 +131,9 @@ export function SettingsView() {
           <TabButton active={activeTab === 'cli'} onClick={() => setActiveTab('cli')} icon={<Terminal className="w-4 h-4" />}>
             CLI
           </TabButton>
+          <TabButton active={activeTab === 'vpn'} onClick={() => setActiveTab('vpn')} icon={<Shield className="w-4 h-4" />}>
+            VPN
+          </TabButton>
         </div>
 
         <div className="bg-card border border-border rounded-xl p-3 sm:p-4 md:p-6">
@@ -113,6 +143,7 @@ export function SettingsView() {
           {activeTab === 'soul' && <SoulSettings />}
           {activeTab === 'context' && <ContextSettings />}
           {activeTab === 'cli' && <CliSettings />}
+          {activeTab === 'vpn' && <VpnSettingsTab />}
         </div>
       </div>
     </div>
