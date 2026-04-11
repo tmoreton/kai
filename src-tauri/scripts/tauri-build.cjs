@@ -137,10 +137,22 @@ async function main() {
   const systemSqlite = path.join(ROOT, 'node_modules', 'better-sqlite3', 'build', 'Release', 'better_sqlite3.node');
   const bundledSqliteDir = path.join(RESOURCES, 'node_modules', 'better-sqlite3', 'build', 'Release');
   const bundledSqlite = path.join(bundledSqliteDir, 'better_sqlite3.node');
+  
+  // Remove any npm-downloaded binary first to ensure ours takes precedence
+  const npmPrebuiltDir = path.join(RESOURCES, 'node_modules', 'better-sqlite3', 'prebuilds');
+  if (fs.existsSync(npmPrebuiltDir)) {
+    console.log('    Removing npm prebuilt binaries...');
+    fs.rmSync(npmPrebuiltDir, { recursive: true, force: true });
+  }
+  
   if (fs.existsSync(systemSqlite)) {
     fs.mkdirSync(bundledSqliteDir, { recursive: true });
     fs.copyFileSync(systemSqlite, bundledSqlite);
-    console.log('    Copied better_sqlite3.node');
+    // Also copy to prebuilds location to prevent npm from downloading
+    fs.mkdirSync(npmPrebuiltDir, { recursive: true });
+    fs.mkdirSync(path.join(npmPrebuiltDir, 'darwin-arm64'), { recursive: true });
+    fs.copyFileSync(systemSqlite, path.join(npmPrebuiltDir, 'darwin-arm64', 'better_sqlite3.node'));
+    console.log('    Copied better_sqlite3.node from system build');
   } else {
     console.error('    ERROR: System better_sqlite3.node not found. Run `npm install` in project root first.');
     process.exit(1);

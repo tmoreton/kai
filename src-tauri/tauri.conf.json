@@ -7,7 +7,7 @@
     "frontendDist": "http://localhost:3141",
     "devUrl": "http://localhost:3141",
     "beforeDevCommand": "npm run dev -- server --port 3141",
-    "beforeBuildCommand": "node scripts/tauri-build.cjs"
+    "beforeBuildCommand": "cd .. && node scripts/tauri-build.cjs"
   },
   "app": {
     "windows": [
