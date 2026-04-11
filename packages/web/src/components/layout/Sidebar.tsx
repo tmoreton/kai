@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useParams, useLocation, Link } from "react-router-dom";
 import { useSuspenseQuery, useQueryClient } from "@tanstack/react-query";
+import { open } from "@tauri-apps/plugin-shell";
 import {
   MessageSquare,
   Bot,
@@ -355,13 +356,11 @@ export function Sidebar() {
 
         {/* Static sections */}
         <button
-          onClick={() => {
-            // @ts-ignore
-            if (window.__TAURI__) {
-              // @ts-ignore
-              window.__TAURI__.shell.open('https://kai-docs-three.vercel.app/');
-            } else {
-              window.open('https://kai-docs-three.vercel.app/', '_blank');
+          onClick={async () => {
+            try {
+              await open('https://kaiskills.com');
+            } catch {
+              window.open('https://kaiskills.com', '_blank');
             }
           }}
           className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors w-full text-left"
