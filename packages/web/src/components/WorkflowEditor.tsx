@@ -14,7 +14,10 @@ import {
   X,
   FileEdit,
   Eye,
-  Download
+  Download,
+  Sparkles,
+  Wand2,
+  Loader2
 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardContent } from "./ui/card";
 import { Button } from "./ui/button";
@@ -533,6 +536,8 @@ export function WorkflowEditor({ initialWorkflow, onSave, readOnly = false }: Wo
   const [expandedSteps, setExpandedSteps] = useState<Set<string>>(new Set());
   const [showPreview, setShowPreview] = useState(false);
   const [yamlContent, setYamlContent] = useState("");
+  const [aiEditing, setAiEditing] = useState(false);
+  const [aiPrompt, setAiPrompt] = useState("");
 
   // Update YAML preview whenever workflow changes
   useEffect(() => {
@@ -609,6 +614,52 @@ export function WorkflowEditor({ initialWorkflow, onSave, readOnly = false }: Wo
     URL.revokeObjectURL(url);
   };
 
+  const handleAIEdit = async () => {
+    if (!aiPrompt.trim()) return;
+    setAiEditing(true);
+    
+    try {
+      const response = await fetch('/api/agents/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          description: `Modify this workflow: ${workflow.name}. ${aiPrompt}\n\nCurrent workflow:\n${yamlContent}` 
+        }),
+      });
+      
+      if (!response.ok) throw new Error('Failed to generate');
+      
+      const result = await response.json();
+      
+      // Convert generated steps to workflow format
+      const newSteps = result.steps.map((s: any) => ({
+        id: generateId(),
+        type: s.type,
+        name: s.name,
+        description: s.description || '',
+        prompt: s.prompt,
+        skill: s.skill,
+        tool: s.action,
+        parameters: s.params,
+        command: s.command,
+      }));
+      
+      setWorkflow(prev => ({
+        ...prev,
+        name: result.name || prev.name,
+        description: result.description || prev.description,
+        steps: newSteps.length > 0 ? newSteps : prev.steps,
+      }));
+      
+      setAiPrompt('');
+      alert('Workflow updated with AI suggestions!');
+    } catch (err) {
+      alert('Failed to update with AI: ' + (err instanceof Error ? err.message : 'Unknown error'));
+    } finally {
+      setAiEditing(false);
+    }
+  };
+
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
@@ -633,6 +684,15 @@ export function WorkflowEditor({ initialWorkflow, onSave, readOnly = false }: Wo
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setAiEditing(!aiEditing)}
+            disabled={readOnly}
+          >
+            <Sparkles className="w-4 h-4 mr-1.5" />
+            AI Edit
+          </Button>
           <Button
             variant="outline"
             size="sm"
@@ -710,6 +770,48 @@ export function WorkflowEditor({ initialWorkflow, onSave, readOnly = false }: Wo
               </div>
             </CardHeader>
             <CardContent>
+              {/* AI Edit Panel */}
+              {aiEditing && (
+                <div className="mb-6 p-4 bg-primary/5 border border-primary/20 rounded-lg">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Wand2 className="w-4 h-4 text-primary" />
+                    <span className="font-medium text-sm">AI Workflow Assistant</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground mb-3">
+                    Describe what changes you want to make to this workflow. AI will suggest modifications.
+                  </p>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={aiPrompt}
+                      onChange={(e) => setAiPrompt(e.target.value)}
+                      placeholder="e.g., Add a step to send email after completion, or remove the shell command step..."
+                      className="flex-1 px-3 py-2 bg-background border border-border rounded-md text-sm focus:outline-none focus:border-primary"
+                      disabled={aiEditing && !aiPrompt}
+                    />
+                    <Button
+                      size="sm"
+                      onClick={handleAIEdit}
+                      disabled={!aiPrompt.trim() || aiEditing}
+                    >
+                      {aiEditing ? (
+                        <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
+                      ) : (
+                        <Sparkles className="w-4 h-4 mr-1.5" />
+                      )}
+                      {aiEditing ? 'Generating...' : 'Update with AI'}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setAiEditing(false)}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              )}
+
               {workflow.steps.length === 0 ? (
                 <div className="text-center py-12 border-2 border-dashed border-border rounded-lg">
                   <div className="flex justify-center gap-3 mb-4">
