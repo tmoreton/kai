@@ -44,7 +44,9 @@ export function CliSettings() {
     onSuccess: (result: any) => {
       if (result.error) {
         if (result.needsSudo) {
-          setSudoCommand(result.error.replace("Permission denied. Try running: ", ""));
+          const cmd = result.error.replace("Permission denied. Try running: ", "") || "sudo rm /usr/local/bin/kai";
+          setSudoCommand(cmd);
+          toast.warning("Permissions required", "Run the command shown below in your terminal.");
         } else {
           toast.error("Uninstall failed", result.error);
         }
@@ -55,8 +57,15 @@ export function CliSettings() {
       toast.success("CLI uninstalled", "'kai' command has been removed");
     },
     onError: (err: any) => {
-      const message = err instanceof Error ? err.message : "Failed to uninstall CLI";
-      toast.error("Uninstall failed", message);
+      const body = err.data;
+      if (body?.needsSudo) {
+        const cmd = body.error?.replace("Permission denied. Try running: ", "") || "sudo rm /usr/local/bin/kai";
+        setSudoCommand(cmd);
+        toast.warning("Permissions required", "Run the command shown below in your terminal.");
+      } else {
+        const message = err instanceof Error ? err.message : "Failed to uninstall CLI";
+        toast.error("Uninstall failed", message);
+      }
     },
   });
 

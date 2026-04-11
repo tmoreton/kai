@@ -486,9 +486,31 @@ export function registerSettingsRoutes(app: Hono) {
 
   app.post("/api/settings/cli/uninstall", async (c) => {
     try {
-      try { fs.unlinkSync(CLI_SYMLINK_PATH); } catch {}
+      let needsSudo = false;
+      
+      // Try to remove symlink - may need sudo
+      try { 
+        fs.unlinkSync(CLI_SYMLINK_PATH); 
+      } catch (err: any) {
+        if (err.code === "EACCES" || err.code === "EPERM") {
+          needsSudo = true;
+        }
+      }
+      
+      // Try to remove wrapper script (user-owned, should work)
       const wrapperPath = path.resolve(process.env.HOME || "~", ".kai/bin/kai");
       try { fs.unlinkSync(wrapperPath); } catch {}
+      
+      // Also try to remove wrapper directory if empty
+      try { fs.rmdirSync(path.dirname(wrapperPath)); } catch {}
+      
+      if (needsSudo) {
+        return c.json({ 
+          error: "Permission denied. Try running: sudo rm /usr/local/bin/kai", 
+          needsSudo: true 
+        }, 403);
+      }
+      
       return c.json({ ok: true });
     } catch (err: any) {
       return c.json({ error: err.message }, 500);
