@@ -117,6 +117,14 @@ export function CliSettings() {
             >
               {uninstallMutation.isPending ? "Removing..." : "Uninstall CLI"}
             </button>
+          ) : data?.needsSudo ? (
+            <button
+              onClick={() => installMutation.mutate()}
+              disabled={installMutation.isPending}
+              className="px-4 py-2 text-sm font-medium text-white bg-yellow-600 rounded-lg hover:bg-yellow-700 disabled:opacity-50 transition-colors"
+            >
+              {installMutation.isPending ? "Fixing..." : "Fix CLI Installation"}
+            </button>
           ) : (
             <button
               onClick={() => installMutation.mutate()}

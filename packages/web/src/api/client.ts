@@ -727,7 +727,7 @@ export const settingsApi = {
   },
 
   // CLI Installation
-  getCliStatus: (): Promise<{ installed: boolean; path: string | null; source: string }> => {
+  getCliStatus: (): Promise<{ installed: boolean; path: string | null; source: string; needsSudo?: boolean }> => {
     return fetchJson(`${API_BASE}/settings/cli`);
   },
 

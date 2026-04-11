@@ -16,22 +16,54 @@ function getCliSourcePath(): string {
   return entryScript;
 }
 
-function getCliStatus(): { installed: boolean; path: string | null; source: string } {
+function getCliStatus(): { installed: boolean; path: string | null; source: string; needsSudo?: boolean } {
   const source = getCliSourcePath();
+  const wrapperPath = path.resolve(process.env.HOME || "~", ".kai/bin/kai");
+  
+  // Check 1: Does the wrapper script exist?
+  const hasWrapper = fs.existsSync(wrapperPath);
+  
+  // Check 2: Does the symlink exist and point to our wrapper?
+  let symlinkExists = false;
+  let symlinkValid = false;
+  let needsSudo = false;
+  
   try {
     const stat = fs.lstatSync(CLI_SYMLINK_PATH);
+    symlinkExists = true;
     if (stat.isSymbolicLink()) {
       const target = fs.readlinkSync(CLI_SYMLINK_PATH);
-      return { installed: true, path: CLI_SYMLINK_PATH, source: target };
+      // Check if symlink points to our wrapper or is at least a valid path
+      symlinkValid = fs.existsSync(target);
+      if (symlinkValid) {
+        return { installed: true, path: CLI_SYMLINK_PATH, source: target };
+      }
     }
-    return { installed: true, path: CLI_SYMLINK_PATH, source: CLI_SYMLINK_PATH };
-  } catch {
-    try {
-      const which = execSync("which kai", { encoding: "utf-8" }).trim();
-      if (which) return { installed: true, path: which, source: which };
-    } catch {}
-    return { installed: false, path: null, source };
+  } catch (err: any) {
+    if (err.code === "EACCES" || err.code === "EPERM") {
+      needsSudo = true;
+    }
+    // Symlink doesn't exist or can't be read
   }
+  
+  // Check 3: Try "which kai" as fallback
+  try {
+    const which = execSync("which kai", { encoding: "utf-8" }).trim();
+    if (which && which !== "/usr/local/bin/kai") {
+      // Found kai elsewhere in PATH
+      return { installed: true, path: which, source: which };
+    }
+  } catch {
+    // "which kai" failed - command not found
+  }
+  
+  // If we have a wrapper but no valid symlink, CLI is partially installed
+  if (hasWrapper && symlinkExists && !symlinkValid) {
+    // Broken symlink - needs sudo to fix
+    return { installed: false, path: null, source, needsSudo: true };
+  }
+  
+  return { installed: false, path: null, source, needsSudo };
 }
 
 export function registerSettingsRoutes(app: Hono) {
@@ -496,8 +528,33 @@ export function registerSettingsRoutes(app: Hono) {
       const wrapperDir = path.dirname(wrapperPath);
       fs.mkdirSync(wrapperDir, { recursive: true });
       fs.writeFileSync(wrapperPath, wrapper, { mode: 0o755 });
-      try { fs.unlinkSync(CLI_SYMLINK_PATH); } catch {}
-      fs.symlinkSync(wrapperPath, CLI_SYMLINK_PATH);
+      
+      // Try to remove existing symlink (might be broken or need sudo)
+      let needsSudo = false;
+      try { 
+        fs.unlinkSync(CLI_SYMLINK_PATH); 
+      } catch (err: any) {
+        if (err.code === "EACCES" || err.code === "EPERM") {
+          needsSudo = true;
+        }
+        // If it's a broken symlink, we might still be able to overwrite it
+        try {
+          fs.rmSync(CLI_SYMLINK_PATH, { force: true });
+        } catch {}
+      }
+      
+      try {
+        fs.symlinkSync(wrapperPath, CLI_SYMLINK_PATH);
+      } catch (err: any) {
+        if (err.code === "EACCES" || err.code === "EPERM" || needsSudo) {
+          return c.json({ 
+            error: "Permission denied. Try running: sudo ln -sf ~/.kai/bin/kai /usr/local/bin/kai", 
+            needsSudo: true 
+          }, 403);
+        }
+        throw err;
+      }
+      
       return c.json({ ok: true, path: CLI_SYMLINK_PATH });
     } catch (err: any) {
       if (err.code === "EACCES") {
