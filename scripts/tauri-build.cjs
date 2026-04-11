@@ -13,7 +13,7 @@ const { pipeline } = require('stream/promises');
 const ROOT = path.resolve(__dirname, '..');
 const RESOURCES = path.join(ROOT, 'src-tauri', 'resources');
 const NODE_CACHE = path.join(ROOT, 'src-tauri', '.node-cache');
-const NODE_VERSION = 'v24.5.0';  // Match system Node.js version
+const NODE_VERSION = 'v25.2.0';  // Match system Node.js version
 
 const PLATFORM = process.platform === 'win32' ? 'win' : 
                  process.platform === 'darwin' ? 'darwin' : 'linux';
@@ -111,7 +111,21 @@ async function main() {
   
   // Install production dependencies
   console.log('==> Installing production dependencies...');
-  execSync('npm install --omit=dev --ignore-scripts', { cwd: RESOURCES, stdio: 'inherit' });
+  try {
+    execSync('npm install --omit=dev --ignore-scripts', { cwd: RESOURCES, stdio: 'inherit' });
+    console.log('    ✓ npm install completed');
+  } catch (e) {
+    console.error('    ✗ npm install failed:', e.message);
+    process.exit(1);
+  }
+  
+  // Verify node_modules was created
+  const nodeModulesPath = path.join(RESOURCES, 'node_modules');
+  if (!fs.existsSync(nodeModulesPath)) {
+    console.error('    ✗ node_modules directory was not created after npm install');
+    process.exit(1);
+  }
+  console.log('    ✓ node_modules directory created');
   
   // Copy pre-compiled better-sqlite3 native binary (can't compile without headers)
   console.log('==> Copying better-sqlite3 native binary...');
