@@ -57,3 +57,9 @@ CONTEXT_AUDIT.md
 # Temp
 /tmp/
 *.tmp
+
+# NPM pack output
+*.tgz
+
+# Homebrew tap (generated separately)
+homebrew-kai/
