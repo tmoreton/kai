@@ -5,7 +5,7 @@ import { execSync } from "child_process";
 import { readUserConfig, saveUserConfig } from "../../config.js";
 import { listMcpServers, initMcpServers } from "../../tools/index.js";
 import { getLoadedSkills, getSkill, loadSkill, unloadSkill, reloadAllSkills, skillsDir } from "../../skills/index.js";
-import { installSkill, uninstallSkill } from "../../skills/installer.js";
+import { installSkill, uninstallSkill, updateSkill } from "../../skills/installer.js";
 
 const CLI_SYMLINK_PATH = "/usr/local/bin/kai";
 
@@ -110,6 +110,7 @@ export function registerSettingsRoutes(app: Hono) {
         author: s.manifest.author || "",
         tools: s.manifest.tools.map((t: any) => ({ name: t.name, description: t.description })),
         path: s.path,
+        source: s.source,
       })),
     });
   });
@@ -215,6 +216,19 @@ export function registerSettingsRoutes(app: Hono) {
     try {
       const result = await reloadAllSkills();
       return c.json({ loaded: result.loaded, errors: result.errors });
+    } catch (err: any) {
+      return c.json({ error: err.message }, 500);
+    }
+  });
+
+  app.post("/api/settings/skills/:id/update", async (c) => {
+    try {
+      const skillId = c.req.param("id");
+      const result = await updateSkill(skillId);
+      if (!result.updated) {
+        return c.json({ error: result.message }, 400);
+      }
+      return c.json({ ok: true, message: result.message });
     } catch (err: any) {
       return c.json({ error: err.message }, 500);
     }
@@ -340,6 +354,49 @@ export function registerSettingsRoutes(app: Hono) {
       fs.writeFileSync(path.join(skillPath, "handler.js"), handler, "utf-8");
       await loadSkill(skillPath);
       return c.json({ ok: true, id });
+    } catch (err: any) {
+      return c.json({ error: err.message }, 500);
+    }
+  });
+
+  // Create custom skill with full code
+  app.post("/api/settings/skills/custom", async (c) => {
+    try {
+      const { name, description, code } = await c.req.json();
+      if (!name || !name.trim()) return c.json({ error: "name is required" }, 400);
+      if (!code) return c.json({ error: "code is required" }, 400);
+      
+      // Generate ID from name (kebab-case)
+      const id = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+      if (!id) return c.json({ error: "name must contain letters or numbers" }, 400);
+      
+      const dir = skillsDir();
+      const skillPath = path.join(dir, id);
+      
+      // If skill exists, overwrite (allows updates)
+      const exists = fs.existsSync(skillPath);
+      if (!exists) {
+        fs.mkdirSync(skillPath, { recursive: true });
+      }
+      
+      // Parse code to extract tools
+      const manifest = `id: ${id}
+name: ${name}
+version: ${exists ? await getSkill(id).then(s => s?.manifest.version || "1.0.0") : "1.0.0"}
+description: ${description || ""}
+author: custom
+tools: []
+`;
+      fs.writeFileSync(path.join(skillPath, "skill.yaml"), manifest, "utf-8");
+      fs.writeFileSync(path.join(skillPath, "handler.js"), code, "utf-8");
+      
+      // Reload if skill was already loaded
+      if (exists) {
+        await unloadSkill(id);
+      }
+      await loadSkill(skillPath);
+      
+      return c.json({ ok: true, id, updated: exists });
     } catch (err: any) {
       return c.json({ error: err.message }, 500);
     }

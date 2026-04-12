@@ -227,6 +227,7 @@ export interface Skill {
   tools: SkillTool[];
   path: string;
   missingConfig?: string[];
+  source?: string;
 }
 
 export interface SkillTool {

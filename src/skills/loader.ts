@@ -248,12 +248,22 @@ export async function loadSkill(skillPath: string): Promise<LoadedSkill> {
     await handler.install(config);
   }
 
+  // Check for source tracking file
+  const sourcePath = path.join(skillPath, ".source");
+  let source: string | undefined;
+  try {
+    if (fs.existsSync(sourcePath)) {
+      source = fs.readFileSync(sourcePath, "utf-8").trim();
+    }
+  } catch {}
+
   const loaded: LoadedSkill = {
     manifest,
     handler,
     config,
     path: skillPath,
     loaded_at: Date.now(),
+    source,
   };
 
   skills.set(manifest.id, loaded);

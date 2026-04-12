@@ -730,6 +730,12 @@ export const settingsApi = {
     });
   },
 
+  updateSkill: (id: string): Promise<{ ok: boolean; message?: string }> => {
+    return fetchJson(`${API_BASE}/settings/skills/${id}/update`, {
+      method: 'POST',
+    });
+  },
+
   getSkill: (id: string): Promise<SkillDetail> => {
     return fetchJson(`${API_BASE}/settings/skills/${id}`);
   },

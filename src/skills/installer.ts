@@ -185,6 +185,9 @@ async function installKaiSkill(skillId: string, dir: string): Promise<string> {
 
                 // Copy skill to destination
                 fs.cpSync(skillPath, destPath, { recursive: true });
+                
+                // Track source for future updates
+                fs.writeFileSync(path.join(destPath, ".source"), `kai:${skillId}`, "utf-8");
 
                 // Copy lib directory for shared utilities (credentials, etc.)
                 const libSource = path.join(tempDir, libSubdir);
@@ -311,6 +314,9 @@ async function installFromGit(url: string, dir: string): Promise<string> {
         return;
       }
 
+      // Track source for future updates
+      fs.writeFileSync(path.join(destPath, ".source"), url, "utf-8");
+
       try {
         // Compile TypeScript if needed before loading
         await compileHandlerIfNeeded(destPath);
@@ -396,4 +402,78 @@ export async function uninstallSkill(skillId: string): Promise<void> {
   }
 
   throw new Error(`Skill "${skillId}" not found in ${dir}`);
+}
+
+/**
+ * Update a skill by re-installing from its source.
+ * Reads the .source file to determine where the skill came from,
+ * uninstalls the old version, and re-installs fresh.
+ */
+export async function updateSkill(skillId: string): Promise<{ updated: boolean; message: string }> {
+  const dir = skillsDir();
+  
+  // Find the skill directory
+  let skillPath: string | null = null;
+  let source: string | null = null;
+  
+  const entries = fs.readdirSync(dir, { withFileTypes: true });
+  for (const entry of entries) {
+    if (!entry.isDirectory() && !entry.isSymbolicLink()) continue;
+    const manifestPath = path.join(dir, entry.name, "skill.yaml");
+    const sourcePath = path.join(dir, entry.name, ".source");
+    
+    if (!fs.existsSync(manifestPath)) continue;
+    
+    try {
+      const YAML = await import("yaml");
+      const raw = fs.readFileSync(manifestPath, "utf-8");
+      const manifest = YAML.parse(raw);
+      
+      if (manifest.id === skillId) {
+        skillPath = path.join(dir, entry.name);
+        if (fs.existsSync(sourcePath)) {
+          source = fs.readFileSync(sourcePath, "utf-8").trim();
+        }
+        break;
+      }
+    } catch {
+      continue;
+    }
+  }
+  
+  if (!skillPath) {
+    return { updated: false, message: `Skill "${skillId}" not found` };
+  }
+  
+  if (!source) {
+    return { updated: false, message: `No source tracked for "${skillId}". Cannot auto-update.` };
+  }
+  
+  // Preserve any local config or env values if they exist
+  const envBackupPath = path.join(skillPath, ".env.local");
+  let envBackup: string | null = null;
+  if (fs.existsSync(envBackupPath)) {
+    envBackup = fs.readFileSync(envBackupPath, "utf-8");
+  }
+  
+  // Uninstall the old version
+  await uninstallSkill(skillId);
+  
+  // Re-install from source
+  try {
+    const newSkillId = await installSkill(source);
+    
+    // Restore env backup if it existed
+    if (envBackup) {
+      const newSkillPath = path.join(dir, newSkillId);
+      if (fs.existsSync(newSkillPath)) {
+        fs.writeFileSync(path.join(newSkillPath, ".env.local"), envBackup, "utf-8");
+      }
+    }
+    
+    return { updated: true, message: `Updated from ${source}` };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return { updated: false, message: `Update failed: ${msg}` };
+  }
 }

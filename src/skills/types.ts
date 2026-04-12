@@ -56,4 +56,5 @@ export interface LoadedSkill {
   config: Record<string, any>;
   path: string;
   loaded_at: number;
+  source?: string; // e.g., "kai:skill-id", "github:user/repo", "npm:@scope/name"
 }

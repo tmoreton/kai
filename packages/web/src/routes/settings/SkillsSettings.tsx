@@ -59,19 +59,42 @@ export const version = "1.0.0";`);
   });
 
   const reloadMutation = useMutation({
-    mutationFn: api.settings.reloadSkills,
+    mutationFn: async () => {
+      let updated = 0;
+      let skipped = 0;
+      let errors = 0;
+
+      for (const skill of settings.skills) {
+        if (skill.source) {
+          try {
+            const result = await api.settings.updateSkill(skill.id);
+            if (result.ok) updated++;
+            else errors++;
+          } catch (err) {
+            errors++;
+          }
+        } else {
+          skipped++;
+        }
+      }
+
+      // Also reload all skills from disk to catch any local changes
+      await api.settings.reloadSkills();
+
+      return { updated, skipped, errors };
+    },
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: settingsQueries.all() });
       queryClient.invalidateQueries({ queryKey: ['availableSkills'] });
-      if (result.errors.length > 0) {
-        toast.warning('Skills reloaded', `${result.loaded} loaded, ${result.errors.length} errors`);
+      if (result.errors > 0) {
+        toast.warning('Skills updated', `${result.updated} updated, ${result.skipped} unchanged, ${result.errors} failed`);
       } else {
-        toast.success('Skills reloaded', `${result.loaded} skills loaded successfully`);
+        toast.success('Skills updated', `${result.updated} updated, ${result.skipped} unchanged`);
       }
     },
     onError: (err) => {
-      const message = err instanceof Error ? err.message : 'Failed to reload skills';
-      toast.error('Reload failed', message);
+      const message = err instanceof Error ? err.message : 'Failed to update skills';
+      toast.error('Update failed', message);
     },
   });
 
@@ -246,13 +269,15 @@ export const version = "1.0.0";`);
         </div>
       )}
 
-      {/* Create Custom Skill Form */}
+      {/* Create/Edit Custom Skill Form */}
       {showCreateForm && (
         <div className="p-4 bg-kai-bg rounded-lg border border-border">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
               <Code2 className="w-5 h-5 text-primary" />
-              <h4 className="font-medium">Create Custom Skill</h4>
+              <h4 className="font-medium">
+                {settings.skills.find(s => s.name === skillName) ? 'Edit Custom Skill' : 'Create Custom Skill'}
+              </h4>
             </div>
             <button
               onClick={() => setShowCreateForm(false)}
@@ -476,6 +501,24 @@ export const version = "1.0.0";`);
                     </div>
                   )}
                 </div>
+                {/* Edit button for custom (local) skills */}
+                {!skill.source && (
+                  <button
+                    onClick={() => {
+                      // Load current code into editor
+                      api.settings.getSkill(skill.id).then(skillDetail => {
+                        setSkillName(skill.name);
+                        setSkillDescription(skill.description || '');
+                        setSkillCode(skillDetail.handler);
+                        setShowCreateForm(true);
+                      });
+                    }}
+                    className="p-2 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-lg transition-colors"
+                    title="Edit custom skill"
+                  >
+                    <Code2 className="w-4 h-4" />
+                  </button>
+                )}
                 <button
                   onClick={() => uninstallMutation.mutate(skill.id)}
                   disabled={uninstallMutation.isPending}
