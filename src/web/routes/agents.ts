@@ -281,14 +281,45 @@ export function registerAgentRoutes(app: Hono) {
     }
 
     try {
-      // Get available skills/tools for context
-      const loadedSkills = getLoadedSkills();
+      // Get available skills/tools for context with full tool definitions
+      const loadedSkills = getLoadedSkills() as Array<{
+        manifest: {
+          id: string;
+          name: string;
+          description?: string;
+          tools: Array<{
+            name: string;
+            description: string;
+            parameters?: Record<string, { type: string; description: string; required?: boolean }>;
+          }>;
+        };
+      }>;
+      
       const availableTools = loadedSkills.map(s => ({
         id: s.manifest.id,
         name: s.manifest.name,
         description: s.manifest.description || '',
-        tools: s.manifest.tools.map(t => t.name),
+        tools: s.manifest.tools.map(t => ({
+          name: t.name,
+          description: t.description,
+          parameters: t.parameters || {},
+        })),
       }));
+      
+      // Build detailed tool documentation for the prompt
+      const toolDocumentation = availableTools.map(s => {
+        const toolDetails = s.tools.map(t => {
+          const params = Object.entries(t.parameters || {});
+          const paramDesc = params.length > 0 
+            ? '\n      Parameters: ' + params.map(([name, p]) => {
+                const required = p.required ? '(required)' : '(optional)';
+                return `${name}: ${p.type} ${required} - ${p.description}`;
+              }).join(', ')
+            : '';
+          return `    - ${t.name}: ${t.description}${paramDesc}`;
+        }).join('\n');
+        return `- ${s.id} (${s.name}):\n${toolDetails}`;
+      }).join('\n\n');
 
       // Get available skill registry (skills that can be installed)
       const registrySkills = [
@@ -318,24 +349,26 @@ export function registerAgentRoutes(app: Hono) {
       // Build the system prompt for workflow generation
       const systemPrompt = `You are an expert AI agent designer. Your task is to convert natural language descriptions into structured AI agent workflows.
 
-AVAILABLE SKILLS (already installed):
-${availableTools.map(s => `- ${s.id}: ${s.name} (${s.tools.join(', ')})`).join('\n')}
+AVAILABLE SKILLS AND TOOLS (already installed):
+${toolDocumentation}
 
 AVAILABLE SKILLS (can be installed from registry):
 ${notInstalled.map(s => `- ${s.id}: ${s.name} - ${s.description}`).join('\n')}
 
 CRITICAL RULES for workflow steps:
-1. For "skill" type steps, you MUST include all required parameters:
-   - YouTube get_channel requires "channel_id" (the YouTube channel ID like "UC...")
-   - YouTube get_recent_uploads requires "channel_id"
-   - YouTube generate_channel_report requires "channel_id"
-   - If user says "my channel" or "own channel", use "mine" as channel_id for YouTube API
+1. For "skill" type steps, you MUST include all required parameters from the tool documentation above
+   - Look at the "Parameters: (required)" - these MUST be provided in the "params" object
+   - For YouTube skills, if user says "my channel" or "own channel", use "mine" as channel_id
    - Shell commands should be simple and safe (no rm -rf, destructive ops)
-   - Skill params go in a "params" object
 
-2. Check if existing installed skills can fulfill the need
-3. If a needed skill exists in the registry but isn't installed, suggest installing it
-4. If no existing or registry skill fits, design a new custom skill with tools/actions
+2. When creating skill steps:
+   - Set "skill" to the skill ID (e.g., "youtube", "data")
+   - Set "action" to the tool name (e.g., "get_recent_uploads", "read_json")
+   - Include ALL required parameters in the "params" object with actual values, not descriptions
+
+3. Check if existing installed skills can fulfill the need
+4. If a needed skill exists in the registry but isn't installed, suggest installing it
+5. If no existing or registry skill fits, design a new custom skill with tools/actions
 
 Generate a complete agent configuration with:
 1. A clear name for the agent

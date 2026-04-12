@@ -14,6 +14,7 @@ import {
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Textarea } from './ui/textarea';
+import { Badge } from './ui/Badge';
 import { cn } from '../lib/utils';
 import { toast } from './Toast';
 import type { WorkflowStep, StepType } from './WorkflowEditor';
@@ -195,7 +196,10 @@ export function WorkflowStepEditor({ steps, onChange }: WorkflowStepEditorProps)
               
               <div className="flex-1 min-w-0">
                 <div className="font-medium text-sm truncate">{step.name}</div>
-                <div className="text-xs text-muted-foreground capitalize">{step.type} step</div>
+                <div className="flex gap-1 mt-1">
+                  <Badge variant="secondary" className="text-xs">{step.type}</Badge>
+                  {step.skill && <Badge variant="outline" className="text-xs">{step.skill}</Badge>}
+                </div>
               </div>
 
               {hasErrors && (

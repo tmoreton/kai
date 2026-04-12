@@ -310,7 +310,11 @@ function AgentWorkflow({ agent }: { agent: Agent }) {
   );
 }
 
+import { WorkflowStepEditor } from '../components/WorkflowStepEditor';
+import type { WorkflowStep } from '../components/WorkflowEditor';
+
 function AgentWorkflowEditor({ agent }: { agent: Agent }) {
+  const [viewMode, setViewMode] = useState<'pretty' | 'yaml'>('pretty');
   const [yaml, setYaml] = useState(() => {
     const stepsYaml = agent.steps?.map((step) => {
       const lines = [`- name: ${step.name}`, `  type: ${step.type}`];
