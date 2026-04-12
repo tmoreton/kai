@@ -181,18 +181,6 @@ export function VpnSettings({ vpn, tailscale, onUpdate }: VpnSettingsProps) {
           />
         </div>
       </div>
-
-      {/* Info */}
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm">
-        <p className="text-blue-800">
-          <strong>About Tailscale integration:</strong> When enabled, Kai will automatically
-          detect if Tailscale is running and expose itself to your tailnet. No manual
-          configuration needed — just install Tailscale, log in, and Kai will do the rest.
-        </p>
-        <p className="text-blue-700 mt-2">
-          Install Tailscale: <a href="https://tailscale.com/download" target="_blank" rel="noopener" className="underline">tailscale.com/download</a>
-        </p>
-      </div>
     </div>
   );
 }

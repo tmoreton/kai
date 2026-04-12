@@ -138,7 +138,6 @@ export function MemorySettings() {
         <Info className="w-4 h-4 text-blue-500 mt-0.5 flex-shrink-0" />
         <p className="text-blue-700">
           All content is saved to <code className="font-mono text-xs bg-blue-100 px-1 py-0.5 rounded">{soulData?.path || "~/.kai/soul/identity.json"}</code>. 
-          This replaces the old context JSON files with simple plain text sections.
         </p>
       </div>
 

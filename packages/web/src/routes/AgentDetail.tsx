@@ -371,13 +371,76 @@ function AgentWorkflowEditor({ agent }: { agent: Agent }) {
     }
   };
 
+  // Convert agent steps to WorkflowStep format
+  const workflowSteps: WorkflowStep[] = agent.steps?.map((step, index) => ({
+    id: `step-${index}`,
+    name: step.name,
+    type: step.type as WorkflowStep['type'],
+    skill: step.skill,
+    tool: step.action,  // Map action to tool
+    prompt: step.prompt,
+    command: step.command,
+    parameters: step.params ? Object.fromEntries(
+      Object.entries(step.params).map(([k, v]) => [k, String(v)])
+    ) : undefined,
+  })) || [];
+
+  const handleStepsChange = (newSteps: WorkflowStep[]) => {
+    // Convert back to YAML format
+    const stepsYaml = newSteps.map((step) => {
+      const lines = [`- name: ${step.name}`, `  type: ${step.type}`];
+      if (step.skill) lines.push(`  skill: ${step.skill}`);
+      if (step.tool) lines.push(`  action: ${step.tool}`);  // Map tool to action
+      if (step.prompt) lines.push(`  prompt: |\n    ${step.prompt.replace(/\n/g, '\n    ')}`);
+      if (step.command) lines.push(`  command: ${step.command}`);
+      if (step.parameters && Object.keys(step.parameters).length > 0) {
+        lines.push(`  params:`);
+        Object.entries(step.parameters).forEach(([k, v]) => {
+          lines.push(`    ${k}: ${JSON.stringify(v)}`);
+        });
+      }
+      return lines.join('\n');
+    }).join('\n') || '';
+
+    setYaml(`name: "${agent.name.replace(/"/g, '\\"')}"\ndescription: "${(agent.description || '').replace(/"/g, '\\"')}"\nsteps:\n${stepsYaml}`);
+  };
+
   return (
     <div className="border rounded-lg overflow-hidden">
-      {/* Header with Edit/Save buttons */}
+      {/* Header with View Toggle and Edit/Save buttons */}
       <div className="flex items-center justify-between p-3 bg-muted border-b">
-        <span className="text-sm font-medium">
-          {isEditing ? 'Editing Workflow YAML' : 'Workflow YAML (read-only)'}
-        </span>
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium">
+            {isEditing ? 'Editing' : viewMode === 'pretty' ? 'Visual Editor' : 'YAML Editor'}
+          </span>
+          {/* View Mode Toggle */}
+          <div className="flex gap-1 bg-background rounded-lg p-0.5 ml-4">
+            <button
+              onClick={() => setViewMode('pretty')}
+              className={cn(
+                "px-2 py-1 text-xs font-medium rounded-md transition-colors",
+                viewMode === 'pretty' && !isEditing
+                  ? "bg-primary text-primary-foreground" 
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+              disabled={isEditing}
+            >
+              Visual
+            </button>
+            <button
+              onClick={() => setViewMode('yaml')}
+              className={cn(
+                "px-2 py-1 text-xs font-medium rounded-md transition-colors",
+                viewMode === 'yaml' && !isEditing
+                  ? "bg-primary text-primary-foreground" 
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+              disabled={isEditing}
+            >
+              YAML
+            </button>
+          </div>
+        </div>
         <div className="flex items-center gap-2">
           {isEditing ? (
             <>
@@ -444,8 +507,8 @@ function AgentWorkflowEditor({ agent }: { agent: Agent }) {
         </div>
       )}
 
-      {/* YAML content */}
-      {isEditing ? (
+      {/* Content - Visual Editor or YAML */}
+      {isEditing || viewMode === 'yaml' ? (
         <textarea
           value={yaml}
           onChange={(e) => setYaml(e.target.value)}
@@ -453,9 +516,9 @@ function AgentWorkflowEditor({ agent }: { agent: Agent }) {
           spellCheck={false}
         />
       ) : (
-        <pre className="p-4 text-sm bg-muted/50 overflow-x-auto">
-          <code className="text-foreground font-mono whitespace-pre">{yaml}</code>
-        </pre>
+        <div className="p-4">
+          <WorkflowStepEditor steps={workflowSteps} onChange={handleStepsChange} />
+        </div>
       )}
     </div>
   );
