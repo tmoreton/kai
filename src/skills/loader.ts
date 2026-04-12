@@ -172,6 +172,16 @@ export async function loadSkill(skillPath: string): Promise<LoadedSkill> {
   if (!manifest.name) throw new Error("Skill manifest must have a 'name' field");
   if (!manifest.version) manifest.version = "1.0.0";
   if (!manifest.tools) manifest.tools = [];
+  
+  // Normalize config_schema from array to object format for API consistency
+  if (manifest.config_schema && Array.isArray(manifest.config_schema)) {
+    const schemaObj: Record<string, any> = {};
+    for (const field of manifest.config_schema) {
+      const key = field.key || field.name || field.env;
+      if (key) schemaObj[key] = field;
+    }
+    manifest.config_schema = schemaObj;
+  }
 
   // Load handler module - support both .js (compiled) and .ts (source)
   const handlerJsPath = path.join(skillPath, "handler.js");

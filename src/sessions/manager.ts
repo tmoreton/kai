@@ -29,6 +29,8 @@ export interface Session {
   updatedAt: string;
   messages: ChatCompletionMessageParam[];
   type?: "chat" | "code" | "agent";
+  /** Links session to an agent for agent chat sessions */
+  agentId?: string;
   /** Links session to a persona for persistent agent chats */
   personaId?: string;
   /** Session tags for filtering/grouping */

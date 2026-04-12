@@ -112,6 +112,7 @@ export function registerSettingsRoutes(app: Hono) {
         path: s.path,
         // Infer source for legacy kai-skills installs (before .source tracking)
         source: s.source || (s.manifest.author === "Kai" ? `kai:${s.manifest.id}` : undefined),
+        configSchema: s.manifest.config_schema || {},
       })),
     });
   });
