@@ -35,9 +35,10 @@ export const actions = {
   const [expandedSkill, setExpandedSkill] = useState<string | null>(null);
 
   // Fetch available skills from registry
-  const { data: availableData, isLoading: isLoadingAvailable } = useSuspenseQuery({
+  const { data: availableData, isLoading: isLoadingAvailable, refetch: refetchAvailable } = useSuspenseQuery({
     queryKey: ['availableSkills'],
     queryFn: api.settings.getAvailableSkills,
+    staleTime: 30000, // 30 seconds
   });
 
   const installMutation = useMutation({
@@ -185,11 +186,19 @@ export const actions = {
             <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
               {availableSkills.length}
             </span>
+            <button
+              onClick={() => refetchAvailable()}
+              disabled={isLoadingAvailable}
+              className="ml-auto p-1 text-muted-foreground hover:text-foreground disabled:opacity-50"
+              title="Refresh available skills"
+            >
+              <RotateCcw className={cn("w-3 h-3", isLoadingAvailable && "animate-spin")} />
+            </button>
             <a 
               href="https://github.com/tmoreton/kai-skills" 
               target="_blank" 
               rel="noopener noreferrer"
-              className="ml-auto flex items-center gap-1 text-xs text-primary hover:underline"
+              className="flex items-center gap-1 text-xs text-primary hover:underline"
             >
               <ExternalLink className="w-3 h-3" />
               View Registry
