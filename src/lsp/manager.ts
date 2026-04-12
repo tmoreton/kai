@@ -3,6 +3,8 @@
  */
 
 import path from "path";
+import { fileURLToPath } from "url";
+import { createRequire } from "module";
 import { LSPClient } from "./client.js";
 import { SymbolIndex, fileToUri } from "./symbol-index.js";
 import type { SymbolInfo, Location, Position, SymbolQuery } from "./types.js";
@@ -16,19 +18,52 @@ interface LSPConnection {
   isReady: boolean;
 }
 
-// Language to LSP server mapping
+// Create require for ES modules
+const require = createRequire(import.meta.url);
+
+// Get the path to bundled LSP server binary
+function getBundledLSPPath(): string {
+  try {
+    // Use require.resolve to find the typescript-language-server package
+    const pkgPath = require.resolve("typescript-language-server/package.json");
+    const pkgDir = path.dirname(pkgPath);
+    
+    // The CLI is at lib/cli.mjs in the package
+    const cliPath = path.join(pkgDir, "lib", "cli.mjs");
+    return cliPath;
+  } catch {
+    // Fallback: try to find via node_modules/.bin
+    const currentFilePath = fileURLToPath(import.meta.url);
+    const currentDir = path.dirname(currentFilePath);
+    
+    // Try relative paths for dev and prod
+    const candidates = [
+      path.resolve(currentDir, "../../node_modules/.bin/typescript-language-server"),
+      path.resolve(currentDir, "../node_modules/.bin/typescript-language-server"),
+      path.resolve(process.cwd(), "node_modules/.bin/typescript-language-server"),
+    ];
+    
+    for (const candidate of candidates) {
+      return candidate;
+    }
+  }
+  
+  // Final fallback - use npx and hope it works
+  return "npx";
+}
+
+const BUNDLED_LSP_PATH = getBundledLSPPath();
+const IS_FALLBACK_NPX = BUNDLED_LSP_PATH === "npx";
+
+// Language to LSP server mapping - uses bundled binaries
 const LSP_SERVERS: Record<string, { command: string; args: string[] }> = {
   typescript: {
-    command: "npx",
-    args: ["typescript-language-server", "--stdio"],
+    command: IS_FALLBACK_NPX ? "npx" : process.execPath, // Use node to run the CLI
+    args: IS_FALLBACK_NPX ? ["typescript-language-server", "--stdio"] : [BUNDLED_LSP_PATH, "--stdio"],
   },
   javascript: {
-    command: "npx",
-    args: ["typescript-language-server", "--stdio"],
-  },
-  python: {
-    command: "pylsp",
-    args: [],
+    command: IS_FALLBACK_NPX ? "npx" : process.execPath,
+    args: IS_FALLBACK_NPX ? ["typescript-language-server", "--stdio"] : [BUNDLED_LSP_PATH, "--stdio"],
   },
 };
 
