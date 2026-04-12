@@ -634,4 +634,87 @@ export const toolDefinitions = [
       },
     },
   },
+  // === SKILL MANAGEMENT ===
+  {
+    type: "function" as const,
+    function: {
+      name: "skill_create",
+      description:
+        "Create a new custom skill (tool set) that the LLM can use. Skills are JavaScript/TypeScript modules that export tools. The skill will be saved locally and immediately available for use. Use this when the user asks for new capabilities that could be reused.",
+      parameters: {
+        type: "object",
+        properties: {
+          name: {
+            type: "string",
+            description: "Skill name (kebab-case, e.g. 'my-custom-tool')",
+          },
+          description: {
+            type: "string",
+            description: "What this skill does (shown in tool selector)",
+          },
+          code: {
+            type: "string",
+            description: "JavaScript/TypeScript code for the skill. Must export a 'tools' object with async functions. Each tool receives params and returns { result: string } or string. Example: export const tools = { myTool: async ({ param }) => { return { result: 'done' }; } };",
+          },
+        },
+        required: ["name", "description", "code"],
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "skill_list",
+      description:
+        "List all installed skills with their tools and sources. Use to check what skills are available before creating duplicates or to see tool names.",
+      parameters: {
+        type: "object",
+        properties: {},
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "skill_read",
+      description:
+        "Read the code of an installed skill. Use to inspect existing skill implementations before modifying them.",
+      parameters: {
+        type: "object",
+        properties: {
+          skill_id: {
+            type: "string",
+            description: "The skill ID to read (from skill_list output)",
+          },
+        },
+        required: ["skill_id"],
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "skill_update",
+      description:
+        "Update an existing custom skill with new code. Only works for custom skills (not ones installed from GitHub/npm). Use this to fix bugs or add features to skills you created.",
+      parameters: {
+        type: "object",
+        properties: {
+          skill_id: {
+            type: "string",
+            description: "The skill ID to update",
+          },
+          code: {
+            type: "string",
+            description: "New JavaScript/TypeScript code to replace the existing handler",
+          },
+          description: {
+            type: "string",
+            description: "Optional updated description",
+          },
+        },
+        required: ["skill_id", "code"],
+      },
+    },
+  },
 ];

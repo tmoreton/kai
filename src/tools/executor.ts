@@ -16,6 +16,9 @@ import { searchRecall } from "../recall.js";
 import { archivalInsert, archivalSearch } from "../archival.js";
 import { tryExecuteMcpTool } from "./mcp.js";
 import { tryExecuteSkillTool } from "../skills/executor.js";
+import { skillsDir, loadSkill, unloadSkill, getLoadedSkills, getSkill } from "../skills/loader.js";
+import fs from "fs";
+import path from "path";
 import { validateToolArgs } from "./validation.js";
 import { isToolAllowedInPlanMode, isPlanMode } from "../plan-mode.js";
 import { takeScreenshot } from "./screenshot.js";
@@ -373,6 +376,64 @@ export async function executeTool(
         return await takeScreenshot(toolArgs as { region?: "full" | "window" | "selection" });
       case "analyze_image":
         return await analyzeImage(toolArgs as { image_path: string; question?: string });
+      // Skill management tools
+      case "skill_create": {
+        const { name, description, code } = toolArgs as { name: string; description: string; code: string };
+        const id = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+        const dir = skillsDir();
+        const skillPath = path.join(dir, id);
+        
+        if (fs.existsSync(skillPath)) {
+          return `Skill "${id}" already exists. Use skill_update to modify it.`;
+        }
+        
+        fs.mkdirSync(skillPath, { recursive: true });
+        const manifest = `id: ${id}\nname: ${name}\nversion: 1.0.0\ndescription: ${description || ""}\nauthor: llm\ntools: []\n`;
+        fs.writeFileSync(path.join(skillPath, "skill.yaml"), manifest, "utf-8");
+        fs.writeFileSync(path.join(skillPath, "handler.js"), code, "utf-8");
+        
+        await loadSkill(skillPath);
+        return `Created skill "${name}" (${id}) with ${code.split('\\n').length} lines of code. Available immediately.`;
+      }
+      case "skill_list": {
+        const skills = getLoadedSkills();
+        if (skills.length === 0) return "No skills installed.";
+        return skills.map(s => {
+          const toolCount = s.manifest.tools?.length || 0;
+          const source = s.source ? ` [source: ${s.source}]` : " [custom]";
+          return `• **${s.manifest.name}** (${s.manifest.id})${source}\n  ${s.manifest.description || "No description"}\n  ${toolCount} tools`;
+        }).join("\\n\\n");
+      }
+      case "skill_read": {
+        const { skill_id } = toolArgs as { skill_id: string };
+        const skill = getSkill(skill_id);
+        if (!skill) return `Skill "${skill_id}" not found.`;
+        
+        const handlerPath = path.join(skill.path, "handler.js");
+        const code = fs.existsSync(handlerPath) ? fs.readFileSync(handlerPath, "utf-8") : "// No handler.js found";
+        return `## ${skill.manifest.name} (${skill_id})\\n\\n${code}`;
+      }
+      case "skill_update": {
+        const { skill_id, code, description } = toolArgs as { skill_id: string; code: string; description?: string };
+        const skill = getSkill(skill_id);
+        if (!skill) return `Skill "${skill_id}" not found.`;
+        if (skill.source) return `Cannot update "${skill_id}" - it was installed from ${skill.source}. Use skill_create to make a new skill.`;
+        
+        const handlerPath = path.join(skill.path, "handler.js");
+        fs.writeFileSync(handlerPath, code, "utf-8");
+        
+        if (description) {
+          const manifestPath = path.join(skill.path, "skill.yaml");
+          const YAML = await import("yaml");
+          const manifest = YAML.parse(fs.readFileSync(manifestPath, "utf-8"));
+          manifest.description = description;
+          fs.writeFileSync(manifestPath, YAML.stringify(manifest), "utf-8");
+        }
+        
+        await unloadSkill(skill_id);
+        await loadSkill(skill.path);
+        return `Updated skill "${skill_id}". Changes are live immediately.`;
+      }
       default: {
         const mcpResult = await tryExecuteMcpTool(toolName, toolArgs);
         if (mcpResult !== null) return mcpResult;
