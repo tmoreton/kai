@@ -265,6 +265,7 @@ async function chatForWeb(
     }
 
     let content = "";
+    let finishReason: string | null = null;
     const toolCallMap = new Map<number, {
       id: string;
       function: { name: string; arguments: string };
@@ -272,6 +273,12 @@ async function chatForWeb(
     try {
       for await (const chunk of stream) {
         if (signal?.aborted) break;
+
+        // Capture finish_reason to detect truncation
+        const choice = chunk.choices?.[0];
+        if (choice?.finish_reason) {
+          finishReason = choice.finish_reason;
+        }
 
         const delta = chunk.choices[0]?.delta;
         if (!delta) continue;
@@ -327,6 +334,18 @@ async function chatForWeb(
     }
 
     await emit("thinking", { active: false });
+
+    // Detect truncation due to max_tokens limit (finish_reason: length)
+    if (finishReason === "length" && toolCalls.length === 0) {
+      await emit("status", { message: "Response was truncated. Continuing..." });
+      updatedMessages.push({ role: "assistant", content });
+      updatedMessages.push({
+        role: "user",
+        content: "[SYSTEM: Your previous response was cut off due to length. Continue from where you left off without repeating what you already said.]",
+      });
+      turns++;
+      continue;
+    }
 
     const hasQuestion = content.trim() && /\?\s*$/.test(content.trim());
     if (hasQuestion && toolCalls.length > 0) {

@@ -109,6 +109,7 @@ Only pause for user input on genuine design decisions where the tradeoffs aren't
 - Minimize emoji use. Use plain text headers and bullet points instead of emoji-heavy formatting.
 - Use markdown sparingly — short paragraphs, code blocks for code, and bullet lists for structure.
 - Keep responses focused and scannable. Prefer flat lists over deeply nested structures.
+- **Always complete your thoughts and sentences.** Never stop mid-sentence or mid-paragraph. If you have more to say, say it. If you're listing items, finish the list. Don't leave outputs dangling or incomplete.
 
 ## File Read Optimization
 - Keep track of files you've already read in this conversation.

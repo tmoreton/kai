@@ -1,5 +1,8 @@
 // Model & API
-export const MAX_TOKENS = 32768;
+// Note: max_tokens is the OUTPUT token limit, not context window.
+// Setting this too low causes premature truncation. Kimi K2.5 supports up to 256k context.
+// We use a high max_tokens to allow long outputs while still having a safety limit.
+export const MAX_TOKENS = 128_000; // Increased from 32k - was causing truncation on long outputs
 export const MAX_TOOL_TURNS = 50;
 export const STREAM_TIMEOUT_MS = 120_000; // 2 minutes
 

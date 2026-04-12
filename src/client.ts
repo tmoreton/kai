@@ -384,9 +384,17 @@ export async function chat(
     let lastInputTokens = 0;
     let lastOutputTokens = 0;
 
+    let finishReason: string | null = null;
+
     try {
       for await (const chunk of stream) {
         if (options?.signal?.aborted) break;
+
+        // Capture finish_reason - indicates why generation stopped (stop, length, content_filter)
+        const choice = chunk.choices?.[0];
+        if (choice?.finish_reason) {
+          finishReason = choice.finish_reason;
+        }
 
         // Capture real token usage from the final stream chunk (only record deltas)
         if (chunk.usage && options?.onUsage) {
@@ -477,6 +485,20 @@ export async function chat(
 
     // Collect accumulated tool calls from the index map
     const toolCalls = Array.from(toolCallMap.values());
+
+    // Detect truncation due to max_tokens limit
+    if (finishReason === "length" || (content && content.length > 0 && !content.trim().endsWith(".") && !content.trim().endsWith("?") && !content.trim().endsWith("!") && !content.trim().endsWith("```") && toolCalls.length === 0)) {
+      // Output was likely truncated - add a system nudge to continue
+      console.log(chalk.yellow("\n  ⚠️  Output may have been truncated. Adding continuation prompt...\n"));
+      updatedMessages.push({ role: "assistant", content });
+      updatedMessages.push({
+        role: "user",
+        content: "[SYSTEM: Your previous response appears to have been cut off mid-generation. Please continue from where you left off and complete your thought. Do not repeat what you've already said - just continue.]",
+      });
+      // Continue the loop to generate more
+      turns++;
+      continue;
+    }
 
     // Rescue leaked tool calls from content OR reasoning text
     const allText = content + "\n" + reasoning;
