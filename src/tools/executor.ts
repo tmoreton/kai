@@ -391,9 +391,10 @@ export async function executeTool(
         const manifest = `id: ${id}\nname: ${name}\nversion: 1.0.0\ndescription: ${description || ""}\nauthor: llm\ntools: []\n`;
         fs.writeFileSync(path.join(skillPath, "skill.yaml"), manifest, "utf-8");
         fs.writeFileSync(path.join(skillPath, "handler.js"), code, "utf-8");
+        // Mark as local skill (no .source = not updatable from external source)
         
         await loadSkill(skillPath);
-        return `Created skill "${name}" (${id}) with ${code.split('\\n').length} lines of code. Available immediately.`;
+        return `Created skill "${name}" (${id}) with ${code.split('\n').length} lines of code. Available immediately.`;
       }
       case "skill_list": {
         const skills = getLoadedSkills();

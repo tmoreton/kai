@@ -62,16 +62,20 @@ export const actions = {
       let errors = 0;
 
       for (const skill of settings.skills) {
-        if (skill.source) {
-          try {
-            const result = await api.settings.updateSkill(skill.id);
-            if (result.ok) updated++;
-            else errors++;
-          } catch (err) {
-            errors++;
+        // Try to update all skills - backend will handle source detection
+        try {
+          const result = await api.settings.updateSkill(skill.id);
+          if (result.ok) updated++;
+          else {
+            // If update failed but skill has no source, count as skipped not error
+            if (!skill.source && result.message?.includes('No source')) {
+              skipped++;
+            } else {
+              errors++;
+            }
           }
-        } else {
-          skipped++;
+        } catch (err) {
+          errors++;
         }
       }
 

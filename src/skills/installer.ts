@@ -433,6 +433,9 @@ export async function updateSkill(skillId: string): Promise<{ updated: boolean; 
         skillPath = path.join(dir, entry.name);
         if (fs.existsSync(sourcePath)) {
           source = fs.readFileSync(sourcePath, "utf-8").trim();
+        } else {
+          // Legacy skill - try kai-skills registry as fallback
+          source = `kai:${skillId}`;
         }
         break;
       }
@@ -459,19 +462,72 @@ export async function updateSkill(skillId: string): Promise<{ updated: boolean; 
   // Uninstall the old version
   await uninstallSkill(skillId);
   
-  // Re-install from source
+  // Re-install from source using HTTP fetch (more reliable than git clone)
   try {
-    const newSkillId = await installSkill(source);
-    
-    // Restore env backup if it existed
-    if (envBackup) {
-      const newSkillPath = path.join(dir, newSkillId);
-      if (fs.existsSync(newSkillPath)) {
-        fs.writeFileSync(path.join(newSkillPath, ".env.local"), envBackup, "utf-8");
+    if (source.startsWith('kai:')) {
+      // Fetch directly from raw.githubusercontent.com
+      const skillId = source.replace('kai:', '');
+      const baseUrl = 'https://raw.githubusercontent.com/tmoreton/kai-skills/main/skills';
+      
+      const yamlUrl = `${baseUrl}/${skillId}/skill.yaml`;
+      const handlerUrl = `${baseUrl}/${skillId}/handler.js`;
+      
+      // Fetch skill.yaml
+      const yamlResponse = await fetch(yamlUrl);
+      if (!yamlResponse.ok) {
+        throw new Error(`Failed to fetch skill.yaml: ${yamlResponse.statusText}`);
       }
+      const yamlContent = await yamlResponse.text();
+      
+      // Parse manifest to get ID
+      const YAML = await import('yaml');
+      const manifest = YAML.parse(yamlContent);
+      const newSkillId = manifest.id || skillId;
+      const newSkillPath = path.join(dir, newSkillId);
+      
+      // Create directory
+      fs.mkdirSync(newSkillPath, { recursive: true });
+      
+      // Write skill.yaml
+      fs.writeFileSync(path.join(newSkillPath, 'skill.yaml'), yamlContent, 'utf-8');
+      
+      // Fetch and write handler.js (if exists)
+      try {
+        const handlerResponse = await fetch(handlerUrl);
+        if (handlerResponse.ok) {
+          const handlerContent = await handlerResponse.text();
+          fs.writeFileSync(path.join(newSkillPath, 'handler.js'), handlerContent, 'utf-8');
+        }
+      } catch {
+        // Handler is optional for some skills
+      }
+      
+      // Track source
+      fs.writeFileSync(path.join(newSkillPath, '.source'), source, 'utf-8');
+      
+      // Restore env backup if it existed
+      if (envBackup) {
+        fs.writeFileSync(path.join(newSkillPath, '.env.local'), envBackup, 'utf-8');
+      }
+      
+      // Load the updated skill
+      await loadSkill(newSkillPath);
+      
+      return { updated: true, message: `Updated from ${source}` };
+    } else {
+      // Fall back to installSkill for other sources (git, npm)
+      const newSkillId = await installSkill(source);
+      
+      // Restore env backup if it existed
+      if (envBackup) {
+        const newSkillPath = path.join(dir, newSkillId);
+        if (fs.existsSync(newSkillPath)) {
+          fs.writeFileSync(path.join(newSkillPath, '.env.local'), envBackup, 'utf-8');
+        }
+      }
+      
+      return { updated: true, message: `Updated from ${source}` };
     }
-    
-    return { updated: true, message: `Updated from ${source}` };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     return { updated: false, message: `Update failed: ${msg}` };
