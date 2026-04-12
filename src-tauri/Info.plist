@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- Microphone permission description -->
+    <key>NSMicrophoneUsageDescription</key>
+    <string>Kai needs microphone access to transcribe your voice into text for chat input.</string>
+    
+    <!-- Speech recognition permission -->
+    <key>NSSpeechRecognitionUsageDescription</key>
+    <string>Kai uses speech recognition to convert your voice into text.</string>
+</dict>
+</plist>

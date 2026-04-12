@@ -67,10 +67,19 @@ export function useAudioRecorder(): AudioRecorderState & AudioRecorderActions {
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : String(err);
       
+      // Check if running in Tauri
+      const isTauri = typeof window !== 'undefined' && !!(window as any).__TAURI__;
+      
       if (errorMsg.includes('Permission denied') || errorMsg.includes('NotAllowedError')) {
-        setError('Microphone permission denied. On macOS, go to System Settings > Privacy & Security > Microphone and enable access for Kai.');
+        if (isTauri) {
+          setError('Microphone permission denied. Please go to System Settings > Privacy & Security > Microphone and enable access for Kai.app, then restart the app.');
+        } else {
+          setError('Microphone permission denied. Please allow microphone access in your browser settings.');
+        }
       } else if (errorMsg.includes('NotFoundError') || errorMsg.includes('DevicesNotFoundError')) {
         setError('No microphone found. Please connect a microphone.');
+      } else if (errorMsg.includes('NotReadableError') || errorMsg.includes('TrackStartError')) {
+        setError('Microphone is in use by another application. Please close other apps and try again.');
       } else {
         setError(`Microphone error: ${errorMsg}`);
       }
