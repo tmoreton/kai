@@ -24,17 +24,14 @@ export function SkillsSettings() {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [skillName, setSkillName] = useState("");
   const [skillDescription, setSkillDescription] = useState("");
-  const [skillCode, setSkillCode] = useState(`// Define your skill tools here
-// Example: A simple greeting tool
+  const [skillCode, setSkillCode] = useState(`// Define your skill actions here
+// Each action is an async function that receives params and config
 
-export const tools = {
-  greet: async ({ name }: { name: string }) => {
-    return { message: \`Hello, \${name}!\` };
+export const actions = {
+  greet: async ({ name }: { name: string }, config: Record<string, any>) => {
+    return { result: \`Hello, \${name}!\` };
   },
-};
-
-export const description = "A simple greeting skill";
-export const version = "1.0.0";`);
+};`);
   const [expandedSkill, setExpandedSkill] = useState<string | null>(null);
 
   // Fetch available skills from registry

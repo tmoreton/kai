@@ -110,7 +110,8 @@ export function registerSettingsRoutes(app: Hono) {
         author: s.manifest.author || "",
         tools: s.manifest.tools.map((t: any) => ({ name: t.name, description: t.description })),
         path: s.path,
-        source: s.source,
+        // Infer source for legacy kai-skills installs (before .source tracking)
+        source: s.source || (s.manifest.author === "Kai" ? `kai:${s.manifest.id}` : undefined),
       })),
     });
   });
