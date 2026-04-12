@@ -380,9 +380,11 @@ export function registerSettingsRoutes(app: Hono) {
       }
       
       // Parse code to extract tools
+      const existingSkill = exists ? getSkill(id) : undefined;
+      const version = existingSkill?.manifest.version || "1.0.0";
       const manifest = `id: ${id}
 name: ${name}
-version: ${exists ? await getSkill(id).then(s => s?.manifest.version || "1.0.0") : "1.0.0"}
+version: ${version}
 description: ${description || ""}
 author: custom
 tools: []
