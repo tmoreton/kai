@@ -136,7 +136,8 @@ export async function loadAllSkills(): Promise<void> {
   const apiKeySkills: { id: string; envKey: string }[] = [
     { id: "openrouter", envKey: "OPENROUTER_API_KEY" },
     { id: "youtube", envKey: "YOUTUBE_API_KEY" },
-    { id: "twitter", envKey: "X_API_KEY" },
+    { id: "twitter", envKey: "X_CLIENT_ID" },
+    { id: "reddit", envKey: "REDDIT_CLIENT_ID" },
   ];
 
   for (const { id, envKey } of apiKeySkills) {
