@@ -40,11 +40,12 @@ import { getAgent } from "../../agents-core/db.js";
 // Active abort controllers for cancellation
 const activeStreams = new Map<string, AbortController>();
 
-function createNewSession(): Session {
+function createNewSession(agentId: string): Session {
   return {
     id: generateSessionId(),
     cwd: getCwd(),
-    type: "chat",
+    type: "agent",
+    agentId,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     messages: [{ role: "system", content: "" }], // Will be set based on agent
@@ -138,14 +139,14 @@ export function registerAgentChatRoutes(app: Hono) {
           content: await buildAgentSystemPrompt(agentId)
         };
       } else {
-        session = createNewSession();
+        session = createNewSession(agentId);
         session.messages[0] = { 
           role: "system", 
           content: await buildAgentSystemPrompt(agentId)
         };
       }
     } else {
-      session = createNewSession();
+      session = createNewSession(agentId);
       session.messages[0] = { 
         role: "system", 
         content: await buildAgentSystemPrompt(agentId)
