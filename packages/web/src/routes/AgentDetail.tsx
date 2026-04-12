@@ -27,10 +27,10 @@ import { NetworkError, TimeoutError } from '../api/client';
 import { cn } from '../lib/utils';
 import { toast } from '../components/Toast';
 import { Button } from '../components/ui/button';
-import { Input } from '../components/ui/input';
 import type { Agent, ErrorState, AgentStep } from '../types/api';
 import { AgentChat } from '../components/AgentChat';
 import * as YAML from 'js-yaml';
+import { SchedulePicker } from './AgentEditor';
 
 export function AgentDetail() {
   const { agentId } = useParams<{ agentId: string }>();
@@ -371,19 +371,28 @@ function AgentWorkflowEditor({ agent }: { agent: Agent }) {
     }
   };
 
-  // Convert agent steps to WorkflowStep format
-  const workflowSteps: WorkflowStep[] = agent.steps?.map((step, index) => ({
-    id: `step-${index}`,
-    name: step.name,
-    type: step.type as WorkflowStep['type'],
-    skill: step.skill,
-    tool: step.action,  // Map action to tool
-    prompt: step.prompt,
-    command: step.command,
-    parameters: step.params ? Object.fromEntries(
-      Object.entries(step.params).map(([k, v]) => [k, String(v)])
-    ) : undefined,
-  })) || [];
+  // Parse workflow steps from YAML (so edits show immediately)
+  const workflowSteps: WorkflowStep[] = (() => {
+    try {
+      const parsed = YAML.load(yaml) as any;
+      if (!parsed?.steps || !Array.isArray(parsed.steps)) return [];
+      
+      return parsed.steps.map((step: any, index: number) => ({
+        id: `step-${index}`,
+        name: step.name || `Step ${index + 1}`,
+        type: (step.type || 'llm') as WorkflowStep['type'],
+        skill: step.skill,
+        tool: step.action || step.tool,  // Support both action and tool
+        prompt: step.prompt,
+        command: step.command,
+        parameters: step.params || step.parameters,
+        message: step.message,
+        channel: step.channel,
+      }));
+    } catch {
+      return [];
+    }
+  })();
 
   const handleStepsChange = (newSteps: WorkflowStep[]) => {
     // Convert back to YAML format
@@ -833,20 +842,12 @@ function AgentSettings({ agent }: { agent: Agent }) {
   return (
     <div className="space-y-6">
       {/* Schedule */}
-      <div className="space-y-2">
+      <div className="space-y-3">
         <label className="text-sm font-medium flex items-center gap-2">
           <Clock className="w-4 h-4" />
           Schedule
         </label>
-        <Input
-          value={schedule}
-          onChange={(e) => setSchedule(e.target.value)}
-          placeholder="e.g., 0 9 * * * (cron) or daily at 9am"
-          className="font-mono text-sm"
-        />
-        <p className="text-xs text-muted-foreground">
-          Cron expression or natural language (e.g., "daily at 9am", "every 30 minutes")
-        </p>
+        <SchedulePicker value={schedule} onChange={setSchedule} />
       </div>
 
       {/* Agent Info */}

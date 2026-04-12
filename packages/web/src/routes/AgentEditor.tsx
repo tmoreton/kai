@@ -91,7 +91,7 @@ const SCHEDULE_OPTIONS = [
   { label: 'Monthly (1st)', value: '0 9 1 * *', description: 'Monthly report' },
 ];
 
-function SchedulePicker({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+export function SchedulePicker({ value, onChange }: { value: string; onChange: (value: string) => void }) {
   const [customMode, setCustomMode] = useState(false);
 
   // Check if current value matches a preset
@@ -331,10 +331,24 @@ export function AgentEditor() {
         throw new Error(result.error);
       }
       
+      // Map API response fields (action → tool, params → parameters)
+      const mappedSteps = result.steps?.map((s: any, i: number) => ({
+        id: `step-${i}`,
+        type: s.type || 'llm',
+        name: s.name || `Step ${i + 1}`,
+        skill: s.skill,
+        tool: s.action || s.tool,  // Map action to tool
+        prompt: s.prompt,
+        command: s.command,
+        parameters: s.params || s.parameters,  // Map params to parameters
+        message: s.message,
+        channel: s.channel,
+      })) || [];
+      
       setGeneratedWorkflow({
         name: result.name,
         description: result.description,
-        steps: result.steps,
+        steps: mappedSteps,
         yaml: result.yaml,
         suggestedTools: result.suggestedTools || [],
         goals: result.goals,
@@ -630,11 +644,24 @@ export function AgentEditor() {
                                 if (!Array.isArray(parsed.steps)) {
                                   throw new Error('YAML must have a "steps" array');
                                 }
+                                // Map YAML fields to WorkflowStep format (action → tool, params → parameters)
+                                const mappedSteps = (parsed.steps as any[]).map((s: any, i: number) => ({
+                                  id: `step-${i}`,
+                                  type: s.type || 'llm',
+                                  name: s.name || `Step ${i + 1}`,
+                                  skill: s.skill,
+                                  tool: s.action || s.tool,  // Map action to tool
+                                  prompt: s.prompt,
+                                  command: s.command,
+                                  parameters: s.params || s.parameters,  // Map params to parameters
+                                  message: s.message,
+                                  channel: s.channel,
+                                })) as WorkflowStep[];
                                 // Update the workflow with validated YAML
                                 setGeneratedWorkflow({
                                   ...generatedWorkflow,
                                   yaml: editedYaml,
-                                  steps: parsed.steps as WorkflowStep[],
+                                  steps: mappedSteps,
                                 });
                                 setYamlError(null);
                                 toast.success('YAML updated successfully');
